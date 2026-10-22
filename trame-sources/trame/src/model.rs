@@ -1,0 +1,145 @@
+//! Entrées / sorties JSON du moteur.
+
+use serde::{Deserialize, Serialize};
+
+pub type P2 = [f64; 2];
+
+#[derive(Deserialize, Clone)]
+pub struct Site {
+    /// Limite de parcelle, en mètres (sens quelconque).
+    pub parcel: Vec<P2>,
+    /// Recul par arête : `setbacks[i]` s'applique à l'arête parcel[i] → parcel[i+1].
+    #[serde(default)]
+    pub setbacks: Vec<f64>,
+    /// Servitudes, zones inondables, emprises interdites.
+    #[serde(default)]
+    pub exclusions: Vec<Vec<P2>>,
+    #[serde(default)]
+    pub buildings: Vec<Building>,
+    /// Espaces verts imposés.
+    #[serde(default)]
+    pub landscapes: Vec<Vec<P2>>,
+    /// Accès véhicules sur la limite de parcelle.
+    #[serde(default)]
+    pub entries: Vec<Entry>,
+    #[serde(default)]
+    pub params: Params,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct Building {
+    pub poly: Vec<P2>,
+    /// Entrée principale (sert au placement des places PMR).
+    #[serde(default)]
+    pub entrance: Option<P2>,
+}
+
+#[derive(Deserialize, Clone, Copy)]
+pub struct Entry {
+    pub edge: usize,
+    pub t: f64,
+}
+
+#[derive(Deserialize, Clone)]
+#[serde(default)]
+pub struct Params {
+    /// Largeur d'une place standard (m).
+    pub stall_w: f64,
+    /// Longueur d'une place (m).
+    pub stall_d: f64,
+    /// Largeur d'allée double sens (m).
+    pub aisle: f64,
+    /// Part de places adaptées PMR.
+    pub pmr_ratio: f64,
+    /// Largeur d'une place PMR (m).
+    pub pmr_w: f64,
+    /// Part de places pré-équipées IRVE.
+    pub irve_ratio: f64,
+    /// Un îlot planté toutes les N places (0 = aucun).
+    pub planter_every: u32,
+    /// Longueur des îlots d'extrémité de rangée (m, 0 = aucun).
+    pub cap: f64,
+    /// Longueur maximale d'une rangée avant allée transversale (m, 0 = illimitée).
+    pub max_run: f64,
+    /// Trottoir autour des bâtiments (m).
+    pub building_margin: f64,
+    /// Places périphériques le long des limites.
+    pub perimeter: bool,
+    /// Orientation imposée des rangées intérieures (degrés). Absente = optimisée.
+    pub angle: Option<f64>,
+    /// Décalage imposé de la trame (m). Absent = optimisé.
+    pub phase: Option<f64>,
+    /// Recherche réduite autour de `angle_hint` (pendant un glisser).
+    pub quick: bool,
+    pub angle_hint: Option<f64>,
+}
+
+impl Default for Params {
+    fn default() -> Self {
+        Params {
+            stall_w: 2.5,
+            stall_d: 5.0,
+            aisle: 6.0,
+            pmr_ratio: 0.02,
+            pmr_w: 3.3,
+            irve_ratio: 0.2,
+            planter_every: 8,
+            cap: 1.5,
+            max_run: 60.0,
+            building_margin: 2.0,
+            perimeter: true,
+            angle: None,
+            phase: None,
+            quick: false,
+            angle_hint: None,
+        }
+    }
+}
+
+/// Type de place : 0 standard, 1 PMR, 2 IRVE, 3 PMR + IRVE.
+#[derive(Serialize, Clone)]
+pub struct StallOut {
+    pub q: [P2; 4],
+    pub k: u8,
+}
+
+#[derive(Serialize, Default)]
+pub struct Metrics {
+    pub parcel_area: f64,
+    pub buildable_area: f64,
+    pub paved_area: f64,
+    pub green_area: f64,
+    pub stalls: usize,
+    pub standard: usize,
+    pub pmr: usize,
+    pub pmr_required: usize,
+    pub irve: usize,
+    pub irve_required: usize,
+    pub trees: usize,
+    pub perimeter_stalls: usize,
+    pub interior_stalls: usize,
+    pub removed_unreachable: usize,
+    pub m2_paved_per_stall: f64,
+    pub m2_parcel_per_stall: f64,
+}
+
+#[derive(Serialize, Default)]
+pub struct Layout {
+    /// Limite de recul (anneaux).
+    pub setback_line: Vec<Vec<P2>>,
+    /// Voirie : anneau de circulation et allées (anneaux pair-impair).
+    pub paved: Vec<Vec<P2>>,
+    /// Fonds de rangées (enrobé sous les places).
+    pub pads: Vec<[P2; 4]>,
+    pub stalls: Vec<StallOut>,
+    pub islands: Vec<[P2; 4]>,
+    pub trees: Vec<P2>,
+    pub entries: Vec<[P2; 4]>,
+    pub cross: Vec<[P2; 4]>,
+    pub entrances: Vec<P2>,
+    pub metrics: Metrics,
+    pub angle: f64,
+    pub phase: f64,
+    pub evals: u32,
+    pub warnings: Vec<String>,
+}
