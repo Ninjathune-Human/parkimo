@@ -1,0 +1,71 @@
+# Trame
+
+![Trame, étude de capacité de stationnement](docs/banniere.png)
+
+Étude de capacité de stationnement en temps réel, dans l'esprit de TestFit, adaptée aux règles françaises.
+Moteur en Rust compilé en WebAssembly, interface en un seul fichier `index.html` (PC, iPad, iPhone, tactile et stylet).
+
+## Ce que fait le moteur
+
+Un pipeline unique, rejoué à chaque mouvement de poignée :
+
+1. **Parcelle et reculs par limite** : chaque arête a son propre recul (`setbacks[i]`), calculé comme ensemble des points à moins de *s<sub>i</sub>* de l'arête.
+2. **Obstacles** : servitudes, bâtiments (avec trottoir), espaces verts imposés sont soustraits. Résultat : la zone stationnable **B**.
+3. **Places en bordure** : on longe chaque bord de B, droit ou courbe, en posant des places perpendiculaires au bord local. Les angles saillants sont dégagés par une longueur calculée (`d·cot(β/2)` et zone de manœuvre pour les angles aigus).
+4. **Anneau de circulation** : B érodée de la profondeur de place.
+5. **Rangées doubles au cœur** : B érodée de (place + allée), remplie de rangées dos à dos. L'optimiseur teste l'orientation (directions des limites et balayage tous les 3°) et le décalage de la trame (pas de 0,25 m), puis affine autour des meilleures solutions : environ 4 000 à 5 000 variantes par calcul.
+6. **Découpe exacte** : îlots plantés répartis régulièrement et alignés sur les deux demi-rangées, îlots d'extrémité, allées transversales au-delà de la longueur maximale.
+7. **Accès et connectivité** : rasterisation de la voirie à 0,5 m et propagation depuis les accès ; toute place sans accès est retirée et signalée.
+8. **PMR et IRVE** : groupes de 4 places remplacés par 3 places PMR de 3,30 m au plus près de l'entrée du bâtiment ; places pré-équipées IRVE marquées, dont au moins une PMR.
+
+Temps de calcul mesurés (WebAssembly, Chromium) : 2 à 12 ms en mode direct pendant un glisser, 12 à 40 ms pour l'optimisation complète au relâchement.
+
+## Fond de carte IGN
+
+Bouton **Carte** : recherche d'un lieu (adresse, commune, lieu-dit, référence cadastrale comme `06088000KY0116` ou `06088 KY 116`, coordonnées GPS), puis **Emprise** pour poser un rectangle ajustable et **Importer**.
+
+- La photo aérienne (ORTHOIMAGERY.ORTHOPHOTOS, jusqu'au niveau 19, environ 0,2 m par pixel) est assemblée puis **découpée au rectangle** : seule cette image est conservée.
+- Les données cadastrales du Parcellaire Express (WFS, pagination par 1 000 objets) sont converties dans le repère local du plan et deviennent des calques activables : parcelles, numéros, bâti, feuilles et sections, limites communales.
+- Toucher une parcelle puis **Étudier** en fait la parcelle d'étude ; **Ajouter à l'étude** la réunit à la précédente (union calculée en Rust).
+- Le fond est enregistré dans le navigateur (IndexedDB) et revient au rechargement.
+
+Services utilisés (Géoplateforme, sans clé) : `data.geopf.fr/wmts`, `data.geopf.fr/wfs/ows`, `data.geopf.fr/geocodage/search`.
+Une page publiée sur claude.ai ne peut pas joindre ces services : le fond de carte fonctionne avec `dist/index.html`, en local ou sur GitHub Pages.
+
+## Valeurs par défaut
+
+| Paramètre | Valeur | Source |
+|---|---|---|
+| Place | 2,50 × 5,00 m | usage courant PLU (minimum NF P 91-100 : 2,30 × 5,00) |
+| Allée double sens | 6,00 m | usage courant PLU (minimum 5,00 m) |
+| Place PMR | 3,30 × 5,00 m, 2 % (min. 1) | arrêté du 20 avril 2017 (ERP) |
+| IRVE | 20 % pré-équipées, dont 2 % PMR (min. 1) | CCH L111-3-4, non résidentiel neuf |
+
+Tout est réglable dans le panneau Hypothèses. À vérifier selon le PLU et la destination du projet.
+
+## Structure
+
+```
+src/geom.rs       vecteurs, quadrilatères, régions pair-impair, intervalles de bande exacts
+src/region.rs     reculs par arête, obstacles, érosions (booléens robustes via la crate geo)
+src/perimeter.rs  places en bordure, bords droits et courbes
+src/rows.rs       optimisation orientation × décalage, découpe des rangées doubles
+src/finish.rs     connectivité depuis les accès, PMR, IRVE
+src/lib.rs        orchestration, union de parcelles, interface WebAssembly (JSON en entrée, JSON en sortie)
+tests/quality.rs  invariants : aucun chevauchement, aucune place hors zone ou sans accès, quotas, 60 parcelles aléatoires
+web/app.html      interface (canvas, poignées, panneaux, mode carte, calques cadastraux)
+tools/bundle.py   assemble dist/index.html avec le moteur embarqué
+tools/wrap_w2j.py repli JavaScript du moteur (wasm2js) pour la page publiée
+```
+
+## Compiler
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo test --release          # invariants de qualité
+./build.sh                    # produit dist/index.html (wasm-opt utilisé s'il est installé)
+```
+
+Ouvrir `dist/index.html` dans un navigateur, ou le publier tel quel sur GitHub Pages.
+
+Scénarios de contrôle : `cargo run --release --example run -- scenarios/ruisseau.json sortie.json`, puis `python3 tools/render.py sortie.json plan.png`.
