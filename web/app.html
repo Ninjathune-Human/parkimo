@@ -105,26 +105,15 @@ body {
 .eyebrow { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--label-2); font-weight: 600; }
 .num { font-variant-numeric: tabular-nums; }
 
-/* En-tête */
-#brand {
-  position: absolute; top: calc(16px + env(safe-area-inset-top, 0px)); left: max(16px, env(safe-area-inset-left, 0px));
-  border-radius: var(--r-xl); padding: 12px 14px 12px 16px; display: flex; align-items: center; gap: 14px; max-width: calc(100% - 32px);
-}
-.mark { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.mark b { font-size: 20px; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
-.mark span { font-size: 12px; color: var(--label-2); white-space: nowrap; }
-.select-wrap { position: relative; }
-.select-wrap select {
-  appearance: none; -webkit-appearance: none; font: inherit; font-size: 13px; color: var(--label);
-  background: var(--field); border: 0; border-radius: var(--r-sm); min-height: 36px; padding: 0 30px 0 10px; cursor: pointer; max-width: 46vw;
-}
-.select-wrap::after { content: ""; position: absolute; right: 11px; top: 50%; width: 6px; height: 6px; margin-top: -5px; border-right: 1.5px solid var(--label-2); border-bottom: 1.5px solid var(--label-2); transform: rotate(45deg); pointer-events: none; }
-
 /* Bilan */
-#stats {
-  position: absolute; top: calc(16px + env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px));
-  width: 300px; border-radius: var(--r-xl); overflow: hidden;
+/* Colonne de gauche : bilan en haut, couches en bas ; les couches cèdent la hauteur qui manque. */
+#side {
+  position: absolute; top: calc(16px + env(safe-area-inset-top, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: max(16px, env(safe-area-inset-left, 0px));
+  width: 280px; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; pointer-events: none;
 }
+#side > * { pointer-events: auto; }
+#side.lift { bottom: calc(120px + env(safe-area-inset-bottom, 0px)); }
+#stats { flex: none; border-radius: var(--r-xl); overflow: hidden; }
 #stats-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; text-align: left; }
 .big { display: flex; align-items: baseline; gap: 6px; }
 .big strong { font-size: 34px; font-weight: 650; letter-spacing: -.03em; line-height: 1; }
@@ -146,9 +135,14 @@ body {
 
 /* Barre d'outils */
 #toolbar {
-  position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  position: absolute; left: var(--cx, 50%); transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   border-radius: 999px; padding: 6px; display: flex; align-items: center; gap: 2px; max-width: calc(100% - 32px);
 }
+#toolbar .tb { padding: 0 12px; gap: 6px; flex-shrink: 0; }
+#toolbar .tb.icon { padding: 0; }
+/* Libellés masqués quand la barre ne tient pas sur l'écran (iPad en portrait) : icônes et encoches */
+#toolbar.compact .lbl { display: none; }
+#toolbar.compact .tb:not(.icon) { padding: 0 10px; }
 .tb {
   min-height: 44px; min-width: 44px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: var(--label);
   font: inherit; font-size: 14px; font-weight: 550; display: inline-flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer; white-space: nowrap;
@@ -205,16 +199,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 32px
 
 /* Sélection */
 #selbar {
-  position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(80px + env(safe-area-inset-bottom, 0px));
-  border-radius: 999px; padding: 6px 6px 6px 16px; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 32px);
+  position: absolute; left: var(--cx, 50%); transform: translateX(-50%); bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  border-radius: 999px; padding: 6px 6px 6px 16px; display: flex; align-items: center; gap: 8px; max-width: calc(2 * (100vw - var(--cx, 50vw)) - 32px);
 }
 #selbar .what { font-size: 14px; font-weight: 600; white-space: nowrap; }
 #selbar .dim { font-size: 13px; color: var(--label-2); white-space: nowrap; }
 .tb.danger { color: var(--bad); }
 
 /* Calques et légende */
-#layers { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); border-radius: var(--r-lg); width: 256px; max-height: calc(100% - 120px); overflow: auto; }
-#layers.lift { bottom: calc(120px + env(safe-area-inset-bottom, 0px)); max-height: calc(100% - 226px); }
+#layers { flex: 0 1 auto; min-height: 0; border-radius: var(--r-lg); overflow: auto; }
 #layers-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; padding: 4px 8px 4px 12px; border: 0; background: none; color: var(--label); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 #layers-head .chev { width: 24px; height: 24px; }
 #layers-body { padding: 0 12px 10px; display: grid; gap: 2px; }
@@ -241,7 +234,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 32px
 .sw-ico { flex: none; color: var(--label-2); margin: 0 -2px; }
 
 /* Mode carte */
-body.mapmode #brand, body.mapmode #b-fit, body.mapmode #empty, body.mapmode #stats, body.mapmode #toolbar, body.mapmode #layers, body.mapmode #selbar, body.mapmode #hint, body.mapmode .menu { display: none !important; }
+body.mapmode #b-fit, body.mapmode #empty, body.mapmode #side, body.mapmode #toolbar, body.mapmode #selbar, body.mapmode #hint, body.mapmode .menu { display: none !important; }
 #search { position: absolute; top: calc(16px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); border-radius: var(--r-xl); overflow: hidden; }
 .search-field { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 8px 0 16px; color: var(--label-2); }
 .search-field input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font: inherit; font-size: 17px; color: var(--label); }
@@ -264,17 +257,16 @@ body.mapmode #brand, body.mapmode #b-fit, body.mapmode #empty, body.mapmode #sta
 .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width var(--fast) var(--ease); }
 #pg-text { font-size: 13px; color: var(--label-2); font-variant-numeric: tabular-nums; }
 body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opacity: 0; }
-#hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); font-size: 12px; color: var(--label-2); background: var(--glass); padding: 6px 12px; border-radius: 99px; white-space: nowrap; pointer-events: none; transition: opacity var(--medium) var(--ease); }
-#toast { position: absolute; left: 50%; top: calc(76px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); padding: 8px 14px; border-radius: 99px; font-size: 13px; font-weight: 550; opacity: 0; pointer-events: none; transition: opacity var(--medium) var(--ease); }
+#hint { position: absolute; left: var(--cx, 50%); transform: translateX(-50%); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); font-size: 12px; color: var(--label-2); background: var(--glass); padding: 6px 12px; border-radius: 14px; width: max-content; max-width: calc(2 * (100vw - var(--cx, 50vw)) - 32px); text-align: center; pointer-events: none; transition: opacity var(--medium) var(--ease); }
+#toast { position: absolute; left: 50%; top: calc(16px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); padding: 8px 14px; border-radius: 99px; font-size: 13px; font-weight: 550; opacity: 0; pointer-events: none; transition: opacity var(--medium) var(--ease); }
 #toast.show { opacity: 1; }
 #boot { position: absolute; inset: 0; display: grid; place-items: center; color: var(--label-2); font-size: 14px; }
 
 @media (max-width: 760px) {
-  #layers { left: max(16px, env(safe-area-inset-left, 0px)); bottom: auto; top: calc(72px + env(safe-area-inset-top, 0px)); width: min(250px, calc(100% - 32px)); max-height: calc(100% - 180px); }
+  #side { bottom: auto; width: min(280px, calc(100% - 32px)); max-height: calc(100% - 140px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); justify-content: flex-start; gap: 8px; }
+  #toast { top: auto; bottom: calc(136px + env(safe-area-inset-bottom, 0px)); }
   #mapinfo { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
   #m-attrib { bottom: calc(124px + env(safe-area-inset-bottom, 0px)); }
-  #brand .mark span { display: none; }
-  #stats { width: auto; min-width: 150px; }
   .big strong { font-size: 28px; }
   #stats-head { padding: 10px 12px; }
   #stats-body { padding: 0 12px 12px; }
@@ -284,25 +276,34 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
 }
 @media (max-width: 520px) {
   #selbar .dim { display: none; }
-  #brand { right: auto; max-width: calc(100% - 200px); padding: 6px; gap: 6px; }
-  #brand .mark { display: none; }
-  .select-wrap select { max-width: 116px; }
-  #stats[data-open="true"] { left: max(16px, env(safe-area-inset-left, 0px)); top: calc(78px + env(safe-area-inset-top, 0px)); }
+}
+/* Téléphone : boutons en icônes sur toute la largeur, l'encoche des menus posée sur l'icône */
+@media (max-width: 600px) {
+  #toolbar { width: calc(100% - 32px); justify-content: space-between; padding: 4px; gap: 0; }
+  #toolbar .tb { flex: 1 1 0; min-width: 0; padding: 0; position: relative; }
+  #toolbar .tb .notch { position: absolute; top: 7px; right: calc(50% - 17px); width: 8px; height: 8px; }
+  #toolbar .vsep { margin: 0 1px; }
 }
 @media (max-width: 430px) { #b-redo { display: none; } }
-@media (max-width: 400px) { #toolbar .tb:not(.icon) { padding: 0 7px; } #toolbar .vsep { margin: 0 1px; } }
-#newsheet { top: calc(88px + env(safe-area-inset-top, 0px)); bottom: auto; width: min(330px, calc(100vw - 32px)); padding: 14px 16px 16px; gap: 10px; transform-origin: top center; }
-#newsheet h3 { margin: 0; font-size: 17px; font-weight: 600; }
+#newmenu { width: min(320px, calc(100vw - 32px)); }
+#new-list { display: grid; gap: 2px; }
+#new-confirm { display: grid; gap: 10px; padding: 8px 10px 10px; }
+#new-confirm[hidden] { display: none; }
+#new-confirm h3 { margin: 0; font-size: 17px; font-weight: 600; }
+.mhead { padding: 10px 12px 2px; }
+.mi .glyph.ex { background: var(--field); color: var(--label-2); }
+.mi .check { margin-left: auto; color: var(--accent); visibility: hidden; flex: none; }
+.mi[aria-checked="true"] .check { visibility: visible; }
 .sheet-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .tb.destructive { background: var(--bad); color: #FFFFFF; }
 #empty { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(380px, calc(100% - 32px)); border-radius: var(--r-xl); padding: 20px 20px 16px; display: grid; gap: 8px; }
 #empty b { font-size: 20px; font-weight: 650; letter-spacing: -.01em; }
 #empty p { margin: 0 0 8px; color: var(--label-2); font-size: 14px; line-height: 1.45; }
-.fab { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(58px + env(safe-area-inset-bottom, 0px)); width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--label); cursor: pointer; padding: 0; transition: transform var(--fast) var(--ease); }
+.fab { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(16px + env(safe-area-inset-top, 0px)); width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--label); cursor: pointer; padding: 0; transition: transform var(--fast) var(--ease); }
 .fab:hover { background: var(--glass-solid); }
 .fab:active { transform: scale(.94); }
 .fab:disabled { opacity: .35; cursor: default; }
-@media (max-width: 760px) { .fab { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); } }
+@media (max-width: 760px) { .fab { top: auto; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); } }
 #export { width: min(340px, calc(100vw - 32px)); padding: 14px 16px 16px; gap: 12px; }
 #dress { width: min(360px, calc(100vw - 32px)); max-height: min(72vh, 600px); overflow: auto; padding: 14px 16px 16px; gap: 12px; }
 #dress h3 { margin: 0; font-size: 17px; font-weight: 600; }
@@ -320,24 +321,21 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
   <canvas id="plan" aria-label="Plan de stationnement interactif"></canvas>
   <div id="boot">Chargement du moteur…</div>
 
-  <header id="brand" class="glass">
-    <div class="mark"><b>Trame</b><span>Étude de capacité · stationnement</span></div>
-    <div class="select-wrap">
-      <select id="example" aria-label="Exemple de site">
-        <option value="ruisseau">Ruisseau et bâtiment</option>
-        <option value="courbe">Parcelle courbe</option>
-        <option value="triangle">Triangle</option>
-        <option value="rectangle">Rectangle</option>
-        <option value="mine" hidden>Mon site</option>
-      </select>
-    </div>
-    <button class="tb" id="b-new" aria-expanded="false" aria-controls="newsheet" title="Nouveau projet"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M10.5 2.5H5A1.5 1.5 0 0 0 3.5 4v10A1.5 1.5 0 0 0 5 15.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M9 8v5M6.5 10.5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">Nouveau</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-  </header>
-
-  <section id="newsheet" class="menu glass" hidden aria-label="Nouveau projet">
-    <h3>Nouveau projet</h3>
+  <section id="newmenu" class="menu glass" hidden aria-label="Nouveau">
+   <div id="new-list" role="menu">
+    <button class="mi" role="menuitem" id="n-blank"><span class="glyph ex"><svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><path d="M10.5 2.5H5A1.5 1.5 0 0 0 3.5 4v10A1.5 1.5 0 0 0 5 15.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10.5 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span>Projet vierge<small>Carte IGN, puis parcelle cadastrale ou tracée</small></span></button>
+    <div class="eyebrow mhead">Exemples</div>
+    <button class="mi" role="menuitemradio" aria-checked="false" data-ex="ruisseau"><span class="glyph ex"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2.5 3h13v12h-13z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M2.5 11c3-1 4-4 7-4s3.5 2 6 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span><span>Ruisseau et bâtiment</span><svg class="check" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="m2.5 7.5 3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="mi" role="menuitemradio" aria-checked="false" data-ex="courbe"><span class="glyph ex"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2.5 15V3h7c3.5 0 6 3 6 7v5z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span><span>Parcelle courbe</span><svg class="check" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="m2.5 7.5 3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="mi" role="menuitemradio" aria-checked="false" data-ex="triangle"><span class="glyph ex"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 15 15 15 5 3z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span><span>Triangle</span><svg class="check" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="m2.5 7.5 3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="mi" role="menuitemradio" aria-checked="false" data-ex="rectangle"><span class="glyph ex"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2.5 4.5h13v9h-13z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span><span>Rectangle</span><svg class="check" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="m2.5 7.5 3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="mi" role="menuitemradio" aria-checked="false" data-ex="mine" id="new-mine" hidden><span class="glyph ex"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 16s-5-4.6-5-8.5a5 5 0 0 1 10 0C14 11.4 9 16 9 16z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="9" cy="7.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span><span>Mon site</span><svg class="check" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="m2.5 7.5 3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+   </div>
+   <div id="new-confirm" hidden>
+    <h3>Projet vierge</h3>
     <p class="note">La parcelle d'étude, les objets du projet et le fond de carte seront effacés. Les hypothèses et les réglages des calques sont conservés.</p>
     <div class="sheet-actions"><button class="tb small" id="n-cancel">Annuler</button><button class="tb destructive" id="n-ok">Tout effacer</button></div>
+   </div>
   </section>
 
   <div id="empty" class="glass" hidden>
@@ -348,24 +346,65 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
 
   <button class="glass fab" id="b-fit" aria-label="Zoom sur les zones travaillées" title="Zoom sur les zones travaillées (F)"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M3 7.5V3h4.5M12.5 3H17v4.5M17 12.5V17h-4.5M7.5 17H3v-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="7" y="7" width="6" height="6" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
 
-  <section id="stats" class="glass" data-open="true">
-    <button id="stats-head" aria-expanded="true" aria-controls="stats-body">
-      <span class="big"><strong id="s-total" class="num">0</strong><span>places</span></span>
-      <span class="chev" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-    </button>
-    <div id="stats-body">
-      <div class="row"><span class="k"><i class="sw" style="background:var(--pmr)"></i>PMR</span><span class="v" id="s-pmr"></span></div>
-      <div class="row"><span class="k"><i class="sw" style="background:var(--irve)"></i>IRVE pré-équipées</span><span class="v" id="s-irve"></span></div>
-      <div class="row"><span class="k">En bordure / au cœur</span><span class="v" id="s-split"></span></div>
-      <div class="row"><span class="k"><i class="sw" style="background:var(--tree)"></i>Arbres</span><span class="v" id="s-trees"></span></div>
-      <div class="row"><span class="k">Enrobé par place</span><span class="v" id="s-eff"></span></div>
-      <div class="row"><span class="k">Parcelle</span><span class="v" id="s-parcel"></span></div>
-      <div class="row"><span class="k">Espaces verts</span><span class="v" id="s-green"></span></div>
-      <div class="row"><span class="k">Orientation des rangées</span><span class="v" id="s-angle"></span></div>
-      <div id="warn" hidden></div>
-      <div id="engine" class="num"></div>
-    </div>
-  </section>
+  <div id="side">
+    <section id="stats" class="glass" data-open="true">
+      <button id="stats-head" aria-expanded="true" aria-controls="stats-body">
+        <span class="big"><strong id="s-total" class="num">0</strong><span>places</span></span>
+        <span class="chev" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </button>
+      <div id="stats-body">
+        <div class="row"><span class="k"><i class="sw" style="background:var(--pmr)"></i>PMR</span><span class="v" id="s-pmr"></span></div>
+        <div class="row"><span class="k"><i class="sw" style="background:var(--irve)"></i>IRVE pré-équipées</span><span class="v" id="s-irve"></span></div>
+        <div class="row"><span class="k">En bordure / au cœur</span><span class="v" id="s-split"></span></div>
+        <div class="row"><span class="k"><i class="sw" style="background:var(--tree)"></i>Arbres</span><span class="v" id="s-trees"></span></div>
+        <div class="row"><span class="k">Enrobé par place</span><span class="v" id="s-eff"></span></div>
+        <div class="row"><span class="k">Parcelle</span><span class="v" id="s-parcel"></span></div>
+        <div class="row"><span class="k">Espaces verts</span><span class="v" id="s-green"></span></div>
+        <div class="row"><span class="k">Orientation des rangées</span><span class="v" id="s-angle"></span></div>
+        <div id="warn" hidden></div>
+        <div id="engine" class="num"></div>
+      </div>
+    </section>
+    <section id="layers" class="glass" aria-label="Couches et calques">
+      <button id="layers-head" aria-expanded="true" aria-controls="layers-body"><span>Couches</span><span class="chev" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
+      <div id="layers-body">
+        <div class="couche">
+          <div class="eyebrow">Projet</div>
+          <label class="lrow"><span><span class="sws"><i class="sw" style="background:var(--asphalt)"></i><i class="sw" style="background:var(--pmr)"></i><i class="sw" style="background:var(--irve)"></i></span>Places</span><input type="checkbox" class="switch" role="switch" data-lay="places"></label>
+          <label class="lrow"><span><i class="sw" style="background:var(--asphalt)"></i>Voirie</span><input type="checkbox" class="switch" role="switch" data-lay="pvoirie"></label>
+          <label class="lrow"><span><svg class="sw-ico" width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><path d="M1 3h8.5M8 1l2.5 2L8 5M13 7H4.5M6 5 3.5 7 6 9" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Sens de circulation</span><input type="checkbox" class="switch" role="switch" data-lay="sens"></label>
+          <label class="lrow"><span><i class="sw" style="background:var(--island)"></i>Îlots plantés</span><input type="checkbox" class="switch" role="switch" data-lay="ilots"></label>
+          <label class="lrow"><span><i class="sw" style="background:var(--building)"></i>Bâtiments et espaces verts</span><input type="checkbox" class="switch" role="switch" data-lay="pbati"></label>
+          <label class="lrow"><span><i class="sw excl"></i>Servitudes</span><input type="checkbox" class="switch" role="switch" data-lay="servitudes"></label>
+          <label class="lrow"><span><i class="sw" style="border:1.5px dashed var(--setback)"></i>Limites de recul</span><input type="checkbox" class="switch" role="switch" data-lay="recul"></label>
+        </div>
+        <div class="couche">
+          <div class="eyebrow">Habillage</div>
+          <label class="lrow"><span><i class="sw" style="background:#7B8186"></i>Véhicules</span><input type="checkbox" class="switch" role="switch" data-lay="vehicules"></label>
+          <label class="lrow"><span><i class="sw round" style="background:var(--tree)"></i>Arbres</span><input type="checkbox" class="switch" role="switch" data-lay="arbres"></label>
+        </div>
+        <div id="lay-base" hidden>
+          <div class="couche">
+            <div class="eyebrow">Occupation du sol</div>
+          <label class="lrow"><span><i class="sw" style="background:var(--occ-voirie)"></i>Voirie (non cadastrée)</span><input type="checkbox" class="switch" role="switch" data-lay="ovoirie"></label>
+          <label class="lrow"><span><i class="sw" style="background:var(--cad-bati)"></i>Bâti</span><input type="checkbox" class="switch" role="switch" data-lay="bati"></label>
+          <label class="lrow"><span><i class="sw veg"></i>Végétation</span><input type="checkbox" class="switch" role="switch" data-lay="vegetation"></label>
+          </div>
+          <div class="couche">
+            <div class="eyebrow">Cadastre et photo</div>
+          <label class="lrow"><span>Photo aérienne</span><input type="checkbox" class="switch" role="switch" data-lay="photo"></label>
+            <div class="lrow sub"><input id="lay-op" type="range" min="20" max="100" step="5" aria-label="Opacité de la photo aérienne"></div>
+          <label class="lrow"><span><i class="ln" style="--c:var(--cad)"></i>Parcelles</span><input type="checkbox" class="switch" role="switch" data-lay="parcelles"></label>
+          <label class="lrow"><span>Numéros de parcelle</span><input type="checkbox" class="switch" role="switch" data-lay="numeros"></label>
+          <label class="lrow"><span><i class="ln dash" style="--c:var(--cad-sheet)"></i>Feuilles et sections</span><input type="checkbox" class="switch" role="switch" data-lay="feuilles"></label>
+          <label class="lrow"><span><i class="ln dash" style="--c:var(--cad-commune)"></i>Limites communales</span><input type="checkbox" class="switch" role="switch" data-lay="communes"></label>
+          </div>
+          <div class="lactions"><button class="tb small" id="lay-reframe">Changer d'emprise</button><button class="tb small danger" id="lay-remove">Retirer le fond</button></div>
+          <div class="attrib">Sources : IGN, Géoplateforme · <span id="lay-date"></span></div>
+        </div>
+      </div>
+    </section>
+  </div>
 
   <div id="selbar" class="glass" hidden>
     <span class="what" id="sel-what"></span><span class="dim num" id="sel-dim"></span>
@@ -441,57 +480,18 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
   </section>
 
   <nav id="toolbar" class="glass" aria-label="Outils">
-    <button class="tb primary" id="b-add" aria-expanded="false" aria-controls="addmenu"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="lbl">Ajouter</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    <button class="tb" id="b-draw" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 14 6 4l9 3-3 8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="3" cy="14" r="1.6" fill="currentColor"/><circle cx="6" cy="4" r="1.6" fill="currentColor"/><circle cx="15" cy="7" r="1.6" fill="currentColor"/></svg><span class="lbl">Nouvelle parcelle</span></button>
-    <button class="tb" id="b-map"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="6.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2.6 9h12.8M9 2.4c2 2 2.8 4.2 2.8 6.6S11 13.6 9 15.6M9 2.4C7 4.4 6.2 6.6 6.2 9S7 13.6 9 15.6" fill="none" stroke="currentColor" stroke-width="1.3"/></svg><span class="lbl">Carte</span></button>
+    <button class="tb" id="b-new" aria-expanded="false" aria-controls="newmenu" title="Nouveau projet ou exemple"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M10.5 2.5H5A1.5 1.5 0 0 0 3.5 4v10A1.5 1.5 0 0 0 5 15.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M9 8v5M6.5 10.5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">Nouveau</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="tb" id="b-map" title="Carte IGN et cadastre"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="6.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2.6 9h12.8M9 2.4c2 2 2.8 4.2 2.8 6.6S11 13.6 9 15.6M9 2.4C7 4.4 6.2 6.6 6.2 9S7 13.6 9 15.6" fill="none" stroke="currentColor" stroke-width="1.3"/></svg><span class="lbl">Carte</span></button>
+    <button class="tb" id="b-draw" aria-pressed="false" title="Tracer une nouvelle parcelle"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 14 6 4l9 3-3 8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="3" cy="14" r="1.6" fill="currentColor"/><circle cx="6" cy="4" r="1.6" fill="currentColor"/><circle cx="15" cy="7" r="1.6" fill="currentColor"/></svg><span class="lbl">Tracer</span></button>
+    <button class="tb primary" id="b-add" title="Ajouter un objet" aria-expanded="false" aria-controls="addmenu"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="lbl">Ajouter</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <span class="vsep" aria-hidden="true"></span>
+    <button class="tb" id="b-params" title="Hypothèses" aria-expanded="false" aria-controls="params"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 5h7M14 5h1M3 13h1M8 13h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="5" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="6" cy="13" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span class="lbl">Hypothèses</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="tb" id="b-dress" title="Habillage" aria-expanded="false" aria-controls="dress"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 11.8a4.6 4.6 0 1 0 0-9.2 4.6 4.6 0 0 0 0 9.2zM9 11.8V16M6.6 16h4.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">Habillage</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="tb" id="b-export" title="Exporter" aria-expanded="false" aria-controls="export"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 3v8M5.5 7.5 9 11l3.5-3.5M3.5 14.5h11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Exporter</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <span class="vsep" aria-hidden="true"></span>
     <button class="tb icon" id="b-undo" aria-label="Annuler"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M7 4 3 8l4 4M3.5 8H11a4 4 0 0 1 0 8H8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button class="tb icon" id="b-redo" aria-label="Rétablir"><svg width="18" height="18" viewBox="0 0 18 18"><path d="m11 4 4 4-4 4M14.5 8H7a4 4 0 0 0 0 8h3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    <span class="vsep" aria-hidden="true"></span>
-    <button class="tb" id="b-params" aria-expanded="false" aria-controls="params"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 5h7M14 5h1M3 13h1M8 13h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="5" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="6" cy="13" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span class="lbl">Hypothèses</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    <button class="tb" id="b-dress" aria-expanded="false" aria-controls="dress"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 11.8a4.6 4.6 0 1 0 0-9.2 4.6 4.6 0 0 0 0 9.2zM9 11.8V16M6.6 16h4.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">Habillage</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    <button class="tb" id="b-export" aria-expanded="false" aria-controls="export"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 3v8M5.5 7.5 9 11l3.5-3.5M3.5 14.5h11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Exporter</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
   </nav>
-
-  <section id="layers" class="glass" aria-label="Couches et calques">
-    <button id="layers-head" aria-expanded="true" aria-controls="layers-body"><span>Couches</span><span class="chev" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
-    <div id="layers-body">
-      <div class="couche">
-        <div class="eyebrow">Projet</div>
-        <label class="lrow"><span><span class="sws"><i class="sw" style="background:var(--asphalt)"></i><i class="sw" style="background:var(--pmr)"></i><i class="sw" style="background:var(--irve)"></i></span>Places</span><input type="checkbox" class="switch" role="switch" data-lay="places"></label>
-        <label class="lrow"><span><i class="sw" style="background:var(--asphalt)"></i>Voirie</span><input type="checkbox" class="switch" role="switch" data-lay="pvoirie"></label>
-        <label class="lrow"><span><svg class="sw-ico" width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><path d="M1 3h8.5M8 1l2.5 2L8 5M13 7H4.5M6 5 3.5 7 6 9" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Sens de circulation</span><input type="checkbox" class="switch" role="switch" data-lay="sens"></label>
-        <label class="lrow"><span><i class="sw" style="background:var(--island)"></i>Îlots plantés</span><input type="checkbox" class="switch" role="switch" data-lay="ilots"></label>
-        <label class="lrow"><span><i class="sw" style="background:var(--building)"></i>Bâtiments et espaces verts</span><input type="checkbox" class="switch" role="switch" data-lay="pbati"></label>
-        <label class="lrow"><span><i class="sw excl"></i>Servitudes</span><input type="checkbox" class="switch" role="switch" data-lay="servitudes"></label>
-        <label class="lrow"><span><i class="sw" style="border:1.5px dashed var(--setback)"></i>Limites de recul</span><input type="checkbox" class="switch" role="switch" data-lay="recul"></label>
-      </div>
-      <div class="couche">
-        <div class="eyebrow">Habillage</div>
-        <label class="lrow"><span><i class="sw" style="background:#7B8186"></i>Véhicules</span><input type="checkbox" class="switch" role="switch" data-lay="vehicules"></label>
-        <label class="lrow"><span><i class="sw round" style="background:var(--tree)"></i>Arbres</span><input type="checkbox" class="switch" role="switch" data-lay="arbres"></label>
-      </div>
-      <div id="lay-base" hidden>
-        <div class="couche">
-          <div class="eyebrow">Occupation du sol</div>
-        <label class="lrow"><span><i class="sw" style="background:var(--occ-voirie)"></i>Voirie (non cadastrée)</span><input type="checkbox" class="switch" role="switch" data-lay="ovoirie"></label>
-        <label class="lrow"><span><i class="sw" style="background:var(--cad-bati)"></i>Bâti</span><input type="checkbox" class="switch" role="switch" data-lay="bati"></label>
-        <label class="lrow"><span><i class="sw veg"></i>Végétation</span><input type="checkbox" class="switch" role="switch" data-lay="vegetation"></label>
-        </div>
-        <div class="couche">
-          <div class="eyebrow">Cadastre et photo</div>
-        <label class="lrow"><span>Photo aérienne</span><input type="checkbox" class="switch" role="switch" data-lay="photo"></label>
-          <div class="lrow sub"><input id="lay-op" type="range" min="20" max="100" step="5" aria-label="Opacité de la photo aérienne"></div>
-        <label class="lrow"><span><i class="ln" style="--c:var(--cad)"></i>Parcelles</span><input type="checkbox" class="switch" role="switch" data-lay="parcelles"></label>
-        <label class="lrow"><span>Numéros de parcelle</span><input type="checkbox" class="switch" role="switch" data-lay="numeros"></label>
-        <label class="lrow"><span><i class="ln dash" style="--c:var(--cad-sheet)"></i>Feuilles et sections</span><input type="checkbox" class="switch" role="switch" data-lay="feuilles"></label>
-        <label class="lrow"><span><i class="ln dash" style="--c:var(--cad-commune)"></i>Limites communales</span><input type="checkbox" class="switch" role="switch" data-lay="communes"></label>
-        </div>
-        <div class="lactions"><button class="tb small" id="lay-reframe">Changer d'emprise</button><button class="tb small danger" id="lay-remove">Retirer le fond</button></div>
-        <div class="attrib">Sources : IGN, Géoplateforme · <span id="lay-date"></span></div>
-      </div>
-    </div>
-  </section>
 
   <div id="mapui" hidden>
     <div id="search" class="glass" role="search">
@@ -689,14 +689,20 @@ function resize(cw, ch) {
   if (w0 && h0) { view.ox += (W - w0) / 2; view.oy += (H - h0) / 2; }
   const w = Math.round(W * DPR), h = Math.round(H * DPR);
   if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
-  placeLayers();
+  placeSide();
   redraw();
 }
-// Écran moyen : le panneau des couches remonte au-dessus de la barre d'outils plutôt que de la chevaucher.
-function placeLayers() {
-  const L = $("#layers"); L.classList.remove("lift");
+// Barre d'outils centrée dans la zone libre à droite de la colonne ; si elle n'y tient pas, au milieu de
+// l'écran, et la colonne s'arrête au-dessus d'elle plutôt que de la chevaucher.
+function placeSide() {
+  const S = $("#side"), T = $("#toolbar"), root = document.documentElement.style;
+  S.classList.remove("lift"); root.removeProperty("--cx");
+  T.classList.remove("compact");
   if (W < 760) return;
-  if (L.getBoundingClientRect().right + 8 > $("#toolbar").getBoundingClientRect().left) L.classList.add("lift");
+  if (T.scrollWidth > W - 32) T.classList.add("compact");
+  const x0 = S.getBoundingClientRect().right - canvas.getBoundingClientRect().left + 12, c = (x0 + W - 16) / 2;
+  if (c - T.offsetWidth / 2 >= x0) { root.setProperty("--cx", c + "px"); return; }
+  if (T.getBoundingClientRect().left < x0 - 4) S.classList.add("lift");
 }
 // Zones travaillées : parcelle d'étude, bâtiments, espaces verts, servitudes, accès.
 // Sans parcelle, l'emprise du fond de carte importé.
@@ -714,7 +720,7 @@ function workBounds() {
 // Plus grand rectangle de l'écran libre de tout panneau, choisi pour la forme des zones à cadrer.
 function freeArea(bw, bh, m) {
   const cr = canvas.getBoundingClientRect();
-  const obst = ["#brand", "#stats", "#layers", "#toolbar", "#selbar"].map((q) => $(q))
+  const obst = ["#stats", "#layers", "#toolbar", "#selbar"].map((q) => $(q))
     .filter((el) => el && !el.hidden && el.getClientRects().length)
     .map((el) => { const r = el.getBoundingClientRect(); return [r.left - cr.left - 8, r.top - cr.top - 8, r.right - cr.left + 8, r.bottom - cr.top + 8]; });
   const xs0 = [0, ...obst.map((r) => r[2])], xs1 = [W, ...obst.map((r) => r[0])], ys0 = [0, ...obst.map((r) => r[3])], ys1 = [H, ...obst.map((r) => r[1])];
@@ -891,7 +897,9 @@ function drawScale(pxPerM) {
   const target = 110 / pxPerM, nice = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000];
   const m = nice.reduce((b, v) => (Math.abs(v - target) < Math.abs(b - target) ? v : b), nice[0]);
   const len = m * pxPerM, narrow = W < 760;
-  const x = W - (narrow ? 16 : 24) - len, y = H - (narrow ? 96 : 30);
+  // Plan sur grand écran : en haut à droite, à côté du bouton de cadrage ; sinon en bas à droite.
+  const top = !narrow && mode !== "map";
+  const x = W - (narrow ? 16 : top ? 74 : 24) - len, y = top ? 44 : H - (narrow ? 96 : 30);
   const text = m >= 1000 ? m / 1000 + " km" : m + " m";
   ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x, y); ctx.lineTo(x + len, y); ctx.lineTo(x + len, y - 5); ctx.moveTo(x + len / 2, y); ctx.lineTo(x + len / 2, y - 3);
   ctx.font = `600 11px ${getComputedStyle(document.body).fontFamily}`; ctx.textAlign = "right"; ctx.textBaseline = "bottom"; ctx.lineJoin = "round";
@@ -1262,7 +1270,7 @@ $("#sel-rot").addEventListener("click", () => { const o = site.buildings[sel.i];
 $("#sel-shape").addEventListener("click", () => { const o = site.buildings[sel.i]; o.shape = o.shape === "L" ? "rect" : "L"; updateSelbar(); solve(false); commit(); });
 
 function closeMenus(except) {
-  for (const [btn, menu] of [["#b-add", "#addmenu"], ["#b-params", "#params"], ["#b-dress", "#dress"], ["#b-export", "#export"], ["#b-new", "#newsheet"]]) if (menu !== except) { $(menu).hidden = true; $(btn).setAttribute("aria-expanded", "false"); }
+  for (const [btn, menu] of [["#b-add", "#addmenu"], ["#b-params", "#params"], ["#b-dress", "#dress"], ["#b-export", "#export"], ["#b-new", "#newmenu"]]) if (menu !== except) { $(menu).hidden = true; $(btn).setAttribute("aria-expanded", "false"); }
 }
 function toggleMenu(btn, menu) {
   const open = $(menu).hidden; closeMenus(menu);
@@ -1607,16 +1615,21 @@ $("#d-cars").addEventListener("input", (ev) => { DRESS.cars = +ev.target.value; 
 $("#d-cars").addEventListener("change", saveDress);
 $("#d-shuffle").addEventListener("click", () => { DRESS.seed = 1 + Math.floor(Math.random() * 99991); saveDress(); syncDressUI(); redraw(); });
 
-// Exemples
-function syncExample() { const s = $("#example"); s.querySelector('[value="mine"]').hidden = exampleName !== "mine" && !mineSite; s.value = exampleName; }
+// Exemples (menu Nouveau)
+function syncExample() {
+  $("#new-mine").hidden = exampleName !== "mine" && !mineSite;
+  document.querySelectorAll("[data-ex]").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.ex === exampleName)));
+}
 // Un exemple modifié devient « Mon site », sauf si un site calé sur un fond de carte est déjà mis de côté.
 function markMine() { if (exampleName !== "mine" && !basemap) { exampleName = "mine"; mineSite = null; syncExample(); } }
-$("#example").addEventListener("change", (ev) => {
-  const v = ev.target.value;
+function loadExample(v) {
+  closeMenus();
+  if (v === exampleName) return;
   if (exampleName === "mine") mineSite = JSON.parse(JSON.stringify(site));
   if (v === "mine") { if (!mineSite) return; site = mineSite; } else site = EXAMPLES[v]();
   exampleName = v; lastAngle = null; setSel(null); syncExample(); updateLayersUI(); solve(false); commit(); fit();
-});
+}
+document.querySelectorAll("[data-ex]").forEach((b) => b.addEventListener("click", () => loadExample(b.dataset.ex)));
 
 let toastTimer = null;
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2200); }
@@ -2307,10 +2320,11 @@ function newProject() {
   view.s = 4; view.ox = W / 2; view.oy = H / 2; redraw();
   $("#q").value = ""; $("#q-clear").hidden = true;
 }
-$("#b-new").addEventListener("click", () => {
-  // Rien à perdre (exemple non modifié, sans fond) : effacement direct.
+$("#b-new").addEventListener("click", () => { $("#new-list").hidden = false; $("#new-confirm").hidden = true; toggleMenu("#b-new", "#newmenu"); });
+$("#n-blank").addEventListener("click", () => {
+  // Rien à perdre (exemple non modifié, sans fond) : effacement direct ; sinon confirmation.
   if (exampleName !== "mine" && !mineSite && !basemap) { newProject(); return; }
-  toggleMenu("#b-new", "#newsheet");
+  $("#new-list").hidden = true; $("#new-confirm").hidden = false; placeMenu("#b-new", "#newmenu");
 });
 $("#n-cancel").addEventListener("click", () => closeMenus());
 $("#n-ok").addEventListener("click", newProject);
@@ -2323,7 +2337,7 @@ $("#e-draw").addEventListener("click", () => { setMode("draw"); toast("Touchez l
 const mq = window.matchMedia("(prefers-color-scheme: dark)");
 mq.addEventListener("change", () => { readColors(); redraw(); });
 new MutationObserver(() => { readColors(); redraw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-function relayout(cw, ch) { resize(cw, ch); if (mode === "map") updateMapUI(); if (!$("#addmenu").hidden) placeMenu("#b-add", "#addmenu"); if (!$("#params").hidden) placeMenu("#b-params", "#params"); if (!$("#dress").hidden) placeMenu("#b-dress", "#dress"); if (!$("#export").hidden) placeMenu("#b-export", "#export"); if (!$("#newsheet").hidden) placeMenu("#b-new", "#newsheet"); }
+function relayout(cw, ch) { resize(cw, ch); if (mode === "map") updateMapUI(); if (!$("#addmenu").hidden) placeMenu("#b-add", "#addmenu"); if (!$("#params").hidden) placeMenu("#b-params", "#params"); if (!$("#dress").hidden) placeMenu("#b-dress", "#dress"); if (!$("#export").hidden) placeMenu("#b-export", "#export"); if (!$("#newmenu").hidden) placeMenu("#b-new", "#newmenu"); }
 if (window.ResizeObserver) new ResizeObserver((es) => { const r = es[es.length - 1].contentRect; relayout(r.width, r.height); }).observe(canvas);
 else window.addEventListener("resize", () => relayout());
 

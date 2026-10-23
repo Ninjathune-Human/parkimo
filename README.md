@@ -45,6 +45,12 @@ Avec les allées de 6,00 m par défaut, tout le parking est à double sens. Rég
 
 Calque **Sens de circulation** dans la couche Projet ; à l'export, bloc `SIG_FLECHE` sur le calque `PRJ_SIGNALISATION`.
 
+## Interface
+
+- **Barre d'outils**, dans l'ordre de la création : **Nouveau** (projet vierge, exemples, retour à « Mon site ») · **Carte** (fond IGN et cadastre) · **Tracer** (parcelle dessinée) · **Ajouter** (bâtiment, espace vert, servitude, accès) | **Hypothèses** · **Habillage** · **Exporter** | annuler, rétablir. Elle se centre dans la zone libre du plan ; quand elle ne tient pas sur l'écran (iPad en portrait), les libellés laissent place aux icônes, encoches des menus conservées ; sur téléphone, les boutons se partagent toute la largeur.
+- **Colonne de gauche** : le bilan en haut, les couches en bas ; les couches cèdent la hauteur qui manque et défilent. Sur téléphone, les deux panneaux sont repliés en haut et un seul s'ouvre à la fois.
+- **Bouton de cadrage et échelle** en haut à droite (en bas à droite sur téléphone et sur la carte).
+
 ## Fond de carte IGN
 
 Bouton **Carte** : recherche d'un lieu (adresse, commune, lieu-dit, référence cadastrale comme `06088000KY0116` ou `06088 KY 116`, coordonnées GPS), puis **Emprise** pour poser un rectangle ajustable et **Importer**.
