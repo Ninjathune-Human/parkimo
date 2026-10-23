@@ -183,8 +183,17 @@ TREES = [
 for t in TREES:
     t["bloc"] = "ARB_" + t["id"].upper()
 
+# ---------------------------------------------------------------------------
+# Marquage au sol : flèche directionnelle droite, pointe vers +x, centrée.
+# ---------------------------------------------------------------------------
+
+ARROW_L, ARROW_W = 3.0, 0.9
+ARROW = [(-1.5, -0.15), (0.3, -0.15), (0.3, -0.45), (1.5, 0.0), (0.3, 0.45), (0.3, 0.15), (-1.5, 0.15)]
+MARKINGS = [{"id": "fleche", "nom": "Flèche directionnelle", "bloc": "SIG_FLECHE", "L": ARROW_L, "W": ARROW_W,
+             "prims": [poly("paint", ARROW)]}]
+
 if __name__ == "__main__":
     out = pathlib.Path(__file__).resolve().parent.parent / "src" / "symbols.json"
-    data = {"vehicules": VEHICLES, "arbres": TREES}
+    data = {"vehicules": VEHICLES, "arbres": TREES, "marquages": MARKINGS}
     out.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    print(out, out.stat().st_size, "octets,", len(VEHICLES), "véhicules,", len(TREES), "arbres")
+    print(out, out.stat().st_size, "octets,", len(VEHICLES), "véhicules,", len(TREES), "arbres,", len(MARKINGS), "marquage")

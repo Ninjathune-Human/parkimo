@@ -185,3 +185,288 @@ fn adjacent_parcels_merge_into_one_outline() {
         area(&rings[0])
     );
 }
+
+/// Flèches au sol : dans la chaussée, hors des places ; sens unique fortement connexe.
+fn check_circulation(lay: &Layout, name: &str) {
+    use trame::circulation::{ARROW_L, ARROW_W};
+    let c = &lay.circulation;
+    assert!(!c.arrows.is_empty(), "{name}: aucune flèche");
+    let mut rings: Vec<Vec<V2>> = lay
+        .paved
+        .iter()
+        .map(|r| r.iter().map(|p| v2(p[0], p[1])).collect())
+        .collect();
+    for q in lay.cross.iter().chain(lay.entries.iter()) {
+        rings.push(quad(q).0.to_vec());
+    }
+    let paved = Region::new(
+        lay.paved
+            .iter()
+            .map(|r| r.iter().map(|p| v2(p[0], p[1])).collect())
+            .collect(),
+    );
+    let extra: Vec<Quad> = lay
+        .cross
+        .iter()
+        .chain(lay.entries.iter())
+        .map(quad)
+        .collect();
+    let mut stalls = QuadHash::new(6.0);
+    for s in &lay.stalls {
+        stalls.insert(quad(&s.q));
+    }
+    for q in &lay.islands {
+        stalls.insert(quad(q));
+    }
+    for (i, a) in c.arrows.iter().enumerate() {
+        let t = v2(a.a.to_radians().cos(), a.a.to_radians().sin());
+        let n = t.left();
+        let p = v2(a.p[0], a.p[1]);
+        let (hl, hw) = (ARROW_L / 2.0, ARROW_W / 2.0);
+        let fp = Quad([
+            p - t * hl - n * hw,
+            p + t * hl - n * hw,
+            p + t * hl + n * hw,
+            p - t * hl + n * hw,
+        ]);
+        for &k in &fp.0 {
+            assert!(
+                paved.contains(k) || extra.iter().any(|e| e.contains(k)),
+                "{name}: flèche {i} hors chaussée ({:.1},{:.1})",
+                k.x,
+                k.y
+            );
+        }
+        assert!(
+            !stalls.hits(&fp.shrink(0.05)),
+            "{name}: flèche {i} sur une place"
+        );
+    }
+    // Réseau orienté : extrémités d'axes regroupées en carrefours, la rue reliée aux accès.
+    let mut nodes: Vec<V2> = Vec::new();
+    let id = |p: V2, nodes: &mut Vec<V2>| match nodes.iter().position(|q| (*q - p).len() < 1.0) {
+        Some(i) => i,
+        None => {
+            nodes.push(p);
+            nodes.len() - 1
+        }
+    };
+    let mut arcs: Vec<(usize, usize)> = Vec::new();
+    for a in &c.axes {
+        let (p0, p1) = (a.pts[0], a.pts[a.pts.len() - 1]);
+        let (u, v) = (
+            id(v2(p0[0], p0[1]), &mut nodes),
+            id(v2(p1[0], p1[1]), &mut nodes),
+        );
+        arcs.push((u, v));
+        if a.sens == 2 {
+            arcs.push((v, u));
+        }
+    }
+    let street = nodes.len();
+    for e in lay.entries.iter().map(quad) {
+        for (i, n) in nodes.iter().enumerate() {
+            if e.contains(*n) {
+                arcs.push((street, i));
+                arcs.push((i, street));
+            }
+        }
+    }
+    for rev in [false, true] {
+        let mut seen = vec![false; street + 1];
+        let mut st = vec![street];
+        seen[street] = true;
+        while let Some(v) = st.pop() {
+            for &(a, b) in &arcs {
+                let (a, b) = if rev { (b, a) } else { (a, b) };
+                if a == v && !seen[b] {
+                    seen[b] = true;
+                    st.push(b);
+                }
+            }
+        }
+        // Nœuds desservis : ceux reliés à la rue par le réseau non orienté.
+        let mut und = vec![false; street + 1];
+        let mut st = vec![street];
+        und[street] = true;
+        while let Some(v) = st.pop() {
+            for &(a, b) in &arcs {
+                for (x, y) in [(a, b), (b, a)] {
+                    if x == v && !und[y] {
+                        und[y] = true;
+                        st.push(y);
+                    }
+                }
+            }
+        }
+        for i in 0..street {
+            assert!(
+                !und[i] || seen[i],
+                "{name}: carrefour {i} {} depuis la rue",
+                if rev {
+                    "ne permet pas de ressortir"
+                } else {
+                    "inatteignable"
+                }
+            );
+        }
+    }
+}
+
+#[test]
+fn circulation_marks_every_scenario() {
+    for name in ["rect", "courbe", "ruisseau", "triangle", "etroit"] {
+        let lay = trame::solve(&load(name));
+        assert!(
+            lay.circulation.axes.iter().all(|a| a.sens == 2),
+            "{name}: allées de 6 m à double sens"
+        );
+        check_circulation(&lay, name);
+    }
+}
+
+#[test]
+fn narrow_aisles_become_one_way_and_stay_connected() {
+    for name in ["rect", "courbe", "ruisseau"] {
+        let mut site = load(name);
+        site.params.aisle = 4.0;
+        let lay = trame::solve(&site);
+        let one = lay.circulation.axes.iter().filter(|a| a.sens == 1).count();
+        assert!(
+            one > 0,
+            "{name}: aucune voie à sens unique avec des allées de 4 m"
+        );
+        check_circulation(&lay, name);
+    }
+}
+
+#[test]
+fn interstitial_spaces_are_planted_without_covering_stalls_or_lanes() {
+    for name in ["rect", "courbe", "ruisseau", "triangle", "etroit"] {
+        let lay = trame::solve(&load(name));
+        let planted = Region::new(
+            lay.planted
+                .iter()
+                .flatten()
+                .map(|r| r.iter().map(|p| v2(p[0], p[1])).collect())
+                .collect(),
+        );
+        assert!(!planted.is_empty(), "{name}: aucun espace planté");
+        for (i, s) in lay.stalls.iter().enumerate() {
+            assert!(
+                !planted.contains(quad(&s.q).center()),
+                "{name}: place {i} plantée"
+            );
+        }
+        for a in &lay.circulation.arrows {
+            assert!(
+                !planted.contains(v2(a.p[0], a.p[1])),
+                "{name}: flèche sur un espace planté"
+            );
+        }
+    }
+}
+
+#[test]
+fn entries_get_a_three_metre_turning_radius_free_of_stalls() {
+    for name in ["rect", "courbe", "ruisseau", "triangle", "etroit"] {
+        let site = load(name);
+        let lay = trame::solve(&site);
+        let z = region::build(&site).expect("zones");
+        let entries: Vec<Quad> = lay.entries.iter().map(quad).collect();
+        let (keep, fillets) = trame::entry_turns(&site, &z.parcel, &entries);
+        assert_eq!(keep.len(), 2 * entries.len(), "{name}");
+        let paved = Region::new(
+            lay.paved
+                .iter()
+                .map(|r| r.iter().map(|p| v2(p[0], p[1])).collect())
+                .collect(),
+        );
+        for (k, f) in keep.iter().zip(&fillets) {
+            for (i, s) in lay.stalls.iter().enumerate() {
+                assert!(
+                    !k.overlaps(&quad(&s.q).shrink(0.05)),
+                    "{name}: place {i} dans le rayon d'entrée"
+                );
+            }
+            // Le coin de l'arrondi (près de l'angle de l'accès) est en chaussée.
+            let corner = f[0] + (f[5] - f[0]) * 0.5;
+            assert!(
+                paved.contains(corner),
+                "{name}: arrondi d'entrée absent de la chaussée"
+            );
+        }
+    }
+}
+
+#[test]
+fn skeleton_toggles_lane_typology_and_keeps_the_site_connected() {
+    use trame::model::LaneRule;
+    fn mid(pts: &[[f64; 2]]) -> [f64; 2] {
+        let len: f64 = pts
+            .windows(2)
+            .map(|s| (v2(s[1][0], s[1][1]) - v2(s[0][0], s[0][1])).len())
+            .sum();
+        let mut acc = 0.0;
+        for s in pts.windows(2) {
+            let (a, b) = (v2(s[0][0], s[0][1]), v2(s[1][0], s[1][1]));
+            let l = (b - a).len();
+            if acc + l >= len / 2.0 && l > 0.0 {
+                let p = a + (b - a) * ((len / 2.0 - acc) / l);
+                return [p.x, p.y];
+            }
+            acc += l;
+        }
+        pts[0]
+    }
+    for name in ["rect", "ruisseau", "courbe"] {
+        let site = load(name);
+        let base = trame::solve(&site);
+        let mut tried = 0;
+        for a in base.circulation.axes.iter().filter(|a| a.pts.len() >= 2) {
+            if tried == 6 {
+                break;
+            }
+            tried += 1;
+            let target = if a.sens == 2 { 1 } else { 2 };
+            let p = mid(&a.pts);
+            let mut s = site.clone();
+            s.lanes = vec![LaneRule { p, sens: target }];
+            let lay = trame::solve(&s);
+            let c = &lay.circulation;
+            let touched = c
+                .axes
+                .iter()
+                .min_by(|x, y| {
+                    let d = |ax: &trame::circulation::Axis| {
+                        let q = v2(p[0], p[1]);
+                        ax.pts
+                            .windows(2)
+                            .map(|s| {
+                                let (a, b) = (v2(s[0][0], s[0][1]), v2(s[1][0], s[1][1]));
+                                let ab = b - a;
+                                let t = ((q - a).dot(ab) / ab.dot(ab).max(1e-12)).clamp(0.0, 1.0);
+                                (a + ab * t - q).len()
+                            })
+                            .fold(f64::INFINITY, f64::min)
+                    };
+                    d(x).partial_cmp(&d(y)).unwrap()
+                })
+                .unwrap();
+            assert!(
+                touched.sens == target || (target == 1 && c.refused == 1),
+                "{name}: axe {:?} non basculé ({} → {}, refus {})",
+                p,
+                a.sens,
+                touched.sens,
+                c.refused
+            );
+            assert_eq!(
+                lay.stalls.len(),
+                base.stalls.len(),
+                "{name}: la typologie ne change pas la géométrie"
+            );
+            check_circulation(&lay, name);
+        }
+    }
+}

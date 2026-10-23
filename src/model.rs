@@ -22,8 +22,19 @@ pub struct Site {
     /// Accès véhicules sur la limite de parcelle.
     #[serde(default)]
     pub entries: Vec<Entry>,
+    /// Typologies de voie imposées depuis le squelette.
+    #[serde(default)]
+    pub lanes: Vec<LaneRule>,
     #[serde(default)]
     pub params: Params,
+}
+
+/// Typologie imposée au tronçon d'axe qui passe par `p` (repère stable d'un calcul à l'autre).
+#[derive(Deserialize, Clone, Copy, Debug)]
+pub struct LaneRule {
+    pub p: P2,
+    /// 2 : double sens, 1 : sens unique.
+    pub sens: u8,
 }
 
 #[derive(Deserialize, Clone)]
@@ -133,10 +144,15 @@ pub struct Layout {
     pub pads: Vec<[P2; 4]>,
     pub stalls: Vec<StallOut>,
     pub islands: Vec<[P2; 4]>,
+    /// Espaces plantés (polygones à trous : extérieur puis trous), îlots d'extrémité et de bordure
+    /// compris, angles arrondis côté chaussée ; `islands` ne garde que les îlots des rangées.
+    pub planted: Vec<Vec<Vec<P2>>>,
     pub trees: Vec<P2>,
     pub entries: Vec<[P2; 4]>,
     pub cross: Vec<[P2; 4]>,
     pub entrances: Vec<P2>,
+    /// Sens de circulation et flèches au sol.
+    pub circulation: crate::circulation::Circulation,
     pub metrics: Metrics,
     pub angle: f64,
     pub phase: f64,

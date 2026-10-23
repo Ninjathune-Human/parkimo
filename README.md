@@ -17,10 +17,27 @@ Un pipeline unique, rejoué à chaque mouvement de poignée :
 4. **Anneau de circulation** : B érodée de la profondeur de place. Toute chaussée plus étroite que l'allée (pointes en impasse dans les angles aigus, effilements) est retirée par une ouverture morphologique, sauf l'aire de manœuvre devant les places ; les angles saillants de la chaussée sont arrondis.
 5. **Rangées doubles au cœur** : B érodée de (place + allée), remplie de rangées dos à dos. L'optimiseur teste l'orientation (directions des limites et balayage tous les 3°) et le décalage de la trame (pas de 0,25 m), puis affine autour des meilleures solutions : environ 4 000 à 5 000 variantes par calcul.
 6. **Découpe exacte** : îlots plantés répartis régulièrement et alignés sur les deux demi-rangées, îlots d'extrémité, allées transversales au-delà de la longueur maximale.
+   Tout espace résiduel de la zone stationnable (angles, têtes de rangée en biais, interstices entre places) devient un espace planté, réuni aux îlots d'extrémité et de bordure : même teinte, calque Îlots plantés, calque AutoCAD `PRJ_ILOTS`. Pour faciliter la giration, tous les angles saillants tournés vers la chaussée sont arrondis au rayon de 1 m (moins si les côtés sont courts), la chaussée reprenant l'arrondi ; les filets et décrochés de quelques centimètres laissés par les opérations booléennes (rangées légèrement en biais) sont résorbés avant ; un angle contre une place reste vif, si bien que les bandes plantées entre deux places sont rectangulaires.
 7. **Accès et connectivité** : rasterisation de la voirie à 0,5 m et propagation depuis les accès ; toute place sans accès est retirée et signalée.
+   Entrée de parking : de chaque côté de l'accès, là où il débouche sur l'allée, un arrondi de 3 m de rayon facilite la giration ; les places en bordure sont repoussées au-delà de ce rayon.
 8. **PMR et IRVE** : groupes de 4 places remplacés par 3 places PMR de 3,30 m au plus près de l'entrée du bâtiment ; places pré-équipées IRVE marquées, dont au moins une PMR.
+9. **Circulation et signalisation horizontale** : voir ci-dessous.
 
-Temps de calcul mesurés (WebAssembly, Chromium) : 2 à 12 ms en mode direct pendant un glisser, 12 à 40 ms pour l'optimisation complète au relâchement.
+Temps de calcul mesurés (WebAssembly, Chromium) : 2 à 12 ms en mode direct pendant un glisser, 12 à 40 ms pour l'optimisation complète au relâchement. Le retrait des pointes et l'analyse de circulation ne sont faits qu'au relâchement.
+
+## Circulation et signalisation horizontale
+
+Le moteur reconstitue le fonctionnement du parking du point de vue de l'automobiliste, puis peint les flèches au sol (`src/circulation.rs`).
+
+1. **Réseau des voies** : la chaussée (anneau, allées, allées transversales, accès) est tramée à 0,5 m ; une transformée en distance exacte donne la largeur locale, un amincissement donne les axes. Les axes forment un graphe de carrefours, d'impasses et d'accès ; les éperons d'angle sont élagués.
+2. **Logique de circulation** : on entre par un accès, on parcourt les allées pour trouver une place, on ressort par un accès. Une voie d'au moins 5,00 m est à **double sens** (NF P 91-120 ; 5,50 m en NF P 91-100). Une impasse, ou un passage obligé comme un accès unique, reste à double sens même étroit : il faut pouvoir en ressortir (signalé dans le bilan). Les autres voies étroites passent à **sens unique**, orientées pour que chaque voie soit atteignable depuis la rue et que l'on puisse toujours regagner la rue (orientation fortement connexe), en tournant de préférence dans le sens anti-horaire, comme sur un giratoire. Avec plusieurs accès étroits, certains deviennent des entrées et d'autres des sorties.
+3. **Flèches au sol** : flèche **double** sur une voie à double sens (une flèche par file, circulation à droite), flèche **simple** au centre d'une voie à sens unique. Chaque tronçon droit reçoit une flèche à la sortie du carrefour ou du virage, puis à intervalles réguliers ; une flèche n'est posée que sur une partie droite, entièrement dans la chaussée, sans chevaucher une autre.
+
+Avec les allées de 6,00 m par défaut, tout le parking est à double sens. Régler la largeur d'allée sous 5,00 m dans Hypothèses produit un plan à sens unique.
+
+**Squelette des voies** (interrupteur dans Hypothèses) : les axes du réseau s'affichent sur le plan, en double trait pour une voie à double sens, en trait simple fléché pour une voie à sens unique. Toucher un axe bascule sa typologie, d'un carrefour au suivant ; un glisser déplace la vue. Le choix est enregistré dans le projet (annuler, rétablir, export) par le milieu de l'axe, retrouvé à chaque calcul tant que la voie passe à cet endroit. Les sens uniques imposés sont orientés avant ceux des voies étroites, avec la même règle de connexité : un sens unique qui couperait la circulation (impasse, passage obligé) est refusé et le plan reste inchangé. La typologie ne modifie ni la largeur des allées ni le nombre de places.
+
+Calque **Sens de circulation** dans la couche Projet ; à l'export, bloc `SIG_FLECHE` sur le calque `PRJ_SIGNALISATION`.
 
 ## Fond de carte IGN
 
@@ -40,7 +57,7 @@ Une page publiée sur claude.ai ne peut pas joindre ces services : le fond de ca
 Bouton **Habillage** : un menu dédié à la présentation du plan, sans effet sur le calcul.
 
 - **Véhicules** : un curseur règle la part des places occupées (0 à 100 %). Six gabarits vus de dessus, tirés au hasard selon leur fréquence : citadine, compacte, berline, break, SUV, utilitaire. Teintes du parc automobile, entrée en marche avant le plus souvent, léger décalage dans la place ; un véhicule ne déborde jamais de sa place.
-- **Arbres** : une essence pour tout le plan (feuillu, pin parasol, olivier, palmier, conifère) ou un mélange. Rotation et taille légèrement variées.
+- **Arbres** : une essence pour tout le plan (feuillu, pin parasol, olivier, palmier, conifère) ou un mélange, dans les îlots plantés et, en quinconce, dans les espaces verts imposés. Rotation et taille légèrement variées.
 - **Nouveau tirage** redistribue véhicules et essences. Le tirage est stable : il ne change pas d'un affichage à l'autre.
 - Couche **Habillage** dans le panneau des couches : calques Véhicules et Arbres.
 
@@ -52,11 +69,11 @@ Bouton **Exporter** : fichier DXF AutoCAD 2010 (texte UTF-8), unités en mètres
 
 - Chaîne de coordonnées : repère local → Web Mercator → RGF93 géographique → conique conforme de Lambert sur l'ellipsoïde GRS80. Projections vérifiées contre PROJ à moins d'un millimètre ; sommets cadastraux restitués au centimètre.
 - Un calque AutoCAD par calque de l'application ; les calques masqués sont exportés éteints. Le cadastre est limité à l'emprise.
-- Entités : `LWPOLYLINE` (contours), `HATCH` (trames : végétation, bâti, servitudes, places PMR), `TEXT` (numéros de parcelle, sections, cartouche), `INSERT` des blocs d'habillage : `VEH_CITADINE`, `VEH_COMPACTE`, `VEH_BERLINE`, `VEH_BREAK`, `VEH_SUV`, `VEH_UTILITAIRE`, `ARB_FEUILLU`, `ARB_PIN`, `ARB_OLIVIER`, `ARB_PALMIER`, `ARB_CONIFERE`. Les blocs sont dessinés en vraie grandeur (véhicules) ou au rayon unitaire (arbres, insérés à l'échelle du houppier), sur le calque 0 en couleur DUBLOC ; leur orientation tient compte de la convergence des méridiens.
+- Entités : `LWPOLYLINE` (contours), `HATCH` (trames : végétation, bâti, servitudes, places PMR), `TEXT` (numéros de parcelle, sections, cartouche), `INSERT` du bloc de marquage `SIG_FLECHE` et des blocs d'habillage : `VEH_CITADINE`, `VEH_COMPACTE`, `VEH_BERLINE`, `VEH_BREAK`, `VEH_SUV`, `VEH_UTILITAIRE`, `ARB_FEUILLU`, `ARB_PIN`, `ARB_OLIVIER`, `ARB_PALMIER`, `ARB_CONIFERE`. Les blocs sont dessinés en vraie grandeur (véhicules) ou au rayon unitaire (arbres, insérés à l'échelle du houppier), sur le calque 0 en couleur DUBLOC ; leur orientation tient compte de la convergence des méridiens.
 
 | Couche | Calques AutoCAD |
 |---|---|
-| Projet | `PRJ_PARCELLE`, `PRJ_RECUL`, `PRJ_VOIRIE`, `PRJ_PLACES`, `PRJ_PLACES_PMR`, `PRJ_PLACES_IRVE`, `PRJ_ILOTS`, `PRJ_BATIMENTS`, `PRJ_ESPACES_VERTS`, `PRJ_SERVITUDES` |
+| Projet | `PRJ_PARCELLE`, `PRJ_RECUL`, `PRJ_VOIRIE`, `PRJ_SIGNALISATION`, `PRJ_PLACES`, `PRJ_PLACES_PMR`, `PRJ_PLACES_IRVE`, `PRJ_ILOTS`, `PRJ_BATIMENTS`, `PRJ_ESPACES_VERTS`, `PRJ_SERVITUDES` |
 | Habillage | `HAB_VEHICULES`, `HAB_ARBRES` |
 | Occupation du sol | `OCC_VOIRIE`, `OCC_BATI`, `OCC_VEGETATION` |
 | Cadastre | `CAD_PARCELLES`, `CAD_NUMEROS`, `CAD_FEUILLES`, `CAD_COMMUNES` |
@@ -69,7 +86,7 @@ Le squelette du fichier (en-tête, tables, calques, types de ligne, blocs) est p
 | Paramètre | Valeur | Source |
 |---|---|---|
 | Place | 2,50 × 5,00 m | usage courant PLU (minimum NF P 91-100 : 2,30 × 5,00) |
-| Allée double sens | 6,00 m | usage courant PLU (minimum 5,00 m) |
+| Largeur d'allée | 6,00 m, double sens | usage courant PLU ; double sens à partir de 5,00 m (NF P 91-120, 5,50 m en NF P 91-100), sens unique en dessous |
 | Place PMR | 3,30 × 5,00 m, 2 % (min. 1) | arrêté du 20 avril 2017 (ERP) |
 | IRVE | 20 % pré-équipées, dont 2 % PMR (min. 1) | CCH L111-3-4, non résidentiel neuf |
 
@@ -83,13 +100,16 @@ src/region.rs     reculs par arête, obstacles, érosions (booléens robustes vi
 src/perimeter.rs  places en bordure, bords droits et courbes
 src/rows.rs       optimisation orientation × décalage, découpe des rangées doubles
 src/finish.rs     connectivité depuis les accès, PMR, IRVE
+src/circulation.rs réseau des voies, sens de circulation (typologies imposées comprises), flèches au sol
+src/planted.rs    espaces plantés, arrondis en bordure de chaussée
 src/occupation.rs occupation du sol : voirie, bâti, végétation
 src/proj.rs       projections Lambert-93 et CC (RGF93, GRS80)
 src/dxf.rs        export DXF AutoCAD 2010 géoréférencé
 src/dxf_template.dxf squelette AutoCAD (calques, types de ligne, blocs d'habillage)
-src/symbols.json  symboles d'habillage (véhicules, arbres), partagés par l'interface et l'export
+src/symbols.json  symboles d'habillage (véhicules, arbres) et flèche au sol, partagés par l'interface et l'export
 src/lib.rs        orchestration, union de parcelles, interface WebAssembly (JSON en entrée, JSON en sortie)
-tests/quality.rs  invariants : aucun chevauchement, aucune place hors zone ou sans accès, quotas, 60 parcelles aléatoires
+tests/quality.rs  invariants : aucun chevauchement, aucune place hors zone ou sans accès, quotas, 60 parcelles aléatoires,
+                  flèches dans la chaussée, sens unique fortement connexe, bascule des voies par le squelette
 examples/dxf.rs   export d'un scénario en DXF
 web/app.html      interface (canvas, poignées, panneaux, mode carte, couches et calques, export)
 tools/bundle.py   assemble dist/index.html avec le moteur embarqué

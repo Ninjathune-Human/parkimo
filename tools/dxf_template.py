@@ -28,6 +28,7 @@ LAYERS = [
     ("PRJ_BATIMENTS", 7, "Continuous", 50, "Projet : batiments"),
     ("PRJ_ESPACES_VERTS", 92, "Continuous", 18, "Projet : espaces verts"),
     ("PRJ_SERVITUDES", 6, "Continuous", 25, "Projet : servitudes"),
+    ("PRJ_SIGNALISATION", 7, "Continuous", 13, "Projet : signalisation horizontale (sens de circulation)"),
     ("HAB_VEHICULES", 8, "Continuous", 13, "Habillage : vehicules"),
     ("HAB_ARBRES", 94, "Continuous", 13, "Habillage : arbres"),
 ]
@@ -42,18 +43,19 @@ for name, color, lt, lw, desc in LAYERS:
     layer = doc.layers.add(name, color=color, linetype=lt, lineweight=lw)
     layer.description = desc
 # Blocs d'habillage : entités sur le calque 0, couleur DUBLOC (elles prennent le calque de l'insertion).
-# Les vitres des véhicules sont remplies en gris (couleur 8).
+# Les vitres des véhicules sont remplies en gris (couleur 8), les flèches au sol en plein.
 root = pathlib.Path(__file__).resolve().parent.parent
 sym = json.loads((root / "src" / "symbols.json").read_text(encoding="utf-8"))
 BY = {"layer": "0", "color": 0}
-for s in sym["vehicules"] + sym["arbres"]:
+for s in sym["vehicules"] + sym["arbres"] + sym["marquages"]:
     blk = doc.blocks.new(s["bloc"], base_point=(0, 0))
     for p in s["prims"]:
         if "c" in p:
             blk.add_circle(p["c"], p["r"], dxfattribs=BY)
             continue
-        if p["k"] == "glass":
-            h = blk.add_hatch(color=8, dxfattribs={"layer": "0"})
+        if p["k"] in ("glass", "paint"):
+            # Vitres en gris ; peinture au sol pleine, couleur DUBLOC.
+            h = blk.add_hatch(color=8 if p["k"] == "glass" else 0, dxfattribs={"layer": "0"})
             h.paths.add_polyline_path(p["p"], is_closed=True)
         blk.add_lwpolyline(p["p"], close=not p.get("o"), dxfattribs=BY)
 

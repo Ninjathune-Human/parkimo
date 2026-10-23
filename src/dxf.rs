@@ -587,6 +587,10 @@ pub fn export(inp: &ExportIn) -> ExportOut {
     for b in &site.buildings {
         w.area("PRJ_BATIMENTS", &vec![b.poly.clone()], Some(&bati_fill));
     }
+    // Espaces plantés (contours à trous), puis îlots des rangées intérieures.
+    for poly in &lay.planted {
+        w.area("PRJ_ILOTS", poly, None);
+    }
     for q in &lay.islands {
         w.ring("PRJ_ILOTS", q);
     }
@@ -601,6 +605,10 @@ pub fn export(inp: &ExportIn) -> ExportOut {
             w.hatch(layer, &l, &Fill::Solid);
         }
         w.ring(layer, &s.q);
+    }
+    // Signalisation horizontale : flèches de sens de circulation.
+    for a in &lay.circulation.arrows {
+        w.insert("PRJ_SIGNALISATION", "SIG_FLECHE", a.p, a.a, 1.0);
     }
     // Habillage : véhicules sous les arbres ; seuls les blocs définis dans le squelette sont insérés.
     let known = |b: &str| TEMPLATE.contains(&format!("AcDbBlockBegin\n  2\n{b}\n"));
@@ -817,6 +825,8 @@ mod tests {
             "table, bloc, insertion"
         );
         assert!(!d.contains("INCONNU"));
+        // Flèches au sol : une insertion par flèche du plan.
+        assert!(d.matches("  2\nSIG_FLECHE\n 10\n").count() > 4);
         let rot: f64 = d
             .split("  2\nVEH_BERLINE\n 10\n")
             .nth(1)

@@ -230,6 +230,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 32px
 .sw.veg { background: repeating-linear-gradient(135deg, var(--veg) 0 1.4px, var(--veg-tint) 1.4px 3.6px); }
 .sw.excl { background: repeating-linear-gradient(45deg, var(--excl) 0 1.4px, transparent 1.4px 3.6px); }
 .sw.round { border-radius: 50%; }
+.sw-ico { flex: none; color: var(--label-2); margin: 0 -2px; }
 
 /* Mode carte */
 body.mapmode #brand, body.mapmode #b-fit, body.mapmode #empty, body.mapmode #stats, body.mapmode #toolbar, body.mapmode #layers, body.mapmode #selbar, body.mapmode #hint, body.mapmode .menu { display: none !important; }
@@ -381,8 +382,9 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <div class="eyebrow">Places et voies</div>
       <div class="field"><label for="p-stall_w">Largeur de place</label><span class="unit"><input id="p-stall_w" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-stall_d">Longueur de place</label><span class="unit"><input id="p-stall_d" type="text" inputmode="decimal" autocomplete="off">m</span></div>
-      <div class="field"><label for="p-aisle">Allée double sens</label><span class="unit"><input id="p-aisle" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+      <div class="field"><label for="p-aisle">Largeur d'allée</label><span class="unit"><input id="p-aisle" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-building_margin">Trottoir autour du bâti</label><span class="unit"><input id="p-building_margin" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+      <div class="field"><label for="p-skel">Squelette des voies</label><input id="p-skel" type="checkbox" class="switch" role="switch"></div>
     </div>
     <div class="pgroup">
       <div class="eyebrow">Paysage</div>
@@ -400,7 +402,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <div class="field"><span class="seg" role="group" aria-label="Orientation"><button id="o-auto" aria-pressed="true">Optimisée</button><button id="o-fixed" aria-pressed="false">Imposée</button></span><span class="unit num" id="o-val"></span></div>
       <input id="o-range" type="range" min="0" max="179" step="1" aria-label="Angle imposé" hidden>
     </div>
-    <p class="note">Valeurs par défaut : place 2,50 × 5,00 m, PMR 3,30 m et 2 % (ERP), IRVE 20 % (bâtiment non résidentiel). À ajuster selon le PLU et la destination.</p>
+    <p class="note">Valeurs par défaut : place 2,50 × 5,00 m, PMR 3,30 m et 2 % (ERP), IRVE 20 % (bâtiment non résidentiel). À ajuster selon le PLU et la destination. Une allée est à double sens à partir de 5,00 m, à sens unique en dessous. Squelette affiché, touchez un axe pour passer de double sens à sens unique, et inversement.</p>
   </section>
 
   <section id="export" class="menu glass" hidden aria-label="Export DXF">
@@ -449,6 +451,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
         <div class="eyebrow">Projet</div>
         <label class="lrow"><span><span class="sws"><i class="sw" style="background:var(--asphalt)"></i><i class="sw" style="background:var(--pmr)"></i><i class="sw" style="background:var(--irve)"></i></span>Places</span><input type="checkbox" class="switch" role="switch" data-lay="places"></label>
         <label class="lrow"><span><i class="sw" style="background:var(--asphalt)"></i>Voirie</span><input type="checkbox" class="switch" role="switch" data-lay="pvoirie"></label>
+        <label class="lrow"><span><svg class="sw-ico" width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><path d="M1 3h8.5M8 1l2.5 2L8 5M13 7H4.5M6 5 3.5 7 6 9" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Sens de circulation</span><input type="checkbox" class="switch" role="switch" data-lay="sens"></label>
         <label class="lrow"><span><i class="sw" style="background:var(--island)"></i>Îlots plantés</span><input type="checkbox" class="switch" role="switch" data-lay="ilots"></label>
         <label class="lrow"><span><i class="sw" style="background:var(--building)"></i>Bâtiments et espaces verts</span><input type="checkbox" class="switch" role="switch" data-lay="pbati"></label>
         <label class="lrow"><span><i class="sw excl"></i>Servitudes</span><input type="checkbox" class="switch" role="switch" data-lay="servitudes"></label>
@@ -589,7 +592,7 @@ const EXAMPLES = {
     parcel: [[0, 0], [160, 0], [160, 110], [0, 110]], setbacks: [5, 3, 5, 3],
     exclusions: [[[-5, 70], [20, 72], [45, 85], [70, 92], [95, 95], [125, 100], [165, 104], [165, 80], [130, 78], [105, 70], [80, 58], [55, 48], [30, 45], [-5, 46]]],
     buildings: [{ cx: 132.5, cy: 29, w: 42, h: 35, rot: 90, shape: "L" }],
-    landscapes: [{ cx: 19, cy: 24, w: 22, h: 32, rot: 0 }],
+    landscapes: [[[8, 8], [30, 8], [30, 40], [8, 40]]],
     entries: [{ edge: 0, t: 0.45 }, { edge: 2, t: 0.75 }],
   }),
   courbe: () => {
@@ -605,6 +608,8 @@ let site = EXAMPLES.ruisseau();
 let params = { ...DEFAULT_PARAMS };
 let exampleName = "ruisseau";
 let layout = null, lastAngle = null, lastMs = 0;
+let SKEL = false; // squelette des voies affiché (réglage de présentation, hors historique)
+try { SKEL = localStorage.getItem("trame.skel") === "1"; } catch (e) { /* stockage indisponible */ }
 
 // Formes d'objets → polygones.
 function rectPoly(o) {
@@ -616,6 +621,10 @@ function rectPoly(o) {
   } else local = [[-w, -h], [w, -h], [w, h], [-w, h]];
   return local.map(([x, y]) => [o.cx + x * c - y * s, o.cy + x * s + y * c]);
 }
+// Objets polygonaux (sommets modifiables) : type de sélection → liste du site.
+const POLY = { exclusion: "exclusions", landscape: "landscapes" };
+// Projets enregistrés avant que les espaces verts ne soient des polygones : rectangle → sommets.
+function normSite(s) { if (s && s.landscapes) s.landscapes = s.landscapes.map((o) => (Array.isArray(o) ? o : rectPoly(o))); return s; }
 function polyArea(p) { let a = 0; for (let i = 0; i < p.length; i++) { const q = p[(i + 1) % p.length]; a += p[i][0] * q[1] - q[0] * p[i][1]; } return a / 2; }
 
 function engineInput(quick) {
@@ -623,7 +632,7 @@ function engineInput(quick) {
   return {
     parcel: site.parcel, setbacks: site.setbacks, exclusions: site.exclusions,
     buildings: site.buildings.map((b) => ({ poly: rectPoly(b) })),
-    landscapes: site.landscapes.map(rectPoly), entries: site.entries,
+    landscapes: site.landscapes, entries: site.entries, lanes: site.lanes || [],
     params: {
       stall_w: p.stall_w, stall_d: p.stall_d, aisle: p.aisle, building_margin: p.building_margin,
       planter_every: Math.max(0, Math.round(p.planter_every)), cap: p.cap, max_run: p.max_run,
@@ -659,10 +668,16 @@ const view = { s: 4, ox: 0, oy: 0 };
 const toS = (p) => [p[0] * view.s + view.ox, -p[1] * view.s + view.oy];
 const toW = (x, y) => [(x - view.ox) / view.s, (view.oy - y) / view.s];
 
-function resize() {
+// Taille de la trame du canvas. Sur iPhone et iPad, l'événement resize d'une rotation peut arriver
+// avant la nouvelle mise en page : la taille est donc suivie par ResizeObserver, qui la mesure après.
+function resize(cw, ch) {
   DPR = Math.min(window.devicePixelRatio || 1, 2.5);
-  W = canvas.clientWidth; H = canvas.clientHeight;
-  canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+  const w0 = W, h0 = H;
+  W = cw !== undefined ? cw : canvas.clientWidth; H = ch !== undefined ? ch : canvas.clientHeight;
+  // Le point du plan au centre de l'écran y reste (rotation, fenêtre redimensionnée).
+  if (w0 && h0) { view.ox += (W - w0) / 2; view.oy += (H - h0) / 2; }
+  const w = Math.round(W * DPR), h = Math.round(H * DPR);
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
   placeLayers();
   redraw();
 }
@@ -676,8 +691,8 @@ function placeLayers() {
 // Sans parcelle, l'emprise du fond de carte importé.
 function workBounds() {
   const pts = [...site.parcel];
-  for (const o of [...site.buildings, ...site.landscapes]) pts.push(...rectPoly(o));
-  for (const e of site.exclusions) pts.push(...e);
+  for (const o of site.buildings) pts.push(...rectPoly(o));
+  for (const e of [...site.exclusions, ...site.landscapes]) pts.push(...e);
   if (layout && !layout.error && site.parcel.length >= 3) for (const q of layout.entries) pts.push(...q);
   if (!pts.length && baseShown()) { const r = basemap.rect; pts.push([r.x0, r.y0], [r.x1, r.y1]); }
   if (!pts.length) return null;
@@ -742,16 +757,6 @@ function hatchPattern() {
 
 function pathPoly(pts) { if (!pts.length) return; const a = toS(pts[0]); ctx.moveTo(a[0], a[1]); for (let i = 1; i < pts.length; i++) { const b = toS(pts[i]); ctx.lineTo(b[0], b[1]); } ctx.closePath(); }
 function fillPoly(pts, color) { ctx.beginPath(); pathPoly(pts); ctx.fillStyle = color; ctx.fill(); }
-function roundedQuad(q, rm) {
-  const p = q.map(toS), n = 4;
-  const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-  const e0 = Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]), e1 = Math.hypot(p[2][0] - p[1][0], p[2][1] - p[1][1]);
-  const r = Math.min(rm * view.s, Math.min(e0, e1) / 2 - 0.01);
-  const m0 = mid(p[0], p[1]);
-  ctx.moveTo(m0[0], m0[1]);
-  for (let i = 1; i <= n; i++) { const c = p[i % n], nx = mid(p[i % n], p[(i + 1) % n]); ctx.arcTo(c[0], c[1], nx[0], nx[1], Math.max(0, r)); }
-  ctx.closePath();
-}
 
 let needsDraw = false;
 function redraw() { if (!needsDraw) { needsDraw = true; requestAnimationFrame(draw); } }
@@ -770,6 +775,8 @@ function draw() {
 
   // Parcelle (pleine terre), translucide sur la photo aérienne
   ctx.beginPath(); pathPoly(site.parcel); ctx.fillStyle = C.parcel; ctx.globalAlpha = baseShown() && VIS.photo && basemap.img ? 0.55 : 1; ctx.fill(); ctx.globalAlpha = 1;
+  // Calque Bâtiments et espaces verts : espaces verts imposés (leurs arbres relèvent de l'habillage)
+  if (VIS.pbati) site.landscapes.forEach((p) => fillPoly(p, C.island));
 
   if (layout && !layout.error) {
     // Calque Voirie
@@ -789,16 +796,21 @@ function draw() {
       for (const st of layout.stalls) { const q = st.q.map(toS); ctx.moveTo(q[3][0], q[3][1]); ctx.lineTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.lineTo(q[2][0], q[2][1]); }
       ctx.stroke();
     }
-    // Calque Îlots plantés
-    if (VIS.ilots) { ctx.fillStyle = C.island; ctx.beginPath(); for (const q of layout.islands) roundedQuad(q, 1.2); ctx.fill(); }
+    // Calque Sens de circulation : flèches peintes sur la chaussée
+    if (VIS.sens && view.s > 1.0 && layout.circulation && layout.circulation.arrows.length) {
+      planTransform(ctx, DPR, view.s, view.ox, view.oy); ctx.fillStyle = C.stripe; ctx.fill(arrowsPath(layout)); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    }
+    // Calque Îlots plantés : espaces plantés (arrondis côté chaussée), puis îlots des rangées (rectangulaires)
+    if (VIS.ilots) {
+      ctx.fillStyle = C.island;
+      ctx.beginPath(); for (const poly of layout.planted || []) for (const r of poly) pathPoly(r); ctx.fill("evenodd");
+      ctx.beginPath(); for (const q of layout.islands) pathPoly(q); ctx.fill();
+    }
     // Couche Habillage : véhicules sous les arbres
     drawDressing();
-    // Sens d'entrée
-    if (VIS.pvoirie) for (const q of layout.entries) drawEntryArrow(q);
+    if (SKEL) drawSkeleton();
   }
 
-  // Calque Bâtiments et espaces verts : espaces verts imposés
-  if (VIS.pbati) site.landscapes.forEach((o) => { const p = rectPoly(o); fillPoly(p, C.island); drawCanopy(p); });
   // Calque Servitudes
   if (VIS.servitudes) site.exclusions.forEach((e) => {
     ctx.save(); ctx.beginPath(); pathPoly(e); ctx.clip();
@@ -840,19 +852,6 @@ function labelPoint(o) {
   return [o.cx + r[0], o.cy + r[1]];
 }
 
-function drawCanopy(p) {
-  if (view.s < 1.2) return;
-  ctx.save(); ctx.beginPath(); pathPoly(p); ctx.clip();
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const [x, y] of p) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
-  ctx.fillStyle = C.tree; ctx.strokeStyle = C["tree-edge"]; ctx.lineWidth = 0.6; ctx.globalAlpha = 0.85;
-  const step = 5.5; let row = 0;
-  for (let y = y0 + 2.5; y < y1 + 3; y += step * 0.86, row++) for (let x = x0 + 2.5 + (row % 2) * step / 2; x < x1 + 3; x += step) {
-    const s = toS([x + Math.sin(x * 7.1 + y) * 0.8, y + Math.cos(y * 5.3 + x) * 0.8]); const r = (2.0 + 0.5 * Math.sin(x * 3 + y * 2)) * view.s;
-    ctx.beginPath(); ctx.arc(s[0], s[1], r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  }
-  ctx.restore(); ctx.globalAlpha = 1;
-}
 
 // Flèche : trait d'axe et chevron pointant dans la direction (ux, uy), en pixels écran.
 function arrow(x, y, ux, uy, k, color, width) {
@@ -862,11 +861,6 @@ function arrow(x, y, ux, uy, k, color, width) {
   ctx.moveTo(tx - ux * k * 0.8 + px * k * 0.65, ty - uy * k * 0.8 + py * k * 0.65); ctx.lineTo(tx, ty);
   ctx.lineTo(tx - ux * k * 0.8 - px * k * 0.65, ty - uy * k * 0.8 - py * k * 0.65);
   ctx.stroke();
-}
-function drawEntryArrow(q) {
-  const a = toS([(q[0][0] + q[1][0]) / 2, (q[0][1] + q[1][1]) / 2]), b = toS([(q[3][0] + q[2][0]) / 2, (q[3][1] + q[2][1]) / 2]);
-  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy); if (L < 30) return;
-  arrow(a[0] + dx * 0.55, a[1] + dy * 0.55, dx / L, dy / L, Math.min(9, 1.3 * view.s), C.stripe, 1.6);
 }
 
 function drawGrid() {
@@ -935,8 +929,8 @@ function drawHandles() {
   });
   // Objet sélectionné
   if (!sel) return;
-  if (sel.type === "building" || sel.type === "landscape") {
-    const o = (sel.type === "building" ? site.buildings : site.landscapes)[sel.i];
+  if (sel.type === "building") {
+    const o = site.buildings[sel.i];
     const cs = objCorners(o).map(toS);
     ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]); ctx.beginPath(); cs.forEach((c, k) => (k ? ctx.lineTo(c[0], c[1]) : ctx.moveTo(c[0], c[1]))); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
     const r = toS(rotHandle(o)), top = toS([(objCorners(o)[2][0] + objCorners(o)[3][0]) / 2, (objCorners(o)[2][1] + objCorners(o)[3][1]) / 2]);
@@ -948,8 +942,8 @@ function drawHandles() {
     dimLabel(corners[0], corners[1], fmt1(o.w) + " m", font);
     dimLabel(corners[1], corners[2], fmt1(o.h) + " m", font);
   }
-  if (sel.type === "exclusion") {
-    const e = site.exclusions[sel.i];
+  if (POLY[sel.type]) {
+    const e = site[POLY[sel.type]][sel.i];
     ctx.beginPath(); pathPoly(e); ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.stroke();
     e.forEach((v, k) => squareHandle(toS(v), sel.v === k));
   }
@@ -1039,19 +1033,20 @@ const snap = (x, s) => +(Math.round(x / s) * s).toFixed(3);
 
 function hitTest(w) {
   const h = HIT(), h2 = h * h;
-  if (sel && (sel.type === "building" || sel.type === "landscape")) {
-    const o = (sel.type === "building" ? site.buildings : site.landscapes)[sel.i];
+  if (sel && sel.type === "building") {
+    const o = site.buildings[sel.i];
     if (dist2(w, rotHandle(o)) < h2 * 1.4) return { kind: "rotate", type: sel.type, i: sel.i };
     const cs = objCorners(o); for (let k = 0; k < 4; k++) if (dist2(w, cs[k]) < h2) return { kind: "resize", type: sel.type, i: sel.i, k };
   }
-  if (sel && sel.type === "exclusion") {
-    const e = site.exclusions[sel.i]; for (let k = 0; k < e.length; k++) if (dist2(w, e[k]) < h2) return { kind: "evertex", i: sel.i, k };
+  if (sel && POLY[sel.type]) {
+    const e = site[POLY[sel.type]][sel.i]; for (let k = 0; k < e.length; k++) if (dist2(w, e[k]) < h2) return { kind: "evertex", type: sel.type, i: sel.i, k };
   }
   for (let i = 0; i < site.entries.length; i++) if (site.entries[i].edge < site.parcel.length && dist2(w, entryPoint(site.entries[i])) < h2 * 1.3) return { kind: "entry", i };
   for (let i = 0; i < site.parcel.length; i++) if (dist2(w, site.parcel[i]) < h2) return { kind: "vertex", i };
   if (VIS.recul) for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); if (e.L * view.s >= 40 && dist2(w, setbackHandle(i)) < h2) return { kind: "setback", i }; }
+  if (SKEL && layout && layout.circulation) { let best = null; layout.circulation.axes.forEach((a, i) => { const d = distPoly(w, a.pts); if (d < Math.max(h, a.w / 2) && (!best || d < best.d)) best = { d, i }; }); if (best) return { kind: "axis", i: best.i }; }
   if (VIS.pbati) for (let i = site.buildings.length - 1; i >= 0; i--) if (pointInPoly(w, rectPoly(site.buildings[i]))) return { kind: "move", type: "building", i };
-  if (VIS.pbati) for (let i = site.landscapes.length - 1; i >= 0; i--) if (pointInPoly(w, rectPoly(site.landscapes[i]))) return { kind: "move", type: "landscape", i };
+  if (VIS.pbati) for (let i = site.landscapes.length - 1; i >= 0; i--) { const e = site.landscapes[i]; if (pointInPoly(w, e)) return { kind: "move", type: "landscape", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "landscape", i }; }
   if (VIS.servitudes) for (let i = site.exclusions.length - 1; i >= 0; i--) { const e = site.exclusions[i]; if (pointInPoly(w, e)) return { kind: "move", type: "exclusion", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "exclusion", i }; }
   for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); const [d, t] = distSeg(w, e.a, e.b); if (d < h * 0.7) return { kind: "pedge", i, t }; }
   const ci = cadParcelAt(w); if (ci >= 0) return { kind: "cadastre", i: ci };
@@ -1064,12 +1059,12 @@ function updateSelbar() {
   if (!sel || sel.type === "pedge") { bar.hidden = true; $("#hint").style.opacity = ""; return; }
   bar.hidden = false; $("#hint").style.opacity = "0";
   const shape = $("#sel-shape"), rotb = $("#sel-rot");
-  shape.hidden = sel.type !== "building"; rotb.hidden = !(sel.type === "building" || sel.type === "landscape");
+  shape.hidden = sel.type !== "building"; rotb.hidden = sel.type !== "building";
   $("#sel-study").hidden = sel.type !== "cadastre"; $("#sel-merge").hidden = sel.type !== "cadastre" || site.parcel.length < 3; $("#sel-del").hidden = sel.type === "cadastre";
   if (sel.type === "cadastre") { const f = basemap.layers.parcelles[sel.i]; $("#sel-what").textContent = "Parcelle " + cadName(f); $("#sel-dim").textContent = [f.p.contenance ? fmtInt(f.p.contenance) + " m²" : "", f.p.nom_com].filter(Boolean).join(" · "); return; }
   let what = "", dim = "";
   if (sel.type === "building") { const b = site.buildings[sel.i]; what = b.shape === "L" ? "Bâtiment en L" : "Bâtiment"; dim = fmtInt(Math.abs(polyArea(rectPoly(b)))) + " m²"; shape.textContent = b.shape === "L" ? "Forme rectangle" : "Forme en L"; }
-  if (sel.type === "landscape") { const o = site.landscapes[sel.i]; what = "Espace vert"; dim = fmtInt(o.w * o.h) + " m²"; }
+  if (sel.type === "landscape") { what = "Espace vert"; dim = fmtInt(Math.abs(polyArea(site.landscapes[sel.i]))) + " m²"; }
   if (sel.type === "exclusion") { what = "Servitude"; dim = fmtInt(Math.abs(polyArea(site.exclusions[sel.i]))) + " m²"; }
   if (sel.type === "entry") { what = "Accès véhicules"; dim = "limite " + (site.entries[sel.i].edge + 1); }
   if (sel.type === "vertex") { what = "Sommet " + (sel.i + 1); const v = site.parcel[sel.i]; dim = `${fmt1(v[0])} ; ${fmt1(v[1])}`; }
@@ -1093,7 +1088,7 @@ canvas.addEventListener("pointerdown", (ev) => {
     if (hit.kind === "move") setSel({ type: hit.type, i: hit.i });
     else if (hit.kind === "vertex") setSel({ type: "vertex", i: hit.i });
     else if (hit.kind === "entry") setSel({ type: "entry", i: hit.i });
-    else if (hit.kind === "evertex") setSel({ type: "exclusion", i: hit.i, v: hit.k });
+    else if (hit.kind === "evertex") setSel({ type: hit.type, i: hit.i, v: hit.k });
     else if (hit.kind === "setback" || hit.kind === "pedge") { /* conserve la sélection */ }
   }
   canvas.classList.add("dragging");
@@ -1129,23 +1124,23 @@ canvas.addEventListener("pointermove", (ev) => {
     case "entry": { let best = null; for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i), [d, t] = distSeg(w, e.a, e.b); if (!best || d < best.d) best = { d, i, t }; } site.entries[h.i] = { edge: best.i, t: Math.max(0.02, Math.min(0.98, best.t)) }; break; }
     case "move": {
       const o0 = JSON.parse(drag.orig), ddx = w[0] - drag.w0[0], ddy = w[1] - drag.w0[1];
-      if (h.type === "exclusion") site.exclusions[h.i] = o0.exclusions[h.i].map(([x, y]) => [x + ddx, y + ddy]);
-      else { const arr = h.type === "building" ? "buildings" : "landscapes", src = o0[arr][h.i]; site[arr][h.i] = { ...src, cx: snap(src.cx + ddx, 0.25), cy: snap(src.cy + ddy, 0.25) }; }
+      if (POLY[h.type]) site[POLY[h.type]][h.i] = o0[POLY[h.type]][h.i].map(([x, y]) => [x + ddx, y + ddy]);
+      else { const src = o0.buildings[h.i]; site.buildings[h.i] = { ...src, cx: snap(src.cx + ddx, 0.25), cy: snap(src.cy + ddy, 0.25) }; }
       break;
     }
-    case "evertex": site.exclusions[h.i][h.k] = [snap(w[0], 0.1), snap(w[1], 0.1)]; break;
-    case "rotate": { const arr = h.type === "building" ? "buildings" : "landscapes", o = site[arr][h.i]; let a = Math.atan2(w[1] - o.cy, w[0] - o.cx) * 180 / Math.PI - 90; a = snap(((a % 360) + 360) % 360, 1); for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); const ea = Math.atan2(e.u[1], e.u[0]) * 180 / Math.PI; for (const k of [0, 90, 180, 270]) { const t = ((ea + k) % 360 + 360) % 360; if (Math.abs(t - a) < 2.5) a = +t.toFixed(2); } } o.rot = a; break; }
+    case "evertex": site[POLY[h.type]][h.i][h.k] = [snap(w[0], 0.1), snap(w[1], 0.1)]; break;
+    case "rotate": { const o = site.buildings[h.i]; let a = Math.atan2(w[1] - o.cy, w[0] - o.cx) * 180 / Math.PI - 90; a = snap(((a % 360) + 360) % 360, 1); for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); const ea = Math.atan2(e.u[1], e.u[0]) * 180 / Math.PI; for (const k of [0, 90, 180, 270]) { const t = ((ea + k) % 360 + 360) % 360; if (Math.abs(t - a) < 2.5) a = +t.toFixed(2); } } o.rot = a; break; }
     case "resize": {
-      const arr = h.type === "building" ? "buildings" : "landscapes", o = site[arr][h.i];
+      const o = site.buildings[h.i];
       const signs = [[-1, -1], [1, -1], [1, 1], [-1, 1]], [sx, sy] = signs[h.k];
-      const cs = objCorners(JSON.parse(drag.orig)[arr][h.i]), opp = cs[(h.k + 2) % 4];
+      const cs = objCorners(JSON.parse(drag.orig).buildings[h.i]), opp = cs[(h.k + 2) % 4];
       const d = rot([w[0] - opp[0], w[1] - opp[1]], -o.rot);
       const nw = Math.max(6, snap(sx * d[0], 0.5)), nh = Math.max(6, snap(sy * d[1], 0.5));
       const c = rot([sx * nw / 2, sy * nh / 2], o.rot);
       Object.assign(o, { w: nw, h: nh, cx: opp[0] + c[0], cy: opp[1] + c[1] });
       break;
     }
-    case "pedge": case "cadastre": drag.kind = "pan"; return;
+    case "pedge": case "cadastre": case "axis": drag.kind = "pan"; return;
   }
   updateSelbar(); requestSolve(true);
 });
@@ -1163,11 +1158,12 @@ function endPointer(ev) {
   // Toucher simple
   lastTap = { t: dbl ? 0 : now, x: sp[0], y: sp[1] };
   const h = d.hit;
+  if (h && h.kind === "axis") { toggleAxis(h.i); return; }
   if (dbl && h) {
     if (h.kind === "vertex" && site.parcel.length > 3) { removeParcelVertex(h.i); return; }
     if (h.kind === "pedge") { insertParcelVertex(h.i, h.t); return; }
-    if (h.kind === "evertex" && site.exclusions[h.i].length > 3) { site.exclusions[h.i].splice(h.k, 1); setSel({ type: "exclusion", i: h.i }); solve(false); commit(); return; }
-    if (h.kind === "move" && h.type === "exclusion") { const e = site.exclusions[h.i], w = toW(sp[0], sp[1]); let best = null; for (let k = 0; k < e.length; k++) { const [dd, t] = distSeg(w, e[k], e[(k + 1) % e.length]); if (!best || dd < best.d) best = { d: dd, k, t }; } if (best.d < HIT()) { e.splice(best.k + 1, 0, [w[0], w[1]]); solve(false); commit(); redraw(); return; } }
+    if (h.kind === "evertex" && site[POLY[h.type]][h.i].length > 3) { site[POLY[h.type]][h.i].splice(h.k, 1); setSel({ type: h.type, i: h.i }); solve(false); commit(); return; }
+    if (h.kind === "move" && POLY[h.type]) { const e = site[POLY[h.type]][h.i], w = toW(sp[0], sp[1]); let best = null; for (let k = 0; k < e.length; k++) { const [dd, t] = distSeg(w, e[k], e[(k + 1) % e.length]); if (!best || dd < best.d) best = { d: dd, k, t }; } if (best.d < HIT()) { e.splice(best.k + 1, 0, [w[0], w[1]]); solve(false); commit(); redraw(); return; } }
   }
   if (h && h.kind === "cadastre") { setSel({ type: "cadastre", i: h.i }); return; }
   if (!h || h.kind === "pedge" || h.kind === "setback") setSel(null);
@@ -1223,7 +1219,10 @@ function viewCenter() { const narrow = W < 760; return toW(narrow ? W / 2 : (W +
 function addObject(kind) {
   const c = viewCenter().map((v) => snap(v, 0.5));
   if (kind === "building" || kind === "buildingL") { site.buildings.push({ cx: c[0], cy: c[1], w: kind === "buildingL" ? 36 : 30, h: kind === "buildingL" ? 30 : 18, rot: 0, shape: kind === "buildingL" ? "L" : "rect" }); setSel({ type: "building", i: site.buildings.length - 1 }); }
-  if (kind === "landscape") { site.landscapes.push({ cx: c[0], cy: c[1], w: 20, h: 14, rot: 0 }); setSel({ type: "landscape", i: site.landscapes.length - 1 }); }
+  if (kind === "landscape") {
+    site.landscapes.push([[-10, -6], [2, -7], [10, -4], [9, 6], [-1, 7], [-10, 5]].map(([x, y]) => [c[0] + x, c[1] + y]));
+    setSel({ type: "landscape", i: site.landscapes.length - 1 });
+  }
   if (kind === "exclusion") {
     const r = 24; site.exclusions.push([[c[0] - r * 1.6, c[1] - 4], [c[0] - r * 0.4, c[1] - 7], [c[0] + r * 0.6, c[1] - 3], [c[0] + r * 1.6, c[1] - 6], [c[0] + r * 1.6, c[1] + 6], [c[0] + r * 0.4, c[1] + 8], [c[0] - r * 0.7, c[1] + 4], [c[0] - r * 1.6, c[1] + 6]].map((p) => p.map((v) => +v.toFixed(2))));
     setSel({ type: "exclusion", i: site.exclusions.length - 1 });
@@ -1244,7 +1243,7 @@ function deleteSel() {
   setSel(null); solve(false); commit(); markMine();
 }
 $("#sel-del").addEventListener("click", deleteSel);
-$("#sel-rot").addEventListener("click", () => { const arr = sel.type === "building" ? site.buildings : site.landscapes; const o = arr[sel.i]; o.rot = (o.rot + 90) % 360; updateSelbar(); solve(false); commit(); });
+$("#sel-rot").addEventListener("click", () => { const o = site.buildings[sel.i]; o.rot = (o.rot + 90) % 360; updateSelbar(); solve(false); commit(); });
 $("#sel-shape").addEventListener("click", () => { const o = site.buildings[sel.i]; o.shape = o.shape === "L" ? "rect" : "L"; updateSelbar(); solve(false); commit(); });
 
 function closeMenus(except) {
@@ -1310,12 +1309,62 @@ $("#o-fixed").addEventListener("click", () => { params.angle = layout ? Math.rou
 $("#o-range").addEventListener("input", (ev) => { params.angle = +ev.target.value; requestSolve(false); });
 $("#o-range").addEventListener("change", () => commit());
 
+// Squelette des voies : axes de la chaussée ; toucher un axe bascule sa typologie (double sens ⇄ sens
+// unique). Le choix est mémorisé dans le site par le milieu de l'axe, retrouvé à chaque calcul.
+$("#p-skel").checked = SKEL;
+$("#p-skel").addEventListener("change", (ev) => {
+  SKEL = ev.target.checked; try { localStorage.setItem("trame.skel", SKEL ? "1" : "0"); } catch (e) { /* stockage indisponible */ }
+  if (SKEL) toast("Touchez un axe pour changer le sens de la voie"); redraw();
+});
+function distPoly(p, pts) { let d = Infinity; for (let k = 1; k < pts.length; k++) d = Math.min(d, distSeg(p, pts[k - 1], pts[k])[0]); return d; }
+function axisMid(pts) {
+  let L = 0; for (let k = 1; k < pts.length; k++) L += Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]);
+  let acc = 0; for (let k = 1; k < pts.length; k++) { const a = pts[k - 1], b = pts[k], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (acc + l >= L / 2 && l > 0) { const t = (L / 2 - acc) / l; return [+(a[0] + (b[0] - a[0]) * t).toFixed(2), +(a[1] + (b[1] - a[1]) * t).toFixed(2)]; } acc += l; }
+  return pts[0];
+}
+function toggleAxis(i) {
+  const a = layout.circulation.axes[i], sens = a.sens === 2 ? 1 : 2, prev = site.lanes || [], refused = layout.circulation.refused, m = axisMid(a.pts);
+  site.lanes = prev.filter((r) => distPoly(r.p, a.pts) > Math.max(1.5, a.w / 2)).concat([{ p: m, sens }]);
+  solve(false);
+  // Sans effet (sens unique qui couperait la circulation, voie non reliée à un accès) : le site reste tel qu'il était.
+  const c = layout && layout.circulation, b = c && c.axes.reduce((o, x) => { const d = distPoly(m, x.pts); return !o || d < o.d ? { d, x } : o; }, null);
+  if (!b || b.x.sens !== sens) { const cut = c && c.refused > refused; site.lanes = prev; solve(false); toast(cut ? "Sens unique impossible : la circulation serait coupée" : "Voie non reliée à un accès"); return; }
+  commit(); markMine(); toast(sens === 1 ? "Voie à sens unique" : "Voie à double sens");
+}
+function drawSkeleton() {
+  const axes = layout.circulation ? layout.circulation.axes : [];
+  if (!axes.length) return;
+  const line = (pts) => { const a = toS(pts[0]); ctx.moveTo(a[0], a[1]); for (let k = 1; k < pts.length; k++) { const b = toS(pts[k]); ctx.lineTo(b[0], b[1]); } };
+  ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
+  // Double sens : deux traits (un trait large évidé) ; sens unique : un trait et des chevrons.
+  ctx.beginPath(); for (const a of axes) if (a.sens === 2) line(a.pts);
+  ctx.strokeStyle = C.accent; ctx.lineWidth = 6; ctx.stroke(); ctx.strokeStyle = C.asphalt; ctx.lineWidth = 2.4; ctx.stroke();
+  ctx.beginPath(); for (const a of axes) if (a.sens === 1) line(a.pts);
+  ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.stroke();
+  ctx.beginPath();
+  for (const a of axes) if (a.sens === 1) {
+    const P = a.pts.map(toS); let next = 24, acc = 0;
+    for (let k = 1; k < P.length; k++) {
+      const dx = P[k][0] - P[k - 1][0], dy = P[k][1] - P[k - 1][1], l = Math.hypot(dx, dy); if (!l) continue;
+      const ux = dx / l, uy = dy / l;
+      while (next <= acc + l) { const t = next - acc, x = P[k - 1][0] + ux * t, y = P[k - 1][1] + uy * t; ctx.moveTo(x - ux * 4 - uy * 4, y - uy * 4 + ux * 4); ctx.lineTo(x, y); ctx.lineTo(x - ux * 4 + uy * 4, y - uy * 4 - ux * 4); next += 48; }
+      acc += l;
+    }
+  }
+  ctx.stroke();
+  // Nœuds : carrefours, accès, fonds d'impasse
+  ctx.fillStyle = C.accent; ctx.strokeStyle = C.stripe; ctx.lineWidth = 1.5;
+  ctx.beginPath(); for (const a of axes) for (const q of [a.pts[0], a.pts[a.pts.length - 1]]) { const p = toS(q); ctx.moveTo(p[0] + 3.5, p[1]); ctx.arc(p[0], p[1], 3.5, 0, Math.PI * 2); }
+  ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
 // ============================================================================
 // Habillage : véhicules dans les places, essences d'arbres. Symboles partagés avec l'export DXF
 // (src/symbols.json, blocs AutoCAD du même nom). Réglage de présentation, hors historique.
 // ============================================================================
 const SYM = JSON.parse($("#symbols").textContent);
-for (const s of [...SYM.vehicules, ...SYM.arbres]) for (const p of s.prims) {
+for (const s of [...SYM.vehicules, ...SYM.arbres, ...SYM.marquages]) for (const p of s.prims) {
   const path = new Path2D();
   if (p.c) path.arc(p.c[0], p.c[1], p.r, 0, Math.PI * 2);
   else { p.p.forEach(([x, y], i) => (i ? path.lineTo(x, y) : path.moveTo(x, y))); if (!p.o) path.closePath(); }
@@ -1367,11 +1416,26 @@ function dressing() {
     const a = Math.atan2(uy * dir, ux * dir) * 180 / Math.PI + (rnd(ix, iy, 5) - 0.5) * 3;
     cars.push({ v, x: bx + ux * c - uy * lat, y: by + uy * c + ux * lat, a, col: pickWeighted(CAR_COLORS, (x) => x[2], rnd(ix, iy, 6)) });
   }
-  for (const t of layout.trees) {
-    const ix = Math.round(t[0] * 10), iy = Math.round(t[1] * 10);
+  const plant = (x, y) => {
+    const ix = Math.round(x * 10), iy = Math.round(y * 10);
     const id = DRESS.tree === "mix" ? pickWeighted(Object.keys(TREE_MIX), (k) => TREE_MIX[k], rnd(ix, iy, 7)) : DRESS.tree;
-    const sp = SYM.arbres.find((x) => x.id === id) || SYM.arbres[0];
-    trees.push({ sp, x: t[0], y: t[1], a: rnd(ix, iy, 8) * 360, s: sp.r * (0.9 + 0.2 * rnd(ix, iy, 9)) });
+    const sp = SYM.arbres.find((t) => t.id === id) || SYM.arbres[0];
+    trees.push({ sp, x, y, a: rnd(ix, iy, 8) * 360, s: sp.r * (0.9 + 0.2 * rnd(ix, iy, 9)) });
+  };
+  for (const t of layout.trees) plant(t[0], t[1]);
+  // Espaces verts imposés : plantation en quinconce, à 1 m au moins du bord, essence de l'habillage.
+  const one = SYM.arbres.find((t) => t.id === DRESS.tree), step = one ? Math.max(3, 2.1 * one.r) : 5.5;
+  for (const poly of site.landscapes) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const [x, y] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    const inside = (p) => pointInPoly(p, poly) && poly.every((a, k) => distSeg(p, a, poly[(k + 1) % poly.length])[0] >= 1);
+    let n = 0, row = 0;
+    for (let y = y0 + step / 2; y < y1; y += step * 0.866, row++) for (let x = x0 + step / 2 + (row % 2) * step / 2; x < x1; x += step) {
+      const ix = Math.round(x * 10), iy = Math.round(y * 10);
+      const p = [x + (rnd(ix, iy, 10) - 0.5) * step * 0.25, y + (rnd(ix, iy, 11) - 0.5) * step * 0.25];
+      if (inside(p)) { plant(p[0], p[1]); n++; }
+    }
+    if (!n) { const c = [poly.reduce((a, q) => a + q[0], 0) / poly.length, poly.reduce((a, q) => a + q[1], 0) / poly.length]; if (pointInPoly(c, poly)) plant(c[0], c[1]); }
   }
   dressCache = { layout, key, v: { cars, trees, batch: batchOf(cars, trees) } };
   return dressCache.v;
@@ -1400,6 +1464,15 @@ function batchOf(cars, trees) {
   return b;
 }
 const TRUNK = "#5A4632";
+// Flèches au sol : un seul Path2D par plan calculé.
+let arrowsCache = { layout: null, path: null };
+function arrowsPath(lay) {
+  if (arrowsCache.layout === lay) return arrowsCache.path;
+  const path = new Path2D(), sym = SYM.marquages[0].prims[0].path;
+  for (const a of lay.circulation.arrows) { const r = a.a * Math.PI / 180; path.addPath(sym, new DOMMatrix([Math.cos(r), Math.sin(r), -Math.sin(r), Math.cos(r), a.p[0], a.p[1]])); }
+  arrowsCache = { layout: lay, path };
+  return path;
+}
 // px : un pixel écran en unités du plan.
 function paintCars(g, b, px) {
   for (const [col, p] of b.colors) {
@@ -1498,7 +1571,7 @@ const CADR = { layer: "CADASTRALPARCELS.PARCELLAIRE_EXPRESS", style: "PCI vecteu
 const CAD_TYPES = { parcelles: "parcelle", bati: "batiment", feuilles: "feuille", communes: "commune" };
 // Calques : ce que l'on affiche ou masque. Chacun devient un calque AutoCAD à l'export.
 const LAYER_DEFAULTS = {
-  places: true, pvoirie: true, ilots: true, pbati: true, servitudes: true, recul: true, vehicules: true, arbres: true,
+  places: true, pvoirie: true, sens: true, ilots: true, pbati: true, servitudes: true, recul: true, vehicules: true, arbres: true,
   ovoirie: true, bati: true, vegetation: true,
   photo: true, parcelles: true, numeros: true, feuilles: false, communes: true,
 };
@@ -1869,7 +1942,8 @@ function reframeSite(a, b) {
   const f = ([x, y]) => { const X = x / a.k + a.O[0], Y = y / a.k + a.O[1]; return [+((X - b.O[0]) * b.k).toFixed(3), +((Y - b.O[1]) * b.k).toFixed(3)]; };
   site.parcel = site.parcel.map(f);
   site.exclusions = site.exclusions.map((e) => e.map(f));
-  for (const o of [...site.buildings, ...site.landscapes]) { [o.cx, o.cy] = f([o.cx, o.cy]); o.w *= b.k / a.k; o.h *= b.k / a.k; }
+  site.landscapes = site.landscapes.map((e) => e.map(f));
+  for (const o of site.buildings) { [o.cx, o.cy] = f([o.cx, o.cy]); o.w *= b.k / a.k; o.h *= b.k / a.k; }
 }
 
 // ---- Persistance du fond (IndexedDB : la photo dépasse la taille admise par localStorage)
@@ -2052,7 +2126,7 @@ $("#m-ok").addEventListener("click", importArea);
 // ============================================================================
 // Calque de l'interface → calques AutoCAD correspondants.
 const DXF_LAYERS = {
-  places: ["PRJ_PLACES", "PRJ_PLACES_PMR", "PRJ_PLACES_IRVE"], pvoirie: ["PRJ_VOIRIE"], ilots: ["PRJ_ILOTS"],
+  places: ["PRJ_PLACES", "PRJ_PLACES_PMR", "PRJ_PLACES_IRVE"], pvoirie: ["PRJ_VOIRIE"], sens: ["PRJ_SIGNALISATION"], ilots: ["PRJ_ILOTS"],
   vehicules: ["HAB_VEHICULES"], arbres: ["HAB_ARBRES"],
   pbati: ["PRJ_BATIMENTS", "PRJ_ESPACES_VERTS"], servitudes: ["PRJ_SERVITUDES"], recul: ["PRJ_RECUL"],
   ovoirie: ["OCC_VOIRIE"], bati: ["OCC_BATI"], vegetation: ["OCC_VEGETATION"],
@@ -2183,14 +2257,16 @@ $("#e-draw").addEventListener("click", () => { setMode("draw"); toast("Touchez l
 const mq = window.matchMedia("(prefers-color-scheme: dark)");
 mq.addEventListener("change", () => { readColors(); redraw(); });
 new MutationObserver(() => { readColors(); redraw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-window.addEventListener("resize", () => { resize(); if (mode === "map") updateMapUI(); if (!$("#addmenu").hidden) placeMenu("#b-add", "#addmenu"); if (!$("#params").hidden) placeMenu("#b-params", "#params"); if (!$("#dress").hidden) placeMenu("#b-dress", "#dress"); if (!$("#export").hidden) placeMenu("#b-export", "#export"); if (!$("#newsheet").hidden) placeMenu("#b-new", "#newsheet"); });
+function relayout(cw, ch) { resize(cw, ch); if (mode === "map") updateMapUI(); if (!$("#addmenu").hidden) placeMenu("#b-add", "#addmenu"); if (!$("#params").hidden) placeMenu("#b-params", "#params"); if (!$("#dress").hidden) placeMenu("#b-dress", "#dress"); if (!$("#export").hidden) placeMenu("#b-export", "#export"); if (!$("#newsheet").hidden) placeMenu("#b-new", "#newsheet"); }
+if (window.ResizeObserver) new ResizeObserver((es) => { const r = es[es.length - 1].contentRect; relayout(r.width, r.height); }).observe(canvas);
+else window.addEventListener("resize", () => relayout());
 
 (async function boot() {
   let restored = false;
   readColors(); resize();
   try {
     const saved = localStorage.getItem("trame.v1");
-    if (saved) { const o = JSON.parse(saved); if (o.site && o.site.parcel) { site = o.site; params = { ...DEFAULT_PARAMS, ...o.params }; exampleName = o.exampleName || "mine"; mineSite = o.mineSite || null; restored = true; } }
+    if (saved) { const o = JSON.parse(saved); if (o.site && o.site.parcel) { site = normSite(o.site); params = { ...DEFAULT_PARAMS, ...o.params }; exampleName = o.exampleName || "mine"; mineSite = normSite(o.mineSite || null); restored = true; } }
   } catch (e) { /* stockage indisponible : on démarre sur l'exemple */ }
   await withTimeout(loadBasemap(), 2500);
   // Première visite : un exemple ; un projet vidé volontairement reste vide.

@@ -4,6 +4,7 @@
 //! → places périphériques (bords droits et courbes) → anneau de circulation → rangées doubles
 //! optimisées (orientation × décalage) → accès, connectivité, PMR, IRVE → métriques.
 
+pub mod circulation;
 pub mod dxf;
 pub mod finish;
 pub mod geom;
@@ -11,6 +12,7 @@ pub mod layout;
 pub mod model;
 pub mod occupation;
 pub mod perimeter;
+pub mod planted;
 pub mod proj;
 pub mod region;
 pub mod rows;
@@ -55,7 +57,49 @@ fn entry_quads(site: &Site, parcel: &[V2], sign: f64) -> Vec<Quad> {
         .collect()
 }
 
-fn mp_of_quads(qs: &[Quad]) -> MultiPolygon<f64> {
+/// Rayon de giration en entrée de parking (m), de part et d'autre de chaque accès.
+pub const ENTRY_RADIUS: f64 = 3.0;
+
+/// Entrée de parking : là où l'accès débouche sur l'allée (front des places en bordure), chaque
+/// côté reçoit un arrondi de rayon `ENTRY_RADIUS`. Renvoie, par côté, le carré R × R laissé libre
+/// de places (les places sont repoussées au-delà) et la surface gagnée par la chaussée (carré moins
+/// le quart de disque centré à l'opposé de l'angle).
+pub fn entry_turns(site: &Site, parcel: &[V2], entries: &[Quad]) -> (Vec<Quad>, Vec<Vec<V2>>) {
+    let p = &site.params;
+    let r = ENTRY_RADIUS;
+    let n = parcel.len();
+    let (mut keep, mut fillets) = (Vec::new(), Vec::new());
+    for (e, q) in site.entries.iter().filter(|e| e.edge < n).zip(entries) {
+        let (a, b) = (q.0[0], q.0[1]);
+        let u = (b - a).norm();
+        let nn = (q.0[3] - q.0[0]).norm();
+        let s = site.setbacks.get(e.edge).copied().unwrap_or(0.0);
+        let depth = s + if p.perimeter { p.stall_d } else { 0.0 };
+        for (corner, side) in [(a, -u), (b, u)] {
+            let k = corner + nn * depth;
+            keep.push(Quad([k, k + side * r, k + side * r - nn * r, k - nn * r]));
+            // Arc de centre o, du front de l'allée (direction nn depuis o) au bord de l'accès (−side).
+            let o = k + side * r - nn * r;
+            let (t1, t2) = (nn.y.atan2(nn.x), (-side).y.atan2(-side.x));
+            let mut dt = t2 - t1;
+            while dt > std::f64::consts::PI {
+                dt -= std::f64::consts::TAU;
+            }
+            while dt < -std::f64::consts::PI {
+                dt += std::f64::consts::TAU;
+            }
+            let mut ring = vec![k];
+            for i in 0..=8 {
+                let th = t1 + dt * i as f64 / 8.0;
+                ring.push(o + v2(th.cos(), th.sin()) * r);
+            }
+            fillets.push(ring);
+        }
+    }
+    (keep, fillets)
+}
+
+pub(crate) fn mp_of_quads(qs: &[Quad]) -> MultiPolygon<f64> {
     let polys: Vec<MultiPolygon<f64>> = qs
         .iter()
         .map(|q| MultiPolygon::new(vec![region::to_poly(&q.0)]))
@@ -71,6 +115,9 @@ pub fn solve(site: &Site) -> Layout {
         return out;
     };
     let entries = entry_quads(site, &z.parcel, z.parcel_sign);
+    let (turn_keep, turn_fillets) = entry_turns(site, &z.parcel, &entries);
+    let mut keepout = entries.clone();
+    keepout.extend(turn_keep.iter().copied());
 
     let b_rings = region::rings_of(&z.b, 15.0);
     let core_rings = region::rings_of(&z.core, 1.0);
@@ -79,7 +126,7 @@ pub fn solve(site: &Site) -> Layout {
     let mut acc = Acc::new();
     if p.perimeter {
         let band_region = Region::new(region::rings_of(&z.band, 1.0));
-        perimeter::place(&b_region, &band_region, p, &entries, &mut acc);
+        perimeter::place(&b_region, &band_region, p, &keepout, &mut acc);
     }
     let rows = rows::place(&core_rings, &b_rings, p, &mut acc);
 
@@ -91,8 +138,11 @@ pub fn solve(site: &Site) -> Layout {
         z.band.difference(&z.core.intersection(&strips))
     };
     // Pointes : la chaussée plus étroite que l'allée (angles aigus, effilements) est retirée,
-    // sauf l'aire de manœuvre devant les places périphériques.
-    let paved = {
+    // sauf l'aire de manœuvre devant les places périphériques. Au relâchement seulement : pendant
+    // un glisser, le calcul direct reste léger.
+    let paved = if p.quick {
+        paved
+    } else {
         let opened = region::open(&paved, (p.aisle - 0.3).max(3.0) * 0.5);
         let kept = Region::new(region::rings_of(&opened, 0.0));
         let cut: Vec<Quad> = acc
@@ -108,7 +158,16 @@ pub fn solve(site: &Site) -> Layout {
             opened.union(&paved.intersection(&mp_of_quads(&cut)))
         }
     };
-    let paved_rings = region::rings_of(&paved, 0.5);
+    // Arrondis d'entrée : la chaussée gagne l'angle de part et d'autre de chaque accès.
+    let paved = if turn_fillets.is_empty() {
+        paved
+    } else {
+        let f: Vec<MultiPolygon<f64>> = turn_fillets
+            .iter()
+            .map(|r| MultiPolygon::new(vec![region::to_poly(r)]))
+            .collect();
+        paved.union(&geo::algorithm::bool_ops::unary_union(f.iter()).intersection(&z.b))
+    };
 
     // Connectivité depuis les accès.
     let mut blockers = acc.blockers.clone();
@@ -169,6 +228,20 @@ pub fn solve(site: &Site) -> Layout {
     }
     let (pmr_req, irve_req) = finish::assign_kinds(&mut stalls, &targets, p);
 
+    // Espaces plantés : le résiduel de la zone stationnable, arrondi côté chaussée ; la chaussée
+    // reprend les arrondis.
+    let mut stall_pads: Vec<Quad> = stalls.iter().map(|s| s.q).collect();
+    stall_pads.extend(acc.pads.iter().copied());
+    let mut road = acc.cross.clone();
+    road.extend(entries.iter().copied());
+    let pl = planted::build(&z.b, &paved, &stall_pads, &road, !p.quick);
+    let paved = if pl.cut.0.is_empty() {
+        paved
+    } else {
+        paved.union(&pl.cut)
+    };
+    let paved_rings = region::rings_of(&paved, 0.5);
+
     // Sorties.
     let parcel_area = signed_area(&z.parcel).abs();
     let paved_area = region::mp_area(&paved)
@@ -225,10 +298,59 @@ pub fn solve(site: &Site) -> Layout {
             k: s.kind,
         })
         .collect();
-    out.islands = acc.islands.iter().map(q4).collect();
+    // Îlots des rangées intérieures ; les îlots d'extrémité et de bordure font partie des espaces plantés.
+    let in_planted = Region::new(
+        pl.polys
+            .iter()
+            .flatten()
+            .map(|r| r.iter().map(|q| v2(q[0], q[1])).collect())
+            .collect(),
+    );
+    out.islands = acc
+        .islands
+        .iter()
+        .filter(|q| !in_planted.contains(q.center()))
+        .map(q4)
+        .collect();
+    out.planted = pl.polys;
     out.trees = acc.trees.iter().map(|t| p2(*t)).collect();
     out.entries = entries.iter().map(q4).collect();
     out.cross = acc.cross.iter().map(q4).collect();
+    // Circulation : sens des voies et flèches au sol, sur la chaussée (voirie, allées
+    // transversales, accès). Calculée au relâchement, pas pendant un glisser.
+    if !p.quick {
+        let mut lanes = acc.cross.clone();
+        lanes.extend(entries.iter().copied());
+        out.circulation =
+            circulation::analyse(&paved_rings, &lanes, &entries, p.aisle, &site.lanes);
+    }
+    match out.circulation.narrow_two_way {
+        0 => {}
+        1 => out
+            .warnings
+            .push("1 voie étroite à double sens (impasse ou passage obligé)".into()),
+        n => out.warnings.push(format!(
+            "{n} voies étroites à double sens (impasses ou passages obligés)"
+        )),
+    }
+    match out.circulation.refused {
+        0 => {}
+        1 => out
+            .warnings
+            .push("Sens unique refusé sur 1 voie : la circulation serait coupée".into()),
+        n => out.warnings.push(format!(
+            "Sens unique refusé sur {n} voies : la circulation serait coupée"
+        )),
+    }
+    match out.circulation.forced_narrow {
+        0 => {}
+        1 => out
+            .warnings
+            .push("1 voie de moins de 5 m imposée à double sens".into()),
+        n => out
+            .warnings
+            .push(format!("{n} voies de moins de 5 m imposées à double sens")),
+    }
     out.angle = r3(rows.angle);
     out.phase = r3(rows.phase);
     out.evals = rows.evals;
