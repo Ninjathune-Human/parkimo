@@ -90,6 +90,24 @@ pub fn solve(site: &Site) -> Layout {
         let strips = mp_of_quads(&rows.strips);
         z.band.difference(&z.core.intersection(&strips))
     };
+    // Pointes : la chaussée plus étroite que l'allée (angles aigus, effilements) est retirée,
+    // sauf l'aire de manœuvre devant les places périphériques.
+    let paved = {
+        let opened = region::open(&paved, (p.aisle - 0.3).max(3.0) * 0.5);
+        let kept = Region::new(region::rings_of(&opened, 0.0));
+        let cut: Vec<Quad> = acc
+            .access
+            .quads
+            .iter()
+            .filter(|q| !kept.contains_quad(q, 0.05))
+            .copied()
+            .collect();
+        if cut.is_empty() {
+            opened
+        } else {
+            opened.union(&paved.intersection(&mp_of_quads(&cut)))
+        }
+    };
     let paved_rings = region::rings_of(&paved, 0.5);
 
     // Connectivité depuis les accès.

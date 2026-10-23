@@ -7,8 +7,10 @@ import sys
 root = pathlib.Path(__file__).resolve().parent.parent
 wasm = pathlib.Path(sys.argv[1]).read_bytes()
 page = (root / "web" / "app.html").read_text(encoding="utf-8")
-assert "__WASM_BASE64__" in page
-body = page.replace("__WASM_BASE64__", base64.b64encode(wasm).decode("ascii"))
+assert "__WASM_BASE64__" in page and "__SYMBOLS__" in page
+# Symboles d'habillage (tools/symbols.py), partagés avec les blocs DXF.
+symbols = (root / "src" / "symbols.json").read_text(encoding="utf-8")
+body = page.replace("__WASM_BASE64__", base64.b64encode(wasm).decode("ascii")).replace("__SYMBOLS__", symbols)
 # Repli JavaScript optionnel : python3 tools/bundle.py trame.wasm moteur.js
 fallback = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8") if len(sys.argv) > 2 else ""
 dist = root / "dist"

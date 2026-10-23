@@ -18,6 +18,7 @@ fn main() {
         off: vec![],
         cadastre: Default::default(),
         date: String::new(),
+        dress: Default::default(),
     };
     let t = std::time::Instant::now();
     let out = trame::dxf::export(&inp);

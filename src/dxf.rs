@@ -1,6 +1,6 @@
 //! Export DXF AutoCAD 2010 (AC1024, texte UTF-8), géoréférencé en RGF93 / Lambert-93 ou CC.
 //!
-//! Le squelette (en-tête, tables, calques, types de ligne, bloc ARBRE) est produit par ezdxf
+//! Le squelette (en-tête, tables, calques, types de ligne, blocs d'habillage) est produit par ezdxf
 //! (tools/dxf_template.py) ; ce module y insère les entités : LWPOLYLINE, HATCH, TEXT, INSERT.
 
 use crate::geom::{v2, V2};
@@ -36,6 +36,31 @@ pub struct CadIn {
     pub vegetation: Vec<PolyRings>,
 }
 
+/// Insertion d'un bloc d'habillage, dans le repère local du plan.
+#[derive(Deserialize)]
+pub struct Ins {
+    /// Nom du bloc (src/symbols.json).
+    pub b: String,
+    pub p: P2,
+    /// Rotation en degrés.
+    #[serde(default)]
+    pub a: f64,
+    #[serde(default = "one")]
+    pub s: f64,
+}
+
+fn one() -> f64 {
+    1.0
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+pub struct DressIn {
+    pub vehicules: Vec<Ins>,
+    /// Absent : les arbres du plan, en feuillus.
+    pub arbres: Option<Vec<Ins>>,
+}
+
 #[derive(Deserialize)]
 pub struct ExportIn {
     pub site: Site,
@@ -51,6 +76,8 @@ pub struct ExportIn {
     pub cadastre: CadIn,
     #[serde(default)]
     pub date: String,
+    #[serde(default)]
+    pub dress: DressIn,
 }
 
 #[derive(Serialize)]
@@ -226,15 +253,23 @@ impl Writer {
             self.pair(73, "2");
         }
     }
-    fn insert(&mut self, layer: &str, block: &str, x: f64, y: f64, scale: f64) {
+    /// Bloc inséré au point `p` du plan, tourné de `deg` et mis à l'échelle `scale` dans le repère
+    /// local : l'orientation et l'échelle projetées suivent la convergence des méridiens.
+    fn insert(&mut self, layer: &str, block: &str, p: P2, deg: f64, scale: f64) {
+        let (x, y) = (self.tf)(p[0], p[1]);
+        let a = deg.to_radians();
+        let (ux, uy) = (self.tf)(p[0] + a.cos(), p[1] + a.sin());
+        let (dx, dy) = (ux - x, uy - y);
+        let k = (dx * dx + dy * dy).sqrt();
         self.head("INSERT", layer);
         self.pair(100, "AcDbBlockReference");
         self.pair(2, block);
         self.xy(10, x, y);
         self.pair(30, "0.0");
         for c in [41, 42, 43] {
-            self.pair(c, &num(scale));
+            self.pair(c, &num(scale * k));
         }
+        self.pair(50, &num(dy.atan2(dx).to_degrees().rem_euclid(360.0)));
     }
 }
 
@@ -567,9 +602,23 @@ pub fn export(inp: &ExportIn) -> ExportOut {
         }
         w.ring(layer, &s.q);
     }
-    for t in &lay.trees {
-        let (x, y) = (w.tf)(t[0], t[1]);
-        w.insert("PRJ_ARBRES", "ARBRE", x, y, 1.75);
+    // Habillage : véhicules sous les arbres ; seuls les blocs définis dans le squelette sont insérés.
+    let known = |b: &str| TEMPLATE.contains(&format!("AcDbBlockBegin\n  2\n{b}\n"));
+    for v in inp.dress.vehicules.iter().filter(|v| known(&v.b)) {
+        w.insert("HAB_VEHICULES", &v.b, v.p, v.a, v.s);
+    }
+    match &inp.dress.arbres {
+        Some(list) => {
+            for t in list.iter().filter(|t| known(&t.b)) {
+                w.insert("HAB_ARBRES", &t.b, t.p, t.a, t.s);
+            }
+        }
+        // Sans habillage transmis : feuillus au rayon de houppier par défaut (src/symbols.json).
+        None => {
+            for t in &lay.trees {
+                w.insert("HAB_ARBRES", "ARB_FEUILLU", *t, 0.0, 2.5);
+            }
+        }
     }
     for r in &lay.setback_line {
         w.ring("PRJ_RECUL", r);
@@ -695,6 +744,11 @@ mod tests {
                 ..Default::default()
             },
             date: "23/10/2026".into(),
+            dress: serde_json::from_str(
+                r#"{"vehicules":[{"b":"VEH_BERLINE","p":[30,20],"a":90},{"b":"INCONNU","p":[0,0]}],
+                    "arbres":[{"b":"ARB_PALMIER","p":[40,30],"a":15,"s":2.4}]}"#,
+            )
+            .unwrap(),
         }
     }
 
@@ -755,6 +809,27 @@ mod tests {
             .unwrap();
         assert!(x > 1_000_000.0 && x < 1_100_000.0, "X = {x}");
         assert!(d.contains("unités : mètres"));
+        // Habillage : blocs connus insérés, bloc inconnu ignoré, rotation corrigée de la
+        // convergence des méridiens (Lambert-93 à Nice : environ 3,1°).
+        assert_eq!(
+            d.matches("  2\nVEH_BERLINE\n").count(),
+            3,
+            "table, bloc, insertion"
+        );
+        assert!(!d.contains("INCONNU"));
+        let rot: f64 = d
+            .split("  2\nVEH_BERLINE\n 10\n")
+            .nth(1)
+            .unwrap()
+            .split(" 50\n")
+            .nth(1)
+            .unwrap()
+            .lines()
+            .next()
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert!((rot - 93.1).abs() < 0.2, "rotation {rot}");
     }
 
     #[test]

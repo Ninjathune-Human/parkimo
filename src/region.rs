@@ -74,6 +74,17 @@ pub fn erode(mp: &MultiPolygon<f64>, d: f64) -> MultiPolygon<f64> {
     mp.buffer_with_style(BufferStyle::new(-d).line_join(LineJoin::Round(ROUND)))
 }
 
+/// Ouverture morphologique : retire les parties plus étroites que 2r (pointes, effilements)
+/// et arrondit les angles saillants au rayon r.
+pub fn open(mp: &MultiPolygon<f64>, r: f64) -> MultiPolygon<f64> {
+    let e = erode(mp, r);
+    if e.0.is_empty() {
+        return e;
+    }
+    e.buffer_with_style(BufferStyle::new(r).line_join(LineJoin::Round(ROUND)))
+        .intersection(mp)
+}
+
 pub struct Zones {
     /// Parcelle et son signe d'orientation (+1 CCW, -1 CW).
     pub parcel: Vec<V2>,
