@@ -431,7 +431,14 @@ fn skeleton_toggles_lane_typology_and_keeps_the_site_connected() {
             let target = if a.sens == 2 { 1 } else { 2 };
             let p = mid(&a.pts);
             let mut s = site.clone();
-            s.lanes = vec![LaneRule { p, sens: target }];
+            // Typologie seule : la largeur des voies ne change pas.
+            s.params.aisle_one = s.params.aisle;
+            s.lanes = vec![LaneRule {
+                p,
+                sens: target,
+                d: None,
+                fix: false,
+            }];
             let lay = trame::solve(&s);
             let c = &lay.circulation;
             let touched = c
@@ -469,4 +476,164 @@ fn skeleton_toggles_lane_typology_and_keeps_the_site_connected() {
             check_circulation(&lay, name);
         }
     }
+}
+
+/// Milieu d'un axe et sa direction (dans l'ordre des points).
+fn mid_dir(pts: &[[f64; 2]]) -> ([f64; 2], [f64; 2]) {
+    let len: f64 = pts
+        .windows(2)
+        .map(|s| (v2(s[1][0], s[1][1]) - v2(s[0][0], s[0][1])).len())
+        .sum();
+    let mut acc = 0.0;
+    for s in pts.windows(2) {
+        let (a, b) = (v2(s[0][0], s[0][1]), v2(s[1][0], s[1][1]));
+        let l = (b - a).len();
+        if acc + l >= len / 2.0 && l > 0.0 {
+            let p = a + (b - a) * ((len / 2.0 - acc) / l);
+            let t = (b - a).norm();
+            return ([p.x, p.y], [t.x, t.y]);
+        }
+        acc += l;
+    }
+    (pts[0], [1.0, 0.0])
+}
+
+fn one_way(p: [f64; 2], d: [f64; 2], fix: bool) -> trame::model::LaneRule {
+    trame::model::LaneRule {
+        p,
+        sens: 1,
+        d: Some(d),
+        fix,
+    }
+}
+
+#[test]
+fn one_way_lanes_take_their_width_and_stay_put() {
+    for name in ["rect", "courbe", "ruisseau"] {
+        let mut site = load(name);
+        site.params.aisle_one = 4.0;
+        let base = trame::solve(&site);
+        let mut narrowed = 0;
+        let mut tried = 0;
+        for a in base.circulation.axes.iter().filter(|a| a.sens == 2) {
+            let (p, d) = mid_dir(&a.pts);
+            let mut s = site.clone();
+            s.lanes = vec![one_way(p, d, false)];
+            let lay = trame::solve(&s);
+            if lay.circulation.refused > 0 {
+                continue;
+            }
+            tried += 1;
+            let ax = lay
+                .circulation
+                .axes
+                .iter()
+                .find(|x| x.rule == Some(0))
+                .unwrap_or_else(|| panic!("{name}: repère {p:?} perdu"));
+            assert_eq!(ax.sens, 1, "{name}: {p:?}");
+            if (ax.w - 4.0).abs() < 0.8 {
+                narrowed += 1;
+            }
+            check(&s, &lay, name);
+            check_circulation(&lay, name);
+            // Repère recalé : le calcul suivant redonne le même plan.
+            let re = lay.circulation.lanes[0];
+            assert!(re.fix, "{name}: sens de parcours inscrit");
+            s.lanes = vec![re];
+            let again = trame::solve(&s);
+            assert_eq!(
+                again.stalls.len(),
+                lay.stalls.len(),
+                "{name}: {p:?} instable"
+            );
+            assert_eq!(
+                again.circulation.lanes[0], re,
+                "{name}: {p:?} repère instable"
+            );
+        }
+        // Allées entre rangées et côtés droits de l'anneau ; les tronçons obliques, les allées
+        // transversales et les raccords gardent leur largeur.
+        assert!(
+            tried > 4 && narrowed * 3 >= tried,
+            "{name}: {narrowed}/{tried} voies resserrées"
+        );
+    }
+}
+
+#[test]
+fn successive_one_way_lanes_add_up() {
+    let mut site = load("rect");
+    site.params.aisle_one = 4.0;
+    let mut lay = trame::solve(&site);
+    let n0 = lay.stalls.len();
+    // Trois allées entre rangées, l'une après l'autre, avec le recalage de l'interface.
+    for _ in 0..3 {
+        let next = lay
+            .circulation
+            .axes
+            .iter()
+            .filter(|a| a.sens == 2 && a.rule.is_none() && (a.w - 6.0).abs() < 0.1)
+            .find(|a| {
+                let (p, d) = mid_dir(&a.pts);
+                d[0].abs() < 0.1 && p[1] > 20.0 && p[1] < 60.0
+            })
+            .expect("allée verticale à double sens");
+        let (p, d) = mid_dir(&next.pts);
+        site.lanes = lay.circulation.lanes.clone();
+        site.lanes.push(one_way(p, d, false));
+        lay = trame::solve(&site);
+        site.lanes = lay.circulation.lanes.clone();
+    }
+    let narrowed: Vec<_> = lay
+        .circulation
+        .axes
+        .iter()
+        .filter(|a| a.rule.is_some())
+        .collect();
+    assert_eq!(narrowed.len(), 3);
+    assert!(
+        narrowed
+            .iter()
+            .all(|a| a.sens == 1 && (a.w - 4.0).abs() < 0.3),
+        "{narrowed:?}"
+    );
+    assert!(lay.stalls.len() >= n0, "{} < {n0}", lay.stalls.len());
+    check(&site, &lay, "rect");
+    check_circulation(&lay, "rect");
+    let again = trame::solve(&site);
+    assert_eq!(again.stalls.len(), lay.stalls.len());
+    assert_eq!(again.circulation.lanes, lay.circulation.lanes);
+}
+
+#[test]
+fn imposed_direction_is_kept_or_refused() {
+    let site = load("rect");
+    let base = trame::solve(&site);
+    let mut flipped = 0;
+    for a in base.circulation.axes.iter().filter(|a| a.sens == 2).take(8) {
+        let (p, d) = mid_dir(&a.pts);
+        for sign in [1.0, -1.0] {
+            let want = [d[0] * sign, d[1] * sign];
+            let mut s = site.clone();
+            s.lanes = vec![one_way(p, want, true)];
+            let lay = trame::solve(&s);
+            if lay.circulation.refused > 0 {
+                continue;
+            }
+            let ax = lay
+                .circulation
+                .axes
+                .iter()
+                .find(|x| x.rule == Some(0))
+                .unwrap();
+            let (_, got) = mid_dir(&ax.pts);
+            assert!(
+                got[0] * want[0] + got[1] * want[1] > 0.5,
+                "sens imposé {want:?}, obtenu {got:?}"
+            );
+            flipped += 1;
+            check_circulation(&lay, "rect");
+        }
+    }
+    assert!(flipped >= 8, "{flipped}");
 }

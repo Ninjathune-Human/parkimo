@@ -29,12 +29,18 @@ pub struct Site {
     pub params: Params,
 }
 
-/// Typologie imposée au tronçon d'axe qui passe par `p` (repère stable d'un calcul à l'autre).
-#[derive(Deserialize, Clone, Copy, Debug)]
+/// Typologie imposée au tronçon d'axe qui passe par `p` (repère recalé à chaque calcul).
+#[derive(Deserialize, Serialize, Clone, Copy, Debug, PartialEq)]
 pub struct LaneRule {
     pub p: P2,
     /// 2 : double sens, 1 : sens unique.
     pub sens: u8,
+    /// Direction de l'axe en `p` : sens de parcours si `fix`, sinon simple orientation.
+    #[serde(default)]
+    pub d: Option<P2>,
+    /// Sens de parcours imposé (sinon choisi par le moteur).
+    #[serde(default)]
+    pub fix: bool,
 }
 
 #[derive(Deserialize, Clone)]
@@ -60,6 +66,8 @@ pub struct Params {
     pub stall_d: f64,
     /// Largeur d'allée double sens (m).
     pub aisle: f64,
+    /// Largeur d'une voie passée à sens unique (m).
+    pub aisle_one: f64,
     /// Part de places adaptées PMR.
     pub pmr_ratio: f64,
     /// Largeur d'une place PMR (m).
@@ -91,6 +99,7 @@ impl Default for Params {
             stall_w: 2.5,
             stall_d: 5.0,
             aisle: 6.0,
+            aisle_one: 5.0,
             pmr_ratio: 0.02,
             pmr_w: 3.3,
             irve_ratio: 0.2,

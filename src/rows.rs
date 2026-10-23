@@ -11,6 +11,8 @@ pub struct RowsOut {
     pub evals: u32,
     /// Bandes des rangées doubles (repère monde), pour le calcul de la voirie.
     pub strips: Vec<Quad>,
+    /// Allées resserrées (ordonnées dans le repère des rangées, tourné de `angle`).
+    pub narrowed: Vec<Narrowed>,
 }
 
 struct Frame {
@@ -19,11 +21,23 @@ struct Frame {
     yhi: f64,
     xlo: f64,
     xhi: f64,
+    /// Voies à sens unique parallèles aux rangées dans ce repère : ordonnée, indice.
+    narrow: Vec<(f64, usize)>,
 }
 
-fn frame(core: &[Vec<V2>], deg: f64) -> Frame {
+/// Voie à sens unique désignée dans le cœur : un point de son axe et sa direction.
+pub type Narrow = (V2, V2);
+
+fn frame(core: &[Vec<V2>], deg: f64, narrow: &[Narrow]) -> Frame {
     let t = -deg.to_radians();
-    let rings = rotate_rings(core, t.cos(), t.sin());
+    let (c, s) = (t.cos(), t.sin());
+    let narrow = narrow
+        .iter()
+        .enumerate()
+        .filter(|(_, (_, d))| d.rot(c, s).y.abs() < 20f64.to_radians().sin() * d.len())
+        .map(|(i, (p, _))| (p.rot(c, s).y, i))
+        .collect();
+    let rings = rotate_rings(core, c, s);
     let (mut ylo, mut yhi, mut xlo, mut xhi) = (f64::MAX, f64::MIN, f64::MAX, f64::MIN);
     for r in &rings {
         for p in r {
@@ -39,13 +53,71 @@ fn frame(core: &[Vec<V2>], deg: f64) -> Frame {
         yhi,
         xlo,
         xhi,
+        narrow,
     }
 }
 
-fn row_starts(f: &Frame, per: f64, phase: f64, depth: f64) -> impl Iterator<Item = f64> {
-    let j0 = ((f.ylo - depth - phase) / per).floor() as i64;
-    let j1 = ((f.yhi - phase) / per).ceil() as i64;
-    (j0..=j1).map(move |j| phase + j as f64 * per)
+/// Allée resserrée : indice de la voie désignée, milieu de l'allée sur la trame régulière et
+/// milieu effectif (ordonnées dans le repère des rangées).
+pub type Narrowed = (usize, f64, f64);
+
+/// Départs des rangées doubles, de période `2 d + allée`. Une allée de la trame régulière qui
+/// porte une voie à sens unique est ramenée à `aisle_one` : les rangées de part et d'autre s'en
+/// rapprochent chacune de la moitié de l'écart, son milieu ne bouge pas. Renvoie le nombre de
+/// voies resserrées.
+fn row_starts(
+    f: &Frame,
+    p: &Params,
+    phase: f64,
+    out: &mut Vec<f64>,
+    mut hits: Option<&mut Vec<Narrowed>>,
+) -> usize {
+    let d2 = 2.0 * p.stall_d;
+    let per = d2 + p.aisle;
+    let one = p.aisle_one.min(p.aisle);
+    let mut j0 = ((f.ylo - d2 - phase) / per).floor() as i64;
+    let mut j1 = ((f.yhi - phase) / per).ceil() as i64;
+    out.clear();
+    if one >= p.aisle - 1e-6 || f.narrow.is_empty() {
+        out.extend((j0..=j1).map(|j| phase + j as f64 * per));
+        return 0;
+    }
+    // Rangées en réserve : en se rapprochant, les rangées libèrent de la place aux extrémités.
+    let half = (p.aisle - one) * 0.5;
+    let extra = ((half * f.narrow.len() as f64) / per).ceil() as i64 + 1;
+    j0 -= extra;
+    j1 += extra;
+    let n = (j1 - j0 + 1) as usize;
+    let mut tight = vec![false; n];
+    let mut landed = 0;
+    for &(y, i) in &f.narrow {
+        let k = ((y - d2 - phase) / per).floor() as i64;
+        let g = phase + k as f64 * per + d2;
+        if k >= j0 && k < j1 && y >= g && y < g + p.aisle {
+            tight[(k - j0) as usize] = true;
+            landed += 1;
+            if let Some(h) = hits.as_deref_mut() {
+                h.push((i, g + p.aisle * 0.5, 0.0));
+            }
+        }
+    }
+    let total = tight.iter().filter(|&&t| t).count() as f64;
+    let mut below = 0.0;
+    for (k, &t) in tight.iter().enumerate() {
+        // Au-dessus de `below` allées resserrées, sous les autres.
+        let y = phase + (j0 + k as i64) as f64 * per + half * (total - 2.0 * below);
+        out.push(y);
+        if t {
+            below += 1.0;
+        }
+    }
+    if let Some(h) = hits {
+        for e in h.iter_mut() {
+            let k = ((e.1 - d2 - phase) / per).floor() as i64;
+            e.2 = out[(k - j0) as usize] + d2 + one * 0.5;
+        }
+    }
+    landed
 }
 
 fn aisle_slots(p: &Params) -> i64 {
@@ -75,12 +147,11 @@ fn quick_count(iv: &[(f64, f64)], p: &Params) -> f64 {
     total
 }
 
-fn score(f: &Frame, p: &Params, phase: f64, buf: &mut Vec<(f64, f64)>) -> f64 {
-    let (w, d) = (p.stall_w, p.stall_d);
-    let _ = w;
-    let per = 2.0 * d + p.aisle;
+fn score(f: &Frame, p: &Params, phase: f64, buf: &mut Vec<(f64, f64)>, ys: &mut Vec<f64>) -> f64 {
+    let d = p.stall_d;
+    row_starts(f, p, phase, ys, None);
     let mut total = 0.0;
-    for y0 in row_starts(f, per, phase, 2.0 * d) {
+    for &y0 in ys.iter() {
         strip_intervals(&f.rings, y0 + 1e-4, y0 + d - 1e-4, buf);
         total += quick_count(buf, p);
         strip_intervals(&f.rings, y0 + d + 1e-4, y0 + 2.0 * d - 1e-4, buf);
@@ -135,6 +206,7 @@ pub fn optimize(core: &[Vec<V2>], b_rings: &[Vec<V2>], p: &Params) -> (f64, f64,
         }
     };
     let mut buf = Vec::new();
+    let mut ys = Vec::new();
     let mut evals = 0u32;
 
     let mut angles: Vec<f64> = Vec::new();
@@ -165,10 +237,10 @@ pub fn optimize(core: &[Vec<V2>], b_rings: &[Vec<V2>], p: &Params) -> (f64, f64,
 
     let mut ranked: Vec<(f64, f64, f64)> = Vec::new(); // (score, angle, phase)
     for &a in &angles {
-        let f = frame(core, a);
+        let f = frame(core, a, &[]);
         let mut best = (f64::MIN, 0.0);
         for &ph in &phases {
-            let s = score(&f, p, ph, &mut buf);
+            let s = score(&f, p, ph, &mut buf, &mut ys);
             evals += 1;
             if s > best.0 {
                 best = (s, ph);
@@ -185,14 +257,14 @@ pub fn optimize(core: &[Vec<V2>], b_rings: &[Vec<V2>], p: &Params) -> (f64, f64,
         for (_, a0, ph0) in tops {
             for da in [-1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5] {
                 let a = norm_deg(a0 + da);
-                let f = frame(core, a);
+                let f = frame(core, a, &[]);
                 for k in -4..=4 {
                     let ph = if p.phase.is_some() {
                         ph0
                     } else {
                         (ph0 + k as f64 * 0.1).rem_euclid(per)
                     };
-                    let s = score(&f, p, ph, &mut buf) + bonus(a);
+                    let s = score(&f, p, ph, &mut buf, &mut ys) + bonus(a);
                     evals += 1;
                     if s > best.0 + 1e-9 {
                         best = (s, a, ph);
@@ -409,22 +481,109 @@ fn xf(q: &Quad, rot: (f64, f64)) -> Quad {
     ])
 }
 
-pub fn place(core: &[Vec<V2>], b_rings: &[Vec<V2>], p: &Params, acc: &mut Acc) -> RowsOut {
+/// Côté de l'anneau parallèle aux rangées passé à sens unique : point de la limite avancée du
+/// cœur et normale vers l'anneau.
+pub type Pin = (V2, V2);
+
+/// Écart à appliquer aux rangées pour que la plus proche du côté calé l'affleure.
+fn flush(ys: &[f64], pin: (f64, bool), d2: f64) -> f64 {
+    let (t, above) = pin;
+    ys.iter()
+        .map(|&y| if above { t - (y + d2) } else { t - y })
+        .min_by(|a, b| a.abs().partial_cmp(&b.abs()).unwrap())
+        .unwrap_or(0.0)
+}
+
+/// Rangées doubles posées sur la trame `grid` (orientation, décalage, évaluations) issue de
+/// `optimize`, avec les allées resserrées des voies à sens unique.
+pub fn place(
+    core: &[Vec<V2>],
+    grid: (f64, f64, u32),
+    p: &Params,
+    narrow: &[Narrow],
+    pin: Option<Pin>,
+    acc: &mut Acc,
+) -> RowsOut {
+    let (angle, phase0, evals) = grid;
     if core.is_empty() {
         return RowsOut {
-            angle: p.angle.unwrap_or(0.0),
-            phase: 0.0,
-            evals: 0,
+            angle,
+            phase: phase0,
+            evals,
             strips: vec![],
+            narrowed: vec![],
         };
     }
-    let (angle, phase, evals) = optimize(core, b_rings, p);
-    let f = frame(core, angle);
+    let mut f = frame(core, angle, narrow);
     let t = angle.to_radians();
     let rot = (t.cos(), t.sin());
-    let per = 2.0 * p.stall_d + p.aisle;
+    let d2 = 2.0 * p.stall_d;
+    let mut ys = Vec::new();
+    let mut narrowed = Vec::new();
+    // Côté de l'anneau calé : la trame glisse pour que la rangée la plus proche l'affleure.
+    let pin = pin.map(|(e, n)| (e.rot(t.cos(), -t.sin()).y, n.rot(t.cos(), -t.sin()).y > 0.0));
+    let mut phase = phase0;
+    if let Some((t, above)) = pin {
+        // Rangées candidates (les plus proches du côté) : on retient la meilleure estimation.
+        let saved = std::mem::take(&mut f.narrow);
+        row_starts(&f, p, phase0, &mut ys, None);
+        f.narrow = saved;
+        let per = d2 + p.aisle;
+        let mut cands: Vec<f64> = ys
+            .iter()
+            .map(|&y| if above { t - (y + d2) } else { t - y })
+            .filter(|dl| dl.abs() <= per)
+            .collect();
+        cands.sort_by(|a, b| a.abs().partial_cmp(&b.abs()).unwrap());
+        let mut buf = Vec::new();
+        let mut best = (f64::MIN, 0.0);
+        for &dl in cands.iter().take(3) {
+            let sc = score(&f, p, phase0 + dl, &mut buf, &mut ys);
+            if sc > best.0 + 1e-9 {
+                best = (sc, dl);
+            }
+        }
+        phase += best.1;
+    }
+    // Voies resserrées : celles qui tombent dans une allée de cette trame. Sans côté calé, la
+    // trame glisse ensuite d'au plus 2 m pour tirer parti de la place libérée, sans en perdre.
+    let landed = row_starts(&f, p, phase, &mut ys, Some(&mut narrowed));
+    if landed > 0 {
+        f.narrow.retain(|n| narrowed.iter().any(|h| h.0 == n.1));
+        let base = phase;
+        if pin.is_none() && !p.quick && p.phase.is_none() {
+            let mut buf = Vec::new();
+            let mut best = (f64::MIN, 0i32);
+            for k in [0i32, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7, -8, 8] {
+                let ph = base + k as f64 * 0.25;
+                if row_starts(&f, p, ph, &mut ys, None) < landed {
+                    continue;
+                }
+                let s = score(&f, p, ph, &mut buf, &mut ys);
+                if s > best.0 + 1e-9 {
+                    best = (s, k);
+                }
+            }
+            phase = base + best.1 as f64 * 0.25;
+        }
+        narrowed.clear();
+        row_starts(&f, p, phase, &mut ys, Some(&mut narrowed));
+        // Repère de chaque voie : milieu de l'allée sur la trame de base, stable.
+        for h in narrowed.iter_mut() {
+            h.1 -= phase - base;
+        }
+    }
+    if let Some(pf) = pin {
+        let dl = flush(&ys, pf, d2);
+        for y in ys.iter_mut() {
+            *y += dl;
+        }
+        for h in narrowed.iter_mut() {
+            h.2 += dl;
+        }
+    }
     let mut strips = Vec::new();
-    for y0 in row_starts(&f, per, phase, 2.0 * p.stall_d) {
+    for y0 in ys {
         pack_double_row(&f, p, y0, rot, acc);
         let (x0, x1, y1) = (f.xlo - 1.0, f.xhi + 1.0, y0 + 2.0 * p.stall_d);
         strips.push(xf(
@@ -437,5 +596,6 @@ pub fn place(core: &[Vec<V2>], b_rings: &[Vec<V2>], p: &Params, acc: &mut Acc) -
         phase,
         evals,
         strips,
+        narrowed,
     }
 }

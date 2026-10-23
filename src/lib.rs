@@ -99,6 +99,84 @@ pub fn entry_turns(site: &Site, parcel: &[V2], entries: &[Quad]) -> (Vec<Quad>, 
     (keep, fillets)
 }
 
+/// Côtés de l'anneau passés à sens unique. Pour chaque point d'une voie de l'anneau, le côté du
+/// cœur le plus proche, s'il est parallèle à la voie : perpendiculaire aux rangées, le cœur y
+/// avance de `aisle - one` (les rangées s'allongent) ; parallèle aux rangées et en bord de trame,
+/// le cœur avance et la trame s'y cale (`Pin` : point de la limite avancée, normale vers
+/// l'anneau). Un côté oblique, ou parallèle mais intérieur, garde sa largeur.
+fn narrow_ring(
+    band: &MultiPolygon<f64>,
+    core: &MultiPolygon<f64>,
+    pts: &[(V2, V2)],
+    aisle: f64,
+    one: f64,
+    angle: f64,
+    per: f64,
+) -> (MultiPolygon<f64>, Option<rows::Pin>) {
+    let rings = region::rings_of(core, 0.0);
+    let depth = aisle - one;
+    let t = angle.to_radians();
+    let row = v2(t.cos(), t.sin());
+    let tol = 20f64.to_radians().sin();
+    // Étendue du cœur perpendiculairement aux rangées.
+    let ny = row.left();
+    let (lo, hi) = rings
+        .iter()
+        .flatten()
+        .fold((f64::MAX, f64::MIN), |(l, h), q| {
+            (l.min(q.dot(ny)), h.max(q.dot(ny)))
+        });
+    let mut rects: Vec<Quad> = Vec::new();
+    let mut pin = None;
+    for &(q, d) in pts {
+        let mut best: Option<(f64, V2, V2)> = None;
+        for r in &rings {
+            for i in 0..r.len() {
+                let (a, b) = (r[i], r[(i + 1) % r.len()]);
+                let ab = b - a;
+                if ab.len() < 3.0 {
+                    continue;
+                }
+                let t = ((q - a).dot(ab) / ab.dot(ab)).clamp(0.0, 1.0);
+                let dd = (a + ab * t - q).len();
+                if best.map_or(true, |x| dd < x.0) {
+                    best = Some((dd, a, b));
+                }
+            }
+        }
+        let Some((dd, a, b)) = best else { continue };
+        let u = (b - a).norm();
+        if dd > aisle + 0.5 || u.cross(d.norm()).abs() > tol {
+            continue;
+        }
+        let mut n = u.left();
+        if (q - a).dot(n) < 0.0 {
+            n = n * -1.0;
+        }
+        // Parallèle aux rangées : seulement un côté extrême du cœur (à une période près).
+        let y = a.dot(ny);
+        let edge = if n.dot(ny) < 0.0 { y - lo } else { hi - y };
+        let parallel = u.cross(row).abs() < 5f64.to_radians().sin() && edge < per;
+        if parallel {
+            pin = Some((a + n * depth, n));
+        }
+        if parallel || u.dot(row).abs() < tol {
+            rects.push(Quad([
+                a - n * 0.05,
+                b - n * 0.05,
+                b + n * depth,
+                a + n * depth,
+            ]));
+        }
+    }
+    let core = if rects.is_empty() {
+        core.clone()
+    } else {
+        core.union(&mp_of_quads(&rects).intersection(&region::erode(band, one)))
+    };
+    (core, pin)
+}
+
 pub(crate) fn mp_of_quads(qs: &[Quad]) -> MultiPolygon<f64> {
     let polys: Vec<MultiPolygon<f64>> = qs
         .iter()
@@ -110,7 +188,7 @@ pub(crate) fn mp_of_quads(qs: &[Quad]) -> MultiPolygon<f64> {
 pub fn solve(site: &Site) -> Layout {
     let p = &site.params;
     let mut out = Layout::default();
-    let Some(z) = region::build(site) else {
+    let Some(mut z) = region::build(site) else {
         out.warnings.push("Parcelle invalide".into());
         return out;
     };
@@ -120,15 +198,53 @@ pub fn solve(site: &Site) -> Layout {
     keepout.extend(turn_keep.iter().copied());
 
     let b_rings = region::rings_of(&z.b, 15.0);
-    let core_rings = region::rings_of(&z.core, 1.0);
     let b_region = Region::new(b_rings.clone());
+    // Trame des rangées (orientation, décalage) optimisée sur le cœur, indépendamment des voies
+    // passées à sens unique.
+    let core_rings0 = region::rings_of(&z.core, 1.0);
+    let grid = if core_rings0.is_empty() {
+        (p.angle.unwrap_or(0.0), 0.0, 0)
+    } else {
+        rows::optimize(&core_rings0, &b_rings, p)
+    };
+
+    // Voies passées à sens unique : largeur réduite. Entre deux rangées, l'allée se resserre et
+    // les rangées voisines se rapprochent ; sur l'anneau, le cœur avance ou la trame se cale.
+    let one = p.aisle_one.min(p.aisle);
+    let mut narrow: Vec<rows::Narrow> = Vec::new();
+    let mut narrow_rule: Vec<usize> = Vec::new();
+    let mut narrowed = false;
+    let mut pin = None;
+    if one < p.aisle - 0.05 {
+        let in_core = Region::new(core_rings0.clone());
+        let mut ring_pts: Vec<(V2, V2)> = Vec::new();
+        for (k, r) in site.lanes.iter().enumerate().filter(|(_, r)| r.sens == 1) {
+            let (q, Some(d)) = (v2(r.p[0], r.p[1]), r.d) else {
+                continue;
+            };
+            narrowed = true;
+            if in_core.contains(q) {
+                narrow.push((q, v2(d[0], d[1])));
+                narrow_rule.push(k);
+            } else {
+                ring_pts.push((q, v2(d[0], d[1])));
+            }
+        }
+        if !ring_pts.is_empty() {
+            let per = 2.0 * p.stall_d + p.aisle;
+            let (core, pn) = narrow_ring(&z.band, &z.core, &ring_pts, p.aisle, one, grid.0, per);
+            z.core = core;
+            pin = pn;
+        }
+    }
+    let core_rings = region::rings_of(&z.core, 1.0);
 
     let mut acc = Acc::new();
     if p.perimeter {
         let band_region = Region::new(region::rings_of(&z.band, 1.0));
         perimeter::place(&b_region, &band_region, p, &keepout, &mut acc);
     }
-    let rows = rows::place(&core_rings, &b_rings, p, &mut acc);
+    let rows = rows::place(&core_rings, grid, p, &narrow, pin, &mut acc);
 
     // Voirie : anneau + allées = bande moins (cœur ∩ rangées doubles).
     let paved = if rows.strips.is_empty() {
@@ -143,7 +259,8 @@ pub fn solve(site: &Site) -> Layout {
     let paved = if p.quick {
         paved
     } else {
-        let opened = region::open(&paved, (p.aisle - 0.3).max(3.0) * 0.5);
+        let w = if narrowed { one } else { p.aisle };
+        let opened = region::open(&paved, (w - 0.3).max(3.0) * 0.5);
         let kept = Region::new(region::rings_of(&opened, 0.0));
         let cut: Vec<Quad> = acc
             .access
@@ -321,8 +438,27 @@ pub fn solve(site: &Site) -> Layout {
     if !p.quick {
         let mut lanes = acc.cross.clone();
         lanes.extend(entries.iter().copied());
+        // Repères des allées resserrées : portés au milieu effectif de l'allée pour l'analyse,
+        // puis rendus sur le milieu de la trame régulière, qui ne dépend pas des autres allées
+        // resserrées.
+        let t = rows.angle.to_radians();
+        let ny = v2(-t.sin(), t.cos());
+        let mut rules = site.lanes.clone();
+        for &(i, _, actual) in &rows.narrowed {
+            let r = &mut rules[narrow_rule[i]];
+            let q = v2(r.p[0], r.p[1]);
+            let q = q + ny * (actual - q.dot(ny));
+            r.p = [q.x, q.y];
+        }
         out.circulation =
-            circulation::analyse(&paved_rings, &lanes, &entries, p.aisle, &site.lanes);
+            circulation::analyse(&paved_rings, &lanes, &entries, p.aisle, one, &rules);
+        for &(i, regular, actual) in &rows.narrowed {
+            let r = &mut out.circulation.lanes[narrow_rule[i]];
+            if r.fix {
+                let q = v2(r.p[0], r.p[1]) + ny * (regular - actual);
+                r.p = [(q.x * 100.0).round() / 100.0, (q.y * 100.0).round() / 100.0];
+            }
+        }
     }
     match out.circulation.narrow_two_way {
         0 => {}

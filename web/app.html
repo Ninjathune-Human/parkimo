@@ -177,7 +177,15 @@ body {
 .mi small { color: var(--label-2); font-size: 12px; display: block; }
 .mi .glyph { width: 28px; height: 28px; border-radius: 8px; flex: none; display: grid; place-items: center; }
 
-#params { width: min(380px, calc(100vw - 32px)); max-height: min(70vh, 560px); overflow: auto; padding: 14px 16px 16px; gap: 14px; }
+#params {
+  width: min(380px, calc(100vw - 32px)); overflow: auto; padding: 14px 16px 16px; gap: 14px;
+  max-height: calc(100vh - 92px - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px));
+  max-height: calc(100dvh - 92px - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px));
+}
+/* Hauteur insuffisante mais largeur disponible : deux colonnes, sans ascenseur */
+#params.two { width: min(760px, calc(100vw - 32px)); grid-template-columns: 1fr 1fr; column-gap: 28px; }
+#params.two > h3, #params.two > .note { grid-column: 1 / -1; }
+#params.two > .pgroup:first-of-type { grid-row: span 3; align-self: start; }
 #params h3 { margin: 0; font-size: 17px; font-weight: 600; }
 .pgroup { display: grid; gap: 0; }
 .pgroup .eyebrow { padding: 6px 0 4px; }
@@ -383,6 +391,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <div class="field"><label for="p-stall_w">Largeur de place</label><span class="unit"><input id="p-stall_w" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-stall_d">Longueur de place</label><span class="unit"><input id="p-stall_d" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-aisle">Largeur d'allée</label><span class="unit"><input id="p-aisle" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+      <div class="field"><label for="p-aisle_one">Largeur voie en sens unique</label><span class="unit"><input id="p-aisle_one" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-building_margin">Trottoir autour du bâti</label><span class="unit"><input id="p-building_margin" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-skel">Squelette des voies</label><input id="p-skel" type="checkbox" class="switch" role="switch"></div>
     </div>
@@ -402,7 +411,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <div class="field"><span class="seg" role="group" aria-label="Orientation"><button id="o-auto" aria-pressed="true">Optimisée</button><button id="o-fixed" aria-pressed="false">Imposée</button></span><span class="unit num" id="o-val"></span></div>
       <input id="o-range" type="range" min="0" max="179" step="1" aria-label="Angle imposé" hidden>
     </div>
-    <p class="note">Valeurs par défaut : place 2,50 × 5,00 m, PMR 3,30 m et 2 % (ERP), IRVE 20 % (bâtiment non résidentiel). À ajuster selon le PLU et la destination. Une allée est à double sens à partir de 5,00 m, à sens unique en dessous. Squelette affiché, touchez un axe pour passer de double sens à sens unique, et inversement.</p>
+    <p class="note">Valeurs par défaut : place 2,50 × 5,00 m, PMR 3,30 m et 2 % (ERP), IRVE 20 % (bâtiment non résidentiel). À ajuster selon le PLU et la destination. Une allée est à double sens à partir de 5,00 m, à sens unique en dessous. Squelette affiché, chaque voie porte deux boutons : son sens de parcours, à inverser, et son nombre de voies. Une voie à sens unique prend sa largeur et les rangées voisines se rapprochent (5,00 m : places à 90°, NF P 91-100).</p>
   </section>
 
   <section id="export" class="menu glass" hidden aria-label="Export DXF">
@@ -580,7 +589,7 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((res) => setTimeout(
 // ============================================================================
 // Données : sites d'exemple (mètres, repère local, y vers le haut).
 // ============================================================================
-const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, aisle: 6, building_margin: 2, planter_every: 8, cap: 1.5, max_run: 60, pmr_ratio: 2, irve_ratio: 20, angle: null };
+const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, aisle: 6, aisle_one: 5, building_margin: 2, planter_every: 8, cap: 1.5, max_run: 60, pmr_ratio: 2, irve_ratio: 20, angle: null };
 
 function arc(cx, cy, r, a0, a1, n) {
   const pts = [];
@@ -609,6 +618,8 @@ let params = { ...DEFAULT_PARAMS };
 let exampleName = "ruisseau";
 let layout = null, lastAngle = null, lastMs = 0;
 let SKEL = false; // squelette des voies affiché (réglage de présentation, hors historique)
+const PILL = { w: 68, h: 32 }; // pastilles du squelette
+let pills = []; // pastilles posées au dernier dessin (centres écran), pour le toucher
 try { SKEL = localStorage.getItem("trame.skel") === "1"; } catch (e) { /* stockage indisponible */ }
 
 // Formes d'objets → polygones.
@@ -634,7 +645,7 @@ function engineInput(quick) {
     buildings: site.buildings.map((b) => ({ poly: rectPoly(b) })),
     landscapes: site.landscapes, entries: site.entries, lanes: site.lanes || [],
     params: {
-      stall_w: p.stall_w, stall_d: p.stall_d, aisle: p.aisle, building_margin: p.building_margin,
+      stall_w: p.stall_w, stall_d: p.stall_d, aisle: p.aisle, aisle_one: p.aisle_one, building_margin: p.building_margin,
       planter_every: Math.max(0, Math.round(p.planter_every)), cap: p.cap, max_run: p.max_run,
       pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100,
       angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle,
@@ -743,7 +754,7 @@ function fit(animate) {
 let C = {};
 function readColors() {
   const cs = getComputedStyle(document.documentElement);
-  for (const k of ["ground", "grid", "grid-strong", "parcel", "parcel-edge", "asphalt", "stripe", "island", "tree", "tree-edge", "building", "building-edge", "building-label", "excl", "setback", "pmr", "irve", "pmr-irve", "accent", "label", "label-2", "cad", "cad-halo", "cad-label", "cad-bati", "cad-bati-edge", "cad-sheet", "cad-commune", "veg", "veg-tint", "occ-voirie"]) C[k] = cs.getPropertyValue("--" + k).trim();
+  for (const k of ["glass-solid", "sep", "ground", "grid", "grid-strong", "parcel", "parcel-edge", "asphalt", "stripe", "island", "tree", "tree-edge", "building", "building-edge", "building-label", "excl", "setback", "pmr", "irve", "pmr-irve", "accent", "label", "label-2", "cad", "cad-halo", "cad-label", "cad-bati", "cad-bati-edge", "cad-sheet", "cad-commune", "veg", "veg-tint", "occ-voirie"]) C[k] = cs.getPropertyValue("--" + k).trim();
   hatch = null; vegPat = null;
 }
 let hatch = null;
@@ -762,6 +773,7 @@ let needsDraw = false;
 function redraw() { if (!needsDraw) { needsDraw = true; requestAnimationFrame(draw); } }
 
 function draw() {
+  pills = [];
   needsDraw = false;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   const empty = mode === "edit" && !site.parcel.length && !baseShown();
@@ -984,6 +996,9 @@ function solve(quick) {
   try { layout = Engine.solve(engineInput(quick)); } catch (e) { layout = { error: String(e) }; }
   lastMs = performance.now() - t0;
   if (!quick && layout && !layout.error) lastAngle = layout.angle;
+  // Repères du squelette recalés par le moteur sur le milieu de leur voie (une voie resserrée se décale).
+  const ln = !quick && layout && layout.circulation && layout.circulation.lanes;
+  if (ln && site.lanes && ln.length === site.lanes.length) site.lanes = ln;
   updateStats(quick); redraw();
 }
 let solveQueued = false, solveQuick = false;
@@ -1033,6 +1048,7 @@ const snap = (x, s) => +(Math.round(x / s) * s).toFixed(3);
 
 function hitTest(w) {
   const h = HIT(), h2 = h * h;
+  if (SKEL) { const sp = toS(w); for (const b of pills) if (Math.abs(sp[0] - b.x) <= PILL.w / 2 + 4 && Math.abs(sp[1] - b.y) <= PILL.h / 2 + 6) return { kind: "pill", i: b.i, part: sp[0] < b.x ? "dir" : "lanes" }; }
   if (sel && sel.type === "building") {
     const o = site.buildings[sel.i];
     if (dist2(w, rotHandle(o)) < h2 * 1.4) return { kind: "rotate", type: sel.type, i: sel.i };
@@ -1044,7 +1060,6 @@ function hitTest(w) {
   for (let i = 0; i < site.entries.length; i++) if (site.entries[i].edge < site.parcel.length && dist2(w, entryPoint(site.entries[i])) < h2 * 1.3) return { kind: "entry", i };
   for (let i = 0; i < site.parcel.length; i++) if (dist2(w, site.parcel[i]) < h2) return { kind: "vertex", i };
   if (VIS.recul) for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); if (e.L * view.s >= 40 && dist2(w, setbackHandle(i)) < h2) return { kind: "setback", i }; }
-  if (SKEL && layout && layout.circulation) { let best = null; layout.circulation.axes.forEach((a, i) => { const d = distPoly(w, a.pts); if (d < Math.max(h, a.w / 2) && (!best || d < best.d)) best = { d, i }; }); if (best) return { kind: "axis", i: best.i }; }
   if (VIS.pbati) for (let i = site.buildings.length - 1; i >= 0; i--) if (pointInPoly(w, rectPoly(site.buildings[i]))) return { kind: "move", type: "building", i };
   if (VIS.pbati) for (let i = site.landscapes.length - 1; i >= 0; i--) { const e = site.landscapes[i]; if (pointInPoly(w, e)) return { kind: "move", type: "landscape", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "landscape", i }; }
   if (VIS.servitudes) for (let i = site.exclusions.length - 1; i >= 0; i--) { const e = site.exclusions[i]; if (pointInPoly(w, e)) return { kind: "move", type: "exclusion", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "exclusion", i }; }
@@ -1140,7 +1155,7 @@ canvas.addEventListener("pointermove", (ev) => {
       Object.assign(o, { w: nw, h: nh, cx: opp[0] + c[0], cy: opp[1] + c[1] });
       break;
     }
-    case "pedge": case "cadastre": case "axis": drag.kind = "pan"; return;
+    case "pedge": case "cadastre": case "pill": drag.kind = "pan"; return;
   }
   updateSelbar(); requestSolve(true);
 });
@@ -1158,7 +1173,7 @@ function endPointer(ev) {
   // Toucher simple
   lastTap = { t: dbl ? 0 : now, x: sp[0], y: sp[1] };
   const h = d.hit;
-  if (h && h.kind === "axis") { toggleAxis(h.i); return; }
+  if (h && h.kind === "pill") { (h.part === "dir" ? reverseLane : toggleLanes)(h.i); return; }
   if (dbl && h) {
     if (h.kind === "vertex" && site.parcel.length > 3) { removeParcelVertex(h.i); return; }
     if (h.kind === "pedge") { insertParcelVertex(h.i, h.t); return; }
@@ -1255,6 +1270,7 @@ function toggleMenu(btn, menu) {
   if (open) placeMenu(btn, menu);
 }
 function placeMenu(btn, menu) {
+  if (menu === "#params") { const p = $(menu); p.classList.remove("two"); if (p.scrollHeight > p.clientHeight + 1 && window.innerWidth >= 760) p.classList.add("two"); }
   const b = $(btn).getBoundingClientRect(), m = $(menu), mw = m.offsetWidth;
   const left = Math.max(16, Math.min(window.innerWidth - mw - 16, b.left + b.width / 2 - mw / 2));
   m.style.left = left + "px";
@@ -1292,7 +1308,7 @@ window.addEventListener("keydown", (ev) => {
 // ============================================================================
 // Hypothèses.
 // ============================================================================
-const PKEYS = ["stall_w", "stall_d", "aisle", "building_margin", "planter_every", "cap", "max_run", "pmr_ratio", "irve_ratio"];
+const PKEYS = ["stall_w", "stall_d", "aisle", "aisle_one", "building_margin", "planter_every", "cap", "max_run", "pmr_ratio", "irve_ratio"];
 function syncParamsUI() {
   for (const k of PKEYS) $("#p-" + k).value = String(params[k]).replace(".", ",");
   const auto = params.angle === null;
@@ -1309,27 +1325,76 @@ $("#o-fixed").addEventListener("click", () => { params.angle = layout ? Math.rou
 $("#o-range").addEventListener("input", (ev) => { params.angle = +ev.target.value; requestSolve(false); });
 $("#o-range").addEventListener("change", () => commit());
 
-// Squelette des voies : axes de la chaussée ; toucher un axe bascule sa typologie (double sens ⇄ sens
-// unique). Le choix est mémorisé dans le site par le milieu de l'axe, retrouvé à chaque calcul.
+// Squelette des voies : axes de la chaussée. Au milieu de chaque voie, une pastille à deux boutons :
+// sens de parcours (à inverser sur une voie à sens unique) et nombre de voies (2 ⇄ 1). Le choix est
+// mémorisé dans le site par un repère (milieu de la voie, direction), recalé à chaque calcul.
 $("#p-skel").checked = SKEL;
 $("#p-skel").addEventListener("change", (ev) => {
   SKEL = ev.target.checked; try { localStorage.setItem("trame.skel", SKEL ? "1" : "0"); } catch (e) { /* stockage indisponible */ }
-  if (SKEL) toast("Touchez un axe pour changer le sens de la voie"); redraw();
+  if (SKEL) toast("Au milieu de chaque voie : son sens et son nombre de voies"); redraw();
 });
 function distPoly(p, pts) { let d = Infinity; for (let k = 1; k < pts.length; k++) d = Math.min(d, distSeg(p, pts[k - 1], pts[k])[0]); return d; }
-function axisMid(pts) {
+// Point d'un axe à la fraction f de sa longueur (le milieu par défaut) et sa direction, dans l'ordre des
+// points (sens de parcours d'une voie à sens unique).
+function axisMid(pts, f = 0.5) {
   let L = 0; for (let k = 1; k < pts.length; k++) L += Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]);
-  let acc = 0; for (let k = 1; k < pts.length; k++) { const a = pts[k - 1], b = pts[k], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (acc + l >= L / 2 && l > 0) { const t = (L / 2 - acc) / l; return [+(a[0] + (b[0] - a[0]) * t).toFixed(2), +(a[1] + (b[1] - a[1]) * t).toFixed(2)]; } acc += l; }
-  return pts[0];
+  let acc = 0; for (let k = 1; k < pts.length; k++) { const a = pts[k - 1], b = pts[k], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (acc + l >= L * f && l > 0) { const t = (L * f - acc) / l; return { p: [+(a[0] + (b[0] - a[0]) * t).toFixed(2), +(a[1] + (b[1] - a[1]) * t).toFixed(2)], d: [+((b[0] - a[0]) / l).toFixed(3), +((b[1] - a[1]) / l).toFixed(3)], L }; } acc += l; }
+  return { p: pts[0], d: [1, 0], L };
 }
-function toggleAxis(i) {
-  const a = layout.circulation.axes[i], sens = a.sens === 2 ? 1 : 2, prev = site.lanes || [], refused = layout.circulation.refused, m = axisMid(a.pts);
-  site.lanes = prev.filter((r) => distPoly(r.p, a.pts) > Math.max(1.5, a.w / 2)).concat([{ p: m, sens }]);
+// Pose un repère sur la voie i ; sans effet attendu (circulation coupée, voie non desservie), le site reste tel quel.
+function setLane(i, rule, done) {
+  const a = layout.circulation.axes[i], prev = site.lanes || [];
+  site.lanes = prev.filter((r, k) => k !== a.rule && distPoly(r.p, a.pts) > Math.max(1.5, a.w / 2) + 1).concat([rule]);
+  const k = site.lanes.length - 1;
   solve(false);
-  // Sans effet (sens unique qui couperait la circulation, voie non reliée à un accès) : le site reste tel qu'il était.
-  const c = layout && layout.circulation, b = c && c.axes.reduce((o, x) => { const d = distPoly(m, x.pts); return !o || d < o.d ? { d, x } : o; }, null);
-  if (!b || b.x.sens !== sens) { const cut = c && c.refused > refused; site.lanes = prev; solve(false); toast(cut ? "Sens unique impossible : la circulation serait coupée" : "Voie non reliée à un accès"); return; }
-  commit(); markMine(); toast(sens === 1 ? "Voie à sens unique" : "Voie à double sens");
+  const c = layout && layout.circulation, x = c && c.axes.find((ax) => ax.rule === k);
+  const ok = x && x.sens === rule.sens && (!rule.fix || (() => { const m = axisMid(x.pts); return m.d[0] * rule.d[0] + m.d[1] * rule.d[1] > 0; })());
+  if (!ok) { const cut = c && c.refused > 0; site.lanes = prev; solve(false); toast(cut ? (rule.fix ? "Sens impossible : la circulation serait coupée" : "Sens unique impossible : la circulation serait coupée") : "Voie non reliée à un accès"); return; }
+  commit(); markMine(); toast(done);
+}
+function toggleLanes(i) {
+  const a = layout.circulation.axes[i], m = axisMid(a.pts), sens = a.sens === 2 ? 1 : 2;
+  setLane(i, { p: m.p, sens, d: m.d, fix: false }, sens === 1 ? "Voie à sens unique" : "Voie à double sens");
+}
+function reverseLane(i) {
+  const a = layout.circulation.axes[i];
+  if (a.sens === 2) { toast("Voie à double sens : passez-la à une voie pour choisir son sens"); return; }
+  const m = axisMid(a.pts);
+  setLane(i, { p: m.p, sens: 1, d: [-m.d[0], -m.d[1]], fix: true }, "Sens de parcours inversé");
+}
+function drawPills(axes) {
+  pills = [];
+  const font = getComputedStyle(document.body).fontFamily, half = PILL.w / 2, r = PILL.h / 2;
+  // Les plus longues d'abord, au milieu de la voie ; si la place est prise (voies parallèles proches),
+  // un peu avant ou après. Une pastille n'en recouvre jamais une autre ; voie trop courte à l'écran : rien.
+  const order = axes.map((a, i) => ({ a, i, m: axisMid(a.pts) })).filter((o) => o.m.L * view.s >= PILL.w + 12).sort((x, y) => y.m.L - x.m.L);
+  for (const o of order) {
+    let c = null;
+    for (const f of [0.5, 0.32, 0.68]) {
+      const q = toS(f === 0.5 ? o.m.p : axisMid(o.a.pts, f).p);
+      if (q[0] < -half || q[1] < -r || q[0] > W + half || q[1] > H + r) continue;
+      if (!pills.some((b) => Math.abs(b.x - q[0]) < PILL.w + 6 && Math.abs(b.y - q[1]) < PILL.h + 6)) { c = q; break; }
+    }
+    if (!c) continue;
+    pills.push({ i: o.i, x: c[0], y: c[1] });
+    const one = o.a.sens === 1, ang = Math.atan2(-o.m.d[1], o.m.d[0]);
+    ctx.save(); ctx.translate(c[0], c[1]);
+    ctx.shadowColor = "rgba(0, 0, 0, .22)"; ctx.shadowBlur = 8; ctx.shadowOffsetY = 2;
+    ctx.beginPath(); ctx.arc(-half + r, 0, r, Math.PI / 2, Math.PI * 1.5); ctx.arc(half - r, 0, r, -Math.PI / 2, Math.PI / 2); ctx.closePath(); ctx.fillStyle = C["glass-solid"]; ctx.fill();
+    ctx.shadowColor = "transparent"; ctx.strokeStyle = C.sep; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -r + 7); ctx.lineTo(0, r - 7); ctx.stroke();
+    // Sens de parcours : flèche dans le sens de la voie, ou flèches opposées (circulation à droite).
+    ctx.save(); ctx.translate(-half / 2, 0); ctx.rotate(ang);
+    ctx.strokeStyle = one ? C.accent : C["label-2"]; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.beginPath();
+    if (one) { ctx.moveTo(-7, 0); ctx.lineTo(7, 0); ctx.moveTo(3, -4); ctx.lineTo(7, 0); ctx.lineTo(3, 4); }
+    else { ctx.moveTo(-7, 3.5); ctx.lineTo(7, 3.5); ctx.moveTo(4, 1); ctx.lineTo(7, 3.5); ctx.lineTo(4, 6); ctx.moveTo(7, -3.5); ctx.lineTo(-7, -3.5); ctx.moveTo(-4, -6); ctx.lineTo(-7, -3.5); ctx.lineTo(-4, -1); }
+    ctx.stroke(); ctx.restore();
+    // Nombre de voies
+    ctx.fillStyle = C.label; ctx.font = `600 15px ${font}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(one ? "1" : "2", half / 2, 1);
+    ctx.restore();
+  }
 }
 function drawSkeleton() {
   const axes = layout.circulation ? layout.circulation.axes : [];
@@ -1357,6 +1422,7 @@ function drawSkeleton() {
   ctx.beginPath(); for (const a of axes) for (const q of [a.pts[0], a.pts[a.pts.length - 1]]) { const p = toS(q); ctx.moveTo(p[0] + 3.5, p[1]); ctx.arc(p[0], p[1], 3.5, 0, Math.PI * 2); }
   ctx.fill(); ctx.stroke();
   ctx.restore();
+  drawPills(axes);
 }
 
 // ============================================================================

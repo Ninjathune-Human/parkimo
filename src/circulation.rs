@@ -35,6 +35,9 @@ pub struct Axis {
     pub w: f64,
     /// 2 : double sens, 1 : sens unique.
     pub sens: u8,
+    /// Repère de typologie imposée appliqué à ce tronçon (indice dans `Site::lanes`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rule: Option<usize>,
 }
 
 #[derive(Serialize, Clone, Copy, Debug)]
@@ -54,6 +57,8 @@ pub struct Circulation {
     pub refused: usize,
     /// Voies étroites imposées à double sens.
     pub forced_narrow: usize,
+    /// Repères de typologie recalés sur le milieu de leur tronçon, avec son sens de parcours.
+    pub lanes: Vec<LaneRule>,
 }
 
 // ---------------------------------------------------------------------------
@@ -796,12 +801,14 @@ fn strongly_connected(
 // ---------------------------------------------------------------------------
 
 /// `rings` : chaussée (anneaux pair-impair) ; `quads` : allées transversales et accès ;
-/// `entries` : accès depuis la rue ; `aisle` : largeur d'allée retenue par le plan.
+/// `entries` : accès depuis la rue ; `aisle`, `aisle_one` : largeurs d'allée et de voie à sens
+/// unique retenues par le plan ; `rules` : typologies imposées.
 pub fn analyse(
     rings: &[Vec<V2>],
     quads: &[Quad],
     entries: &[Quad],
     aisle: f64,
+    aisle_one: f64,
     rules: &[LaneRule],
 ) -> Circulation {
     let mut out = Circulation::default();
@@ -860,6 +867,8 @@ pub fn analyse(
         // Voie au gabarit de l'allée : on retient la largeur réglée, au lieu de la mesure tramée.
         if (w - aisle).abs() < 0.5 {
             w = aisle;
+        } else if (w - aisle_one).abs() < 0.5 {
+            w = aisle_one;
         }
         // Axe lissé (les marches de la trame disparaissent sous la tolérance) ; l'axe publié est
         // raccordé aux centres des carrefours, les flèches suivent l'axe mesuré.
@@ -934,16 +943,17 @@ pub fn analyse(
     };
     let br = bridges(nv, &ed);
     // Typologies imposées : chaque repère s'applique au tronçon d'axe le plus proche, s'il passe
-    // sur sa chaussée ; à repères multiples, le dernier l'emporte.
-    let mut imposed: Vec<Option<u8>> = vec![None; real];
-    for r in rules {
+    // sur sa chaussée (à 1 m près : une voie rétrécie se décale) ; à repères multiples, le dernier
+    // l'emporte.
+    let mut imposed: Vec<Option<usize>> = vec![None; real];
+    for (k, r) in rules.iter().enumerate() {
         let p = v2(r.p[0], r.p[1]);
         let best = (0..real)
             .map(|e| (e, dist_to_poly(p, &polys[e])))
             .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
         if let Some((e, d)) = best {
-            if d <= (width[e] * 0.5).max(1.5) {
-                imposed[e] = Some(r.sens);
+            if d <= (width[e] * 0.5).max(1.5) + 1.0 {
+                imposed[e] = Some(k);
             }
         }
     }
@@ -954,7 +964,7 @@ pub fn analyse(
         if !comp[ed[e].0] {
             continue;
         }
-        match imposed[e] {
+        match imposed[e].map(|k| rules[k].sens) {
             Some(1) => {
                 forced.push(e);
                 continue;
@@ -993,19 +1003,37 @@ pub fn analyse(
             .unwrap()
     };
     narrow.sort_by(by_len);
-    forced.sort_by(by_len);
-    // Sens uniques imposés d'abord, puis ceux des voies étroites, sans couper la circulation.
+    // Sens uniques imposés d'abord, du plus ancien au plus récent, puis ceux des voies étroites,
+    // sans couper la circulation.
+    forced.sort_by_key(|&e| imposed[e]);
     let nf = forced.len();
     for (k, e) in forced.into_iter().chain(narrow).enumerate() {
         let len = poly_len(&polys[e]);
         let (mid, _) = at(&polys[e], len / 2.0);
         let t = direction(&polys[e], len / 2.0, len);
-        let pref: i8 = if (mid - centre).cross(t) >= 0.0 {
+        // Sens imposé, sinon dans le prolongement d'une voie alignée déjà orientée, sinon
+        // anti-horaire.
+        let rule = imposed[e].map(|i| rules[i]);
+        let fixed = rule.and_then(|r| if r.fix { r.d } else { None });
+        let pref: i8 = if let Some(d) = fixed {
+            if t.dot(v2(d[0], d[1])) >= 0.0 {
+                1
+            } else {
+                -1
+            }
+        } else if let Some(c) = continuation(e, &ed, &polys, &dir, real) {
+            c
+        } else if (mid - centre).cross(t) >= 0.0 {
             1
         } else {
             -1
         };
-        for d in [pref, -pref] {
+        let tries: &[i8] = if fixed.is_some() {
+            &[pref][..]
+        } else {
+            &[pref, -pref][..]
+        };
+        for &d in tries {
             dir[e] = d;
             if strongly_connected(nv, &ed, &dir, root, &comp) {
                 break;
@@ -1019,6 +1047,26 @@ pub fn analyse(
                 out.narrow_two_way += 1;
             }
         }
+    }
+
+    // Repères recalés au milieu de leur tronçon (une voie rétrécie se décale) ; un sens unique
+    // appliqué y inscrit son sens de parcours, qui reste ensuite fixe.
+    out.lanes = rules.to_vec();
+    for e in 0..real {
+        let Some(k) = imposed[e] else { continue };
+        let r = rules[k];
+        if r.sens == 1 && dir[e] == 0 {
+            continue;
+        }
+        let len = poly_len(&polys[e]);
+        let (mid, _) = at(&polys[e], len / 2.0);
+        let t = direction(&polys[e], len / 2.0, len) * if dir[e] < 0 { -1.0 } else { 1.0 };
+        out.lanes[k] = LaneRule {
+            p: [r2(mid.x), r2(mid.y)],
+            sens: r.sens,
+            d: Some([r3(t.x), r3(t.y)]),
+            fix: r.sens == 1,
+        };
     }
 
     // Axes et flèches.
@@ -1066,6 +1114,7 @@ pub fn analyse(
             pts: axis.iter().map(|p| [r3(p.x), r3(p.y)]).collect(),
             w: r3(width[e]),
             sens: if dir[e] == 0 { 2 } else { 1 },
+            rule: imposed[e],
         });
         if !comp[ed[e].0] || len < ARROW_L + 1.0 {
             continue;
@@ -1172,6 +1221,62 @@ fn r3(x: f64) -> f64 {
     (x * 1000.0).round() / 1000.0
 }
 
+fn r2(x: f64) -> f64 {
+    (x * 100.0).round() / 100.0
+}
+
+/// Direction d'un axe à une extrémité (dans l'ordre de ses points), mesurée hors carrefour.
+fn end_dir(p: &[V2], start: bool) -> V2 {
+    let len = poly_len(p);
+    let (s1, s2) = ((len / 3.0).min(2.0), (len * 2.0 / 3.0).min(10.0));
+    let (a, b) = if start {
+        (at(p, s1).0, at(p, s2).0)
+    } else {
+        (at(p, len - s2).0, at(p, len - s1).0)
+    };
+    (b - a).norm()
+}
+
+/// Sens qui prolonge une voie alignée déjà orientée (à 25° près), à l'une ou l'autre extrémité.
+fn continuation(
+    e: usize,
+    ed: &[(usize, usize)],
+    polys: &[Vec<V2>],
+    dir: &[i8],
+    real: usize,
+) -> Option<i8> {
+    let cos = 25f64.to_radians().cos();
+    let (a, b) = ed[e];
+    let (sa, sb) = (end_dir(&polys[e], true), end_dir(&polys[e], false));
+    for f in (0..real).filter(|&f| f != e && dir[f] != 0) {
+        let (fa, fb) = ed[f];
+        // Sens de parcours de f à ses extrémités.
+        let s = dir[f] as f64;
+        let (in_a, out_a) = (end_dir(&polys[f], true) * s, end_dir(&polys[f], false) * s);
+        // f en (fa → fb) si dir > 0 : elle sort de fa et entre en fb.
+        let (from, to, v_from, v_to) = if dir[f] > 0 {
+            (fa, fb, in_a, out_a)
+        } else {
+            (fb, fa, out_a, in_a)
+        };
+        // f arrive au nœud où e commence ou finit : e en repart dans le même alignement.
+        if to == a && v_to.dot(sa) > cos {
+            return Some(1);
+        }
+        if to == b && v_to.dot(sb * -1.0) > cos {
+            return Some(-1);
+        }
+        // f part du nœud où e finit ou commence : e y arrive dans le même alignement.
+        if from == b && v_from.dot(sb) > cos {
+            return Some(1);
+        }
+        if from == a && v_from.dot(sa * -1.0) > cos {
+            return Some(-1);
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1196,7 +1301,7 @@ mod tests {
     fn wide_corridor_is_two_way_with_paired_arrows_on_the_right() {
         // Allée de 50 × 6 m, accès à l'ouest.
         let e = entry(v2(-8.0, 6.0), v2(-8.0, 0.0), v2(1.0, 0.0), 8.5);
-        let c = analyse(&[rect(0.0, 0.0, 50.0, 6.0)], &[e], &[e], 6.0, &[]);
+        let c = analyse(&[rect(0.0, 0.0, 50.0, 6.0)], &[e], &[e], 6.0, 5.0, &[]);
         assert!(
             !c.axes.is_empty() && c.axes.iter().all(|a| a.sens == 2),
             "{:?}",
@@ -1227,7 +1332,7 @@ mod tests {
         let mut inner = rect(4.0, 4.0, 56.0, 36.0);
         inner.reverse();
         let e = entry(v2(28.0, -10.0), v2(32.0, -10.0), v2(0.0, 1.0), 10.5);
-        let c = analyse(&[outer, inner], &[e], &[e], 4.0, &[]);
+        let c = analyse(&[outer, inner], &[e], &[e], 4.0, 5.0, &[]);
         let one_way: Vec<&Axis> = c.axes.iter().filter(|a| a.sens == 1).collect();
         assert!(!one_way.is_empty(), "{:?}", c.axes);
         assert_eq!(c.narrow_two_way, 1, "l'accès unique reste à double sens");
@@ -1257,6 +1362,7 @@ mod tests {
             &[w, east],
             &[w, east],
             4.0,
+            5.0,
             &[],
         );
         assert!(c.axes.iter().any(|a| a.sens == 1), "{:?}", c.axes);
@@ -1273,11 +1379,16 @@ mod tests {
         let mut inner = rect(w, w, 60.0 - w, 40.0 - w);
         inner.reverse();
         let e = entry(v2(28.0, -10.0), v2(32.0, -10.0), v2(0.0, 1.0), 10.5);
-        analyse(&[outer, inner], &[e], &[e], w, rules)
+        analyse(&[outer, inner], &[e], &[e], w, 5.0, rules)
     }
 
     fn rule(x: f64, y: f64, sens: u8) -> LaneRule {
-        LaneRule { p: [x, y], sens }
+        LaneRule {
+            p: [x, y],
+            sens,
+            d: None,
+            fix: false,
+        }
     }
 
     #[test]

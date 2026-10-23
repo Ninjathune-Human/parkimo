@@ -35,7 +35,13 @@ Le moteur reconstitue le fonctionnement du parking du point de vue de l'automobi
 
 Avec les allées de 6,00 m par défaut, tout le parking est à double sens. Régler la largeur d'allée sous 5,00 m dans Hypothèses produit un plan à sens unique.
 
-**Squelette des voies** (interrupteur dans Hypothèses) : les axes du réseau s'affichent sur le plan, en double trait pour une voie à double sens, en trait simple fléché pour une voie à sens unique. Toucher un axe bascule sa typologie, d'un carrefour au suivant ; un glisser déplace la vue. Le choix est enregistré dans le projet (annuler, rétablir, export) par le milieu de l'axe, retrouvé à chaque calcul tant que la voie passe à cet endroit. Les sens uniques imposés sont orientés avant ceux des voies étroites, avec la même règle de connexité : un sens unique qui couperait la circulation (impasse, passage obligé) est refusé et le plan reste inchangé. La typologie ne modifie ni la largeur des allées ni le nombre de places.
+**Squelette des voies** (interrupteur dans Hypothèses) : les axes du réseau s'affichent sur le plan, en double trait pour une voie à double sens, en trait simple fléché pour une voie à sens unique. Au milieu de chaque voie (d'un carrefour au suivant), une pastille porte deux boutons : le **sens de parcours**, que l'on inverse d'un toucher sur une voie à sens unique, et le **nombre de voies** (2 ⇄ 1). Quand des voies parallèles sont proches, la pastille glisse un peu le long de la voie ; trop courte à l'écran, une voie n'en a pas (zoomer). Le choix est enregistré dans le projet (annuler, rétablir, export) par un repère que le moteur recale à chaque calcul sur le milieu de la voie, avec son sens de parcours. Les sens uniques imposés sont orientés avant ceux des voies étroites, du plus ancien au plus récent, avec la même règle de connexité : un sens unique, ou un sens de parcours, qui couperait la circulation (impasse, passage obligé) est refusé et le plan reste inchangé. Une voie étroite sans consigne prolonge de préférence le sens d'une voie alignée.
+
+**Largeur voie en sens unique** (5,00 m par défaut : places à 90°, NF P 91-100) : une voie passée à sens unique prend cette largeur.
+- Allée entre deux rangées : elle se resserre et les rangées voisines s'en rapprochent chacune de la moitié de l'écart ; la trame (orientation, décalage) reste celle du plan optimisé, puis glisse d'au plus 2 m pour tirer parti de la place libérée.
+- Côté droit de l'anneau perpendiculaire aux rangées : le cœur avance, les rangées s'allongent.
+- Côté droit de l'anneau parallèle aux rangées, en bord de trame : la trame se cale pour que la rangée la plus proche affleure la voie resserrée.
+- Tronçon oblique ou courbe, allée transversale, raccord : la voie passe à sens unique sans changer de largeur.
 
 Calque **Sens de circulation** dans la couche Projet ; à l'export, bloc `SIG_FLECHE` sur le calque `PRJ_SIGNALISATION`.
 
@@ -87,6 +93,7 @@ Le squelette du fichier (en-tête, tables, calques, types de ligne, blocs) est p
 |---|---|---|
 | Place | 2,50 × 5,00 m | usage courant PLU (minimum NF P 91-100 : 2,30 × 5,00) |
 | Largeur d'allée | 6,00 m, double sens | usage courant PLU ; double sens à partir de 5,00 m (NF P 91-120, 5,50 m en NF P 91-100), sens unique en dessous |
+| Largeur voie en sens unique | 5,00 m | NF P 91-100, places à 90° (2,80 m minimum pour une voie de circulation en NF P 91-120) |
 | Place PMR | 3,30 × 5,00 m, 2 % (min. 1) | arrêté du 20 avril 2017 (ERP) |
 | IRVE | 20 % pré-équipées, dont 2 % PMR (min. 1) | CCH L111-3-4, non résidentiel neuf |
 
@@ -98,7 +105,7 @@ Tout est réglable dans le panneau Hypothèses. À vérifier selon le PLU et la 
 src/geom.rs       vecteurs, quadrilatères, régions pair-impair, intervalles de bande exacts
 src/region.rs     reculs par arête, obstacles, érosions (booléens robustes via la crate geo)
 src/perimeter.rs  places en bordure, bords droits et courbes
-src/rows.rs       optimisation orientation × décalage, découpe des rangées doubles
+src/rows.rs       optimisation orientation × décalage, découpe des rangées doubles, allées resserrées
 src/finish.rs     connectivité depuis les accès, PMR, IRVE
 src/circulation.rs réseau des voies, sens de circulation (typologies imposées comprises), flèches au sol
 src/planted.rs    espaces plantés, arrondis en bordure de chaussée
@@ -109,7 +116,8 @@ src/dxf_template.dxf squelette AutoCAD (calques, types de ligne, blocs d'habilla
 src/symbols.json  symboles d'habillage (véhicules, arbres) et flèche au sol, partagés par l'interface et l'export
 src/lib.rs        orchestration, union de parcelles, interface WebAssembly (JSON en entrée, JSON en sortie)
 tests/quality.rs  invariants : aucun chevauchement, aucune place hors zone ou sans accès, quotas, 60 parcelles aléatoires,
-                  flèches dans la chaussée, sens unique fortement connexe, bascule des voies par le squelette
+                  flèches dans la chaussée, sens unique fortement connexe, bascule des voies par le squelette,
+                  voies resserrées à la largeur sens unique, repères stables, sens de parcours imposé
 examples/dxf.rs   export d'un scénario en DXF
 web/app.html      interface (canvas, poignées, panneaux, mode carte, couches et calques, export)
 tools/bundle.py   assemble dist/index.html avec le moteur embarqué
