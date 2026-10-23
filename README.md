@@ -2,6 +2,8 @@
 
 ![Trame, étude de capacité de stationnement](docs/banniere.png)
 
+**[Ouvrir l'application](https://ninjathune-human.github.io/parkimo/)**
+
 Étude de capacité de stationnement en temps réel, dans l'esprit de TestFit, adaptée aux règles françaises.
 Moteur en Rust compilé en WebAssembly, interface en un seul fichier `index.html` (PC, iPad, iPhone, tactile et stylet).
 
@@ -25,12 +27,30 @@ Temps de calcul mesurés (WebAssembly, Chromium) : 2 à 12 ms en mode direct pen
 Bouton **Carte** : recherche d'un lieu (adresse, commune, lieu-dit, référence cadastrale comme `06088000KY0116` ou `06088 KY 116`, coordonnées GPS), puis **Emprise** pour poser un rectangle ajustable et **Importer**.
 
 - La photo aérienne (ORTHOIMAGERY.ORTHOPHOTOS, jusqu'au niveau 19, environ 0,2 m par pixel) est assemblée puis **découpée au rectangle** : seule cette image est conservée.
-- Les données cadastrales du Parcellaire Express (WFS, pagination par 1 000 objets) sont converties dans le repère local du plan et deviennent des calques activables : parcelles, numéros, bâti, feuilles et sections, limites communales.
+- Les données cadastrales du Parcellaire Express (WFS, pagination par 1 000 objets) sont converties dans le repère local du plan et forment des **couches**. Chaque élément affichable ou masquable d'une couche est un **calque**, avec son interrupteur : parcelles, numéros, feuilles et sections, limites communales.
+- **Occupation du sol**, calculée en Rust dans l'emprise : le bâti (cadastre), la voirie (domaine non cadastré : l'emprise moins les parcelles), et tout le reste en **végétation**, représentée par une trame verte. Ce sont de vrais polygones (avec trous, par exemple les cours intérieures), au même titre que le bâti.
 - Toucher une parcelle puis **Étudier** en fait la parcelle d'étude ; **Ajouter à l'étude** la réunit à la précédente (union calculée en Rust).
 - Le fond est enregistré dans le navigateur (IndexedDB) et revient au rechargement.
 
 Services utilisés (Géoplateforme, sans clé) : `data.geopf.fr/wmts`, `data.geopf.fr/wfs/ows`, `data.geopf.fr/geocodage/search`.
 Une page publiée sur claude.ai ne peut pas joindre ces services : le fond de carte fonctionne avec `dist/index.html`, en local ou sur GitHub Pages.
+
+## Export DXF
+
+Bouton **Exporter** : fichier DXF AutoCAD 2010 (texte UTF-8), unités en mètres, au choix en **RGF93 / Lambert-93** (EPSG:2154) ou en **RGF93 / CC** de la zone du site (EPSG:3942 à 3950, CC44 à Nice).
+
+- Chaîne de coordonnées : repère local → Web Mercator → RGF93 géographique → conique conforme de Lambert sur l'ellipsoïde GRS80. Projections vérifiées contre PROJ à moins d'un millimètre ; sommets cadastraux restitués au centimètre.
+- Un calque AutoCAD par calque de l'application ; les calques masqués sont exportés éteints. Le cadastre est limité à l'emprise.
+- Entités : `LWPOLYLINE` (contours), `HATCH` (trames : végétation, bâti, servitudes, places PMR), `TEXT` (numéros de parcelle, sections, cartouche), `INSERT` du bloc `ARBRE`.
+
+| Couche | Calques AutoCAD |
+|---|---|
+| Projet | `PRJ_PARCELLE`, `PRJ_RECUL`, `PRJ_VOIRIE`, `PRJ_PLACES`, `PRJ_PLACES_PMR`, `PRJ_PLACES_IRVE`, `PRJ_ILOTS`, `PRJ_ARBRES`, `PRJ_BATIMENTS`, `PRJ_ESPACES_VERTS`, `PRJ_SERVITUDES` |
+| Occupation du sol | `OCC_VOIRIE`, `OCC_BATI`, `OCC_VEGETATION` |
+| Cadastre | `CAD_PARCELLES`, `CAD_NUMEROS`, `CAD_FEUILLES`, `CAD_COMMUNES` |
+| Repères | `EMPRISE`, `INFO` (système de coordonnées, sources, bilan) |
+
+Le squelette du fichier (en-tête, tables, calques, types de ligne, bloc) est produit par ezdxf (`tools/dxf_template.py`) ; chaque export est relu par ezdxf dans les tests, sans erreur d'audit.
 
 ## Valeurs par défaut
 
@@ -51,11 +71,17 @@ src/region.rs     reculs par arête, obstacles, érosions (booléens robustes vi
 src/perimeter.rs  places en bordure, bords droits et courbes
 src/rows.rs       optimisation orientation × décalage, découpe des rangées doubles
 src/finish.rs     connectivité depuis les accès, PMR, IRVE
+src/occupation.rs occupation du sol : voirie, bâti, végétation
+src/proj.rs       projections Lambert-93 et CC (RGF93, GRS80)
+src/dxf.rs        export DXF AutoCAD 2010 géoréférencé
+src/dxf_template.dxf squelette AutoCAD (calques, types de ligne, bloc ARBRE)
 src/lib.rs        orchestration, union de parcelles, interface WebAssembly (JSON en entrée, JSON en sortie)
 tests/quality.rs  invariants : aucun chevauchement, aucune place hors zone ou sans accès, quotas, 60 parcelles aléatoires
-web/app.html      interface (canvas, poignées, panneaux, mode carte, calques cadastraux)
+examples/dxf.rs   export d'un scénario en DXF
+web/app.html      interface (canvas, poignées, panneaux, mode carte, couches et calques, export)
 tools/bundle.py   assemble dist/index.html avec le moteur embarqué
-tools/wrap_w2j.py repli JavaScript du moteur (wasm2js) pour la page publiée
+tools/wrap_w2j.py repli JavaScript du moteur (wasm2js)
+tools/dxf_template.py génère src/dxf_template.dxf (ezdxf)
 ```
 
 ## Compiler

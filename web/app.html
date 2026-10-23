@@ -47,6 +47,9 @@
   --cad-bati-edge: rgba(92, 70, 44, .7);
   --cad-sheet: #C0447A;
   --cad-commune: #5546C2;
+  --veg: #3E8B39;
+  --veg-tint: rgba(118, 178, 96, .2);
+  --occ-voirie: rgba(128, 132, 134, .34);
 
   --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 20px;
   --ease: cubic-bezier(.25, .1, .25, 1);
@@ -64,7 +67,7 @@
     --glass-shadow: 0 18px 48px rgba(0, 0, 0, .45); --field: rgba(238, 243, 240, .07);
     --ok: #3CC26E; --warn: #FFA43A; --bad: #FF5A4F; --field-strong: rgba(238, 243, 240, .22);
     --cad: #FFC94D; --cad-halo: rgba(0, 0, 0, .55); --cad-label: #FFE7A8; --cad-bati: rgba(255, 228, 184, .2); --cad-bati-edge: rgba(255, 228, 184, .55);
-    --cad-sheet: #F47FB2; --cad-commune: #A99CFF; color-scheme: dark;
+    --cad-sheet: #F47FB2; --cad-commune: #A99CFF; --veg: #86CF77; --veg-tint: rgba(120, 200, 100, .16); --occ-voirie: rgba(190, 196, 198, .22); color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
@@ -77,7 +80,7 @@
   --glass-shadow: 0 18px 48px rgba(0, 0, 0, .45); --field: rgba(238, 243, 240, .07);
   --ok: #3CC26E; --warn: #FFA43A; --bad: #FF5A4F; --field-strong: rgba(238, 243, 240, .22);
   --cad: #FFC94D; --cad-halo: rgba(0, 0, 0, .55); --cad-label: #FFE7A8; --cad-bati: rgba(255, 228, 184, .2); --cad-bati-edge: rgba(255, 228, 184, .55);
-  --cad-sheet: #F47FB2; --cad-commune: #A99CFF; color-scheme: dark;
+  --cad-sheet: #F47FB2; --cad-commune: #A99CFF; --veg: #86CF77; --veg-tint: rgba(120, 200, 100, .16); --occ-voirie: rgba(190, 196, 198, .22); color-scheme: dark;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -202,13 +205,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 32px
 .tb.danger { color: var(--bad); }
 
 /* Calques et légende */
-#layers { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); border-radius: var(--r-lg); width: 236px; max-height: calc(100% - 120px); overflow: auto; }
+#layers { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); border-radius: var(--r-lg); width: 256px; max-height: calc(100% - 120px); overflow: auto; }
 #layers-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; padding: 4px 8px 4px 12px; border: 0; background: none; color: var(--label); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 #layers-head .chev { width: 24px; height: 24px; }
 #layers-body { padding: 0 12px 10px; display: grid; gap: 2px; }
 .lrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 40px; font-size: 13px; color: var(--label); cursor: pointer; border-top: .5px solid var(--sep); }
-#lay-base .lrow:first-child { border-top: 0; }
-.lrow span { display: flex; align-items: center; gap: 8px; }
+.lrow > span { display: flex; align-items: center; gap: 8px; }
 .lrow.sub { min-height: 32px; border-top: 0; cursor: default; }
 .ln { width: 14px; height: 0; border-top: 2px solid var(--c); flex: none; }
 .ln.dash { border-top-style: dashed; }
@@ -219,9 +221,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 32px
 .lactions { display: flex; gap: 6px; padding: 8px 0 4px; flex-wrap: wrap; }
 .tb.small { min-height: 34px; font-size: 12px; padding: 0 10px; background: var(--field); }
 .attrib { font-size: 11px; color: var(--label-3); padding-bottom: 6px; }
-.lsep { height: .5px; background: var(--sep); margin: 4px 0 6px; }
-.legend-items { display: grid; gap: 6px; font-size: 12px; color: var(--label-2); padding-top: 2px; }
-.legend-items div { display: flex; align-items: center; gap: 8px; }
+.couche { display: grid; padding-top: 6px; }
+.couche + .couche, #lay-base .couche:first-child { border-top: .5px solid var(--sep); margin-top: 4px; }
+.couche .eyebrow { padding: 6px 0 2px; }
+.couche .lrow:first-of-type { border-top: 0; }
+.sws { display: inline-flex; gap: 2px; }
+.sw.veg { background: repeating-linear-gradient(135deg, var(--veg) 0 1.4px, var(--veg-tint) 1.4px 3.6px); }
+.sw.excl { background: repeating-linear-gradient(45deg, var(--excl) 0 1.4px, transparent 1.4px 3.6px); }
+.sw.round { border-radius: 50%; }
 
 /* Mode carte */
 body.mapmode #brand, body.mapmode #stats, body.mapmode #toolbar, body.mapmode #layers, body.mapmode #selbar, body.mapmode #hint, body.mapmode .menu { display: none !important; }
@@ -246,6 +253,7 @@ body.mapmode #brand, body.mapmode #stats, body.mapmode #toolbar, body.mapmode #l
 .bar { height: 6px; border-radius: 3px; background: var(--field-strong); overflow: hidden; }
 .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width var(--fast) var(--ease); }
 #pg-text { font-size: 13px; color: var(--label-2); font-variant-numeric: tabular-nums; }
+body:has(.menu:not([hidden])) #hint { opacity: 0; }
 #hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); font-size: 12px; color: var(--label-2); background: var(--glass); padding: 6px 12px; border-radius: 99px; white-space: nowrap; pointer-events: none; transition: opacity var(--medium) var(--ease); }
 #toast { position: absolute; left: 50%; top: calc(76px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); padding: 8px 14px; border-radius: 99px; font-size: 13px; font-weight: 550; opacity: 0; pointer-events: none; transition: opacity var(--medium) var(--ease); }
 #toast.show { opacity: 1; }
@@ -271,7 +279,10 @@ body.mapmode #brand, body.mapmode #stats, body.mapmode #toolbar, body.mapmode #l
   .select-wrap select { max-width: 150px; }
   #stats[data-open="true"] { left: max(16px, env(safe-area-inset-left, 0px)); top: calc(78px + env(safe-area-inset-top, 0px)); }
 }
-@media (max-width: 430px) { #b-redo { display: none; } }
+@media (max-width: 430px) { #b-redo, #b-fit { display: none; } }
+#export { width: min(340px, calc(100vw - 32px)); padding: 14px 16px 16px; gap: 12px; }
+#export h3 { margin: 0; font-size: 17px; font-weight: 600; }
+.tb.wide { width: 100%; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 </style>
 
@@ -356,6 +367,16 @@ body.mapmode #brand, body.mapmode #stats, body.mapmode #toolbar, body.mapmode #l
     <p class="note">Valeurs par défaut : place 2,50 × 5,00 m, PMR 3,30 m et 2 % (ERP), IRVE 20 % (bâtiment non résidentiel). À ajuster selon le PLU et la destination.</p>
   </section>
 
+  <section id="export" class="menu glass" hidden aria-label="Export DXF">
+    <h3>Export DXF</h3>
+    <div class="pgroup" id="x-geo">
+      <div class="eyebrow">Système de coordonnées</div>
+      <div class="field"><span class="seg" role="group" aria-label="Système de coordonnées"><button id="x-l93" aria-pressed="true">Lambert-93</button><button id="x-cc" aria-pressed="false">CC44</button></span><span class="unit num" id="x-epsg">EPSG:2154</span></div>
+    </div>
+    <p class="note" id="x-note"></p>
+    <button class="tb primary wide" id="x-go">Télécharger le DXF</button>
+  </section>
+
   <nav id="toolbar" class="glass" aria-label="Outils">
     <button class="tb primary" id="b-add" aria-expanded="false" aria-controls="addmenu"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="lbl">Ajouter</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button class="tb" id="b-draw" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 14 6 4l9 3-3 8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="3" cy="14" r="1.6" fill="currentColor"/><circle cx="6" cy="4" r="1.6" fill="currentColor"/><circle cx="15" cy="7" r="1.6" fill="currentColor"/></svg><span class="lbl">Nouvelle parcelle</span></button>
@@ -366,29 +387,39 @@ body.mapmode #brand, body.mapmode #stats, body.mapmode #toolbar, body.mapmode #l
     <button class="tb icon" id="b-fit" aria-label="Recentrer le plan"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 7V3h4M11 3h4v4M15 11v4h-4M7 15H3v-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <span class="vsep" aria-hidden="true"></span>
     <button class="tb" id="b-params" aria-expanded="false" aria-controls="params"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 5h7M14 5h1M3 13h1M8 13h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="5" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="6" cy="13" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span class="lbl">Hypothèses</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="tb" id="b-export" aria-expanded="false" aria-controls="export"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 3v8M5.5 7.5 9 11l3.5-3.5M3.5 14.5h11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Exporter</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
   </nav>
 
-  <section id="layers" class="glass" aria-label="Calques et légende">
-    <button id="layers-head" aria-expanded="true" aria-controls="layers-body"><span>Calques</span><span class="chev" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
+  <section id="layers" class="glass" aria-label="Couches et calques">
+    <button id="layers-head" aria-expanded="true" aria-controls="layers-body"><span>Couches</span><span class="chev" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
     <div id="layers-body">
+      <div class="couche">
+        <div class="eyebrow">Projet</div>
+        <label class="lrow"><span><span class="sws"><i class="sw" style="background:var(--asphalt)"></i><i class="sw" style="background:var(--pmr)"></i><i class="sw" style="background:var(--irve)"></i></span>Places</span><input type="checkbox" class="switch" role="switch" data-lay="places"></label>
+        <label class="lrow"><span><i class="sw" style="background:var(--asphalt)"></i>Voirie</span><input type="checkbox" class="switch" role="switch" data-lay="pvoirie"></label>
+        <label class="lrow"><span><i class="sw round" style="background:var(--tree)"></i>Îlots et arbres</span><input type="checkbox" class="switch" role="switch" data-lay="ilots"></label>
+        <label class="lrow"><span><i class="sw" style="background:var(--building)"></i>Bâtiments et espaces verts</span><input type="checkbox" class="switch" role="switch" data-lay="pbati"></label>
+        <label class="lrow"><span><i class="sw excl"></i>Servitudes</span><input type="checkbox" class="switch" role="switch" data-lay="servitudes"></label>
+        <label class="lrow"><span><i class="sw" style="border:1.5px dashed var(--setback)"></i>Limites de recul</span><input type="checkbox" class="switch" role="switch" data-lay="recul"></label>
+      </div>
       <div id="lay-base" hidden>
+        <div class="couche">
+          <div class="eyebrow">Occupation du sol</div>
+        <label class="lrow"><span><i class="sw" style="background:var(--occ-voirie)"></i>Voirie (non cadastrée)</span><input type="checkbox" class="switch" role="switch" data-lay="ovoirie"></label>
+        <label class="lrow"><span><i class="sw" style="background:var(--cad-bati)"></i>Bâti</span><input type="checkbox" class="switch" role="switch" data-lay="bati"></label>
+        <label class="lrow"><span><i class="sw veg"></i>Végétation</span><input type="checkbox" class="switch" role="switch" data-lay="vegetation"></label>
+        </div>
+        <div class="couche">
+          <div class="eyebrow">Cadastre et photo</div>
         <label class="lrow"><span>Photo aérienne</span><input type="checkbox" class="switch" role="switch" data-lay="photo"></label>
-        <div class="lrow sub"><input id="lay-op" type="range" min="20" max="100" step="5" aria-label="Opacité de la photo aérienne"></div>
+          <div class="lrow sub"><input id="lay-op" type="range" min="20" max="100" step="5" aria-label="Opacité de la photo aérienne"></div>
         <label class="lrow"><span><i class="ln" style="--c:var(--cad)"></i>Parcelles</span><input type="checkbox" class="switch" role="switch" data-lay="parcelles"></label>
         <label class="lrow"><span>Numéros de parcelle</span><input type="checkbox" class="switch" role="switch" data-lay="numeros"></label>
-        <label class="lrow"><span><i class="sw" style="background:var(--cad-bati)"></i>Bâti cadastral</span><input type="checkbox" class="switch" role="switch" data-lay="bati"></label>
         <label class="lrow"><span><i class="ln dash" style="--c:var(--cad-sheet)"></i>Feuilles et sections</span><input type="checkbox" class="switch" role="switch" data-lay="feuilles"></label>
         <label class="lrow"><span><i class="ln dash" style="--c:var(--cad-commune)"></i>Limites communales</span><input type="checkbox" class="switch" role="switch" data-lay="communes"></label>
+        </div>
         <div class="lactions"><button class="tb small" id="lay-reframe">Changer d'emprise</button><button class="tb small danger" id="lay-remove">Retirer le fond</button></div>
         <div class="attrib">Sources : IGN, Géoplateforme · <span id="lay-date"></span></div>
-        <div class="lsep"></div>
-      </div>
-      <div class="legend-items">
-        <div><i class="sw" style="background:var(--asphalt)"></i>Place 2,50 × 5,00</div>
-        <div><i class="sw" style="background:var(--pmr)"></i>PMR 3,30 × 5,00</div>
-        <div><i class="sw" style="background:var(--irve)"></i>IRVE pré-équipée</div>
-        <div><i class="sw" style="background:var(--excl);opacity:.75"></i>Servitude</div>
-        <div><i class="sw" style="border:1.5px dashed var(--setback)"></i>Limite de recul</div>
       </div>
     </div>
   </section>
@@ -418,8 +449,23 @@ body.mapmode #brand, body.mapmode #stats, body.mapmode #toolbar, body.mapmode #l
   <div id="toast" class="glass" role="status" aria-live="polite"></div>
 </div>
 
+<noscript><div style="position:fixed;inset:0;display:grid;place-items:center;padding:24px;text-align:center">Trame a besoin de JavaScript pour fonctionner.</div></noscript>
+<script>
+// Diagnostic de démarrage : toute erreur avant la fin du chargement s'affiche à l'écran.
+(function () {
+  function show(msg) {
+    var b = document.getElementById("boot");
+    if (!b) return;
+    b.style.cssText += ";padding:24px;text-align:center;line-height:1.5;color:var(--bad)";
+    b.textContent = "Le programme n'a pas pu démarrer : " + msg + " · " + navigator.userAgent.replace(/^Mozilla\/5\.0 /, "");
+  }
+  window.addEventListener("error", function (e) { show((e.message || "erreur") + (e.lineno ? " (ligne " + e.lineno + ")" : "")); });
+  window.addEventListener("unhandledrejection", function (e) { show(String(e.reason && e.reason.message || e.reason)); });
+  setTimeout(function () { if (document.getElementById("boot")) show("démarrage interrompu après 15 s"); }, 15000);
+})();
+</script>
 <script id="engine-wasm" type="application/octet-stream">__WASM_BASE64__</script>
-<script>/* Repli : le même moteur Rust traduit en JavaScript (wasm2js), si WebAssembly est refusé. */__ENGINE_JS__</script>
+__ENGINE_JS__
 <script>
 "use strict";
 // ============================================================================
@@ -437,6 +483,7 @@ const Engine = {
       const { instance } = await WebAssembly.instantiate(bytes, {});
       this.ex = instance.exports;
     } catch (e) {
+      if (!window.TrameJS) await loadLazyEngine();
       if (!window.TrameJS) throw e;
       this.ex = window.TrameJS; this.kind = "JavaScript";
     }
@@ -454,6 +501,20 @@ const Engine = {
   solve(obj) { return this.call("solve_json", obj); },
   union(polys) { return this.call("union_json", { polys }); },
 };
+
+// Repli JavaScript du moteur, injecté seulement si WebAssembly est refusé (mode Isolement d'iOS, ancien navigateur).
+function loadLazyEngine() {
+  const el = document.getElementById("engine-js-lazy");
+  if (!el) return Promise.resolve();
+  return new Promise((res) => {
+    const sc = document.createElement("script");
+    sc.src = URL.createObjectURL(new Blob([el.textContent], { type: "text/javascript" }));
+    sc.onload = res; sc.onerror = res;
+    document.head.appendChild(sc);
+  });
+}
+// Une promesse qui ne répond pas ne doit jamais bloquer le démarrage.
+const withTimeout = (p, ms) => Promise.race([p, new Promise((res) => setTimeout(res, ms))]);
 
 // ============================================================================
 // Données : sites d'exemple (mètres, repère local, y vers le haut).
@@ -566,8 +627,8 @@ function fit() {
 let C = {};
 function readColors() {
   const cs = getComputedStyle(document.documentElement);
-  for (const k of ["ground", "grid", "grid-strong", "parcel", "parcel-edge", "asphalt", "stripe", "island", "tree", "tree-edge", "building", "building-edge", "building-label", "excl", "setback", "pmr", "irve", "pmr-irve", "accent", "label", "label-2", "cad", "cad-halo", "cad-label", "cad-bati", "cad-bati-edge", "cad-sheet", "cad-commune"]) C[k] = cs.getPropertyValue("--" + k).trim();
-  hatch = null;
+  for (const k of ["ground", "grid", "grid-strong", "parcel", "parcel-edge", "asphalt", "stripe", "island", "tree", "tree-edge", "building", "building-edge", "building-label", "excl", "setback", "pmr", "irve", "pmr-irve", "accent", "label", "label-2", "cad", "cad-halo", "cad-label", "cad-bati", "cad-bati-edge", "cad-sheet", "cad-commune", "veg", "veg-tint", "occ-voirie"]) C[k] = cs.getPropertyValue("--" + k).trim();
+  hatch = null; vegPat = null;
 }
 let hatch = null;
 function hatchPattern() {
@@ -607,40 +668,45 @@ function draw() {
   ctx.beginPath(); pathPoly(site.parcel); ctx.fillStyle = C.parcel; ctx.globalAlpha = baseShown() && VIS.photo && basemap.img ? 0.55 : 1; ctx.fill(); ctx.globalAlpha = 1;
 
   if (layout && !layout.error) {
-    // Voirie et rangées
-    ctx.fillStyle = C.asphalt;
-    ctx.beginPath(); for (const r of layout.paved) pathPoly(r); ctx.fill("evenodd");
-    ctx.beginPath(); for (const q of layout.pads) pathPoly(q); for (const q of layout.cross) pathPoly(q); for (const q of layout.entries) pathPoly(q); ctx.fill();
-    ctx.beginPath(); for (const st of layout.stalls) pathPoly(st.q); ctx.fill();
-    const kinds = [null, C.pmr, C.irve, C["pmr-irve"]];
-    for (let k = 1; k <= 3; k++) { ctx.beginPath(); for (const st of layout.stalls) if (st.k === k) pathPoly(st.q); ctx.fillStyle = kinds[k]; ctx.fill(); }
-    // Marquage
-    ctx.strokeStyle = C.stripe; ctx.lineWidth = Math.max(0.6, 0.12 * view.s); ctx.lineCap = "butt";
-    ctx.beginPath();
-    for (const st of layout.stalls) { const q = st.q.map(toS); ctx.moveTo(q[3][0], q[3][1]); ctx.lineTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.lineTo(q[2][0], q[2][1]); }
-    ctx.stroke();
-    // Îlots et arbres
-    ctx.fillStyle = C.island; ctx.beginPath(); for (const q of layout.islands) roundedQuad(q, 1.2); ctx.fill();
-    if (view.s > 1.2) {
+    // Calque Voirie
+    if (VIS.pvoirie) {
+      ctx.fillStyle = C.asphalt;
+      ctx.beginPath(); for (const r of layout.paved) pathPoly(r); ctx.fill("evenodd");
+      ctx.beginPath(); for (const q of layout.pads) pathPoly(q); for (const q of layout.cross) pathPoly(q); for (const q of layout.entries) pathPoly(q); ctx.fill();
+    }
+    // Calque Places
+    if (VIS.places) {
+      ctx.fillStyle = C.asphalt;
+      ctx.beginPath(); for (const st of layout.stalls) pathPoly(st.q); ctx.fill();
+      const kinds = [null, C.pmr, C.irve, C["pmr-irve"]];
+      for (let k = 1; k <= 3; k++) { ctx.beginPath(); for (const st of layout.stalls) if (st.k === k) pathPoly(st.q); ctx.fillStyle = kinds[k]; ctx.fill(); }
+      ctx.strokeStyle = C.stripe; ctx.lineWidth = Math.max(0.6, 0.12 * view.s); ctx.lineCap = "butt";
+      ctx.beginPath();
+      for (const st of layout.stalls) { const q = st.q.map(toS); ctx.moveTo(q[3][0], q[3][1]); ctx.lineTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.lineTo(q[2][0], q[2][1]); }
+      ctx.stroke();
+    }
+    // Calque Îlots et arbres
+    if (VIS.ilots) { ctx.fillStyle = C.island; ctx.beginPath(); for (const q of layout.islands) roundedQuad(q, 1.2); ctx.fill(); }
+    if (VIS.ilots && view.s > 1.2) {
       const r = 1.75 * view.s;
       ctx.fillStyle = C.tree; ctx.strokeStyle = C["tree-edge"]; ctx.lineWidth = Math.max(0.5, 0.08 * view.s);
       ctx.beginPath(); for (const t of layout.trees) { const p = toS(t); ctx.moveTo(p[0] + r, p[1]); ctx.arc(p[0], p[1], r, 0, Math.PI * 2); } ctx.globalAlpha = 0.92; ctx.fill(); ctx.globalAlpha = 1; ctx.stroke();
     }
     // Sens d'entrée
-    for (const q of layout.entries) drawEntryArrow(q);
+    if (VIS.pvoirie) for (const q of layout.entries) drawEntryArrow(q);
   }
 
-  // Espaces verts imposés
-  site.landscapes.forEach((o) => { const p = rectPoly(o); fillPoly(p, C.island); drawCanopy(p); });
-  // Servitudes
-  site.exclusions.forEach((e) => {
+  // Calque Bâtiments et espaces verts : espaces verts imposés
+  if (VIS.pbati) site.landscapes.forEach((o) => { const p = rectPoly(o); fillPoly(p, C.island); drawCanopy(p); });
+  // Calque Servitudes
+  if (VIS.servitudes) site.exclusions.forEach((e) => {
     ctx.save(); ctx.beginPath(); pathPoly(e); ctx.clip();
     ctx.fillStyle = C.excl; ctx.globalAlpha = 0.3; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
     ctx.fillStyle = hatchPattern(); ctx.fillRect(0, 0, W, H); ctx.restore();
     ctx.beginPath(); pathPoly(e); ctx.strokeStyle = C.excl; ctx.lineWidth = 1.2; ctx.stroke();
   });
-  // Bâtiments
-  site.buildings.forEach((b) => {
+  // Calque Bâtiments et espaces verts : bâtiments
+  if (VIS.pbati) site.buildings.forEach((b) => {
     const p = rectPoly(b);
     fillPoly(p, C.building); ctx.strokeStyle = C["building-edge"]; ctx.lineWidth = 1.2; ctx.stroke();
     if (view.s > 2.2) {
@@ -656,7 +722,7 @@ function draw() {
 
   // Limite de parcelle et recul
   ctx.beginPath(); pathPoly(site.parcel); ctx.strokeStyle = C["parcel-edge"]; ctx.lineWidth = 1.5; ctx.stroke();
-  if (layout && layout.setback_line) { ctx.setLineDash([6, 4]); ctx.strokeStyle = C.setback; ctx.lineWidth = 1.2; ctx.beginPath(); for (const r of layout.setback_line) pathPoly(r); ctx.stroke(); ctx.setLineDash([]); }
+  if (VIS.recul && layout && layout.setback_line) { ctx.setLineDash([6, 4]); ctx.strokeStyle = C.setback; ctx.lineWidth = 1.2; ctx.beginPath(); for (const r of layout.setback_line) pathPoly(r); ctx.stroke(); ctx.setLineDash([]); }
 
   drawCadSel();
   drawHandles();
@@ -742,7 +808,7 @@ function drawHandles() {
   if (mode === "draw") return;
   const font = getComputedStyle(document.body).fontFamily;
   // Reculs
-  for (let i = 0; i < site.parcel.length; i++) {
+  if (VIS.recul) for (let i = 0; i < site.parcel.length; i++) {
     const e = edgeInfo(i); if (e.L * view.s < 40) continue;
     const h = toS(setbackHandle(i)), m = toS(e.mid);
     ctx.strokeStyle = C.setback; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(m[0], m[1]); ctx.lineTo(h[0], h[1]); ctx.stroke();
@@ -882,10 +948,10 @@ function hitTest(w) {
   }
   for (let i = 0; i < site.entries.length; i++) if (site.entries[i].edge < site.parcel.length && dist2(w, entryPoint(site.entries[i])) < h2 * 1.3) return { kind: "entry", i };
   for (let i = 0; i < site.parcel.length; i++) if (dist2(w, site.parcel[i]) < h2) return { kind: "vertex", i };
-  for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); if (e.L * view.s >= 40 && dist2(w, setbackHandle(i)) < h2) return { kind: "setback", i }; }
-  for (let i = site.buildings.length - 1; i >= 0; i--) if (pointInPoly(w, rectPoly(site.buildings[i]))) return { kind: "move", type: "building", i };
-  for (let i = site.landscapes.length - 1; i >= 0; i--) if (pointInPoly(w, rectPoly(site.landscapes[i]))) return { kind: "move", type: "landscape", i };
-  for (let i = site.exclusions.length - 1; i >= 0; i--) { const e = site.exclusions[i]; if (pointInPoly(w, e)) return { kind: "move", type: "exclusion", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "exclusion", i }; }
+  if (VIS.recul) for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); if (e.L * view.s >= 40 && dist2(w, setbackHandle(i)) < h2) return { kind: "setback", i }; }
+  if (VIS.pbati) for (let i = site.buildings.length - 1; i >= 0; i--) if (pointInPoly(w, rectPoly(site.buildings[i]))) return { kind: "move", type: "building", i };
+  if (VIS.pbati) for (let i = site.landscapes.length - 1; i >= 0; i--) if (pointInPoly(w, rectPoly(site.landscapes[i]))) return { kind: "move", type: "landscape", i };
+  if (VIS.servitudes) for (let i = site.exclusions.length - 1; i >= 0; i--) { const e = site.exclusions[i]; if (pointInPoly(w, e)) return { kind: "move", type: "exclusion", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "exclusion", i }; }
   for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); const [d, t] = distSeg(w, e.a, e.b); if (d < h * 0.7) return { kind: "pedge", i, t }; }
   const ci = cadParcelAt(w); if (ci >= 0) return { kind: "cadastre", i: ci };
   return null;
@@ -1080,7 +1146,7 @@ $("#sel-rot").addEventListener("click", () => { const arr = sel.type === "buildi
 $("#sel-shape").addEventListener("click", () => { const o = site.buildings[sel.i]; o.shape = o.shape === "L" ? "rect" : "L"; updateSelbar(); solve(false); commit(); });
 
 function closeMenus(except) {
-  for (const [btn, menu] of [["#b-add", "#addmenu"], ["#b-params", "#params"]]) if (menu !== except) { $(menu).hidden = true; $(btn).setAttribute("aria-expanded", "false"); }
+  for (const [btn, menu] of [["#b-add", "#addmenu"], ["#b-params", "#params"], ["#b-export", "#export"]]) if (menu !== except) { $(menu).hidden = true; $(btn).setAttribute("aria-expanded", "false"); }
 }
 function toggleMenu(btn, menu) {
   const open = $(menu).hidden; closeMenus(menu);
@@ -1094,6 +1160,7 @@ function placeMenu(btn, menu) {
 }
 $("#b-add").addEventListener("click", () => toggleMenu("#b-add", "#addmenu"));
 $("#b-params").addEventListener("click", () => toggleMenu("#b-params", "#params"));
+$("#b-export").addEventListener("click", () => { updateExportUI(); toggleMenu("#b-export", "#export"); });
 document.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => { closeMenus(); if (mode === "draw") setMode("edit"); addObject(b.dataset.add); }));
 $("#b-draw").addEventListener("click", () => { closeMenus(); setMode(mode === "draw" ? "edit" : "draw"); if (mode === "draw") toast("Touchez le plan pour placer les sommets"); });
 $("#b-undo").addEventListener("click", undo);
@@ -1161,7 +1228,12 @@ let tmsIdx = 0;
 const ORTHO = { layer: "ORTHOIMAGERY.ORTHOPHOTOS", style: "normal", fmt: "image/jpeg", max: 19 };
 const CADR = { layer: "CADASTRALPARCELS.PARCELLAIRE_EXPRESS", style: "PCI vecteur", fmt: "image/png", max: 19 };
 const CAD_TYPES = { parcelles: "parcelle", bati: "batiment", feuilles: "feuille", communes: "commune" };
-const LAYER_DEFAULTS = { photo: true, parcelles: true, numeros: true, bati: true, feuilles: false, communes: true };
+// Calques : ce que l'on affiche ou masque. Chacun devient un calque AutoCAD à l'export.
+const LAYER_DEFAULTS = {
+  places: true, pvoirie: true, ilots: true, pbati: true, servitudes: true, recul: true,
+  ovoirie: true, bati: true, vegetation: true,
+  photo: true, parcelles: true, numeros: true, feuilles: false, communes: true,
+};
 function tileUrl(L, z, x, y) {
   return `${GEO.wmts}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${L.layer}&STYLE=${encodeURIComponent(L.style)}&TILEMATRIXSET=${TMS[tmsIdx]}&TILEMATRIX=${z}&TILEROW=${y}&TILECOL=${x}&FORMAT=${encodeURIComponent(L.fmt)}`;
 }
@@ -1502,6 +1574,7 @@ async function importArea() {
   $("#m-ok").disabled = false;
   const layers = Object.fromEntries(layersList.map(([key, v]) => [key, v || []]));
   const vecFailed = layersList.filter(([, v]) => v === null).length;
+  const failedKeys = layersList.filter(([, v]) => v === null).map(([key]) => key);
   if (failed === list.length && vecFailed === layersList.length) { toast("Import impossible : le service IGN ne répond pas depuis cette page"); $("#mapmsg").hidden = false; return; }
 
   const prev = basemap;
@@ -1510,13 +1583,17 @@ async function importArea() {
   basemap = {
     O, k, z, mrect: r, tainted, img: failed === list.length ? null : cv,
     rect: { x0: (r.x0 - O[0]) * k, y0: (r.y0 - O[1]) * k, x1: (r.x1 - O[0]) * k, y1: (r.y1 - O[1]) * k },
-    layers, date: new Date().toLocaleDateString("fr-FR"),
+    layers, failed: failedKeys, date: new Date().toLocaleDateString("fr-FR"),
   };
+  progress(true, 1, "Calcul de l'occupation du sol…");
+  await new Promise((res) => requestAnimationFrame(() => setTimeout(res, 0)));
+  computeOccupation();
+  progress(false);
   saveBasemap();
   exitMap(); syncExample(); updateLayersUI(); lastAngle = null; setSel(null); solve(false); commit(); fit();
   const msgs = [];
   if (failed) msgs.push(`${failed} tuile${failed > 1 ? "s" : ""} photo manquante${failed > 1 ? "s" : ""}`);
-  if (vecFailed) msgs.push("certains calques cadastraux n'ont pas pu être chargés");
+  if (vecFailed) msgs.push("certaines couches cadastrales n'ont pas pu être chargées");
   toast(msgs.length ? msgs.join(" · ") : site.parcel.length ? "Fond mis à jour" : "Touchez une parcelle cadastrale pour l'étudier");
 }
 // Recale le site d'un ancien repère local vers le nouveau.
@@ -1559,6 +1636,29 @@ let VIS = layerVis(), PHOTO_OPACITY = VIS.opacity || 1;
 function saveVis() { try { localStorage.setItem("trame.layers", JSON.stringify({ ...VIS, opacity: PHOTO_OPACITY })); } catch (e) { /* stockage indisponible */ } }
 const baseShown = () => !!basemap && exampleName === "mine";
 
+// ---- Occupation du sol : voirie = emprise − parcelles − bâti ; le reste de l'emprise est de la végétation.
+function computeOccupation() {
+  if (!basemap || !Engine.ex) return;
+  const L = basemap.layers, r = basemap.rect;
+  if ((basemap.failed || []).includes("parcelles") || (basemap.failed || []).includes("bati")) { basemap.occ = null; return; }
+  const out = Engine.call("occupation_json", { rect: [r.x0, r.y0, r.x1, r.y1], parcels: L.parcelles.flatMap((f) => f.polys), bati: L.bati.flatMap((f) => f.polys) });
+  if (out.error) { basemap.occ = null; return; }
+  const feat = (poly) => {
+    const bb = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const [x, y] of poly[0]) { bb[0] = Math.min(bb[0], x); bb[1] = Math.min(bb[1], y); bb[2] = Math.max(bb[2], x); bb[3] = Math.max(bb[3], y); }
+    return { polys: [poly], bb, p: {} };
+  };
+  basemap.occ = { voirie: out.voirie.map(feat), vegetation: out.vegetation.map(feat), areas: { voirie: out.voirie_area, vegetation: out.vegetation_area, bati: out.bati_area } };
+}
+let vegPat = null;
+function vegPattern() {
+  if (vegPat) return vegPat;
+  const c = document.createElement("canvas"); c.width = c.height = 9 * DPR;
+  const g = c.getContext("2d"); g.strokeStyle = C.veg; g.lineWidth = 1.1 * DPR;
+  g.beginPath(); g.moveTo(0, 0); g.lineTo(c.width, c.height); g.moveTo(-c.width / 2, c.height / 2); g.lineTo(c.width / 2, c.height * 1.5); g.moveTo(c.width / 2, -c.height / 2); g.lineTo(c.width * 1.5, c.height / 2); g.stroke();
+  vegPat = ctx.createPattern(c, "repeat"); return vegPat;
+}
+
 // ---- Rendu du fond dans le plan
 function drawBasemap() {
   if (!baseShown()) return;
@@ -1569,6 +1669,11 @@ function drawBasemap() {
   const [vx0, vy1] = toW(0, 0), [vx1, vy0] = toW(W, H);
   const inView = (bb) => !(bb[2] < vx0 || bb[0] > vx1 || bb[3] < vy0 || bb[1] > vy1);
   const path = (list) => { ctx.beginPath(); for (const f of list) if (inView(f.bb)) for (const poly of f.polys) for (const ring of poly) pathPoly(ring); };
+  // Couche Occupation du sol
+  if (b.occ && VIS.ovoirie && b.occ.voirie.length) { path(b.occ.voirie); ctx.fillStyle = C["occ-voirie"]; ctx.fill("evenodd"); }
+  if (b.occ && VIS.vegetation && b.occ.vegetation.length) {
+    path(b.occ.vegetation); ctx.fillStyle = C["veg-tint"]; ctx.fill("evenodd"); ctx.fillStyle = vegPattern(); ctx.fill("evenodd");
+  }
   if (VIS.bati && L.bati.length) {
     path(L.bati); ctx.fillStyle = C["cad-bati"]; ctx.fill("evenodd"); ctx.strokeStyle = C["cad-bati-edge"]; ctx.lineWidth = 1; ctx.stroke();
   }
@@ -1640,15 +1745,21 @@ function studyParcel(i, merge) {
   else toast(merge ? `Parcelle ${cadName(f)} ajoutée · ${fmtInt(Math.abs(polyArea(ring)))} m²` : `Parcelle ${cadName(f)} à l'étude · reculs de 3 m, accès sur la plus longue limite`);
 }
 
-// ---- Panneau des calques
+// ---- Panneau des couches : chaque interrupteur est un calque
 function updateLayersUI() {
   $("#lay-base").hidden = !baseShown();
-  if (!basemap) return;
   document.querySelectorAll("[data-lay]").forEach((c) => { c.checked = !!VIS[c.dataset.lay]; });
+  if (!basemap) return;
   $("#lay-op").value = Math.round(PHOTO_OPACITY * 100); $("#lay-op").disabled = !VIS.photo;
   $("#lay-date").textContent = "importé le " + basemap.date + (basemap.img ? "" : " · photo non conservée");
 }
-document.querySelectorAll("[data-lay]").forEach((c) => c.addEventListener("change", () => { VIS[c.dataset.lay] = c.checked; if (c.dataset.lay === "parcelles" && !c.checked && sel && sel.type === "cadastre") setSel(null); saveVis(); updateLayersUI(); redraw(); }));
+// Un objet dont le calque est masqué n'est plus sélectionnable.
+const SEL_LAYER = { cadastre: "parcelles", building: "pbati", landscape: "pbati", exclusion: "servitudes" };
+document.querySelectorAll("[data-lay]").forEach((c) => c.addEventListener("change", () => {
+  VIS[c.dataset.lay] = c.checked;
+  if (sel && SEL_LAYER[sel.type] === c.dataset.lay && !c.checked) setSel(null);
+  saveVis(); updateLayersUI(); redraw();
+}));
 $("#lay-op").addEventListener("input", (ev) => { PHOTO_OPACITY = +ev.target.value / 100; redraw(); });
 $("#lay-op").addEventListener("change", saveVis);
 $("#lay-reframe").addEventListener("click", enterMap);
@@ -1669,12 +1780,113 @@ $("#m-cad").addEventListener("click", () => { mapCad = !mapCad; updateMapUI(); r
 $("#m-ok").addEventListener("click", importArea);
 
 // ============================================================================
+// Export DXF (moteur Rust) : RGF93 / Lambert-93 ou CC, calques AutoCAD.
+// ============================================================================
+// Calque de l'interface → calques AutoCAD correspondants.
+const DXF_LAYERS = {
+  places: ["PRJ_PLACES", "PRJ_PLACES_PMR", "PRJ_PLACES_IRVE"], pvoirie: ["PRJ_VOIRIE"], ilots: ["PRJ_ILOTS", "PRJ_ARBRES"],
+  pbati: ["PRJ_BATIMENTS", "PRJ_ESPACES_VERTS"], servitudes: ["PRJ_SERVITUDES"], recul: ["PRJ_RECUL"],
+  ovoirie: ["OCC_VOIRIE"], bati: ["OCC_BATI"], vegetation: ["OCC_VEGETATION"],
+  parcelles: ["CAD_PARCELLES"], numeros: ["CAD_NUMEROS"], feuilles: ["CAD_FEUILLES"], communes: ["CAD_COMMUNES"],
+};
+let XCRS = "L93";
+try { XCRS = localStorage.getItem("trame.crs") === "CC" ? "CC" : "L93"; } catch (e) { /* stockage indisponible */ }
+function ccZone() { const lat = fromMerc(basemap.O[0], basemap.O[1])[1]; return Math.max(42, Math.min(50, Math.round(lat))); }
+function updateExportUI() {
+  const geo = baseShown();
+  $("#x-geo").hidden = !geo;
+  if (geo) {
+    const z = ccZone();
+    $("#x-cc").textContent = "CC" + z;
+    $("#x-l93").setAttribute("aria-pressed", String(XCRS === "L93")); $("#x-cc").setAttribute("aria-pressed", String(XCRS === "CC"));
+    $("#x-epsg").textContent = "EPSG:" + (XCRS === "CC" ? 3900 + z : 2154);
+    $("#x-note").textContent = "RGF93 · AutoCAD 2010 et suivants · unités : mètres. Les calques masqués sont exportés éteints.";
+  } else {
+    $("#x-note").textContent = "Plan non géoréférencé : coordonnées locales en mètres. Importez un fond de carte pour exporter en Lambert-93. Les calques masqués sont exportés éteints.";
+  }
+  $("#x-go").disabled = site.parcel.length < 3 && !geo;
+}
+$("#x-l93").addEventListener("click", () => { XCRS = "L93"; try { localStorage.setItem("trame.crs", XCRS); } catch (e) { /* stockage indisponible */ } updateExportUI(); });
+$("#x-cc").addEventListener("click", () => { XCRS = "CC"; try { localStorage.setItem("trame.crs", XCRS); } catch (e) { /* stockage indisponible */ } updateExportUI(); });
+$("#x-go").addEventListener("click", exportDxf);
+
+function slug(t) { return normTxt(t || "plan").replace(/ /g, "-") || "plan"; }
+async function exportDxf() {
+  if (!Engine.ex) return;
+  const geo = baseShown(), crs = geo ? (XCRS === "CC" ? "CC" + ccZone() : "L93") : "LOCAL";
+  const off = Object.entries(DXF_LAYERS).filter(([k]) => !VIS[k] || (k === "numeros" && !VIS.parcelles)).flatMap(([, v]) => v);
+  const input = { site: engineInput(false), georef: null, crs, off, cadastre: {}, date: "" };
+  let commune = "";
+  if (geo) {
+    const L = basemap.layers, r = basemap.rect, occ = basemap.occ;
+    const f2 = (f, label) => ({ polys: f.polys, label: label || null, lp: f.lp || null });
+    input.georef = { o: basemap.O, k: basemap.k };
+    input.date = basemap.date;
+    input.cadastre = {
+      emprise: [r.x0, r.y0, r.x1, r.y1],
+      parcelles: L.parcelles.map((f) => f2(f, f.p.numero ? String(+f.p.numero) : null)),
+      feuilles: L.feuilles.map((f) => f2(f, f.p.section)),
+      communes: L.communes.map((f) => f2(f)),
+      bati: L.bati.map((f) => f2(f)),
+      voirie: occ ? occ.voirie.flatMap((f) => f.polys) : [],
+      vegetation: occ ? occ.vegetation.flatMap((f) => f.polys) : [],
+    };
+    commune = (L.parcelles.find((f) => f.p.nom_com) || { p: {} }).p.nom_com || "";
+  }
+  const out = Engine.call("export_dxf_json", input);
+  if (out.error) { toast("Export impossible : " + out.error); return; }
+  const day = new Date().toISOString().slice(0, 10);
+  const name = `trame-${slug(commune || (exampleName === "mine" ? "mon site" : exampleName))}-${crs.toLowerCase()}-${day}.dxf`;
+  closeMenus();
+  await saveFile(name, out.dxf, `${fmtInt(out.entities)} entités · ${out.crs}${out.epsg ? " (EPSG:" + out.epsg + ")" : ""}`);
+}
+
+// Enregistrement : lien de téléchargement dans la version autonome ; dans Claude, capacité « downloads »
+// (le format .dxf n'y étant pas admis, le fichier est livré dans une archive .zip).
+async function saveFile(name, text, info) {
+  const claudeView = window.claude && typeof window.claude.use === "function";
+  if (claudeView) {
+    const dl = await window.claude.use("downloads");
+    if (!dl) { toast("Téléchargement indisponible ici : utilisez la version autonome index.html"); return; }
+    try { await dl.save({ filename: name.replace(/\.dxf$/, ".zip"), data: zipStore(name, text) }); toast("DXF enregistré dans une archive ZIP · " + info); }
+    catch (e) { if (!e || e.code !== "declined") toast("Téléchargement indisponible ici : utilisez la version autonome index.html"); }
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: "application/dxf" }));
+  a.download = name; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast("DXF téléchargé · " + info);
+}
+// Archive ZIP minimale (un fichier, sans compression).
+function zipStore(name, text) {
+  const enc = new TextEncoder(), data = enc.encode(text), fname = enc.encode(name);
+  let crc = ~0;
+  for (let i = 0; i < data.length; i++) { crc ^= data[i]; for (let k = 0; k < 8; k++) crc = (crc >>> 1) ^ (0xEDB88320 & -(crc & 1)); }
+  crc = ~crc >>> 0;
+  const d = new Date(), time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  const head = (central) => {
+    const b = new DataView(new ArrayBuffer(central ? 46 : 30)); let o = 0;
+    const u32 = (v) => { b.setUint32(o, v, true); o += 4; }, u16 = (v) => { b.setUint16(o, v, true); o += 2; };
+    u32(central ? 0x02014b50 : 0x04034b50); if (central) u16(20);
+    u16(20); u16(0x0800); u16(0); u16(time); u16(date); u32(crc); u32(data.length); u32(data.length); u16(fname.length); u16(0);
+    if (central) { u16(0); u16(0); u16(0); u32(0); u32(0); }
+    return new Uint8Array(b.buffer);
+  };
+  const local = head(false), central = head(true);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, 1, true); end.setUint16(10, 1, true);
+  end.setUint32(12, central.length + fname.length, true); end.setUint32(16, local.length + fname.length + data.length, true);
+  return new Blob([local, fname, data, central, fname, new Uint8Array(end.buffer)], { type: "application/zip" });
+}
+
+// ============================================================================
 // Démarrage.
 // ============================================================================
 const mq = window.matchMedia("(prefers-color-scheme: dark)");
 mq.addEventListener("change", () => { readColors(); redraw(); });
 new MutationObserver(() => { readColors(); redraw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-window.addEventListener("resize", () => { resize(); if (mode === "map") updateMapUI(); if (!$("#addmenu").hidden) placeMenu("#b-add", "#addmenu"); if (!$("#params").hidden) placeMenu("#b-params", "#params"); });
+window.addEventListener("resize", () => { resize(); if (mode === "map") updateMapUI(); if (!$("#addmenu").hidden) placeMenu("#b-add", "#addmenu"); if (!$("#params").hidden) placeMenu("#b-params", "#params"); if (!$("#export").hidden) placeMenu("#b-export", "#export"); });
 
 (async function boot() {
   readColors(); resize();
@@ -1682,14 +1894,15 @@ window.addEventListener("resize", () => { resize(); if (mode === "map") updateMa
     const saved = localStorage.getItem("trame.v1");
     if (saved) { const o = JSON.parse(saved); if (o.site && o.site.parcel) { site = o.site; params = { ...DEFAULT_PARAMS, ...o.params }; exampleName = o.exampleName || "mine"; mineSite = o.mineSite || null; } }
   } catch (e) { /* stockage indisponible : on démarre sur l'exemple */ }
-  await loadBasemap();
+  await withTimeout(loadBasemap(), 2500);
   if (!site.parcel.length && !baseShown()) { site = EXAMPLES.ruisseau(); exampleName = "ruisseau"; }
   updateLayersUI();
   if (W < 520) { $("#stats-head").setAttribute("aria-expanded", "false"); $("#stats-body").hidden = true; $("#stats").dataset.open = "false"; }
   if (W < 760) { $("#layers-head").setAttribute("aria-expanded", "false"); $("#layers-body").hidden = true; }
   syncParamsUI(); syncExample(); fit();
   try { await Engine.load(); $("#boot").remove(); }
-  catch (e) { $("#boot").textContent = "Le moteur WebAssembly n'a pas pu démarrer dans ce navigateur : " + e.message; return; }
+  catch (e) { $("#boot").textContent = "Le moteur n'a pas pu démarrer dans ce navigateur : " + e.message; return; }
+  if (basemap && basemap.occ === undefined) { computeOccupation(); saveBasemap(); }
   solve(false); commit();
 })();
 </script>

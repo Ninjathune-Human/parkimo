@@ -9,12 +9,15 @@ wasm = pathlib.Path(sys.argv[1]).read_bytes()
 page = (root / "web" / "app.html").read_text(encoding="utf-8")
 assert "__WASM_BASE64__" in page
 body = page.replace("__WASM_BASE64__", base64.b64encode(wasm).decode("ascii"))
-# Repli JavaScript optionnel (artifact uniquement) : python3 tools/bundle.py trame.wasm moteur.js
+# Repli JavaScript optionnel : python3 tools/bundle.py trame.wasm moteur.js
 fallback = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8") if len(sys.argv) > 2 else ""
 dist = root / "dist"
 dist.mkdir(exist_ok=True)
-(dist / "trame.html").write_text(body.replace("__ENGINE_JS__", fallback.replace("</script", "<\\/script")), encoding="utf-8")
-body = body.replace("__ENGINE_JS__", "")
+safe = fallback.replace("</script", "<\\/script")
+# Page publiée : repli exécuté d'emblée (le chargement à la demande par blob: y est refusé).
+(dist / "trame.html").write_text(body.replace("__ENGINE_JS__", f"<script>{safe}</script>" if safe else ""), encoding="utf-8")
+# Version autonome : repli conservé en texte, injecté seulement si WebAssembly échoue.
+body = body.replace("__ENGINE_JS__", f'<script type="text/plain" id="engine-js-lazy">{safe}</script>' if safe else "")
 head, rest = body.split("<style>", 1)
 standalone = (
     "<!doctype html>\n<html lang=\"fr\">\n<head>\n<meta charset=\"utf-8\">\n"

@@ -4,11 +4,14 @@
 //! → places périphériques (bords droits et courbes) → anneau de circulation → rangées doubles
 //! optimisées (orientation × décalage) → accès, connectivité, PMR, IRVE → métriques.
 
+pub mod dxf;
 pub mod finish;
 pub mod geom;
 pub mod layout;
 pub mod model;
+pub mod occupation;
 pub mod perimeter;
+pub mod proj;
 pub mod region;
 pub mod rows;
 
@@ -317,6 +320,45 @@ pub unsafe extern "C" fn union_json(ptr: *const u8, n: usize) -> *const u8 {
         *o.borrow_mut() = bytes;
         o.borrow().as_ptr()
     })
+}
+
+/// Désérialise l'entrée, calcule, sérialise la sortie (ou l'erreur) dans le tampon partagé.
+unsafe fn json_call<I: serde::de::DeserializeOwned, O: serde::Serialize>(
+    ptr: *const u8,
+    n: usize,
+    f: impl Fn(&I) -> O,
+) -> *const u8 {
+    let input = std::slice::from_raw_parts(ptr, n);
+    let bytes = match serde_json::from_slice::<I>(input) {
+        Ok(v) => serde_json::to_vec(&f(&v)).unwrap_or_default(),
+        Err(e) => format!(
+            "{{\"error\":{}}}",
+            serde_json::to_string(&e.to_string()).unwrap()
+        )
+        .into_bytes(),
+    };
+    OUT.with(|o| {
+        *o.borrow_mut() = bytes;
+        o.borrow().as_ptr()
+    })
+}
+
+/// Occupation du sol (voirie, végétation) dans l'emprise importée.
+///
+/// # Safety
+/// `ptr` doit pointer vers `n` octets JSON valides alloués par `alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn occupation_json(ptr: *const u8, n: usize) -> *const u8 {
+    json_call(ptr, n, occupation::occupation)
+}
+
+/// Export DXF AutoCAD géoréférencé.
+///
+/// # Safety
+/// `ptr` doit pointer vers `n` octets JSON valides alloués par `alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn export_dxf_json(ptr: *const u8, n: usize) -> *const u8 {
+    json_call(ptr, n, dxf::export)
 }
 
 #[no_mangle]
