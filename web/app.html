@@ -286,6 +286,15 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
 }
 @media (max-width: 430px) { #b-redo { display: none; } }
 #newmenu { width: min(320px, calc(100vw - 32px)); }
+#costmenu { width: min(420px, calc(100vw - 32px)); padding: 14px 16px 16px; gap: 10px; }
+#costmenu h3 { margin: 0; font-size: 17px; font-weight: 600; }
+#costmenu table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+#costmenu th { text-align: left; font-weight: 500; color: var(--label-2); padding: 4px 0; }
+#costmenu td, #costmenu th { padding: 5px 0; border-top: 1px solid var(--sep); }
+#costmenu td:not(:first-child), #costmenu th:not(:first-child) { text-align: right; }
+#costmenu .big { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+#costmenu .bareme tr.cur td { font-weight: 600; color: var(--accent); }
+#costmenu details summary { cursor: pointer; color: var(--label-2); font-size: 13px; padding: 4px 0; }
 #new-list { display: grid; gap: 2px; }
 #new-confirm { display: grid; gap: 10px; padding: 8px 10px 10px; }
 #new-confirm[hidden] { display: none; }
@@ -435,6 +444,21 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
     <button class="mi" role="menuitem" data-add="traverse"><span class="glyph" style="background:var(--asphalt)"></span><span>Traverse<small>Voie transversale qui coupe les rangées</small></span></button>
   </section>
 
+  <section id="costmenu" class="menu glass" hidden aria-label="Estimation">
+    <h3>Estimation des travaux</h3>
+    <div><span class="big" id="c-mid">–</span> <span class="note" id="c-midlabel"></span></div>
+    <table>
+      <tr><th></th><th>Ratio €HT/place</th><th>Montant</th></tr>
+      <tr><td>Travaux seuls</td><td id="c-tr">–</td><td id="c-tt">–</td></tr>
+      <tr><td>Études + maîtrise d'œuvre</td><td id="c-er">–</td><td id="c-et">–</td></tr>
+    </table>
+    <p class="note" id="c-note"></p>
+    <details><summary>Barème utilisé (surface, métropole niçoise)</summary>
+      <table class="bareme" id="c-bar"></table>
+      <p class="note">Ratios en € HT par place : travaux seuls, puis études et maîtrise d'œuvre comprises. Hors foncier, hors dépollution, hors terrassements exceptionnels. À valider par une économie de la construction (estimation d'avant-projet).</p>
+    </details>
+  </section>
+
   <section id="params" class="menu glass" hidden aria-label="Hypothèses">
     <h3>Hypothèses</h3>
     <div class="pgroup">
@@ -494,6 +518,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
     <button class="tb" id="b-new" aria-expanded="false" aria-controls="newmenu" title="Nouveau projet ou exemple"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M10.5 2.5H5A1.5 1.5 0 0 0 3.5 4v10A1.5 1.5 0 0 0 5 15.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M9 8v5M6.5 10.5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">Nouveau</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button class="tb primary" id="b-add" title="Ajouter un objet" aria-expanded="false" aria-controls="addmenu"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="lbl">Ajouter</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button class="tb" id="b-mod" title="Modifier : squelettes et traverses" aria-expanded="false" aria-controls="modmenu"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 14.5 3.6 11 11.8 2.8a1.4 1.4 0 0 1 2 0l1.4 1.4a1.4 1.4 0 0 1 0 2L7 14.4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg><span class="lbl">Modifier</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="tb" id="b-cost" title="Estimation des travaux" aria-expanded="false" aria-controls="costmenu"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M13.5 4.2A5.4 5.4 0 1 0 13.5 13.8M3 7.4h7M3 10.6h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">Estimation</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <span class="vsep" aria-hidden="true"></span>
     <button class="tb" id="b-params" title="Hypothèses" aria-expanded="false" aria-controls="params"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 5h7M14 5h1M3 13h1M8 13h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="5" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="6" cy="13" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span class="lbl">Hypothèses</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button class="tb" id="b-dress" title="Habillage" aria-expanded="false" aria-controls="dress"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 11.8a4.6 4.6 0 1 0 0-9.2 4.6 4.6 0 0 0 0 9.2zM9 11.8V16M6.6 16h4.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">Habillage</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -1300,7 +1325,7 @@ function updateStats(quick) {
     $("#engine").textContent = "";
     return;
   }
-  $("#s-total").textContent = fmtInt(m.stalls);
+  $("#s-total").textContent = fmtInt(m.stalls); updateCost();
   $("#s-pmr").innerHTML = `${m.pmr} / ${m.pmr_required}${chip(m.pmr >= m.pmr_required)}`;
   $("#s-irve").innerHTML = `${m.irve} / ${m.irve_required}${chip(m.irve >= m.irve_required)}`;
   $("#s-irve-eq").innerHTML = `${m.irve_equipped} / ${m.irve_equipped_required}${chip(m.irve_equipped >= m.irve_equipped_required)}`;
@@ -1615,7 +1640,7 @@ $("#sel-rot").addEventListener("click", () => { const o = site.buildings[sel.i];
 $("#sel-shape").addEventListener("click", () => { const o = site.buildings[sel.i]; o.shape = o.shape === "L" ? "rect" : "L"; updateSelbar(); solve(false); commit(); });
 
 function closeMenus(except) {
-  for (const [btn, menu] of [["#b-add", "#addmenu"], ["#b-mod", "#modmenu"], ["#b-params", "#params"], ["#b-dress", "#dress"], ["#b-export", "#export"], ["#b-new", "#newmenu"]]) if (menu !== except) { $(menu).hidden = true; $(btn).setAttribute("aria-expanded", "false"); }
+  for (const [btn, menu] of [["#b-add", "#addmenu"], ["#b-mod", "#modmenu"], ["#b-cost", "#costmenu"], ["#b-params", "#params"], ["#b-dress", "#dress"], ["#b-export", "#export"], ["#b-new", "#newmenu"]]) if (menu !== except) { $(menu).hidden = true; $(btn).setAttribute("aria-expanded", "false"); }
 }
 function toggleMenu(btn, menu) {
   const open = $(menu).hidden; closeMenus(menu);
@@ -1630,6 +1655,7 @@ function placeMenu(btn, menu) {
 }
 $("#b-add").addEventListener("click", () => toggleMenu("#b-add", "#addmenu"));
 $("#b-mod").addEventListener("click", () => toggleMenu("#b-mod", "#modmenu"));
+$("#b-cost").addEventListener("click", () => { updateCost(); toggleMenu("#b-cost", "#costmenu"); });
 $("#b-params").addEventListener("click", () => toggleMenu("#b-params", "#params"));
 $("#b-dress").addEventListener("click", () => { syncDressUI(); toggleMenu("#b-dress", "#dress"); });
 $("#b-export").addEventListener("click", () => { updateExportUI(); toggleMenu("#b-export", "#export"); });
@@ -1663,6 +1689,31 @@ window.addEventListener("keydown", (ev) => {
 // Hypothèses.
 // ============================================================================
 const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "pmr_ratio", "irve_ratio", "irve_equip_ratio"];
+// Estimation au ratio (parking de surface, métropole niçoise) : barème par tranche de places, en € HT/place.
+const BAREME = [
+  { a: 20, b: 50, t: [2300, 3800], e: [2700, 4400] },
+  { a: 50, b: 150, t: [2000, 3200], e: [2350, 3700] },
+  { a: 150, b: 300, t: [1800, 2800], e: [2100, 3250] },
+  { a: 300, b: 600, t: [1600, 2500], e: [1850, 2900] },
+  { a: 600, b: 1000, t: [1500, 2300], e: [1750, 2650] },
+];
+function fmtEuro(v) { return v >= 1e6 ? (v / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " M€" : Math.round(v / 1e3).toLocaleString("fr-FR") + " k€"; }
+function updateCost() {
+  const n = layout && layout.metrics ? layout.metrics.stalls : 0, rng = (r) => `${fmtInt(r[0])} – ${fmtInt(r[1])}`;
+  $("#c-bar").innerHTML = '<tr><th>Places</th><th>Travaux seuls</th><th>Avec études + MOE</th></tr>' + BAREME.map((r, i) =>
+    `<tr data-i="${i}"><td>${r.a} à ${r.b}</td><td>${rng(r.t)}</td><td>${rng(r.e)}</td></tr>`).join("");
+  if (!n) { for (const id of ["#c-mid", "#c-tr", "#c-tt", "#c-er", "#c-et"]) $(id).textContent = "–"; $("#c-midlabel").textContent = ""; $("#c-note").textContent = "Aucun plan calculé."; return; }
+  // Tranche : la plus basse qui contient n (à 50 places exactement, la tranche 20-50) ; hors barème, tranche extrême.
+  let i = BAREME.findIndex((r) => n <= r.b); if (i < 0) i = BAREME.length - 1;
+  const r = BAREME[i], tot = (x) => [n * x[0], n * x[1]];
+  $("#c-bar").querySelectorAll("tr[data-i]").forEach((tr) => tr.classList.toggle("cur", +tr.dataset.i === i));
+  const tt = tot(r.t), et = tot(r.e);
+  $("#c-mid").textContent = fmtEuro((tt[0] + tt[1]) / 2);
+  $("#c-midlabel").textContent = `€ HT, travaux seuls, valeur centrale pour ${fmtInt(n)} places`;
+  $("#c-tr").textContent = rng(r.t); $("#c-tt").textContent = `${fmtEuro(tt[0])} – ${fmtEuro(tt[1])}`;
+  $("#c-er").textContent = rng(r.e); $("#c-et").textContent = `${fmtEuro(et[0])} – ${fmtEuro(et[1])}`;
+  $("#c-note").textContent = n < BAREME[0].a ? "Moins de 20 places : hors barème, la première tranche est appliquée par défaut." : n > BAREME[4].b ? "Plus de 1 000 places : hors barème, la dernière tranche est appliquée par défaut." : `Tranche ${r.a} à ${r.b} places.`;
+}
 function syncParamsUI() {
   for (const k of PKEYS) $("#p-" + k).value = String(params[k]).replace(".", ",");
   const auto = params.angle === null;
@@ -2690,7 +2741,7 @@ $("#e-draw").addEventListener("click", () => { setMode("draw"); toast("Touchez l
 const mq = window.matchMedia("(prefers-color-scheme: dark)");
 mq.addEventListener("change", () => { readColors(); redraw(); });
 new MutationObserver(() => { readColors(); redraw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-function relayout(cw, ch) { resize(cw, ch); if (mode === "map") updateMapUI(); if (!$("#addmenu").hidden) placeMenu("#b-add", "#addmenu"); if (!$("#modmenu").hidden) placeMenu("#b-mod", "#modmenu"); if (!$("#params").hidden) placeMenu("#b-params", "#params"); if (!$("#dress").hidden) placeMenu("#b-dress", "#dress"); if (!$("#export").hidden) placeMenu("#b-export", "#export"); if (!$("#newmenu").hidden) placeMenu("#b-new", "#newmenu"); }
+function relayout(cw, ch) { resize(cw, ch); if (mode === "map") updateMapUI(); if (!$("#addmenu").hidden) placeMenu("#b-add", "#addmenu"); if (!$("#modmenu").hidden) placeMenu("#b-mod", "#modmenu"); if (!$("#costmenu").hidden) placeMenu("#b-cost", "#costmenu"); if (!$("#params").hidden) placeMenu("#b-params", "#params"); if (!$("#dress").hidden) placeMenu("#b-dress", "#dress"); if (!$("#export").hidden) placeMenu("#b-export", "#export"); if (!$("#newmenu").hidden) placeMenu("#b-new", "#newmenu"); }
 if (window.ResizeObserver) new ResizeObserver((es) => { const r = es[es.length - 1].contentRect; relayout(r.width, r.height); }).observe(canvas);
 else window.addEventListener("resize", () => relayout());
 
