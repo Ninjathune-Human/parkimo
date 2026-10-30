@@ -49,6 +49,7 @@ Calque **Sens de circulation** dans la couche Projet ; à l'export, bloc `SIG_FL
 
 - **Barre d'outils**, dans l'ordre de la création : **Nouveau** (projet vierge, exemples, retour à « Mon site ») · **Carte** (fond IGN et cadastre) · **Tracer** (parcelle dessinée) · **Ajouter** (bâtiment, espace vert, servitude, accès) | **Hypothèses** · **Habillage** · **Exporter** | annuler, rétablir. Elle se centre dans la zone libre du plan ; quand elle ne tient pas sur l'écran (iPad en portrait), les libellés laissent place aux icônes, encoches des menus conservées ; sur téléphone, les boutons se partagent toute la largeur.
 - **Colonne de gauche** : le bilan en haut, les couches en bas ; les couches cèdent la hauteur qui manque et défilent. Sur téléphone, les deux panneaux sont repliés en haut et un seul s'ouvre à la fois.
+- **Limites de la parcelle** : au survol d'un bord (ou en le touchant sur tablette), deux boutons apparaissent en son milieu : **+** ajoute un sommet, **arc** arrondit le segment (arc bombé vers l'extérieur, flèche de 15 % de la corde, remplacé par des sommets que l'on déplace ensuite). Le double-toucher d'un bord ajoute toujours un sommet à l'endroit touché.
 - **Bouton de cadrage et échelle** en haut à droite (en bas à droite sur téléphone et sur la carte).
 
 ## Fond de carte IGN

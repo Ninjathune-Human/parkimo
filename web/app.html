@@ -514,7 +514,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
     </nav>
   </div>
   <div id="progress" class="glass" hidden role="status" aria-live="polite"><b>Import de l'emprise</b><div class="bar"><i id="pg-bar"></i></div><span id="pg-text"></span></div>
-  <div id="hint">Glissez sommets, reculs, accès et bâtiments · double-touchez un bord pour ajouter un sommet</div>
+  <div id="hint">Glissez sommets, reculs, accès et bâtiments · survolez ou touchez un bord pour ajouter un sommet ou l'arrondir</div>
   <div id="toast" class="glass" role="status" aria-live="polite"></div>
 </div>
 
@@ -620,6 +620,8 @@ let layout = null, lastAngle = null, lastMs = 0;
 let SKEL = false; // squelette des voies affiché (réglage de présentation, hors historique)
 const PILL = { w: 68, h: 32 }; // pastilles du squelette
 let pills = []; // pastilles posées au dernier dessin (centres écran), pour le toucher
+let hoverEdge = null; // limite de parcelle survolée (ou touchée) : porte les boutons Sommet / Courbe
+const EBTN = { r: 14, gap: 25 };
 try { SKEL = localStorage.getItem("trame.skel") === "1"; } catch (e) { /* stockage indisponible */ }
 
 // Formes d'objets → polygones.
@@ -857,6 +859,7 @@ function draw() {
 
   drawCadSel();
   drawHandles();
+  drawEdgeBtns();
   drawScale(view.s);
   drawDraft();
 }
@@ -918,6 +921,43 @@ function setbackHandle(i) { const e = edgeInfo(i), s = Math.max(site.setbacks[i]
 function entryPoint(en) { const e = edgeInfo(en.edge); return [e.a[0] + (e.b[0] - e.a[0]) * en.t, e.a[1] + (e.b[1] - e.a[1]) * en.t]; }
 function objCorners(o) { const c = Math.cos(o.rot * Math.PI / 180), s = Math.sin(o.rot * Math.PI / 180), w = o.w / 2, h = o.h / 2; return [[-w, -h], [w, -h], [w, h], [-w, h]].map(([x, y]) => [o.cx + x * c - y * s, o.cy + x * s + y * c]); }
 function rotHandle(o) { const c = Math.cos(o.rot * Math.PI / 180), s = Math.sin(o.rot * Math.PI / 180), d = o.h / 2 + 18 / view.s * 1.6; return [o.cx - d * s, o.cy + d * c]; }
+
+// Boutons au milieu d'une limite survolée : ajouter un sommet, arrondir le segment.
+function edgeBtns(i) {
+  if (i === null || i >= site.parcel.length) return [];
+  const e = edgeInfo(i); if (e.L * view.s < 100) return [];
+  const m = toS(e.mid);
+  return [{ part: "add", x: m[0] - EBTN.gap, y: m[1] }, { part: "curve", x: m[0] + EBTN.gap, y: m[1] }];
+}
+function drawEdgeBtns() {
+  if (mode !== "edit") return;
+  for (const b of edgeBtns(hoverEdge)) {
+    ctx.save(); ctx.translate(b.x, b.y);
+    ctx.shadowColor = "rgba(0, 0, 0, .22)"; ctx.shadowBlur = 8; ctx.shadowOffsetY = 2;
+    ctx.beginPath(); ctx.arc(0, 0, EBTN.r, 0, Math.PI * 2); ctx.fillStyle = C["glass-solid"]; ctx.fill();
+    ctx.shadowColor = "transparent"; ctx.strokeStyle = C.sep; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.beginPath();
+    if (b.part === "add") { ctx.moveTo(-5.5, 0); ctx.lineTo(5.5, 0); ctx.moveTo(0, -5.5); ctx.lineTo(0, 5.5); }
+    else { ctx.moveTo(-7, 4); ctx.quadraticCurveTo(0, -8, 7, 4); }
+    ctx.stroke(); ctx.restore();
+  }
+}
+function edgeBtnAt(sp) {
+  for (const b of edgeBtns(hoverEdge)) if (Math.hypot(sp[0] - b.x, sp[1] - b.y) <= EBTN.r + 4) return b.part;
+  return null;
+}
+function edgeUnder(sp) {
+  if (mode !== "edit" || !site.parcel.length) return null;
+  if (edgeBtnAt(sp)) return hoverEdge;
+  for (let i = 0; i < site.parcel.length; i++) {
+    const e = edgeInfo(i); if (e.L * view.s < 100) continue;
+    const a = toS(e.a), b = toS(e.b), dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((sp[0] - a[0]) * dx + (sp[1] - a[1]) * dy) / L2));
+    if (Math.hypot(sp[0] - a[0] - t * dx, sp[1] - a[1] - t * dy) < 12) return i;
+  }
+  return null;
+}
+function setHoverEdge(i) { if (i !== hoverEdge) { hoverEdge = i; redraw(); } }
 
 function drawHandles() {
   if (mode === "draw") return;
@@ -1056,6 +1096,7 @@ const snap = (x, s) => +(Math.round(x / s) * s).toFixed(3);
 
 function hitTest(w) {
   const h = HIT(), h2 = h * h;
+  if (hoverEdge !== null) { const part = edgeBtnAt(toS(w)); if (part) return { kind: "ebtn", i: hoverEdge, part }; }
   if (SKEL) { const sp = toS(w); for (const b of pills) if (Math.abs(sp[0] - b.x) <= PILL.w / 2 + 4 && Math.abs(sp[1] - b.y) <= PILL.h / 2 + 6) return { kind: "pill", i: b.i, part: sp[0] < b.x ? "dir" : "lanes" }; }
   if (sel && sel.type === "building") {
     const o = site.buildings[sel.i];
@@ -1120,6 +1161,7 @@ canvas.addEventListener("pointerdown", (ev) => {
 canvas.addEventListener("pointermove", (ev) => {
   const sp = canvasPos(ev);
   if (mode === "draw") { hoverW = snapW(toW(sp[0], sp[1])); redraw(); }
+  if (!drag && ev.pointerType !== "touch") setHoverEdge(edgeUnder(sp));
   if (!pointers.has(ev.pointerId)) return;
   pointers.set(ev.pointerId, sp);
   if (pinch && pointers.size === 2 && mode === "map") {
@@ -1163,7 +1205,7 @@ canvas.addEventListener("pointermove", (ev) => {
       Object.assign(o, { w: nw, h: nh, cx: opp[0] + c[0], cy: opp[1] + c[1] });
       break;
     }
-    case "pedge": case "cadastre": case "pill": drag.kind = "pan"; return;
+    case "pedge": case "cadastre": case "pill": case "ebtn": drag.kind = "pan"; return;
   }
   updateSelbar(); requestSolve(true);
 });
@@ -1182,6 +1224,7 @@ function endPointer(ev) {
   lastTap = { t: dbl ? 0 : now, x: sp[0], y: sp[1] };
   const h = d.hit;
   if (h && h.kind === "pill") { (h.part === "dir" ? reverseLane : toggleLanes)(h.i); return; }
+  if (h && h.kind === "ebtn") { (h.part === "add" ? insertParcelVertex(h.i, 0.5) : curveParcelEdge(h.i)); return; }
   if (dbl && h) {
     if (h.kind === "vertex" && site.parcel.length > 3) { removeParcelVertex(h.i); return; }
     if (h.kind === "pedge") { insertParcelVertex(h.i, h.t); return; }
@@ -1189,6 +1232,7 @@ function endPointer(ev) {
     if (h.kind === "move" && POLY[h.type]) { const e = site[POLY[h.type]][h.i], w = toW(sp[0], sp[1]); let best = null; for (let k = 0; k < e.length; k++) { const [dd, t] = distSeg(w, e[k], e[(k + 1) % e.length]); if (!best || dd < best.d) best = { d: dd, k, t }; } if (best.d < HIT()) { e.splice(best.k + 1, 0, [w[0], w[1]]); solve(false); commit(); redraw(); return; } }
   }
   if (h && h.kind === "cadastre") { setSel({ type: "cadastre", i: h.i }); return; }
+  setHoverEdge(h && h.kind === "pedge" ? h.i : null);
   if (!h || h.kind === "pedge" || h.kind === "setback") setSel(null);
 }
 canvas.addEventListener("pointerup", endPointer);
@@ -1204,9 +1248,22 @@ canvas.addEventListener("wheel", (ev) => {
 
 function insertParcelVertex(i, t) {
   const e = edgeInfo(i), p = [snap(e.a[0] + (e.b[0] - e.a[0]) * t, 0.1), snap(e.a[1] + (e.b[1] - e.a[1]) * t, 0.1)];
-  site.parcel.splice(i + 1, 0, p); site.setbacks.splice(i + 1, 0, site.setbacks[i] || 0);
+  hoverEdge = null; site.parcel.splice(i + 1, 0, p); site.setbacks.splice(i + 1, 0, site.setbacks[i] || 0);
   site.entries.forEach((en) => { if (en.edge === i) { if (en.t > t) { en.edge = i + 1; en.t = (en.t - t) / (1 - t); } else en.t = en.t / t; } else if (en.edge > i) en.edge++; });
   setSel({ type: "vertex", i: i + 1 }); solve(false); commit(); markMine(); toast("Sommet ajouté");
+}
+// Arrondit le segment i : arc de cercle (flèche = 15 % de la corde, bombé vers l'extérieur) remplacé par des sommets.
+function curveParcelEdge(i) {
+  const e = edgeInfo(i), s = 0.15 * e.L, R = (e.L * e.L / 4 + s * s) / (2 * s);
+  const c = [e.mid[0] + e.n[0] * (R - s), e.mid[1] + e.n[1] * (R - s)];
+  const a0 = Math.atan2(e.a[1] - c[1], e.a[0] - c[0]), am = Math.atan2(-e.n[1], -e.n[0]);
+  const wrap = (x) => Math.atan2(Math.sin(x), Math.cos(x));
+  const dir = Math.sign(wrap(am - a0)) || 1, tot = 2 * Math.atan2(e.L / 2, R - s), N = Math.max(4, Math.ceil(tot * 180 / Math.PI / 8));
+  const pts = []; for (let k = 1; k < N; k++) { const a = a0 + dir * tot * k / N; pts.push([snap(c[0] + R * Math.cos(a), 0.1), snap(c[1] + R * Math.sin(a), 0.1)]); }
+  const sb = site.setbacks[i] || 0;
+  site.parcel.splice(i + 1, 0, ...pts); site.setbacks.splice(i + 1, 0, ...pts.map(() => sb));
+  site.entries.forEach((en) => { if (en.edge === i) { const u = en.t * N, j = Math.min(N - 1, Math.floor(u)); en.edge = i + j; en.t = u - j; } else if (en.edge > i) en.edge += N - 1; });
+  hoverEdge = null; setSel(null); solve(false); commit(); markMine(); toast("Segment arrondi");
 }
 function removeParcelVertex(i) {
   const n = site.parcel.length;
@@ -1231,7 +1288,7 @@ function finishDraft() {
 function setMode(m) {
   mode = m; draft = []; hoverW = null; canvas.classList.toggle("drawing", m === "draw");
   $("#b-draw").setAttribute("aria-pressed", String(m === "draw")); $("#b-draw").classList.toggle("on", m === "draw");
-  $("#hint").textContent = m === "draw" ? "Touchez pour placer les sommets · touchez le premier sommet pour fermer · Échap pour annuler" : "Glissez sommets, reculs, accès et bâtiments · double-touchez un bord pour ajouter un sommet";
+  $("#hint").textContent = m === "draw" ? "Touchez pour placer les sommets · touchez le premier sommet pour fermer · Échap pour annuler" : "Glissez sommets, reculs, accès et bâtiments · survolez ou touchez un bord pour ajouter un sommet ou l'arrondir";
   setSel(null); redraw();
 }
 
