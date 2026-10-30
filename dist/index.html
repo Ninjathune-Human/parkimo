@@ -668,7 +668,7 @@ let SKEL = false; // squelette des voies affiché (réglage de présentation, ho
 const PILL = { w: 68, h: 32 }; // pastilles du squelette
 let pills = []; // pastilles posées au dernier dessin (centres écran), pour le toucher
 let hoverEdge = null; // limite de parcelle survolée (ou touchée) : porte les boutons Sommet / Courbe
-const EBTN = { r: 9, gap: 19 };
+const EBTN = { r: 9, gap: 22 };
 try { NSKEL = localStorage.getItem("trame.nskel") === "1"; } catch (e) { /* stockage indisponible */ }
 try { SKEL = localStorage.getItem("trame.skel") === "1"; } catch (e) { /* stockage indisponible */ }
 
@@ -1195,7 +1195,7 @@ function edgeBtns(r) {
   // Boutons posés sur le segment, dans son inclinaison (écran) : « + » côté gauche (ou haut), arc côté droit.
   let ux = e.u[0], uy = -e.u[1]; if (ux < -1e-6 || (Math.abs(ux) <= 1e-6 && uy > 0)) { ux = -ux; uy = -uy; }
   const ang = Math.atan2(uy, ux);
-  return [{ part: "add", x: m[0] - ux * EBTN.gap, y: m[1] - uy * EBTN.gap, ang, mx: m[0], my: m[1] }, { part: "curve", x: m[0] + ux * EBTN.gap, y: m[1] + uy * EBTN.gap, ang, mx: m[0], my: m[1] }];
+  return [{ part: "add", x: m[0] - ux * EBTN.gap, y: m[1] - uy * EBTN.gap, ang, mx: m[0], my: m[1] }, { part: "move", x: m[0], y: m[1], ang, mx: m[0], my: m[1] }, { part: "curve", x: m[0] + ux * EBTN.gap, y: m[1] + uy * EBTN.gap, ang, mx: m[0], my: m[1] }];
 }
 // Icône de suppression près de l'élément sélectionné (poignée, accès ou objet entier).
 const ICON_R = 9; // rayon commun des icônes (celui des accès)
@@ -1237,6 +1237,8 @@ function drawEdgeBtns() {
     ctx.shadowColor = "transparent"; ctx.strokeStyle = C.sep; ctx.lineWidth = 1; ctx.stroke();
     ctx.strokeStyle = on ? C.ground : C.accent; ctx.lineWidth = 1.5; ctx.lineCap = "round"; ctx.beginPath();
     if (b.part === "add") { ctx.moveTo(-4, 0); ctx.lineTo(4, 0); ctx.moveTo(0, -4); ctx.lineTo(0, 4); }
+    else if (b.part === "move") { ctx.arc(0, 0, 3.2, 0, Math.PI * 2); } // déplace le segment
+    else if (on) { ctx.rotate(b.ang); ctx.moveTo(-5, 0); ctx.lineTo(5, 0); } // segment courbe : l'icône redresse
     else { ctx.rotate(b.ang); ctx.moveTo(-5, 3); ctx.quadraticCurveTo(0, -5.5, 5, 3); }
     ctx.stroke(); ctx.restore();
   }
@@ -1399,7 +1401,7 @@ const snap = (x, s) => +(Math.round(x / s) * s).toFixed(3);
 function hitTest(w) {
   const h = HIT(), h2 = h * h;
   if (selDelBtn) { const sp = toS(w); if (Math.hypot(sp[0] - selDelBtn.x, sp[1] - selDelBtn.y) <= ICON_R + 8) return { kind: "sdel" }; }
-  if (hoverEdge) { const part = edgeBtnAt(toS(w)); if (part) return { kind: "ebtn", ref: hoverEdge, part }; }
+  if (hoverEdge) { const part = edgeBtnAt(toS(w)); if (part) return { kind: part === "move" ? "emove" : "ebtn", ref: hoverEdge, part }; }
   if (SKEL) {
     const sp = toS(w), T = site.traverses || [];
     for (let i = 0; i < T.length; i++) {
@@ -1522,6 +1524,13 @@ canvas.addEventListener("pointermove", (ev) => {
       const nw = Math.max(6, snap(sx * d[0], 0.5)), nh = Math.max(6, snap(sy * d[1], 0.5));
       const c = rot([sx * nw / 2, sy * nh / 2], o.rot);
       Object.assign(o, { w: nw, h: nh, cx: opp[0] + c[0], cy: opp[1] + c[1] });
+      break;
+    }
+    case "emove": {
+      // Déplace le segment : ses deux sommets suivent le doigt (les autres sommets ne bougent pas).
+      const o0 = JSON.parse(drag.orig), R0 = h.ref.g === "parcel" ? o0.parcel : o0[POLY[h.ref.g]][h.ref.o], R = ringOf(h.ref), n = R0.length;
+      const ddx = snap(w[0] - drag.w0[0], 0.1), ddy = snap(w[1] - drag.w0[1], 0.1);
+      for (const k of [h.ref.i, (h.ref.i + 1) % n]) R[k] = [R0[k][0] + ddx, R0[k][1] + ddy, ...R0[k].slice(2)];
       break;
     }
     case "tend": site.traverses[h.i][h.k] = [snap(w[0], 0.1), snap(w[1], 0.1)]; break;

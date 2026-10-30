@@ -160,3 +160,5 @@ Ouvrir `dist/index.html` dans un navigateur, ou le publier tel quel sur GitHub P
 Scénarios de contrôle : `cargo run --release --example run -- scenarios/ruisseau.json sortie.json`, puis `python3 tools/render.py sortie.json plan.png`.
 
 **Sélection et suppression** : un élément sélectionné (sommet, accès, bâtiment, espace vert, bassin, zone non aedificandi) porte une petite icône de suppression à proximité ; sur un sommet d'objet, elle retire ce sommet (au moins trois sommets restent), sinon l'objet entier. La barre d'actions n'apparaît plus que pour une parcelle cadastrale (Étudier, Ajouter à l'étude) et un bâtiment (forme en L, pivoter). Toutes les icônes, sur le plan comme dans les menus, ont la taille de celle des accès (18 px).
+
+**Boutons d'un segment** (survol ou toucher d'un contour) : « + » ajoute un sommet au milieu, le **rond** du centre déplace le segment entier en le glissant (ses deux sommets suivent, les autres restent), et le dernier bouton arrondit un segment droit (icône d'arc) ou redresse un segment courbe (icône de ligne, bouton plein).
