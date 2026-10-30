@@ -121,33 +121,60 @@ pub fn place(b: &Region, drive: &Region, p: &Params, entries: &[Quad], acc: &mut
         let mut last_ok = false;
         while s + w <= s_end + 1e-6 {
             let p0 = ch.at(s);
-            // Corde de longueur w (sur une courbe, l'abscisse avance plus que w).
-            let mut s1 = s + w;
-            for _ in 0..8 {
-                let dd = (ch.at(s1) - p0).len();
-                if dd >= w - 1e-6 {
+            // Sur une limite qui s'éloigne du centre de courbure (arc bombé vers l'extérieur), les
+            // places se resserrent vers l'allée : on élargit la corde du fond jusqu'à ce que
+            // l'entrée de la place (face avant) mesure bien la largeur demandée.
+            let mut chord = w;
+            let mut built = None;
+            let mut past_end = false;
+            for _ in 0..6 {
+                // Corde de longueur `chord` (sur une courbe, l'abscisse avance plus que la corde).
+                let mut s1 = s + chord;
+                for _ in 0..8 {
+                    let dd = (ch.at(s1) - p0).len();
+                    if dd >= chord - 1e-6 {
+                        break;
+                    }
+                    s1 += chord - dd;
+                }
+                if s1 > s_end + 1e-6 {
+                    past_end = true;
                     break;
                 }
-                s1 += w - dd;
-            }
-            if s1 > s_end + 1e-6 {
-                break;
-            }
-            let p1 = ch.at(s1);
-            let u = (p1 - p0).norm();
-            let n = u.left();
-            // Flèche : si le bord rentre entre p0 et p1, on décale la place vers l'intérieur.
-            let mut shift: f64 = 0.0;
-            for k in 0..ch.pts.len() {
-                if ch.cum[k] > s && ch.cum[k] < s1 {
-                    shift = shift.max((ch.pts[k] - p0).dot(n));
+                let p1 = ch.at(s1);
+                let u = (p1 - p0).norm();
+                let n = u.left();
+                // Flèche : si le bord rentre entre p0 et p1, on décale la place vers l'intérieur.
+                let mut shift: f64 = 0.0;
+                for k in 0..ch.pts.len() {
+                    if ch.cum[k] > s && ch.cum[k] < s1 {
+                        shift = shift.max((ch.pts[k] - p0).dot(n));
+                    }
+                }
+                // Le trait qui sépare deux places voisines suit la normale locale de la limite (médiane des
+                // deux côtés d'un éventail) : sur une courbe, les places sont des trapèzes qui se touchent.
+                let (n0, n1) = (tangent(ch, s, w * 0.5).left(), tangent(ch, s1, w * 0.5).left());
+                let (b0, b1) = (p0 + n0 * shift, p1 + n1 * shift);
+                let q = Quad([b0, b1, b1 + n1 * d, b0 + n0 * d]);
+                let front = (q.0[2] - q.0[3]).len();
+                if front >= w - 1e-3 {
+                    built = Some((s1, n, q));
+                    break;
+                }
+                chord += w - front;
+                if chord > 1.5 * w {
+                    break;
                 }
             }
-            // Le trait qui sépare deux places voisines suit la normale locale de la limite (médiane des
-            // deux côtés d'un éventail) : sur une courbe, les places sont des trapèzes qui se touchent.
-            let (n0, n1) = (tangent(ch, s, w * 0.5).left(), tangent(ch, s1, w * 0.5).left());
-            let (b0, b1) = (p0 + n0 * shift, p1 + n1 * shift);
-            let q = Quad([b0, b1, b1 + n1 * d, b0 + n0 * d]);
+            let Some((s1, n, q)) = built else {
+                // Corde trop ouverte (angle, fin de chaîne) : pas de place ici, on avance.
+                if past_end {
+                    break;
+                }
+                last_ok = false;
+                s += STEP;
+                continue;
+            };
             let planter_turn = p.planter_every > 0 && run >= p.planter_every;
             let ok_geom = b.contains_quad(&q, TOL)
                 && !acc.hash.hits(&q.shrink(TOL))
