@@ -20,7 +20,7 @@ pub mod rows;
 use geo::{Area, BooleanOps, MultiPolygon};
 use geom::{signed_area, v2, Quad, Region, V2};
 use layout::{Acc, KIND_IRVE, KIND_PMR, KIND_PMR_IRVE, KIND_STD};
-use model::{Layout, Metrics, Site, StallOut, P2};
+use model::{BasinOut, Layout, Metrics, Site, StallOut, P2};
 use std::cell::RefCell;
 
 fn r3(x: f64) -> f64 {
@@ -458,6 +458,28 @@ pub fn solve(site: &Site) -> Layout {
     out.trees = acc.trees.iter().map(|t| p2(*t)).collect();
     out.entries = entries.iter().map(q4).collect();
     out.walks = walks.iter().map(q4).collect();
+    // Bassins de rétention : pied de talus à `3 × hauteur` du haut de talus (réduit si le bassin est étroit).
+    out.basins = site
+        .basins
+        .iter()
+        .map(|b| {
+            let ring = crate::geom::clean_ring(&b.iter().map(|q| v2(q[0], q[1])).collect::<Vec<_>>());
+            let mut run = (p.basin_h.clamp(0.0, 10.0)) * 3.0;
+            if ring.len() < 3 || run < 0.05 {
+                return BasinOut { run: 0.0, bottom: vec![] };
+            }
+            let mp = MultiPolygon::new(vec![region::to_poly(&ring)]);
+            for _ in 0..8 {
+                let rings = region::rings_of(&region::erode(&mp, run), 0.5);
+                if !rings.is_empty() {
+                    let bottom = rings.iter().map(|r| r.iter().map(|q| p2(*q)).collect()).collect();
+                    return BasinOut { run, bottom };
+                }
+                run *= 0.7;
+            }
+            BasinOut { run, bottom: vec![] }
+        })
+        .collect();
     {
         let blocked = |polys: &[Vec<P2>]| {
             polys.iter().any(|r| {
@@ -471,7 +493,7 @@ pub fn solve(site: &Site) -> Layout {
                     })
             })
         };
-        if blocked(&site.landscapes) || blocked(&site.exclusions) {
+        if blocked(&site.landscapes) || blocked(&site.basins) || blocked(&site.exclusions) {
             out.warnings
                 .push("Entrée de bâtiment obstruée par un espace vert ou une servitude".into());
         }

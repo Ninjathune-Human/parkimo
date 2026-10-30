@@ -420,6 +420,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
     <button class="mi" role="menuitem" data-add="building"><span class="glyph" style="background:var(--building)"></span><span>Bâtiment<small>Emprise rectangulaire, trottoir autour</small></span></button>
     <button class="mi" role="menuitem" data-add="buildingL"><span class="glyph" style="background:var(--building);clip-path:polygon(0 0,40% 0,40% 60%,100% 60%,100% 100%,0 100%)"></span><span>Bâtiment en L</span></button>
     <button class="mi" role="menuitem" data-add="landscape"><span class="glyph" style="background:var(--island)"></span><span>Espace vert<small>Zone plantée imposée</small></span></button>
+    <button class="mi" role="menuitem" data-add="basin"><span class="glyph" style="background:var(--island);box-shadow:inset 0 0 0 2px var(--tree-edge)"></span><span>Bassin de rétention<small>Zone verte en creux, talus haut et bas</small></span></button>
     <button class="mi" role="menuitem" data-add="exclusion"><span class="glyph" style="background:var(--excl);opacity:.8"></span><span>Servitude<small>Zone inondable, réseau, emprise interdite</small></span></button>
     <button class="mi" role="menuitem" data-add="entry"><span class="glyph" style="background:var(--asphalt)"></span><span>Accès véhicules<small>Sur la limite de parcelle</small></span></button>
   </div>
@@ -430,6 +431,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <div class="eyebrow">Places et voies</div>
       <div class="field"><label for="p-stall_w">Largeur de place</label><span class="unit"><input id="p-stall_w" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-stall_d">Longueur de place</label><span class="unit"><input id="p-stall_d" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+      <div class="field"><label for="p-basin_h">Hauteur bassin de rétention</label><span class="unit"><input id="p-basin_h" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-aisle">Largeur d'allée</label><span class="unit"><input id="p-aisle" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-noue_w">Noue entre rangées (0 = aucune)</label><span class="unit"><input id="p-noue_w" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-aisle_one">Largeur voie en sens unique</label><span class="unit"><input id="p-aisle_one" type="text" inputmode="decimal" autocomplete="off">m</span></div>
@@ -594,7 +596,7 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((res) => setTimeout(
 // ============================================================================
 // Données : sites d'exemple (mètres, repère local, y vers le haut).
 // ============================================================================
-const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, max_run: 60, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null };
+const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, max_run: 60, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null };
 
 function arc(cx, cy, r, a0, a1, n) {
   const pts = [];
@@ -612,10 +614,10 @@ const EXAMPLES = {
   courbe: () => {
     const curve = arc(-60, 0, 200, 0, 35, 20).slice(1);
     const parcel = [[0, 0], [140, 0], ...curve, [0, +(200 * Math.sin(35 * Math.PI / 180)).toFixed(2)]];
-    return { parcel, setbacks: parcel.map((_, i) => (i === 0 ? 5 : 3)), exclusions: [], buildings: [], landscapes: [], entries: [{ edge: 0, t: 0.3 }] };
+    return { parcel, setbacks: parcel.map((_, i) => (i === 0 ? 5 : 3)), exclusions: [], buildings: [], landscapes: [], basins: [], entries: [{ edge: 0, t: 0.3 }] };
   },
-  triangle: () => ({ parcel: [[0, 0], [150, 0], [30, 170]], setbacks: [5, 3, 3], exclusions: [], buildings: [{ cx: 52, cy: 78, w: 24, h: 40, rot: 80, shape: "rect" }], landscapes: [], entries: [{ edge: 0, t: 0.4 }] }),
-  rectangle: () => ({ parcel: [[0, 0], [120, 0], [120, 80], [0, 80]], setbacks: [5, 3, 3, 3], exclusions: [], buildings: [], landscapes: [], entries: [{ edge: 0, t: 0.5 }] }),
+  triangle: () => ({ parcel: [[0, 0], [150, 0], [30, 170]], setbacks: [5, 3, 3], exclusions: [], buildings: [{ cx: 52, cy: 78, w: 24, h: 40, rot: 80, shape: "rect" }], landscapes: [], basins: [], entries: [{ edge: 0, t: 0.4 }] }),
+  rectangle: () => ({ parcel: [[0, 0], [120, 0], [120, 80], [0, 80]], setbacks: [5, 3, 3, 3], exclusions: [], buildings: [], landscapes: [], basins: [], entries: [{ edge: 0, t: 0.5 }] }),
 };
 
 let site = EXAMPLES.ruisseau();
@@ -654,9 +656,9 @@ function rectPoly(o) {
   return local.map(([x, y]) => [o.cx + x * c - y * s, o.cy + x * s + y * c]);
 }
 // Objets polygonaux (sommets modifiables) : type de sélection → liste du site.
-const POLY = { exclusion: "exclusions", landscape: "landscapes" };
+const POLY = { exclusion: "exclusions", landscape: "landscapes", basin: "basins" };
 // Projets enregistrés avant que les espaces verts ne soient des polygones : rectangle → sommets.
-function normSite(s) { if (s && s.parcel) s.arcs = s.parcel.map((_, i) => (s.arcs && s.arcs[i]) || 0); if (s && s.landscapes) s.landscapes = s.landscapes.map((o) => (Array.isArray(o) ? o : rectPoly(o))); return s; }
+function normSite(s) { if (s && !s.basins) s.basins = []; if (s && s.parcel) s.arcs = s.parcel.map((_, i) => (s.arcs && s.arcs[i]) || 0); if (s && s.landscapes) s.landscapes = s.landscapes.map((o) => (Array.isArray(o) ? o : rectPoly(o))); return s; }
 function polyArea(p) { let a = 0; for (let i = 0; i < p.length; i++) { const q = p[(i + 1) % p.length]; a += p[i][0] * q[1] - q[0] * p[i][1]; } return a / 2; }
 
 function engineInput(quick) {
@@ -664,9 +666,9 @@ function engineInput(quick) {
   return {
     ...flatSite(), exclusions: site.exclusions.map(polyOutline),
     buildings: site.buildings.map((b) => { const d = doorGeom(b); return { poly: rectPoly(b), entrance: [d.p[0] + d.n[0] * params.building_margin, d.p[1] + d.n[1] * params.building_margin], door: { p: d.p, n: d.n, w: Math.min(params.door_w, d.L) } }; }),
-    landscapes: site.landscapes.map(polyOutline), lanes: site.lanes || [],
+    landscapes: site.landscapes.map(polyOutline), basins: (site.basins || []).map(polyOutline), lanes: site.lanes || [],
     params: {
-      stall_w: p.stall_w, stall_d: p.stall_d, noue_w: p.noue_w, aisle: p.aisle, aisle_one: p.aisle_one, entry_w: p.entry_w, building_margin: p.building_margin,
+      stall_w: p.stall_w, stall_d: p.stall_d, noue_w: p.noue_w, basin_h: p.basin_h, aisle: p.aisle, aisle_one: p.aisle_one, entry_w: p.entry_w, building_margin: p.building_margin,
       planter_every: Math.max(0, Math.round(p.planter_every)), cap: p.cap, max_run: p.max_run,
       pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100, irve_equip_ratio: p.irve_equip_ratio / 100,
       angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle,
@@ -730,7 +732,7 @@ function placeSide() {
 function workBounds() {
   const pts = outline();
   for (const o of site.buildings) pts.push(...rectPoly(o));
-  for (const e of [...site.exclusions, ...site.landscapes]) pts.push(...polyOutline(e));
+  for (const e of [...site.exclusions, ...site.landscapes, ...(site.basins || [])]) pts.push(...polyOutline(e));
   if (layout && !layout.error && site.parcel.length >= 3) for (const q of layout.entries) pts.push(...q);
   if (!pts.length && baseShown()) { const r = basemap.rect; pts.push([r.x0, r.y0], [r.x1, r.y1]); }
   if (!pts.length) return null;
@@ -794,6 +796,45 @@ function hatchPattern() {
 }
 
 function pathPoly(pts) { if (!pts.length) return; const a = toS(pts[0]); ctx.moveTo(a[0], a[1]); for (let i = 1; i < pts.length; i++) { const b = toS(pts[i]); ctx.lineTo(b[0], b[1]); } ctx.closePath(); }
+// Bassin de rétention : zone verte en creux. Haut de talus (trait fort), pied de talus (trait fin, fond
+// plus sombre) et barbules, du haut vers le bas, alternativement longues et courtes pour figurer la pente.
+function drawBasins() {
+  const list = site.basins || [];
+  list.forEach((P, bi) => {
+    const top = polyOutline(P); if (top.length < 3) return;
+    const info = layout && !layout.error && layout.basins && layout.basins[bi], bottom = info ? info.bottom : [], run = info ? info.run : 0;
+    fillPoly(top, C.island);
+    if (bottom.length) {
+      ctx.beginPath(); for (const r of bottom) pathPoly(r); ctx.fillStyle = "rgba(20,40,25,.16)"; ctx.fill("evenodd");
+    }
+    ctx.strokeStyle = C["tree-edge"]; ctx.lineCap = "butt";
+    if (run > 0) {
+      // Barbules : normale intérieure (haut de talus en sens trigonométrique : à gauche), coupée au pied de talus.
+      const ccw = polyArea(top) > 0, step = Math.max(1, 5 / view.s);
+      const hitDist = (o, d) => { let best = Infinity; for (const r of bottom) for (let k = 0; k < r.length; k++) { const a = r[k], b = r[(k + 1) % r.length], ex = b[0] - a[0], ey = b[1] - a[1], den = d[0] * ey - d[1] * ex; if (Math.abs(den) < 1e-9) continue; const t = ((a[0] - o[0]) * ey - (a[1] - o[1]) * ex) / den, u = ((a[0] - o[0]) * d[1] - (a[1] - o[1]) * d[0]) / den; if (t > 1e-6 && u >= 0 && u <= 1) best = Math.min(best, t); } return best; };
+      ctx.beginPath(); let carry = 0, n = 0;
+      for (let k = 0; k < top.length; k++) {
+        const a = top[k], b = top[(k + 1) % top.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 1e-6) continue;
+        const ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L, nx = ccw ? -uy : uy, ny = ccw ? ux : -ux;
+        for (let s = step - carry; s <= L; s += step, n++) {
+          const o = [a[0] + ux * s, a[1] + uy * s], len = Math.min((n % 2 ? 0.5 : 1) * run, bottom.length ? hitDist(o, [nx, ny]) : Infinity);
+          if (!(len > 0.05)) continue;
+          const p0 = toS(o), p1 = toS([o[0] + nx * len, o[1] + ny * len]); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]);
+        }
+        carry = (carry + L) % step;
+      }
+      ctx.lineWidth = 0.8; ctx.stroke();
+    }
+    if (bottom.length) { ctx.beginPath(); for (const r of bottom) pathPoly(r); ctx.lineWidth = 0.9; ctx.stroke(); }
+    ctx.beginPath(); pathPoly(top); ctx.lineWidth = 1.8; ctx.stroke();
+    if (view.s > 2.2) {
+      const c = toS([top.reduce((s, p) => s + p[0], 0) / top.length, top.reduce((s, p) => s + p[1], 0) / top.length]);
+      ctx.fillStyle = C["building-label"]; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.font = `600 ${Math.min(12, 1.6 * view.s)}px ${getComputedStyle(document.body).fontFamily}`;
+      ctx.fillText("Bassin · H " + fmt1(params.basin_h) + " m", c[0], c[1]);
+    }
+  });
+}
 function fillPoly(pts, color) { ctx.beginPath(); pathPoly(pts); ctx.fillStyle = color; ctx.fill(); }
 
 let needsDraw = false;
@@ -816,6 +857,7 @@ function draw() {
   ctx.beginPath(); pathPoly(outline()); ctx.fillStyle = C.parcel; ctx.globalAlpha = baseShown() && VIS.photo && basemap.img ? 0.55 : 1; ctx.fill(); ctx.globalAlpha = 1;
   // Calque Bâtiments et espaces verts : espaces verts imposés (leurs arbres relèvent de l'habillage)
   if (VIS.pbati) site.landscapes.forEach((p) => fillPoly(polyOutline(p), C.island));
+  if (VIS.pbati) drawBasins();
 
   if (layout && !layout.error) {
     // Calque Voirie
@@ -979,6 +1021,7 @@ const sameRef = (a, b) => (!a && !b) || (a && b && a.g === b.g && a.o === b.o &&
 function eachRing(fn) {
   fn({ g: "parcel" }, site.parcel);
   if (VIS.pbati) site.landscapes.forEach((P, o) => fn({ g: "landscape", o }, P));
+  if (VIS.pbati) (site.basins || []).forEach((P, o) => fn({ g: "basin", o }, P));
   if (VIS.servitudes) site.exclusions.forEach((P, o) => fn({ g: "exclusion", o }, P));
 }
 function nearRing(P, kf, w) {
@@ -1212,6 +1255,7 @@ function hitTest(w) {
   if (VIS.recul) for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); if (e.L * view.s >= 40 && dist2(w, setbackHandle(i)) < h2) return { kind: "setback", i }; }
   if (VIS.pbati) for (let i = site.buildings.length - 1; i >= 0; i--) if (pointInPoly(w, rectPoly(site.buildings[i]))) return { kind: "move", type: "building", i };
   if (VIS.pbati) for (let i = site.landscapes.length - 1; i >= 0; i--) { const e = polyOutline(site.landscapes[i]); if (pointInPoly(w, e)) return { kind: "move", type: "landscape", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "landscape", i }; }
+  if (VIS.pbati) for (let i = (site.basins || []).length - 1; i >= 0; i--) { const e = polyOutline(site.basins[i]); if (pointInPoly(w, e)) return { kind: "move", type: "basin", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "basin", i }; }
   if (VIS.servitudes) for (let i = site.exclusions.length - 1; i >= 0; i--) { const e = polyOutline(site.exclusions[i]); if (pointInPoly(w, e)) return { kind: "move", type: "exclusion", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "exclusion", i }; }
   { const nb = nearEdge(w); if (nb && nb.d < h * 0.7) return { kind: "pedge", i: nb.i, t: nb.t }; }
   const ci = cadParcelAt(w); if (ci >= 0) return { kind: "cadastre", i: ci };
@@ -1230,6 +1274,7 @@ function updateSelbar() {
   let what = "", dim = "";
   if (sel.type === "building") { const b = site.buildings[sel.i]; what = b.shape === "L" ? "Bâtiment en L" : "Bâtiment"; dim = fmtInt(Math.abs(polyArea(rectPoly(b)))) + " m²"; shape.textContent = b.shape === "L" ? "Forme rectangle" : "Forme en L"; }
   if (sel.type === "landscape") { what = "Espace vert"; dim = fmtInt(Math.abs(polyArea(polyOutline(site.landscapes[sel.i])))) + " m²"; }
+  if (sel.type === "basin") { what = "Bassin de rétention"; dim = fmtInt(Math.abs(polyArea(polyOutline(site.basins[sel.i])))) + " m² · H " + fmt1(params.basin_h) + " m"; }
   if (sel.type === "exclusion") { what = "Servitude"; dim = fmtInt(Math.abs(polyArea(polyOutline(site.exclusions[sel.i])))) + " m²"; }
   if (sel.type === "entry") { what = "Accès véhicules"; dim = "limite " + (site.entries[sel.i].edge + 1); }
   if (sel.type === "vertex") { what = "Sommet " + (sel.i + 1); const v = site.parcel[sel.i]; dim = `${fmt1(v[0])} ; ${fmt1(v[1])}`; }
@@ -1408,7 +1453,7 @@ function onDrawTap(w, dbl, sp) {
 function finishDraft() {
   const P = draft.slice(); if (P.length < 3 || Math.abs(polyArea(P)) < 100) { toast("Parcelle trop petite"); return; }
   let li = 0, lb = 0; for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L > lb) { lb = L; li = i; } }
-  site = { parcel: P, setbacks: P.map((_, i) => (i === li ? 5 : 3)), exclusions: [], buildings: [], landscapes: [], entries: [{ edge: li, t: 0.5 }] };
+  site = { parcel: P, setbacks: P.map((_, i) => (i === li ? 5 : 3)), exclusions: [], buildings: [], landscapes: [], basins: [], entries: [{ edge: li, t: 0.5 }] };
   setMode("edit"); exampleName = "mine"; syncExample(); lastAngle = null; solve(false); commit(); fit(); toast("Parcelle créée · recul 5 m sur la limite la plus longue, 3 m ailleurs");
 }
 function setMode(m) {
@@ -1429,6 +1474,10 @@ function addObject(kind) {
     site.landscapes.push([[-10, -6], [2, -7], [10, -4], [9, 6], [-1, 7], [-10, 5]].map(([x, y]) => [c[0] + x, c[1] + y]));
     setSel({ type: "landscape", i: site.landscapes.length - 1 });
   }
+  if (kind === "basin") {
+    (site.basins = site.basins || []).push([[-13, -3], [-6, -8], [6, -8], [13, -3], [13, 3], [6, 8], [-6, 8], [-13, 3]].map(([x, y]) => [+(c[0] + x).toFixed(2), +(c[1] + y).toFixed(2), 0.12]));
+    setSel({ type: "basin", i: site.basins.length - 1 });
+  }
   if (kind === "exclusion") {
     const r = 24; site.exclusions.push([[c[0] - r * 1.6, c[1] - 4], [c[0] - r * 0.4, c[1] - 7], [c[0] + r * 0.6, c[1] - 3], [c[0] + r * 1.6, c[1] - 6], [c[0] + r * 1.6, c[1] + 6], [c[0] + r * 0.4, c[1] + 8], [c[0] - r * 0.7, c[1] + 4], [c[0] - r * 1.6, c[1] + 6]].map((p) => p.map((v) => +v.toFixed(2))));
     setSel({ type: "exclusion", i: site.exclusions.length - 1 });
@@ -1443,6 +1492,7 @@ function deleteSel() {
   if (!sel) return;
   if (sel.type === "building") site.buildings.splice(sel.i, 1);
   else if (sel.type === "landscape") site.landscapes.splice(sel.i, 1);
+  else if (sel.type === "basin") site.basins.splice(sel.i, 1);
   else if (sel.type === "exclusion") site.exclusions.splice(sel.i, 1);
   else if (sel.type === "entry") site.entries.splice(sel.i, 1);
   else if (sel.type === "vertex") { if (site.parcel.length > 3) { removeParcelVertex(sel.i); return; } toast("Une parcelle garde au moins trois sommets"); return; }
@@ -1499,7 +1549,7 @@ window.addEventListener("keydown", (ev) => {
 // ============================================================================
 // Hypothèses.
 // ============================================================================
-const PKEYS = ["stall_w", "stall_d", "noue_w", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "max_run", "pmr_ratio", "irve_ratio", "irve_equip_ratio"];
+const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "max_run", "pmr_ratio", "irve_ratio", "irve_equip_ratio"];
 function syncParamsUI() {
   for (const k of PKEYS) $("#p-" + k).value = String(params[k]).replace(".", ",");
   const auto = params.angle === null;
@@ -2182,7 +2232,7 @@ async function importArea() {
 
   const prev = basemap;
   if (prev && exampleName === "mine" && site.parcel.length) reframeSite(prev, { O, k });
-  else if (exampleName !== "mine" || !prev) { if (exampleName === "mine" && site.parcel.length) mineSite = null; site = { parcel: [], setbacks: [], exclusions: [], buildings: [], landscapes: [], entries: [] }; exampleName = "mine"; }
+  else if (exampleName !== "mine" || !prev) { if (exampleName === "mine" && site.parcel.length) mineSite = null; site = { parcel: [], setbacks: [], exclusions: [], buildings: [], landscapes: [], basins: [], entries: [] }; exampleName = "mine"; }
   basemap = {
     O, k, z, mrect: r, tainted, img: failed === list.length ? null : cv,
     rect: { x0: (r.x0 - O[0]) * k, y0: (r.y0 - O[1]) * k, x1: (r.x1 - O[0]) * k, y1: (r.y1 - O[1]) * k },
@@ -2205,6 +2255,7 @@ function reframeSite(a, b) {
   site.parcel = site.parcel.map(f);
   site.exclusions = site.exclusions.map((e) => e.map((p) => [...f(p), ...p.slice(2)]));
   site.landscapes = site.landscapes.map((e) => e.map((p) => [...f(p), ...p.slice(2)]));
+  site.basins = (site.basins || []).map((e) => e.map((p) => [...f(p), ...p.slice(2)]));
   for (const o of site.buildings) { [o.cx, o.cy] = f([o.cx, o.cy]); o.w *= b.k / a.k; o.h *= b.k / a.k; }
 }
 
@@ -2342,7 +2393,7 @@ function studyParcel(i, merge) {
   ring = simplifyRing(ring, 0.12);
   let li = 0, lb = 0;
   ring.forEach((a, j) => { const b = ring[(j + 1) % ring.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L > lb) { lb = L; li = j; } });
-  const keep = merge ? site : { exclusions: [], buildings: [], landscapes: [] };
+  const keep = merge ? site : { exclusions: [], buildings: [], landscapes: [], basins: [] };
   site = { ...keep, arcs: [], parcel: ring, setbacks: ring.map(() => 3), entries: [{ edge: li, t: 0.5 }], cadastre: [...(merge ? site.cadastre || [] : []), f.p.idu].filter(Boolean) };
   exampleName = "mine"; syncExample(); lastAngle = null; setSel(null); solve(false); commit();
   if (split) toast("Parcelles non contiguës : seule la plus grande emprise est conservée");
@@ -2358,7 +2409,7 @@ function updateLayersUI() {
   $("#lay-date").textContent = "importé le " + basemap.date + (basemap.img ? "" : " · photo non conservée");
 }
 // Un objet dont le calque est masqué n'est plus sélectionnable.
-const SEL_LAYER = { cadastre: "parcelles", building: "pbati", landscape: "pbati", exclusion: "servitudes" };
+const SEL_LAYER = { cadastre: "parcelles", building: "pbati", landscape: "pbati", basin: "pbati", exclusion: "servitudes" };
 document.querySelectorAll("[data-lay]").forEach((c) => c.addEventListener("change", () => {
   VIS[c.dataset.lay] = c.checked;
   if (sel && SEL_LAYER[sel.type] === c.dataset.lay && !c.checked) setSel(null);
@@ -2390,7 +2441,7 @@ $("#m-ok").addEventListener("click", importArea);
 const DXF_LAYERS = {
   places: ["PRJ_PLACES", "PRJ_PLACES_PMR", "PRJ_PLACES_IRVE", "PRJ_PLACES_IRVE_EQ"], pvoirie: ["PRJ_VOIRIE"], sens: ["PRJ_SIGNALISATION"], ilots: ["PRJ_ILOTS"],
   vehicules: ["HAB_VEHICULES"], arbres: ["HAB_ARBRES"],
-  pbati: ["PRJ_BATIMENTS", "PRJ_ESPACES_VERTS"], servitudes: ["PRJ_SERVITUDES"], recul: ["PRJ_RECUL"],
+  pbati: ["PRJ_BATIMENTS", "PRJ_ESPACES_VERTS", "PRJ_BASSIN_TALUS_HAUT", "PRJ_BASSIN_TALUS_BAS"], servitudes: ["PRJ_SERVITUDES"], recul: ["PRJ_RECUL"],
   ovoirie: ["OCC_VOIRIE"], bati: ["OCC_BATI"], vegetation: ["OCC_VEGETATION"],
   parcelles: ["CAD_PARCELLES"], numeros: ["CAD_NUMEROS"], feuilles: ["CAD_FEUILLES"], communes: ["CAD_COMMUNES"],
 };
@@ -2495,7 +2546,7 @@ function zipStore(name, text) {
 // ============================================================================
 function newProject() {
   closeMenus(); setMode("edit");
-  site = { parcel: [], setbacks: [], exclusions: [], buildings: [], landscapes: [], entries: [] };
+  site = { parcel: [], setbacks: [], exclusions: [], buildings: [], landscapes: [], basins: [], entries: [] };
   exampleName = "mine"; mineSite = null; basemap = null; layout = null; lastAngle = null;
   saveBasemap();
   hist.past = []; hist.future = []; commit();

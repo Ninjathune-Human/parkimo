@@ -163,7 +163,7 @@ pub fn build(site: &Site) -> Option<Zones> {
             obstacles.push(poly);
         }
     }
-    for l in &site.landscapes {
+    for l in site.landscapes.iter().chain(site.basins.iter()) {
         let r = clean_ring(&l.iter().map(|q| v2(q[0], q[1])).collect::<Vec<_>>());
         if r.len() >= 3 {
             obstacles.push(MultiPolygon::new(vec![to_poly(&r)]));

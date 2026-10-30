@@ -19,6 +19,9 @@ pub struct Site {
     /// Espaces verts imposés.
     #[serde(default)]
     pub landscapes: Vec<Vec<P2>>,
+    /// Bassins de rétention : zones vertes en creux, sans stationnement ; le contour est le haut de talus.
+    #[serde(default)]
+    pub basins: Vec<Vec<P2>>,
     /// Accès véhicules sur la limite de parcelle.
     #[serde(default)]
     pub entries: Vec<Entry>,
@@ -75,6 +78,8 @@ pub struct Params {
     pub stall_w: f64,
     /// Longueur d'une place (m).
     pub stall_d: f64,
+    /// Hauteur (profondeur) des bassins de rétention (m) ; talus 3 pour 1.
+    pub basin_h: f64,
     /// Largeur de la noue entre les deux demi-rangées d'une rangée double (m, 0 = aucune, sinon 1 à 6).
     pub noue_w: f64,
     /// Largeur d'allée double sens (m).
@@ -130,6 +135,7 @@ impl Default for Params {
         Params {
             stall_w: 2.5,
             stall_d: 5.0,
+            basin_h: 1.5,
             noue_w: 0.0,
             aisle: 6.0,
             aisle_one: 5.0,
@@ -158,6 +164,13 @@ pub struct StallOut {
     pub k: u8,
     /// Borne installée.
     pub e: bool,
+}
+
+/// Pied de talus d'un bassin : emprise horizontale du talus et anneaux du fond.
+#[derive(Serialize, Clone, Default)]
+pub struct BasinOut {
+    pub run: f64,
+    pub bottom: Vec<Vec<P2>>,
 }
 
 #[derive(Serialize, Default)]
@@ -201,6 +214,8 @@ pub struct Layout {
     pub entrances: Vec<P2>,
     /// Cheminements piétons devant les portes des bâtiments.
     pub walks: Vec<[P2; 4]>,
+    /// Bassins de rétention : pied de talus de chacun (même ordre que `Site::basins`).
+    pub basins: Vec<BasinOut>,
     /// Sens de circulation et flèches au sol.
     pub circulation: crate::circulation::Circulation,
     pub metrics: Metrics,

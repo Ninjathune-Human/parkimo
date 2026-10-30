@@ -584,6 +584,15 @@ pub fn export(inp: &ExportIn) -> ExportOut {
     for l in &site.landscapes {
         w.area("PRJ_ESPACES_VERTS", &vec![l.clone()], Some(&veg_fill));
     }
+    // Bassins de rétention : haut de talus (contour) et pied de talus.
+    for (i, bs) in site.basins.iter().enumerate() {
+        w.ring("PRJ_BASSIN_TALUS_HAUT", bs);
+        if let Some(o) = lay.basins.get(i) {
+            for r in &o.bottom {
+                w.ring("PRJ_BASSIN_TALUS_BAS", r);
+            }
+        }
+    }
     for b in &site.buildings {
         w.area("PRJ_BATIMENTS", &vec![b.poly.clone()], Some(&bati_fill));
     }
