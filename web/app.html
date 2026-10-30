@@ -817,7 +817,7 @@ function drawNoueSkeleton() {
   const RED = "#d93a2f", R = 13;
   ctx.save(); ctx.lineCap = "round";
   list.forEach((q, i) => {
-    const off = layout.noues_off[i], a = (off ? [q[0], q[1]] : noueAxis(q)).map(toS), // supprimée : l'axe suit la jonction des deux rangées
+    const off = layout.noues_off[i], a = noueAxis(q).map(toS),
       len = Math.hypot(a[1][0] - a[0][0], a[1][1] - a[0][1]); if (len < 6) return;
     const ux = (a[1][0] - a[0][0]) / len, uy = (a[1][1] - a[0][1]) / len, g = Math.min(len * 0.1, 5), col = off ? RED : C.accent;
     ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.globalAlpha = 1;

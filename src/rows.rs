@@ -450,6 +450,15 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
         }
     }
 
+    // Noue supprimée : les deux demi-rangées se rejoignent au milieu de la bande, qui se répartit
+    // en deux moitiés égales, ajoutées à chacune des deux allées voisines.
+    let shifted = |h: usize| -> (f64, f64) {
+        if h == 0 {
+            (y0 + d + nw / 2.0, y0 + nw / 2.0)
+        } else {
+            (y0 + d + nw / 2.0, y0 + 2.0 * d + nw / 2.0)
+        }
+    };
     let mut placed = 0usize;
     for h in 0..2 {
         let row = acc.new_row();
@@ -477,7 +486,7 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
             // Emprise par tronçon : une demi-rangée recalée sur une noue supprimée a sa propre emprise.
             let is_off = |k: usize| {
                 let xc = g + (kmin + k as i64) as f64 * w + w / 2.0;
-                h == 1 && off_x.iter().any(|&(lo, hi)| xc >= lo && xc <= hi)
+                off_x.iter().any(|&(lo, hi)| xc >= lo && xc <= hi)
             };
             let mut k0 = s0;
             while k0 < i {
@@ -486,13 +495,14 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
                 while k1 < i && is_off(k1) == o {
                     k1 += 1;
                 }
-                let (ya, yz) = if o { (y0 + d, y0 + 2.0 * d) } else { (yb, yf) };
+                let (ya, yz) = if o { shifted(h) } else { (yb, yf) };
                 let (xs, xe) = (g + (kmin + k0 as i64) as f64 * w, g + (kmin + k1 as i64) as f64 * w);
                 let pad = Quad([v2(xs, ya), v2(xe, ya), v2(xe, yz), v2(xs, yz)]);
                 acc.pads.push(xf(&pad, rot));
                 acc.blockers.push(xf(&pad, rot));
                 if o {
-                    let v = Quad([v2(xs, y0 + 2.0 * d), v2(xe, y0 + 2.0 * d), v2(xe, y0 + 2.0 * d + nw), v2(xs, y0 + 2.0 * d + nw)]);
+                    let (va, vz) = if h == 0 { (y0, y0 + nw / 2.0) } else { (y0 + 2.0 * d + nw / 2.0, y0 + 2.0 * d + nw) };
+                    let v = Quad([v2(xs, va), v2(xe, va), v2(xe, vz), v2(xs, vz)]);
                     acc.voids.push(xf(&v, rot));
                 }
                 k0 = k1;
@@ -508,8 +518,8 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
             }
             for k in s0..i {
                 let x = g + (kmin + k as i64) as f64 * w;
-                let (yb, yf) = if h == 1 && off_x.iter().any(|&(lo, hi)| x + w / 2.0 >= lo && x + w / 2.0 <= hi) {
-                    (y0 + d, y0 + 2.0 * d)
+                let (yb, yf) = if off_x.iter().any(|&(lo, hi)| x + w / 2.0 >= lo && x + w / 2.0 <= hi) {
+                    shifted(h)
                 } else {
                     (yb, yf)
                 };
