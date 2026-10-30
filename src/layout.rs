@@ -43,6 +43,8 @@ pub struct Acc {
     pub next_row: u32,
     /// Repères des noues supprimées (milieux d'axe, repère monde).
     pub noue_off: Vec<[f64; 2]>,
+    /// Traverses du concepteur (segments, repère monde).
+    pub traverses: Vec<[[f64; 2]; 2]>,
     /// Pour chaque noue : axe de sa rangée et milieu du tronçon sur la trame de référence (noues partout).
     pub noue_ref: Vec<[[f64; 2]; 3]>,
 }
@@ -61,6 +63,7 @@ impl Acc {
             blockers: Vec::new(),
             next_row: 0,
             noue_off: Vec::new(),
+            traverses: Vec::new(),
             noue_ref: Vec::new(),
         }
     }

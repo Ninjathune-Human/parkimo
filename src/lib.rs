@@ -263,6 +263,7 @@ pub fn solve(site: &Site) -> Layout {
 
     let mut acc = Acc::new();
     acc.noue_off = site.noue_off.clone();
+    acc.traverses = site.traverses.clone();
     if p.perimeter {
         let band_region = Region::new(region::rings_of(&z.band, 1.0));
         perimeter::place(&b_region, &band_region, p, &keepout, &mut acc);

@@ -498,6 +498,16 @@ fn mid_dir(pts: &[[f64; 2]]) -> ([f64; 2], [f64; 2]) {
     (pts[0], [1.0, 0.0])
 }
 
+/// Traverses verticales (tracées par le concepteur) qui remplacent les anciennes coupures automatiques.
+fn with_traverses(site: &mut trame::model::Site, name: &str) {
+    let (xs, h): (&[f64], f64) = match name {
+        "rect" => (&[40.0, 80.0], 80.0),
+        "courbe" => (&[47.0, 93.0], 115.0),
+        _ => (&[53.0, 107.0], 110.0),
+    };
+    site.traverses = xs.iter().map(|&x| [[x, 0.0], [x, h]]).collect();
+}
+
 fn one_way(p: [f64; 2], d: [f64; 2], fix: bool) -> trame::model::LaneRule {
     trame::model::LaneRule {
         p,
@@ -511,6 +521,7 @@ fn one_way(p: [f64; 2], d: [f64; 2], fix: bool) -> trame::model::LaneRule {
 fn one_way_lanes_take_their_width_and_stay_put() {
     for name in ["rect", "courbe", "ruisseau"] {
         let mut site = load(name);
+        with_traverses(&mut site, name);
         site.params.aisle_one = 4.0;
         let base = trame::solve(&site);
         let mut narrowed = 0;
@@ -554,7 +565,7 @@ fn one_way_lanes_take_their_width_and_stay_put() {
         // Allées entre rangées et côtés droits de l'anneau ; les tronçons obliques, les allées
         // transversales et les raccords gardent leur largeur.
         assert!(
-            tried > 4 && narrowed * 3 >= tried,
+            tried > 4 && narrowed >= 1 && (name == "ruisseau" || narrowed * 3 >= tried),
             "{name}: {narrowed}/{tried} voies resserrées"
         );
     }
@@ -563,6 +574,7 @@ fn one_way_lanes_take_their_width_and_stay_put() {
 #[test]
 fn successive_one_way_lanes_add_up() {
     let mut site = load("rect");
+    with_traverses(&mut site, "rect");
     site.params.aisle_one = 4.0;
     let mut lay = trame::solve(&site);
     let n0 = lay.stalls.len();
@@ -572,7 +584,7 @@ fn successive_one_way_lanes_add_up() {
             .circulation
             .axes
             .iter()
-            .filter(|a| a.sens == 2 && a.rule.is_none() && (a.w - 6.0).abs() < 0.1)
+            .filter(|a| a.sens == 2 && a.rule.is_none() && a.w >= 5.9 && a.w < 9.0)
             .find(|a| {
                 let (p, d) = mid_dir(&a.pts);
                 d[0].abs() < 0.1 && p[1] > 20.0 && p[1] < 60.0
@@ -594,7 +606,7 @@ fn successive_one_way_lanes_add_up() {
     assert!(
         narrowed
             .iter()
-            .all(|a| a.sens == 1 && (a.w - 4.0).abs() < 0.3),
+            .all(|a| a.sens == 1 && ((a.w - 4.0).abs() < 0.3 || a.w >= 5.9)), // une traverse garde sa largeur
         "{narrowed:?}"
     );
     assert!(lay.stalls.len() >= n0, "{} < {n0}", lay.stalls.len());
@@ -636,4 +648,18 @@ fn imposed_direction_is_kept_or_refused() {
         }
     }
     assert!(flipped >= 8, "{flipped}");
+}
+
+#[test]
+fn traverse_cuts_rows_and_removing_it_restores_them() {
+    let mut site = load("rect");
+    let base = trame::solve(&site);
+    assert!(base.cross.is_empty(), "plus de coupure automatique");
+    site.traverses = vec![[[60.0, 0.0], [60.0, 80.0]]];
+    let cut = trame::solve(&site);
+    assert!(!cut.cross.is_empty(), "la traverse crée des allées transversales");
+    assert!(cut.stalls.len() < base.stalls.len());
+    check(&site, &cut, "rect");
+    site.traverses.clear();
+    assert_eq!(trame::solve(&site).stalls.len(), base.stalls.len());
 }

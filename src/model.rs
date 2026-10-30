@@ -31,6 +31,9 @@ pub struct Site {
     /// Repères (milieux d'axe) des noues supprimées depuis le squelette des noues.
     #[serde(default)]
     pub noue_off: Vec<[f64; 2]>,
+    /// Traverses tracées depuis le squelette : segments (monde) qui coupent les rangées en allées transversales.
+    #[serde(default)]
+    pub traverses: Vec<[[f64; 2]; 2]>,
     #[serde(default)]
     pub params: Params,
 }
@@ -105,8 +108,6 @@ pub struct Params {
     pub planter_every: u32,
     /// Longueur des îlots d'extrémité de rangée (m, 0 = aucun).
     pub cap: f64,
-    /// Longueur maximale d'une rangée avant allée transversale (m, 0 = illimitée).
-    pub max_run: f64,
     /// Trottoir autour des bâtiments (m).
     pub building_margin: f64,
     /// Places périphériques le long des limites.
@@ -152,7 +153,6 @@ impl Default for Params {
             irve_equip_ratio: 0.05,
             planter_every: 8,
             cap: 1.5,
-            max_run: 60.0,
             building_margin: 2.0,
             perimeter: true,
             angle: None,

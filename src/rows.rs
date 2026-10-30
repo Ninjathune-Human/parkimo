@@ -120,10 +120,6 @@ fn row_starts(
     landed
 }
 
-fn aisle_slots(p: &Params) -> i64 {
-    ((p.aisle + 2.0 * p.cap) / p.stall_w - 1e-9).ceil() as i64
-}
-
 /// Estimation rapide du nombre de places d'une demi-rangée.
 fn quick_count(iv: &[(f64, f64)], p: &Params) -> f64 {
     let w = p.stall_w;
@@ -135,10 +131,6 @@ fn quick_count(iv: &[(f64, f64)], p: &Params) -> f64 {
             continue;
         }
         let mut n = (len / w + 1e-9).floor();
-        if p.max_run > 0.0 && n * w > p.max_run {
-            let m = (n * w / p.max_run).ceil() - 1.0;
-            n -= m * aisle_slots(p) as f64;
-        }
         if k > 0.0 {
             n -= (n / (k + 1.0)).floor();
         }
@@ -335,29 +327,34 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, nw: f64, rf: f64, rot: (f64, 
     let (kmin, mut v) = valid(g);
     let n = v[0].len();
 
-    // Allées transversales sur les longues rangées.
+    // Traverses tracées par le concepteur : chaque segment coupe la rangée en une allée transversale
+    // (créneaux de places retirés, largeur d'allée plus les îlots d'extrémité).
     let mut aisle = vec![false; n];
-    if p.max_run > 0.0 {
-        let sa = aisle_slots(p) as usize;
-        let mut i = 0;
-        while i < n {
-            if !(v[0][i] || v[1][i]) {
-                i += 1;
+    if !acc.traverses.is_empty() {
+        let y1 = y0 + 2.0 * d + nw;
+        let (c, sn) = (rot.0, -rot.1);
+        for t in &acc.traverses {
+            let a = V2 { x: t[0][0], y: t[0][1] }.rot(c, sn);
+            let b = V2 { x: t[1][0], y: t[1][1] }.rot(c, sn);
+            let (dx, dy) = (b.x - a.x, b.y - a.y);
+            let len = dx.hypot(dy);
+            if len < 1e-6 || dy.abs() < 0.2 * len {
+                continue; // une traverse parallèle aux rangées n'en coupe aucune
+            }
+            let (t0, t1) = (((y0 - a.y) / dy).min((y1 - a.y) / dy), ((y0 - a.y) / dy).max((y1 - a.y) / dy));
+            let (t0, t1) = (t0.max(0.0), t1.min(1.0));
+            if t0 > t1 {
                 continue;
             }
-            let start = i;
-            while i < n && (v[0][i] || v[1][i]) {
-                i += 1;
-            }
-            let len = i - start;
-            if len as f64 * w > p.max_run {
-                let m = ((len as f64 * w) / p.max_run).ceil() as usize - 1;
-                for t in 1..=m {
-                    let c = start + (t * len) / (m + 1);
-                    let a0 = c.saturating_sub(sa / 2).max(start);
-                    for k in a0..(a0 + sa).min(i) {
-                        aisle[k] = true;
-                    }
+            let (xa, xb) = (a.x + dx * t0, a.x + dx * t1);
+            let hw = (p.aisle * 0.5 + cap) / (dy.abs() / len);
+            let (lo, hi) = (xa.min(xb) - hw, xa.max(xb) + hw);
+            // Le moins de créneaux possible, centrés sur la traverse.
+            let m = (((hi - lo) / w) - 1e-6).ceil().max(1.0) as i64;
+            let first = ((((lo + hi) * 0.5 - m as f64 * w * 0.5 - g) / w).round() as i64) - kmin;
+            for k in first..first + m {
+                if k >= 0 && (k as usize) < n {
+                    aisle[k as usize] = true;
                 }
             }
         }

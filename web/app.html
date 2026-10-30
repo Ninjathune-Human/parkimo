@@ -421,6 +421,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
     <button class="mi" role="menuitem" data-add="buildingL"><span class="glyph" style="background:var(--building);clip-path:polygon(0 0,40% 0,40% 60%,100% 60%,100% 100%,0 100%)"></span><span>Bâtiment en L</span></button>
     <button class="mi" role="menuitem" data-add="landscape"><span class="glyph" style="background:var(--island)"></span><span>Espace vert<small>Zone plantée imposée</small></span></button>
     <button class="mi" role="menuitem" data-add="basin"><span class="glyph" style="background:var(--island);box-shadow:inset 0 0 0 2px var(--tree-edge)"></span><span>Bassin de rétention<small>Zone verte en creux, talus haut et bas</small></span></button>
+    <button class="mi" role="menuitem" data-add="traverse"><span class="glyph" style="background:var(--asphalt)"></span><span>Traverse<small>Voie transversale qui coupe les rangées</small></span></button>
     <button class="mi" role="menuitem" data-add="exclusion"><span class="glyph" style="background:var(--excl);opacity:.8"></span><span>Servitude<small>Zone inondable, réseau, emprise interdite</small></span></button>
     <button class="mi" role="menuitem" data-add="entry"><span class="glyph" style="background:var(--asphalt)"></span><span>Accès véhicules<small>Sur la limite de parcelle</small></span></button>
   </div>
@@ -446,7 +447,6 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <div class="eyebrow">Paysage</div>
       <div class="field"><label for="p-planter_every">Îlot planté toutes les</label><span class="unit"><input id="p-planter_every" type="text" inputmode="decimal" autocomplete="off">places</span></div>
       <div class="field"><label for="p-cap">Îlot en bout de rangée</label><span class="unit"><input id="p-cap" type="text" inputmode="decimal" autocomplete="off">m</span></div>
-      <div class="field"><label for="p-max_run">Rangée continue maximale</label><span class="unit"><input id="p-max_run" type="text" inputmode="decimal" autocomplete="off">m</span></div>
     </div>
     <div class="pgroup">
       <div class="eyebrow">Quotas</div>
@@ -598,7 +598,7 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((res) => setTimeout(
 // ============================================================================
 // Données : sites d'exemple (mètres, repère local, y vers le haut).
 // ============================================================================
-const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, basin_margin: 2, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, max_run: 60, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null };
+const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, basin_margin: 2, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null };
 
 function arc(cx, cy, r, a0, a1, n) {
   const pts = [];
@@ -671,10 +671,10 @@ function engineInput(quick) {
   return {
     ...flatSite(), exclusions: site.exclusions.map(polyOutline),
     buildings: site.buildings.map((b) => { const d = doorGeom(b); return { poly: rectPoly(b), entrance: [d.p[0] + d.n[0] * params.building_margin, d.p[1] + d.n[1] * params.building_margin], door: { p: d.p, n: d.n, w: Math.min(params.door_w, d.L) } }; }),
-    landscapes: site.landscapes.map(polyOutline), basins: (site.basins || []).map(polyOutline), lanes: site.lanes || [], noue_off: site.noue_off || [],
+    landscapes: site.landscapes.map(polyOutline), basins: (site.basins || []).map(polyOutline), lanes: site.lanes || [], noue_off: site.noue_off || [], traverses: site.traverses || [],
     params: {
       stall_w: p.stall_w, stall_d: p.stall_d, noue_w: p.noue_w, basin_h: p.basin_h, basin_margin: p.basin_margin, aisle: p.aisle, aisle_one: p.aisle_one, entry_w: p.entry_w, building_margin: p.building_margin,
-      planter_every: Math.max(0, Math.round(p.planter_every)), cap: p.cap, max_run: p.max_run,
+      planter_every: Math.max(0, Math.round(p.planter_every)), cap: p.cap,
       pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100, irve_equip_ratio: p.irve_equip_ratio / 100,
       angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle,
     },
@@ -812,6 +812,21 @@ function toggleNoue(i) {
   site.noue_off = (site.noue_off || []).filter((p) => distSeg(p, ra, rb)[0] >= 0.75);
   if (!off) site.noue_off.push(mid);
   solve(false); commit(); markMine(); toast(off ? "Noue rétablie" : "Noue supprimée");
+}
+// Traverses du concepteur : segment, deux poignées d'extrémité et, au milieu, la croix qui la supprime.
+function drawTraverses() {
+  const T = site.traverses || []; if (!T.length) return;
+  ctx.save(); ctx.lineCap = "round";
+  for (const t of T) {
+    const a = toS(t[0]), b = toS(t[1]), cx = (a[0] + b[0]) / 2, cy = (a[1] + b[1]) / 2;
+    ctx.strokeStyle = C.accent; ctx.lineWidth = 3; ctx.setLineDash([9, 6]); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); ctx.setLineDash([]);
+    for (const q of [a, b]) { ctx.beginPath(); ctx.arc(q[0], q[1], 6, 0, Math.PI * 2); ctx.fillStyle = C["glass-solid"]; ctx.fill(); ctx.lineWidth = 2; ctx.stroke(); }
+    ctx.save(); ctx.shadowColor = "rgba(0, 0, 0, .22)"; ctx.shadowBlur = 8; ctx.shadowOffsetY = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, 13, 0, Math.PI * 2); ctx.fillStyle = C["glass-solid"]; ctx.fill(); ctx.restore();
+    ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, 13, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx - 4.5, cy - 4.5); ctx.lineTo(cx + 4.5, cy + 4.5); ctx.moveTo(cx + 4.5, cy - 4.5); ctx.lineTo(cx - 4.5, cy + 4.5); ctx.stroke();
+  }
+  ctx.restore();
 }
 function drawNoueSkeleton() {
   noueBtns = []; const list = layout && !layout.error && layout.noues; if (!list) return;
@@ -968,7 +983,7 @@ function draw() {
     }
     // Couche Habillage : véhicules sous les arbres
     drawDressing();
-    if (SKEL) drawSkeleton();
+    if (SKEL) { drawSkeleton(); drawTraverses(); }
     if (NSKEL) drawNoueSkeleton(); else noueBtns = [];
   }
 
@@ -1317,6 +1332,14 @@ const snap = (x, s) => +(Math.round(x / s) * s).toFixed(3);
 function hitTest(w) {
   const h = HIT(), h2 = h * h;
   if (hoverEdge) { const part = edgeBtnAt(toS(w)); if (part) return { kind: "ebtn", ref: hoverEdge, part }; }
+  if (SKEL) {
+    const sp = toS(w), T = site.traverses || [];
+    for (let i = 0; i < T.length; i++) {
+      const a = toS(T[i][0]), b = toS(T[i][1]);
+      for (let k = 0; k < 2; k++) { const q = k ? b : a; if (Math.hypot(sp[0] - q[0], sp[1] - q[1]) <= 14) return { kind: "tend", i, k }; }
+      if (Math.hypot(sp[0] - (a[0] + b[0]) / 2, sp[1] - (a[1] + b[1]) / 2) <= 19) return { kind: "tbtn", i };
+    }
+  }
   if (NSKEL) { const sp = toS(w); for (const b of noueBtns) if (Math.hypot(sp[0] - b.x, sp[1] - b.y) <= b.R + 6) return { kind: "nbtn", i: b.i }; }
   if (SKEL) { const sp = toS(w); for (const b of pills) if (Math.abs(sp[0] - b.x) <= PILL.w / 2 + 4 && Math.abs(sp[1] - b.y) <= PILL.h / 2 + 6) return { kind: "pill", i: b.i, part: sp[0] < b.x ? "dir" : "lanes" }; }
   if (sel && sel.type === "building") {
@@ -1433,7 +1456,8 @@ canvas.addEventListener("pointermove", (ev) => {
       Object.assign(o, { w: nw, h: nh, cx: opp[0] + c[0], cy: opp[1] + c[1] });
       break;
     }
-    case "pedge": case "cadastre": case "pill": case "ebtn": drag.kind = "pan"; return;
+    case "tend": site.traverses[h.i][h.k] = [snap(w[0], 0.1), snap(w[1], 0.1)]; break;
+    case "pedge": case "cadastre": case "pill": case "ebtn": case "nbtn": case "tbtn": drag.kind = "pan"; return;
   }
   updateSelbar(); requestSolve(true);
 });
@@ -1452,6 +1476,7 @@ function endPointer(ev) {
   lastTap = { t: dbl ? 0 : now, x: sp[0], y: sp[1] };
   const h = d.hit;
   if (h && h.kind === "nbtn") { toggleNoue(h.i); return; }
+  if (h && h.kind === "tbtn") { site.traverses.splice(h.i, 1); solve(false); commit(); markMine(); toast("Traverse supprimée"); return; }
   if (h && h.kind === "pill") { (h.part === "dir" ? reverseLane : toggleLanes)(h.i); return; }
   if (h && h.kind === "ebtn") { (h.part === "add" ? insertVertexRef(h.ref, 0.5) : curveRef(h.ref)); return; }
   if (dbl && h) {
@@ -1562,6 +1587,12 @@ function addObject(kind) {
     const r = 24; site.exclusions.push([[c[0] - r * 1.6, c[1] - 4], [c[0] - r * 0.4, c[1] - 7], [c[0] + r * 0.6, c[1] - 3], [c[0] + r * 1.6, c[1] - 6], [c[0] + r * 1.6, c[1] + 6], [c[0] + r * 0.4, c[1] + 8], [c[0] - r * 0.7, c[1] + 4], [c[0] - r * 1.6, c[1] + 6]].map((p) => p.map((v) => +v.toFixed(2))));
     setSel({ type: "exclusion", i: site.exclusions.length - 1 });
   }
+  if (kind === "traverse") {
+    const a = (layout && !layout.error ? layout.angle : 0) * Math.PI / 180, ux = -Math.sin(a) * 15, uy = Math.cos(a) * 15;
+    (site.traverses = site.traverses || []).push([[+(c[0] - ux).toFixed(2), +(c[1] - uy).toFixed(2)], [+(c[0] + ux).toFixed(2), +(c[1] + uy).toFixed(2)]]);
+    if (!SKEL) { SKEL = true; $("#p-skel").checked = true; try { localStorage.setItem("trame.skel", "1"); } catch (e) { /* stockage indisponible */ } }
+    toast("Traverse ajoutée : déplacez ses extrémités, la croix la supprime");
+  }
   if (kind === "entry") {
     const best = nearEdge(c);
     if (best) { site.entries.push({ edge: best.i, t: Math.max(0.1, Math.min(0.9, best.t)) }); setSel({ type: "entry", i: site.entries.length - 1 }); }
@@ -1629,7 +1660,7 @@ window.addEventListener("keydown", (ev) => {
 // ============================================================================
 // Hypothèses.
 // ============================================================================
-const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "max_run", "pmr_ratio", "irve_ratio", "irve_equip_ratio"];
+const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "pmr_ratio", "irve_ratio", "irve_equip_ratio"];
 function syncParamsUI() {
   for (const k of PKEYS) $("#p-" + k).value = String(params[k]).replace(".", ",");
   const auto = params.angle === null;
