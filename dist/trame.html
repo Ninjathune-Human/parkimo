@@ -644,9 +644,9 @@ function polyArea(p) { let a = 0; for (let i = 0; i < p.length; i++) { const q =
 function engineInput(quick) {
   const p = params;
   return {
-    ...flatSite(), exclusions: site.exclusions,
+    ...flatSite(), exclusions: site.exclusions.map(polyOutline),
     buildings: site.buildings.map((b) => ({ poly: rectPoly(b) })),
-    landscapes: site.landscapes, lanes: site.lanes || [],
+    landscapes: site.landscapes.map(polyOutline), lanes: site.lanes || [],
     params: {
       stall_w: p.stall_w, stall_d: p.stall_d, aisle: p.aisle, aisle_one: p.aisle_one, entry_w: p.entry_w, building_margin: p.building_margin,
       planter_every: Math.max(0, Math.round(p.planter_every)), cap: p.cap, max_run: p.max_run,
@@ -712,7 +712,7 @@ function placeSide() {
 function workBounds() {
   const pts = outline();
   for (const o of site.buildings) pts.push(...rectPoly(o));
-  for (const e of [...site.exclusions, ...site.landscapes]) pts.push(...e);
+  for (const e of [...site.exclusions, ...site.landscapes]) pts.push(...polyOutline(e));
   if (layout && !layout.error && site.parcel.length >= 3) for (const q of layout.entries) pts.push(...q);
   if (!pts.length && baseShown()) { const r = basemap.rect; pts.push([r.x0, r.y0], [r.x1, r.y1]); }
   if (!pts.length) return null;
@@ -797,7 +797,7 @@ function draw() {
   // Parcelle (pleine terre), translucide sur la photo aérienne
   ctx.beginPath(); pathPoly(outline()); ctx.fillStyle = C.parcel; ctx.globalAlpha = baseShown() && VIS.photo && basemap.img ? 0.55 : 1; ctx.fill(); ctx.globalAlpha = 1;
   // Calque Bâtiments et espaces verts : espaces verts imposés (leurs arbres relèvent de l'habillage)
-  if (VIS.pbati) site.landscapes.forEach((p) => fillPoly(p, C.island));
+  if (VIS.pbati) site.landscapes.forEach((p) => fillPoly(polyOutline(p), C.island));
 
   if (layout && !layout.error) {
     // Calque Voirie
@@ -834,10 +834,10 @@ function draw() {
 
   // Calque Servitudes
   if (VIS.servitudes) site.exclusions.forEach((e) => {
-    ctx.save(); ctx.beginPath(); pathPoly(e); ctx.clip();
+    ctx.save(); ctx.beginPath(); pathPoly(polyOutline(e)); ctx.clip();
     ctx.fillStyle = C.excl; ctx.globalAlpha = 0.3; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
     ctx.fillStyle = hatchPattern(); ctx.fillRect(0, 0, W, H); ctx.restore();
-    ctx.beginPath(); pathPoly(e); ctx.strokeStyle = C.excl; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.beginPath(); pathPoly(polyOutline(e)); ctx.strokeStyle = C.excl; ctx.lineWidth = 1.2; ctx.stroke();
   });
   // Calque Bâtiments et espaces verts : bâtiments
   if (VIS.pbati) site.buildings.forEach((b) => {
@@ -917,11 +917,12 @@ function drawScale(pxPerM) {
 // N : nombre de côtés quand l'arc est discrétisé (moteur, tracé), un côté tous les 4° environ.
 const ARC_MAX = 0.5;
 const arcK = (i) => (site.arcs && site.arcs[i]) || 0;
-function edgeInfo(i) {
-  const P = site.parcel, a = P[i], b = P[(i + 1) % P.length];
+function edgeInfo(i) { return edgeG(site.parcel, i, arcK(i)); }
+function edgeG(P, i, k0) {
+  const a = P[i], b = P[(i + 1) % P.length];
   const sgn = Math.sign(polyArea(P)) || 1, dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
   const u = [dx / L, dy / L], n = [-u[1] * sgn, u[0] * sgn], mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-  const k = Math.max(-ARC_MAX, Math.min(ARC_MAX, arcK(i)));
+  const k = Math.max(-ARC_MAX, Math.min(ARC_MAX, k0));
   const e = { a, b, u, n, L, mid, k, apex: mid, N: 1, at: (t) => [a[0] + dx * t, a[1] + dy * t], nAt: () => n };
   if (!k) return e;
   const s = k * L, o = [-n[0], -n[1]], tot = 4 * Math.atan(2 * Math.abs(k)), R = (L * L / 4 + s * s) / (2 * Math.abs(s)), dc = s - Math.sign(s) * R;
@@ -935,6 +936,37 @@ function edgeInfo(i) {
 }
 // Contour discrétisé de la parcelle (arcs en côtés) : tracé, cadrage, moteur.
 function outline() { const out = []; for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); for (let j = 0; j < e.N; j++) out.push(j ? e.at(j / e.N) : e.a); } return out; }
+// Servitudes et espaces verts : le sommet [x, y, k] porte la flèche k de l'arête qui en part.
+const vk = (p) => p[2] || 0;
+function polyOutline(P) { const out = []; for (let i = 0; i < P.length; i++) { const e = edgeG(P, i, vk(P[i])); for (let j = 0; j < e.N; j++) out.push(j ? e.at(j / e.N) : [e.a[0], e.a[1]]); } return out; }
+// Référence d'une arête : { g: "parcel" | "exclusion" | "landscape", o: objet, i: arête }.
+function ringOf(r) { return r.g === "parcel" ? site.parcel : (site[POLY[r.g]] || [])[r.o]; }
+const kOf = (r) => (r.g === "parcel" ? arcK(r.i) : vk(ringOf(r)[r.i]));
+function setK(r, k) { if (r.g === "parcel") { ensureArcs(); site.arcs[r.i] = k; } else { const P = ringOf(r), p = P[r.i]; P[r.i] = k ? [p[0], p[1], k] : [p[0], p[1]]; } }
+function edgeRef(r) { const P = ringOf(r); return P && r.i < P.length ? edgeG(P, r.i, kOf(r)) : null; }
+const sameRef = (a, b) => (!a && !b) || (a && b && a.g === b.g && a.o === b.o && a.i === b.i);
+function eachRing(fn) {
+  fn({ g: "parcel" }, site.parcel);
+  if (VIS.pbati) site.landscapes.forEach((P, o) => fn({ g: "landscape", o }, P));
+  if (VIS.servitudes) site.exclusions.forEach((P, o) => fn({ g: "exclusion", o }, P));
+}
+function nearRing(P, kf, w) {
+  let best = null;
+  for (let i = 0; i < P.length; i++) {
+    const e = edgeG(P, i, kf(i)); let prev = e.a;
+    for (let j = 1; j <= e.N; j++) { const q = e.at(j / e.N), [d, t] = distSeg(w, prev, q); if (!best || d < best.d) best = { d, i, t: (j - 1 + t) / e.N }; prev = q; }
+  }
+  return best;
+}
+function nearAnyEdge(w) {
+  let best = null;
+  eachRing((r, P) => { if (P.length < 3) return; const nb = nearRing(P, r.g === "parcel" ? arcK : (i) => vk(P[i]), w); if (nb && (!best || nb.d < best.d)) best = { d: nb.d, t: nb.t, ref: { ...r, i: nb.i } }; });
+  return best;
+}
+// Coupe un arc de flèche k au paramètre t : deux arcs du même cercle ; les fusionne.
+const arcSplit = (k, t) => { const th = 4 * Math.atan(2 * k); return [Math.tan(th * t / 4) / 2, Math.tan(th * (1 - t) / 4) / 2]; };
+const arcJoin = (k1, k2) => Math.max(-ARC_MAX, Math.min(ARC_MAX, Math.tan((4 * Math.atan(2 * k1) + 4 * Math.atan(2 * k2)) / 4) / 2));
+const withK = (x, y, k) => (k ? [x, y, +k.toFixed(5)] : [x, y]);
 // Même contour pour le moteur : reculs répétés, accès recalés sur le côté qui les porte.
 function flatSite() {
   const parcel = [], setbacks = [], off = [];
@@ -943,26 +975,18 @@ function flatSite() {
   return { parcel, setbacks, entries };
 }
 // Point de la limite le plus proche : { d, i, t }.
-function nearEdge(w) {
-  let best = null;
-  for (let i = 0; i < site.parcel.length; i++) {
-    const e = edgeInfo(i); let prev = e.a;
-    for (let j = 1; j <= e.N; j++) { const q = e.at(j / e.N), [d, t] = distSeg(w, prev, q); if (!best || d < best.d) best = { d, i, t: (j - 1 + t) / e.N }; prev = q; }
-  }
-  return best;
-}
+function nearEdge(w) { return nearRing(site.parcel, arcK, w); }
 // Poignée d'un arc : au-delà du sommet de l'arc (côté extérieur), pour ne pas masquer un accès posé au milieu.
 const KNOB = 20;
-function arcKnob(i) { const e = edgeInfo(i), d = KNOB / view.s * Math.sign(e.k); return [e.apex[0] - e.n[0] * d, e.apex[1] - e.n[1] * d]; }
+function arcKnob(r) { const e = edgeRef(r), d = KNOB / view.s * Math.sign(e.k); return [e.apex[0] - e.n[0] * d, e.apex[1] - e.n[1] * d]; }
 function setbackHandle(i) { const e = edgeInfo(i), s = Math.max(site.setbacks[i] || 0, 0); return [e.apex[0] + e.n[0] * s, e.apex[1] + e.n[1] * s]; }
 function entryPoint(en) { return edgeInfo(en.edge).at(en.t); }
 function objCorners(o) { const c = Math.cos(o.rot * Math.PI / 180), s = Math.sin(o.rot * Math.PI / 180), w = o.w / 2, h = o.h / 2; return [[-w, -h], [w, -h], [w, h], [-w, h]].map(([x, y]) => [o.cx + x * c - y * s, o.cy + x * s + y * c]); }
 function rotHandle(o) { const c = Math.cos(o.rot * Math.PI / 180), s = Math.sin(o.rot * Math.PI / 180), d = o.h / 2 + 18 / view.s * 1.6; return [o.cx - d * s, o.cy + d * c]; }
 
 // Boutons au milieu d'une limite survolée : ajouter un sommet, arrondir le segment.
-function edgeBtns(i) {
-  if (i === null || i >= site.parcel.length) return [];
-  const e = edgeInfo(i); if (e.L * view.s < 100) return [];
+function edgeBtns(r) {
+  const e = r && edgeRef(r); if (!e || e.L * view.s < 100) return [];
   const m = toS(e.apex);
   // Boutons posés sur le segment, dans son inclinaison (écran) : « + » côté gauche (ou haut), arc côté droit.
   let ux = e.u[0], uy = -e.u[1]; if (ux < -1e-6 || (Math.abs(ux) <= 1e-6 && uy > 0)) { ux = -ux; uy = -uy; }
@@ -974,7 +998,7 @@ function drawEdgeBtns() {
   for (const b of edgeBtns(hoverEdge)) {
     ctx.save(); ctx.translate(b.x, b.y);
     ctx.shadowColor = "rgba(0, 0, 0, .22)"; ctx.shadowBlur = 6; ctx.shadowOffsetY = 1.5;
-    const on = b.part === "curve" && arcK(hoverEdge) !== 0;
+    const on = b.part === "curve" && kOf(hoverEdge) !== 0;
     ctx.beginPath(); ctx.arc(0, 0, EBTN.r, 0, Math.PI * 2); ctx.fillStyle = on ? C.accent : C["glass-solid"]; ctx.fill();
     ctx.shadowColor = "transparent"; ctx.strokeStyle = C.sep; ctx.lineWidth = 1; ctx.stroke();
     ctx.strokeStyle = on ? C.ground : C.accent; ctx.lineWidth = 1.5; ctx.lineCap = "round"; ctx.beginPath();
@@ -989,11 +1013,11 @@ function edgeBtnAt(sp) {
 }
 function edgeUnder(sp) {
   if (mode !== "edit" || !site.parcel.length) return null;
-  if (hoverEdge !== null) { const b = edgeBtns(hoverEdge)[0]; if (b && Math.hypot(sp[0] - b.mx, sp[1] - b.my) <= EBTN.gap + EBTN.r + 8) return hoverEdge; }
-  const nb = nearEdge(toW(sp[0], sp[1]));
-  return nb && nb.d * view.s < 12 && edgeInfo(nb.i).L * view.s >= 100 ? nb.i : null;
+  if (hoverEdge) { const b = edgeBtns(hoverEdge)[0]; if (b && Math.hypot(sp[0] - b.mx, sp[1] - b.my) <= EBTN.gap + EBTN.r + 8) return hoverEdge; }
+  const nb = nearAnyEdge(toW(sp[0], sp[1]));
+  return nb && nb.d * view.s < 12 && edgeRef(nb.ref).L * view.s >= 100 ? nb.ref : null;
 }
-function setHoverEdge(i) { if (i !== hoverEdge) { hoverEdge = i; redraw(); } }
+function setHoverEdge(r) { if (!sameRef(r, hoverEdge)) { hoverEdge = r; redraw(); } }
 
 function drawHandles() {
   if (mode === "draw") return;
@@ -1009,11 +1033,12 @@ function drawHandles() {
     ctx.fillText(fmt1(site.setbacks[i] || 0) + " m", lx, ly);
   }
   // Poignée des arcs : glisser pour régler la flèche
-  for (let i = 0; i < site.parcel.length; i++) if (arcK(i) && edgeInfo(i).L * view.s >= 40) {
-    const q = toS(edgeInfo(i).apex), p = toS(arcKnob(i)), on = drag && drag.hit && drag.hit.kind === "arc" && drag.hit.i === i;
+  eachRing((r, P) => { for (let i = 0; i < P.length; i++) {
+    const ref = { ...r, i }; if (!kOf(ref) || edgeRef(ref).L * view.s < 40) continue;
+    const q = toS(edgeRef(ref).apex), p = toS(arcKnob(ref)), on = drag && drag.hit && drag.hit.kind === "arc" && sameRef(drag.hit.ref, ref);
     ctx.strokeStyle = C.accent; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(q[0], q[1]); ctx.lineTo(p[0], p[1]); ctx.stroke();
     ctx.beginPath(); ctx.arc(p[0], p[1], 5.5, 0, Math.PI * 2); ctx.fillStyle = on ? C.accent : C.ground; ctx.fill(); ctx.strokeStyle = C.accent; ctx.lineWidth = 1.8; ctx.stroke();
-  }
+  } });
   // Accès
   site.entries.forEach((en, i) => {
     if (en.edge >= site.parcel.length) return;
@@ -1046,7 +1071,7 @@ function drawHandles() {
   }
   if (POLY[sel.type]) {
     const e = site[POLY[sel.type]][sel.i];
-    ctx.beginPath(); pathPoly(e); ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); pathPoly(polyOutline(e)); ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.stroke();
     e.forEach((v, k) => squareHandle(toS(v), sel.v === k));
   }
 }
@@ -1138,7 +1163,7 @@ const snap = (x, s) => +(Math.round(x / s) * s).toFixed(3);
 
 function hitTest(w) {
   const h = HIT(), h2 = h * h;
-  if (hoverEdge !== null) { const part = edgeBtnAt(toS(w)); if (part) return { kind: "ebtn", i: hoverEdge, part }; }
+  if (hoverEdge) { const part = edgeBtnAt(toS(w)); if (part) return { kind: "ebtn", ref: hoverEdge, part }; }
   if (SKEL) { const sp = toS(w); for (const b of pills) if (Math.abs(sp[0] - b.x) <= PILL.w / 2 + 4 && Math.abs(sp[1] - b.y) <= PILL.h / 2 + 6) return { kind: "pill", i: b.i, part: sp[0] < b.x ? "dir" : "lanes" }; }
   if (sel && sel.type === "building") {
     const o = site.buildings[sel.i];
@@ -1150,11 +1175,11 @@ function hitTest(w) {
   }
   for (let i = 0; i < site.entries.length; i++) if (site.entries[i].edge < site.parcel.length && dist2(w, entryPoint(site.entries[i])) < h2 * 1.3) return { kind: "entry", i };
   for (let i = 0; i < site.parcel.length; i++) if (dist2(w, site.parcel[i]) < h2) return { kind: "vertex", i };
-  for (let i = 0; i < site.parcel.length; i++) if (arcK(i) && dist2(w, arcKnob(i)) < h2) return { kind: "arc", i, s: Math.sign(arcK(i)) };
+  { let hit = null; eachRing((r, P) => { for (let i = 0; i < P.length && !hit; i++) { const ref = { ...r, i }, k = kOf(ref); if (k && dist2(w, arcKnob(ref)) < h2) hit = { kind: "arc", ref, s: Math.sign(k) }; } }); if (hit) return hit; }
   if (VIS.recul) for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); if (e.L * view.s >= 40 && dist2(w, setbackHandle(i)) < h2) return { kind: "setback", i }; }
   if (VIS.pbati) for (let i = site.buildings.length - 1; i >= 0; i--) if (pointInPoly(w, rectPoly(site.buildings[i]))) return { kind: "move", type: "building", i };
-  if (VIS.pbati) for (let i = site.landscapes.length - 1; i >= 0; i--) { const e = site.landscapes[i]; if (pointInPoly(w, e)) return { kind: "move", type: "landscape", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "landscape", i }; }
-  if (VIS.servitudes) for (let i = site.exclusions.length - 1; i >= 0; i--) { const e = site.exclusions[i]; if (pointInPoly(w, e)) return { kind: "move", type: "exclusion", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "exclusion", i }; }
+  if (VIS.pbati) for (let i = site.landscapes.length - 1; i >= 0; i--) { const e = polyOutline(site.landscapes[i]); if (pointInPoly(w, e)) return { kind: "move", type: "landscape", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "landscape", i }; }
+  if (VIS.servitudes) for (let i = site.exclusions.length - 1; i >= 0; i--) { const e = polyOutline(site.exclusions[i]); if (pointInPoly(w, e)) return { kind: "move", type: "exclusion", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "exclusion", i }; }
   { const nb = nearEdge(w); if (nb && nb.d < h * 0.7) return { kind: "pedge", i: nb.i, t: nb.t }; }
   const ci = cadParcelAt(w); if (ci >= 0) return { kind: "cadastre", i: ci };
   return null;
@@ -1171,8 +1196,8 @@ function updateSelbar() {
   if (sel.type === "cadastre") { const f = basemap.layers.parcelles[sel.i]; $("#sel-what").textContent = "Parcelle " + cadName(f); $("#sel-dim").textContent = [f.p.contenance ? fmtInt(f.p.contenance) + " m²" : "", f.p.nom_com].filter(Boolean).join(" · "); return; }
   let what = "", dim = "";
   if (sel.type === "building") { const b = site.buildings[sel.i]; what = b.shape === "L" ? "Bâtiment en L" : "Bâtiment"; dim = fmtInt(Math.abs(polyArea(rectPoly(b)))) + " m²"; shape.textContent = b.shape === "L" ? "Forme rectangle" : "Forme en L"; }
-  if (sel.type === "landscape") { what = "Espace vert"; dim = fmtInt(Math.abs(polyArea(site.landscapes[sel.i]))) + " m²"; }
-  if (sel.type === "exclusion") { what = "Servitude"; dim = fmtInt(Math.abs(polyArea(site.exclusions[sel.i]))) + " m²"; }
+  if (sel.type === "landscape") { what = "Espace vert"; dim = fmtInt(Math.abs(polyArea(polyOutline(site.landscapes[sel.i])))) + " m²"; }
+  if (sel.type === "exclusion") { what = "Servitude"; dim = fmtInt(Math.abs(polyArea(polyOutline(site.exclusions[sel.i])))) + " m²"; }
   if (sel.type === "entry") { what = "Accès véhicules"; dim = "limite " + (site.entries[sel.i].edge + 1); }
   if (sel.type === "vertex") { what = "Sommet " + (sel.i + 1); const v = site.parcel[sel.i]; dim = `${fmt1(v[0])} ; ${fmt1(v[1])}`; }
   $("#sel-what").textContent = what; $("#sel-dim").textContent = dim;
@@ -1229,15 +1254,15 @@ canvas.addEventListener("pointermove", (ev) => {
     case "pan": view.ox += dx; view.oy += dy; drag.sp = sp; redraw(); return;
     case "vertex": site.parcel[h.i] = [snap(w[0], 0.1), snap(w[1], 0.1)]; break;
     case "setback": { const e = edgeInfo(h.i); const s = (w[0] - e.apex[0]) * e.n[0] + (w[1] - e.apex[1]) * e.n[1]; site.setbacks[h.i] = Math.max(0, Math.min(40, snap(s, 0.5))); break; }
-    case "arc": { const e = edgeInfo(h.i); let sg = -((w[0] - e.mid[0]) * e.n[0] + (w[1] - e.mid[1]) * e.n[1]); sg -= h.s * KNOB / view.s; let k = Math.max(-ARC_MAX, Math.min(ARC_MAX, snap(sg / e.L, 0.005))); if (Math.abs(k) < 0.01) k = 0; ensureArcs(); site.arcs[h.i] = k; break; }
+    case "arc": { const e = edgeRef(h.ref); let sg = -((w[0] - e.mid[0]) * e.n[0] + (w[1] - e.mid[1]) * e.n[1]); sg -= h.s * KNOB / view.s; let k = Math.max(-ARC_MAX, Math.min(ARC_MAX, snap(sg / e.L, 0.005))); if (Math.abs(k) < 0.01) k = 0; setK(h.ref, k); break; }
     case "entry": { const best = nearEdge(w); site.entries[h.i] = { edge: best.i, t: Math.max(0.02, Math.min(0.98, best.t)) }; break; }
     case "move": {
       const o0 = JSON.parse(drag.orig), ddx = w[0] - drag.w0[0], ddy = w[1] - drag.w0[1];
-      if (POLY[h.type]) site[POLY[h.type]][h.i] = o0[POLY[h.type]][h.i].map(([x, y]) => [x + ddx, y + ddy]);
+      if (POLY[h.type]) site[POLY[h.type]][h.i] = o0[POLY[h.type]][h.i].map(([x, y, ...r]) => [x + ddx, y + ddy, ...r]);
       else { const src = o0.buildings[h.i]; site.buildings[h.i] = { ...src, cx: snap(src.cx + ddx, 0.25), cy: snap(src.cy + ddy, 0.25) }; }
       break;
     }
-    case "evertex": site[POLY[h.type]][h.i][h.k] = [snap(w[0], 0.1), snap(w[1], 0.1)]; break;
+    case "evertex": { const P = site[POLY[h.type]][h.i]; P[h.k] = withK(snap(w[0], 0.1), snap(w[1], 0.1), vk(P[h.k])); break; }
     case "rotate": { const o = site.buildings[h.i]; let a = Math.atan2(w[1] - o.cy, w[0] - o.cx) * 180 / Math.PI - 90; a = snap(((a % 360) + 360) % 360, 1); for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); const ea = Math.atan2(e.u[1], e.u[0]) * 180 / Math.PI; for (const k of [0, 90, 180, 270]) { const t = ((ea + k) % 360 + 360) % 360; if (Math.abs(t - a) < 2.5) a = +t.toFixed(2); } } o.rot = a; break; }
     case "resize": {
       const o = site.buildings[h.i];
@@ -1268,15 +1293,15 @@ function endPointer(ev) {
   lastTap = { t: dbl ? 0 : now, x: sp[0], y: sp[1] };
   const h = d.hit;
   if (h && h.kind === "pill") { (h.part === "dir" ? reverseLane : toggleLanes)(h.i); return; }
-  if (h && h.kind === "ebtn") { (h.part === "add" ? insertParcelVertex(h.i, 0.5) : curveParcelEdge(h.i)); return; }
+  if (h && h.kind === "ebtn") { (h.part === "add" ? insertVertexRef(h.ref, 0.5) : curveRef(h.ref)); return; }
   if (dbl && h) {
     if (h.kind === "vertex" && site.parcel.length > 3) { removeParcelVertex(h.i); return; }
     if (h.kind === "pedge") { insertParcelVertex(h.i, h.t); return; }
-    if (h.kind === "evertex" && site[POLY[h.type]][h.i].length > 3) { site[POLY[h.type]][h.i].splice(h.k, 1); setSel({ type: h.type, i: h.i }); solve(false); commit(); return; }
-    if (h.kind === "move" && POLY[h.type]) { const e = site[POLY[h.type]][h.i], w = toW(sp[0], sp[1]); let best = null; for (let k = 0; k < e.length; k++) { const [dd, t] = distSeg(w, e[k], e[(k + 1) % e.length]); if (!best || dd < best.d) best = { d: dd, k, t }; } if (best.d < HIT()) { e.splice(best.k + 1, 0, [w[0], w[1]]); solve(false); commit(); redraw(); return; } }
+    if (h.kind === "evertex" && site[POLY[h.type]][h.i].length > 3) { removePolyVertex(h.type, h.i, h.k); return; }
+    if (h.kind === "move" && POLY[h.type]) { const P = site[POLY[h.type]][h.i], nb = nearRing(P, (i) => vk(P[i]), toW(sp[0], sp[1])); if (nb && nb.d < HIT()) { insertPolyVertex(h.type, h.i, nb.i, nb.t); return; } }
   }
   if (h && h.kind === "cadastre") { setSel({ type: "cadastre", i: h.i }); return; }
-  setHoverEdge(h && h.kind === "pedge" ? h.i : null);
+  { const nb = nearAnyEdge(toW(sp[0], sp[1])); setHoverEdge(nb && nb.d * view.s < 12 && edgeRef(nb.ref).L * view.s >= 100 ? nb.ref : null); }
   if (!h || h.kind === "pedge" || h.kind === "setback") setSel(null);
 }
 canvas.addEventListener("pointerup", endPointer);
@@ -1295,11 +1320,26 @@ function insertParcelVertex(i, t) {
   ensureArcs(); hoverEdge = null;
   const e = edgeInfo(i), q = e.at(t), p = [snap(q[0], 0.01), snap(q[1], 0.01)], k = site.arcs[i];
   // Un arc se coupe en deux arcs du même cercle ; angles proportionnels à t.
-  const half = (f) => { const th = 4 * Math.atan(2 * k) * f; return Math.tan(th / 4) / 2; };
   site.parcel.splice(i + 1, 0, p); site.setbacks.splice(i + 1, 0, site.setbacks[i] || 0);
-  site.arcs[i] = k ? half(t) : 0; site.arcs.splice(i + 1, 0, k ? half(1 - t) : 0);
+  const [k1, k2] = k ? arcSplit(k, t) : [0, 0]; site.arcs[i] = k1; site.arcs.splice(i + 1, 0, k2);
   site.entries.forEach((en) => { if (en.edge === i) { if (en.t > t) { en.edge = i + 1; en.t = (en.t - t) / (1 - t); } else en.t = en.t / t; } else if (en.edge > i) en.edge++; });
   setSel({ type: "vertex", i: i + 1 }); solve(false); commit(); markMine(); toast("Sommet ajouté");
+}
+function insertPolyVertex(g, o, i, t) {
+  const P = site[POLY[g]][o], e = edgeG(P, i, vk(P[i])), q = e.at(t), k = vk(P[i]), [k1, k2] = k ? arcSplit(k, t) : [0, 0];
+  hoverEdge = null; P[i] = withK(P[i][0], P[i][1], k1); P.splice(i + 1, 0, withK(snap(q[0], 0.01), snap(q[1], 0.01), k2));
+  setSel({ type: g, i: o, v: i + 1 }); solve(false); commit(); markMine(); toast("Sommet ajouté");
+}
+function removePolyVertex(g, o, k) {
+  const P = site[POLY[g]][o], n = P.length, pv = (k - 1 + n) % n;
+  P[pv] = withK(P[pv][0], P[pv][1], arcJoin(vk(P[pv]), vk(P[k]))); P.splice(k, 1);
+  setSel({ type: g, i: o }); solve(false); commit(); markMine();
+}
+const insertVertexRef = (r, t) => (r.g === "parcel" ? insertParcelVertex(r.i, t) : insertPolyVertex(r.g, r.o, r.i, t));
+function curveRef(r) {
+  if (r.g === "parcel") { curveParcelEdge(r.i); return; }
+  const was = kOf(r) !== 0; setK(r, was ? 0 : 0.15); hoverEdge = null;
+  solve(false); commit(); markMine(); toast(was ? "Segment redressé" : "Segment arrondi · glissez le point pour régler l'arc");
 }
 // Arrondit le segment i (arc de cercle dynamique, flèche de 15 % de la corde vers l'extérieur), ou le redresse.
 function curveParcelEdge(i) {
@@ -1310,10 +1350,9 @@ function curveParcelEdge(i) {
 function removeParcelVertex(i) {
   const n = site.parcel.length; ensureArcs();
   const pv = (i - 1 + n) % n, nw = i ? i - 1 : n - 2; // arête précédente avant / après retrait
-  const Lp = edgeInfo(pv).L, Li = edgeInfo(i).L, ang = (k) => 4 * Math.atan(2 * k);
+  const Lp = edgeInfo(pv).L, Li = edgeInfo(i).L;
   // Les deux arêtes n'en font plus qu'une : les angles de leurs arcs s'additionnent (un arc coupé en deux se reforme à l'identique).
-  const th = ang(site.arcs[pv]) + ang(site.arcs[i]), km = Math.tan(th / 4) / 2;
-  site.arcs[pv] = Math.max(-ARC_MAX, Math.min(ARC_MAX, +km.toFixed(5)));
+  site.arcs[pv] = +arcJoin(site.arcs[pv], site.arcs[i]).toFixed(5);
   site.parcel.splice(i, 1); site.setbacks.splice(i, 1); site.arcs.splice(i, 1);
   // Les accès gardent leur position sur la limite.
   site.entries = site.entries.map((en) => {
@@ -1608,7 +1647,7 @@ function dressing() {
   for (const t of layout.trees) plant(t[0], t[1]);
   // Espaces verts imposés : plantation en quinconce, à 1 m au moins du bord, essence de l'habillage.
   const one = SYM.arbres.find((t) => t.id === DRESS.tree), step = one ? Math.max(3, 2.1 * one.r) : 5.5;
-  for (const poly of site.landscapes) {
+  for (const poly of site.landscapes.map(polyOutline)) {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const [x, y] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
     const inside = (p) => pointInPoly(p, poly) && poly.every((a, k) => distSeg(p, a, poly[(k + 1) % poly.length])[0] >= 1);
@@ -2129,8 +2168,8 @@ async function importArea() {
 function reframeSite(a, b) {
   const f = ([x, y]) => { const X = x / a.k + a.O[0], Y = y / a.k + a.O[1]; return [+((X - b.O[0]) * b.k).toFixed(3), +((Y - b.O[1]) * b.k).toFixed(3)]; };
   site.parcel = site.parcel.map(f);
-  site.exclusions = site.exclusions.map((e) => e.map(f));
-  site.landscapes = site.landscapes.map((e) => e.map(f));
+  site.exclusions = site.exclusions.map((e) => e.map((p) => [...f(p), ...p.slice(2)]));
+  site.landscapes = site.landscapes.map((e) => e.map((p) => [...f(p), ...p.slice(2)]));
   for (const o of site.buildings) { [o.cx, o.cy] = f([o.cx, o.cy]); o.w *= b.k / a.k; o.h *= b.k / a.k; }
 }
 
