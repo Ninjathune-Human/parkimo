@@ -99,6 +99,12 @@ fn corner_trim(turn: f64, d: f64, a: f64) -> f64 {
     stalls.max(access)
 }
 
+/// Direction locale de la limite à l'abscisse `s` (différence centrée sur une largeur de place).
+fn tangent(ch: &Chain, s: f64, h: f64) -> V2 {
+    let (a, b) = (ch.at((s - h).max(0.0)), ch.at((s + h).min(ch.len())));
+    (b - a).norm()
+}
+
 /// `b` : zone stationnable ; `drive` : B érodée de la profondeur de place (zone circulable).
 pub fn place(b: &Region, drive: &Region, p: &Params, entries: &[Quad], acc: &mut Acc) {
     let (w, d) = (p.stall_w, p.stall_d);
@@ -137,7 +143,11 @@ pub fn place(b: &Region, drive: &Region, p: &Params, entries: &[Quad], acc: &mut
                     shift = shift.max((ch.pts[k] - p0).dot(n));
                 }
             }
-            let q = Quad::on_base(p0 + n * shift, p1 + n * shift, n, d);
+            // Le trait qui sépare deux places voisines suit la normale locale de la limite (médiane des
+            // deux côtés d'un éventail) : sur une courbe, les places sont des trapèzes qui se touchent.
+            let (n0, n1) = (tangent(ch, s, w * 0.5).left(), tangent(ch, s1, w * 0.5).left());
+            let (b0, b1) = (p0 + n0 * shift, p1 + n1 * shift);
+            let q = Quad([b0, b1, b1 + n1 * d, b0 + n0 * d]);
             let planter_turn = p.planter_every > 0 && run >= p.planter_every;
             let ok_geom = b.contains_quad(&q, TOL)
                 && !acc.hash.hits(&q.shrink(TOL))
