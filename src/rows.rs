@@ -411,6 +411,8 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
     }
 
     // Noue entre les deux demi-rangées : un tronçon par suite continue de places.
+    // Intervalles (repère des rangées) des noues supprimées : la demi-rangée opposée s'y recale contre l'autre.
+    let mut off_x: Vec<(f64, f64)> = Vec::new();
     if nw > 0.0 {
         let mut i = 0;
         while i < n {
@@ -431,7 +433,18 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
                 let (lo, hi) = (a.max(xa), b.min(xb));
                 if hi - lo >= 1.0 {
                     let q = Quad([v2(lo, y0 + d), v2(hi, y0 + d), v2(hi, y0 + d + nw), v2(lo, y0 + d + nw)]);
-                    acc.noues.push(xf(&q, rot));
+                    let wq = xf(&q, rot);
+                    let m = |a: usize, b: usize| [(wq.0[a].x + wq.0[b].x) / 2.0, (wq.0[a].y + wq.0[b].y) / 2.0];
+                    let (a, b) = (m(0, 3), m(1, 2));
+                    let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+                    let l2 = (dx * dx + dy * dy).max(1e-9);
+                    if acc.noue_off.iter().any(|p| {
+                        let t = (((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2).clamp(0.0, 1.0);
+                        (p[0] - a[0] - dx * t).hypot(p[1] - a[1] - dy * t) < 1.5
+                    }) {
+                        off_x.push((lo, hi));
+                    }
+                    acc.noues.push(wq);
                 }
             }
         }
@@ -475,6 +488,11 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
             }
             for k in s0..i {
                 let x = g + (kmin + k as i64) as f64 * w;
+                let (yb, yf) = if h == 1 && off_x.iter().any(|&(lo, hi)| x + w / 2.0 >= lo && x + w / 2.0 <= hi) {
+                    (y0 + d, y0 + 2.0 * d)
+                } else {
+                    (yb, yf)
+                };
                 let q = if h == 0 {
                     Quad([v2(x, yb), v2(x + w, yb), v2(x + w, yf), v2(x, yf)])
                 } else {

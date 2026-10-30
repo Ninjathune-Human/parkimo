@@ -41,6 +41,8 @@ pub struct Acc {
     /// Emprises bloquant la circulation (rangées intérieures, îlots).
     pub blockers: Vec<Quad>,
     pub next_row: u32,
+    /// Repères des noues supprimées (milieux d'axe, repère monde).
+    pub noue_off: Vec<[f64; 2]>,
 }
 
 impl Acc {
@@ -56,6 +58,7 @@ impl Acc {
             noues: Vec::new(),
             blockers: Vec::new(),
             next_row: 0,
+            noue_off: Vec::new(),
         }
     }
     pub fn new_row(&mut self) -> u32 {
