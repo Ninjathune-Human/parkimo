@@ -9,7 +9,7 @@
 //!    Une voie plus étroite est à sens unique, orientée pour que chaque voie reste atteignable
 //!    depuis la rue et que l'on puisse toujours regagner la rue (orientation fortement connexe),
 //!    en tournant de préférence dans le sens anti-horaire, comme sur un giratoire.
-//! 4. Flèches au sol : en sortie de carrefour, puis tous les `SPACING` mètres au plus ; flèche
+//! 4. Flèches au sol : une seule par artère, au centre de l'arête du squelette ; flèche
 //!    double (une par file, circulation à droite) ou flèche simple au centre de la voie.
 
 use crate::geom::{v2, Quad, V2};
@@ -24,8 +24,6 @@ pub const TWO_WAY_MIN: f64 = 5.0;
 /// Flèche directionnelle, longueur et largeur hors tout (= src/symbols.json, marquage « fleche »).
 pub const ARROW_L: f64 = 3.0;
 pub const ARROW_W: f64 = 0.9;
-/// Intervalle maximal entre deux flèches sur une même voie (m).
-const SPACING: f64 = 30.0;
 
 #[derive(Serialize, Clone, Debug)]
 pub struct Axis {
@@ -1119,8 +1117,6 @@ pub fn analyse(
         if !comp[ed[e].0] || len < ARROW_L + 1.0 {
             continue;
         }
-        // Tronçons droits : l'axe est coupé aux virages marqués ; chaque tronçon reçoit une flèche
-        // à sa sortie de carrefour ou de virage, puis tous les SPACING mètres.
         // Dégagement : hors du carrefour, à 2 m d'un accès ou d'un fond d'impasse, hors du virage.
         let clear = |n: usize| {
             if deg(n) >= 3 {
@@ -1129,49 +1125,21 @@ pub fn analyse(
                 2.0
             }
         };
-        let corner = width[e] * 0.5 + 1.0;
-        let mut cuts: Vec<(f64, f64)> = vec![(0.0, clear(na))];
-        let mut acc = 0.0;
-        for i in 1..pts.len().saturating_sub(1) {
-            acc += (pts[i] - pts[i - 1]).len();
-            let (u, v) = ((pts[i] - pts[i - 1]).norm(), (pts[i + 1] - pts[i]).norm());
-            if u.cross(v).atan2(u.dot(v)).abs() > 25f64.to_radians() {
-                cuts.push((acc, corner));
-            }
-        }
-        cuts.push((len, clear(nb)));
+        // Une seule flèche (ou une seule paire en double sens) par artère, au centre de l'arête du squelette,
+        // pourvu qu'il reste la place de la poser hors carrefour et hors fond d'impasse.
         let two = dir[e] == 0;
         let mut stations: Vec<f64> = Vec::new();
-        for run in cuts.windows(2) {
-            let (a, ca) = run[0];
-            let (b, cb) = run[1];
-            let (s0, s1) = (a + ca + ARROW_L * 0.5, b - cb - ARROW_L * 0.5);
-            if s1 < s0 {
-                if b - a - ca - cb >= ARROW_L * 0.8 {
-                    stations.push((a + ca + b - cb) * 0.5);
-                }
-            } else if s1 - s0 < 8.0 {
-                stations.push((s0 + s1) * 0.5);
-            } else if two {
-                // Double sens : une paire à chaque bout (entrée de file de chaque sens), et entre
-                // les deux au-delà de deux intervalles.
-                let k = ((s1 - s0) / (2.0 * SPACING)).ceil() as usize + 1;
-                for i in 0..k {
-                    stations.push(s0 + (s1 - s0) * i as f64 / (k - 1) as f64);
-                }
-            } else {
-                // Sens unique : en entrée du tronçon, puis tous les SPACING mètres.
-                let mut x = s0;
-                while x <= s1 + 1e-9 {
-                    stations.push(x);
-                    x += SPACING;
-                }
-            }
+        if len - clear(na) - clear(nb) >= ARROW_L * 0.8 {
+            stations.push(len * 0.5);
         }
         let off = (width[e] * 0.25).min(1.6);
         for s in stations {
-            for shift in [0.0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, 2.4, -2.4, 3.0, -3.0] {
+            let steps = ((len * 0.3) / 0.6).ceil().max(5.0) as i32;
+            for shift in std::iter::once(0.0).chain((1..=steps).flat_map(|k| [0.6 * k as f64, -0.6 * k as f64])) {
                 let ss = s + shift;
+                if ss < clear(na) + ARROW_L * 0.5 || ss > len - clear(nb) - ARROW_L * 0.5 {
+                    continue;
+                }
                 if ss < ARROW_L * 0.5 || ss > len - ARROW_L * 0.5 {
                     continue;
                 }
@@ -1308,8 +1276,8 @@ mod tests {
             c.axes
         );
         assert!(
-            c.arrows.len() >= 4 && c.arrows.len() % 2 == 0,
-            "{} flèches",
+            c.arrows.len() == 2,
+            "une seule paire par artère : {} flèches",
             c.arrows.len()
         );
         // Circulation à droite : vers l'est (a ≈ 0°) au sud de l'axe, vers l'ouest au nord.
@@ -1336,17 +1304,10 @@ mod tests {
         let one_way: Vec<&Axis> = c.axes.iter().filter(|a| a.sens == 1).collect();
         assert!(!one_way.is_empty(), "{:?}", c.axes);
         assert_eq!(c.narrow_two_way, 1, "l'accès unique reste à double sens");
-        // Sens anti-horaire : sur le côté sud de l'anneau on roule vers l'est.
-        let south: Vec<&Arrow> = c
-            .arrows
-            .iter()
-            .filter(|a| a.p[1] > 0.0 && a.p[1] < 4.0)
-            .collect();
-        assert!(!south.is_empty(), "{:?}", c.arrows);
-        assert!(
-            south.iter().all(|a| a.a.to_radians().cos() > 0.9),
-            "{south:?}"
-        );
+        // Sens anti-horaire : la flèche unique de l'anneau, sur son côté nord, pointe vers l'ouest.
+        let ring: Vec<&Arrow> = c.arrows.iter().filter(|a| a.p[1] > 4.0).collect();
+        assert_eq!(ring.len(), 1, "{:?}", c.arrows);
+        assert!(ring[0].a.to_radians().cos() < -0.9, "{ring:?}");
         // Un seul accès : flèches doubles dans l'accès, flèches simples sur l'anneau.
         let in_entry = c.arrows.iter().filter(|a| a.p[1] < 0.0).count();
         assert_eq!(in_entry % 2, 0);
