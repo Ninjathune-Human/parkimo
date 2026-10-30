@@ -498,14 +498,19 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
     <p class="note">Valeurs par défaut : place 2,50 × 5,00 m, PMR 3,30 m et 2 % (ERP), IRVE 20 % (bâtiment non résidentiel). À ajuster selon le PLU et la destination. Une allée est à double sens à partir de 5,00 m, à sens unique en dessous. Squelette affiché, chaque voie porte deux boutons : son sens de parcours, à inverser, et son nombre de voies. Une voie à sens unique prend sa largeur et les rangées voisines se rapprochent (5,00 m : places à 90°, NF P 91-100).</p>
   </section>
 
-  <section id="export" class="menu glass" hidden aria-label="Export DXF">
-    <h3>Export DXF</h3>
+  <section id="export" class="menu glass" hidden aria-label="Exporter">
+    <h3>Exporter</h3>
     <div class="pgroup" id="x-geo">
       <div class="eyebrow">Système de coordonnées</div>
       <div class="field"><span class="seg" role="group" aria-label="Système de coordonnées"><button id="x-l93" aria-pressed="true">Lambert-93</button><button id="x-cc" aria-pressed="false">CC44</button></span><span class="unit num" id="x-epsg">EPSG:2154</span></div>
     </div>
     <p class="note" id="x-note"></p>
     <button class="tb primary wide" id="x-go">Télécharger le DXF</button>
+    <div class="pgroup">
+      <div class="eyebrow">Tableur</div>
+      <p class="note">Ratios du parking, surfaces, hypothèses, estimation financière, emplacement et dates du projet.</p>
+      <button class="tb wide" id="x-xls">Télécharger le tableur XLS</button>
+    </div>
   </section>
 
   <section id="dress" class="menu glass" hidden aria-label="Habillage">
@@ -722,11 +727,12 @@ function engineInput(quick) {
 // Historique et persistance (navigateur du visiteur uniquement).
 // ============================================================================
 const hist = { past: [], future: [] };
+let meta = { created: Date.now(), modified: Date.now() };  // dates de création et de dernière modification du projet
 function snapshot() { return JSON.stringify({ site, params, exampleName }); }
 function commit() {
   const s = snapshot();
-  if (hist.past[hist.past.length - 1] !== s) { hist.past.push(s); if (hist.past.length > 80) hist.past.shift(); hist.future = []; }
-  try { localStorage.setItem("trame.v1", JSON.stringify({ site, params, exampleName, mineSite })); } catch (e) { /* stockage indisponible */ }
+  if (hist.past[hist.past.length - 1] !== s) { meta.modified = Date.now(); hist.past.push(s); if (hist.past.length > 80) hist.past.shift(); hist.future = []; }
+  try { localStorage.setItem("trame.v1", JSON.stringify({ site, params, exampleName, mineSite, meta })); } catch (e) { /* stockage indisponible */ }
   updateUndo();
 }
 function restore(s) { const o = JSON.parse(s); site = o.site; params = o.params; exampleName = o.exampleName; sel = null; syncParamsUI(); syncExample(); updateLayersUI(); solve(false); }
@@ -2695,7 +2701,7 @@ function updateExportUI() {
   } else {
     $("#x-note").textContent = "Plan non géoréférencé : coordonnées locales en mètres. Importez un fond de carte pour exporter en Lambert-93. Les calques masqués sont exportés éteints.";
   }
-  $("#x-go").disabled = site.parcel.length < 3 && !geo;
+  $("#x-go").disabled = site.parcel.length < 3 && !geo; $("#x-xls").disabled = !(layout && layout.metrics);
 }
 $("#x-l93").addEventListener("click", () => { XCRS = "L93"; try { localStorage.setItem("trame.crs", XCRS); } catch (e) { /* stockage indisponible */ } updateExportUI(); });
 $("#x-cc").addEventListener("click", () => { XCRS = "CC"; try { localStorage.setItem("trame.crs", XCRS); } catch (e) { /* stockage indisponible */ } updateExportUI(); });
@@ -2734,25 +2740,101 @@ async function exportDxf() {
   const day = new Date().toISOString().slice(0, 10);
   const name = `trame-${slug(commune || (exampleName === "mine" ? "mon site" : exampleName))}-${crs.toLowerCase()}-${day}.dxf`;
   closeMenus();
-  await saveFile(name, out.dxf, `${fmtInt(out.entities)} entités · ${out.crs}${out.epsg ? " (EPSG:" + out.epsg + ")" : ""}`);
+  await saveFile(name, out.dxf, `${fmtInt(out.entities)} entités · ${out.crs}${out.epsg ? " (EPSG:" + out.epsg + ")" : ""}`, "application/dxf", "DXF");
 }
+
+// Export tableur : classeur XML Spreadsheet 2003 (.xls), lu par Excel, LibreOffice et Numbers, sans bibliothèque.
+const xe = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const frDate = (t) => new Date(t).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" });
+function projectInfo() {
+  const info = { commune: "", refs: (site.cadastre || []).join(", "), lat: null, lon: null, lieu: "" };
+  if (baseShown() && site.parcel.length >= 3) {
+    const L = basemap.layers.parcelles, ids = site.cadastre || [];
+    const f = L.find((q) => ids.includes(q.p.idu) && q.p.nom_com) || L.find((q) => q.p.nom_com);
+    info.commune = f ? f.p.nom_com : "";
+    const c = site.parcel.reduce((a, q) => [a[0] + q[0] / site.parcel.length, a[1] + q[1] / site.parcel.length], [0, 0]);
+    [info.lon, info.lat] = fromMerc(basemap.O[0] + c[0] / basemap.k, basemap.O[1] + c[1] / basemap.k);
+  }
+  return info;
+}
+function buildXls() {
+  const m = layout.metrics, n = m.stalls, pa = m.parcel_area, I = projectInfo();
+  const bat = site.buildings.reduce((a, b) => a + Math.abs(polyArea(rectPoly(b))), 0);
+  let bi = BAREME.findIndex((r) => n <= r.b); if (bi < 0) bi = BAREME.length - 1;
+  const br = BAREME[bi], ord = (x) => [Math.min(x[0], x[1]), Math.max(x[0], x[1])], T = ord(br.t), E = ord(br.e);
+  const rows = [];  // [style, label, value, unité / commentaire]
+  const sec = (t) => rows.push(["S", t]);
+  const row = (l, v, u, st) => rows.push([st || (typeof v === "number" ? "N0" : "T"), l, v, u || ""]);
+  const pct = (a, b) => (b ? a / b : "");
+  sec("Projet");
+  row("Nom", exampleName === "mine" ? "Mon site" : exampleName);
+  row("Date de création", frDate(meta.created)); row("Dernière modification", frDate(meta.modified)); row("Export", frDate(Date.now()));
+  sec("Emplacement");
+  row("Commune", I.commune || "Non géoréférencé");
+  if (I.refs) row("Références cadastrales", I.refs);
+  if (I.lat !== null) { row("Latitude", I.lat, "° (WGS84)", "N5"); row("Longitude", I.lon, "° (WGS84)", "N5"); row("Carte", `https://www.openstreetmap.org/?mlat=${I.lat.toFixed(6)}&mlon=${I.lon.toFixed(6)}#map=18/${I.lat.toFixed(6)}/${I.lon.toFixed(6)}`); }
+  sec("Places de stationnement");
+  row("Total des places", n, "places"); row("Places standard", m.standard, "places");
+  row("Places PMR", m.pmr, `places · exigées : ${m.pmr_required}`); row("Conformité PMR", m.pmr >= m.pmr_required ? "conforme" : "non conforme");
+  row("Places IRVE pré-équipées", m.irve, `places · exigées : ${m.irve_required}`); row("Conformité IRVE pré-équipement", m.irve >= m.irve_required ? "conforme" : "non conforme");
+  row("Places IRVE équipées (bornes)", m.irve_equipped, `places · exigées : ${m.irve_equipped_required}`); row("Conformité IRVE bornes", m.irve_equipped >= m.irve_equipped_required ? "conforme" : "non conforme");
+  row("Places en bordure", m.perimeter_stalls, "places"); row("Places au cœur", m.interior_stalls, "places");
+  row("Part en bordure", pct(m.perimeter_stalls, n), "%", "P"); row("Part PMR", pct(m.pmr, n), "%", "P"); row("Part IRVE pré-équipées", pct(m.irve, n), "%", "P"); row("Part IRVE bornes", pct(m.irve_equipped, n), "%", "P");
+  row("Arbres plantés", m.trees, "arbres"); row("Arbres pour 10 places", n ? 10 * m.trees / n : "", "arbres", "N1");
+  row("Angle des rangées", layout.angle, params.angle === null ? "° (optimisé)" : "° (imposé)", "N1");
+  sec("Surfaces et ratios");
+  row("Surface de la parcelle", pa, "m²"); row("Surface constructible (après reculs)", m.buildable_area, "m²");
+  row("Surface de bâtiments", bat, "m²"); row("Surface enrobée", m.paved_area, "m²"); row("Surface d'espaces verts", m.green_area, "m²");
+  row("Part d'espaces verts", pct(m.green_area, pa), "% de la parcelle", "P"); row("Part enrobée", pct(m.paved_area, pa), "% de la parcelle", "P");
+  row("Enrobé par place", n ? m.m2_paved_per_stall : "", "m² / place", "N1"); row("Parcelle par place", n ? m.m2_parcel_per_stall : "", "m² / place", "N1");
+  row("Densité", n && pa ? n / (pa / 10000) : "", "places / ha", "N1"); row("Constructible par place", n ? m.buildable_area / n : "", "m² / place", "N1");
+  sec("Hypothèses de calcul");
+  for (const k of PKEYS) { const lab = $(`label[for="p-${k}"]`), u = $("#p-" + k).parentElement.textContent.trim(); if (lab) row(lab.textContent, params[k], u, "N2"); }
+  sec("Estimation financière (€ HT, métropole niçoise)");
+  row("Tranche du barème", `${br.a} à ${br.b} places`);
+  row("Travaux seuls : ratio mini", T[0], "€ / place"); row("Travaux seuls : ratio maxi", T[1], "€ / place");
+  row("Travaux seuls : total mini", n * T[0], "€", "E"); row("Travaux seuls : total maxi", n * T[1], "€", "E"); row("Travaux seuls : valeur centrale", n * (T[0] + T[1]) / 2, "€", "E");
+  row("Études et MOE comprises : ratio mini", E[0], "€ / place"); row("Études et MOE comprises : ratio maxi", E[1], "€ / place");
+  row("Études et MOE comprises : total mini", n * E[0], "€", "E"); row("Études et MOE comprises : total maxi", n * E[1], "€", "E"); row("Études et MOE comprises : valeur centrale", n * (E[0] + E[1]) / 2, "€", "E");
+  row("Travaux seuls (centrale) par m² de parcelle", pa ? n * (T[0] + T[1]) / 2 / pa : "", "€ / m²", "N1"); row("Travaux seuls (centrale) par m² enrobé", m.paved_area ? n * (T[0] + T[1]) / 2 / m.paved_area : "", "€ / m²", "N1");
+  const cell = (st, v) => v === "" || v === undefined ? `<Cell ss:StyleID="${st}"/>` : typeof v === "number" ? `<Cell ss:StyleID="${st}"><Data ss:Type="Number">${isFinite(v) ? v : 0}</Data></Cell>` : `<Cell ss:StyleID="${st}"><Data ss:Type="String">${xe(v)}</Data></Cell>`;
+  const body = rows.map(([st, l, v, u]) => st === "S" ? `<Row ss:Height="24"><Cell ss:StyleID="S"><Data ss:Type="String">${xe(l)}</Data></Cell><Cell ss:StyleID="S"/><Cell ss:StyleID="S"/></Row>` : `<Row>${cell("L", l)}${cell(st, v)}${cell("U", u)}</Row>`).join("");
+  const bar = '<Row>' + ["Places", "Travaux mini (€/place)", "Travaux maxi (€/place)", "Études + MOE mini (€/place)", "Études + MOE maxi (€/place)", "Tranche appliquée"].map((h) => cell("S", h)).join("") + "</Row>" +
+    BAREME.map((r, i) => { const t = ord(r.t), e = ord(r.e); return `<Row>${cell("L", `${r.a} à ${r.b}`)}${cell("N0", t[0])}${cell("N0", t[1])}${cell("N0", e[0])}${cell("N0", e[1])}${cell("L", i === bi ? "oui" : "")}</Row>`; }).join("");
+  const st = (id, extra, nf) => `<Style ss:ID="${id}"><Font ss:FontName="Calibri" ss:Size="11"${extra.bold ? ' ss:Bold="1"' : ""}${extra.color ? ` ss:Color="${extra.color}"` : ""}/>${extra.fill ? `<Interior ss:Color="${extra.fill}" ss:Pattern="Solid"/>` : ""}<Alignment ss:Vertical="Center"${extra.right ? ' ss:Horizontal="Right"' : ""}/>${nf ? `<NumberFormat ss:Format="${nf}"/>` : ""}</Style>`;
+  const styles = st("Default", {}) + st("L", {}) + st("U", { color: "#6B7280" }) + st("T", { right: true }) + st("S", { bold: true, fill: "#E8EDF2" }) +
+    st("N0", { right: true }, "#,##0") + st("N1", { right: true }, "#,##0.0") + st("N2", { right: true }, "#,##0.00") + st("N5", { right: true }, "0.00000") +
+    st("P", { right: true }, "0.0%") + st("E", { right: true, bold: true }, "#,##0\\ &quot;€&quot;");
+  const cols = (w) => w.map((x) => `<Column ss:Width="${x}"/>`).join("");
+  return `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles>${styles}</Styles>
+<Worksheet ss:Name="Synthèse"><Table>${cols([290, 170, 220])}${body}</Table></Worksheet>
+<Worksheet ss:Name="Barème"><Table>${cols([90, 140, 140, 170, 170, 120])}${bar}</Table></Worksheet></Workbook>`;
+}
+async function exportXls() {
+  if (!layout || !layout.metrics) { toast("Aucun plan calculé à exporter"); return; }
+  const I = projectInfo(), name = `trame-${slug(I.commune || (exampleName === "mine" ? "mon site" : exampleName))}-${new Date().toISOString().slice(0, 10)}.xls`;
+  closeMenus();
+  await saveFile(name, buildXls(), `${fmtInt(layout.metrics.stalls)} places`, "application/vnd.ms-excel", "Tableur");
+}
+$("#x-xls").addEventListener("click", exportXls);
 
 // Enregistrement : lien de téléchargement dans la version autonome ; dans Claude, capacité « downloads »
 // (le format .dxf n'y étant pas admis, le fichier est livré dans une archive .zip).
-async function saveFile(name, text, info) {
+async function saveFile(name, text, info, mime, kind) {
   const claudeView = window.claude && typeof window.claude.use === "function";
   if (claudeView) {
     const dl = await window.claude.use("downloads");
     if (!dl) { toast("Téléchargement indisponible ici : utilisez la version autonome index.html"); return; }
-    try { await dl.save({ filename: name.replace(/\.dxf$/, ".zip"), data: zipStore(name, text) }); toast("DXF enregistré dans une archive ZIP · " + info); }
+    try { await dl.save({ filename: name.replace(/\.\w+$/, ".zip"), data: zipStore(name, text) }); toast(kind + " enregistré dans une archive ZIP · " + info); }
     catch (e) { if (!e || e.code !== "declined") toast("Téléchargement indisponible ici : utilisez la version autonome index.html"); }
     return;
   }
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([text], { type: "application/dxf" }));
+  a.href = URL.createObjectURL(new Blob([text], { type: mime }));
   a.download = name; document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  toast("DXF téléchargé · " + info);
+  toast(kind + " téléchargé · " + info);
 }
 // Archive ZIP minimale (un fichier, sans compression).
 function zipStore(name, text) {
@@ -2783,6 +2865,7 @@ function newProject() {
   closeMenus(); setMode("edit");
   site = { parcel: [], setbacks: [], exclusions: [], buildings: [], landscapes: [], basins: [], entries: [] };
   exampleName = "mine"; mineSite = null; basemap = null; layout = null; lastAngle = null;
+  meta = { created: Date.now(), modified: Date.now() };
   saveBasemap();
   hist.past = []; hist.future = []; commit();
   syncExample(); updateLayersUI(); setSel(null); solve(false);
@@ -2815,7 +2898,7 @@ else window.addEventListener("resize", () => relayout());
   readColors(); resize();
   try {
     const saved = localStorage.getItem("trame.v1");
-    if (saved) { const o = JSON.parse(saved); if (o.site && o.site.parcel) { site = normSite(o.site); params = { ...DEFAULT_PARAMS, ...o.params }; exampleName = o.exampleName || "mine"; mineSite = normSite(o.mineSite || null); restored = true; } }
+    if (saved) { const o = JSON.parse(saved); if (o.site && o.site.parcel) { site = normSite(o.site); params = { ...DEFAULT_PARAMS, ...o.params }; exampleName = o.exampleName || "mine"; mineSite = normSite(o.mineSite || null); if (o.meta && isFinite(o.meta.created)) meta = { created: o.meta.created, modified: isFinite(o.meta.modified) ? o.meta.modified : o.meta.created }; restored = true; } }
   } catch (e) { /* stockage indisponible : on démarre sur l'exemple */ }
   await withTimeout(loadBasemap(), 2500);
   // Première visite : un exemple ; un projet vidé volontairement reste vide.

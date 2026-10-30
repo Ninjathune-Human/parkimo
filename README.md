@@ -84,6 +84,10 @@ Bouton **Habillage** : un menu dédié à la présentation du plan, sans effet s
 
 Les symboles ont une seule source, `src/symbols.json` (générée par `tools/symbols.py`) : l'application les dessine et l'export DXF les insère comme blocs AutoCAD du même dessin.
 
+## Export tableur (XLS)
+
+Menu **Exporter**, bouton « Télécharger le tableur XLS » : classeur XML Spreadsheet 2003 (`.xls`, lu par Excel, LibreOffice et Numbers, sans bibliothèque). Feuille **Synthèse** : projet (dates de création et de dernière modification, conservées dans le navigateur avec le projet), emplacement (commune, références cadastrales, latitude et longitude WGS84 du centre de la parcelle), places (total, standard, PMR, IRVE, bordure et cœur, conformités, parts), arbres, surfaces et ratios (enrobé, espaces verts, m² par place, places par hectare), hypothèses de calcul et estimation financière (tranche, ratios, totaux mini, maxi et central, avec ou sans études et MOE). Feuille **Barème** : le barème en vigueur et la tranche appliquée.
+
 ## Export DXF
 
 Bouton **Exporter** : fichier DXF AutoCAD 2010 (texte UTF-8), unités en mètres, au choix en **RGF93 / Lambert-93** (EPSG:2154) ou en **RGF93 / CC** de la zone du site (EPSG:3942 à 3950, CC44 à Nice).
