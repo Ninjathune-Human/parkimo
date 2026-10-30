@@ -278,9 +278,11 @@ pub fn optimize(core: &[Vec<V2>], b_rings: &[Vec<V2>], p: &Params) -> (f64, f64,
 }
 
 /// Découpe exacte d'une rangée double. Renvoie le nombre de places posées.
-fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Acc) -> usize {
+/// `nw` : largeur de noue effective de cette rangée (0 si la noue est supprimée) ; `rf` : ordonnée de
+/// départ de la rangée sur la trame de référence (noues partout), qui sert de repère aux noues supprimées.
+fn pack_double_row(f: &Frame, p: &Params, y0: f64, nw: f64, rf: f64, rot: (f64, f64), acc: &mut Acc) -> usize {
     let (w, d, cap) = (p.stall_w, p.stall_d, p.cap);
-    let nw = p.noue();
+    let nominal = p.noue();
     let mut halves: [Vec<(f64, f64)>; 2] = [Vec::new(), Vec::new()];
     strip_intervals(&f.rings, y0 + 1e-4, y0 + d - 1e-4, &mut halves[0]);
     strip_intervals(&f.rings, y0 + d + nw + 1e-4, y0 + 2.0 * d + nw - 1e-4, &mut halves[1]);
@@ -410,10 +412,12 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
         }
     }
 
-    // Noue entre les deux demi-rangées : un tronçon par suite continue de places.
-    // Intervalles (repère des rangées) des noues supprimées : la demi-rangée opposée s'y recale contre l'autre.
-    let mut off_x: Vec<(f64, f64)> = Vec::new();
-    if nw > 0.0 {
+    // Noue entre les deux demi-rangées : un tronçon par suite continue de places. Une noue supprimée
+    // reste listée avec une largeur nulle, sur la jonction des deux demi-rangées.
+    if nominal > 0.0 {
+        let off = nw <= 0.0;
+        let (ya, yz) = if off { (y0 + d - 1e-4, y0 + d + 1e-4) } else { (y0 + d + 1e-4, y0 + d + nw - 1e-4) };
+        let yr = rf + d + nominal / 2.0;
         let mut i = 0;
         while i < n {
             if !(v[0][i] || v[1][i]) {
@@ -428,37 +432,20 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
             let xb = g + (kmin + i as i64) as f64 * w;
             // La noue s'arrête là où le cœur s'arrête : elle ne déborde jamais sur la chaussée.
             let mut inside = Vec::new();
-            strip_intervals(&f.rings, y0 + d + 1e-4, y0 + d + nw - 1e-4, &mut inside);
+            strip_intervals(&f.rings, ya, yz, &mut inside);
             for (a, b) in inside {
                 let (lo, hi) = (a.max(xa), b.min(xb));
                 if hi - lo >= 1.0 {
                     let q = Quad([v2(lo, y0 + d), v2(hi, y0 + d), v2(hi, y0 + d + nw), v2(lo, y0 + d + nw)]);
-                    let wq = xf(&q, rot);
-                    let m = |a: usize, b: usize| [(wq.0[a].x + wq.0[b].x) / 2.0, (wq.0[a].y + wq.0[b].y) / 2.0];
-                    let (a, b) = (m(0, 3), m(1, 2));
-                    let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
-                    let l2 = (dx * dx + dy * dy).max(1e-9);
-                    if acc.noue_off.iter().any(|p| {
-                        let t = (((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2).clamp(0.0, 1.0);
-                        (p[0] - a[0] - dx * t).hypot(p[1] - a[1] - dy * t) < 1.5
-                    }) {
-                        off_x.push((lo, hi));
-                    }
-                    acc.noues.push(wq);
+                    acc.noues.push(xf(&q, rot));
+                    let wp = |x: f64| xf(&Quad([v2(x, yr), v2(x, yr), v2(x, yr), v2(x, yr)]), rot).0[0];
+                    let (pa, pb, pm) = (wp(f.xlo - 1.0), wp(f.xhi + 1.0), wp((lo + hi) / 2.0));
+                    acc.noue_ref.push([[pa.x, pa.y], [pb.x, pb.y], [pm.x, pm.y]]);
                 }
             }
         }
     }
 
-    // Noue supprimée : les deux demi-rangées se rejoignent au milieu de la bande, qui se répartit
-    // en deux moitiés égales, ajoutées à chacune des deux allées voisines.
-    let shifted = |h: usize| -> (f64, f64) {
-        if h == 0 {
-            (y0 + d + nw / 2.0, y0 + nw / 2.0)
-        } else {
-            (y0 + d + nw / 2.0, y0 + 2.0 * d + nw / 2.0)
-        }
-    };
     let mut placed = 0usize;
     for h in 0..2 {
         let row = acc.new_row();
@@ -483,30 +470,9 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
             }
             let xa = g + (kmin + s0 as i64) as f64 * w;
             let xb = g + (kmin + i as i64) as f64 * w;
-            // Emprise par tronçon : une demi-rangée recalée sur une noue supprimée a sa propre emprise.
-            let is_off = |k: usize| {
-                let xc = g + (kmin + k as i64) as f64 * w + w / 2.0;
-                off_x.iter().any(|&(lo, hi)| xc >= lo && xc <= hi)
-            };
-            let mut k0 = s0;
-            while k0 < i {
-                let o = is_off(k0);
-                let mut k1 = k0;
-                while k1 < i && is_off(k1) == o {
-                    k1 += 1;
-                }
-                let (ya, yz) = if o { shifted(h) } else { (yb, yf) };
-                let (xs, xe) = (g + (kmin + k0 as i64) as f64 * w, g + (kmin + k1 as i64) as f64 * w);
-                let pad = Quad([v2(xs, ya), v2(xe, ya), v2(xe, yz), v2(xs, yz)]);
-                acc.pads.push(xf(&pad, rot));
-                acc.blockers.push(xf(&pad, rot));
-                if o {
-                    let (va, vz) = if h == 0 { (y0, y0 + nw / 2.0) } else { (y0 + 2.0 * d + nw / 2.0, y0 + 2.0 * d + nw) };
-                    let v = Quad([v2(xs, va), v2(xe, va), v2(xe, vz), v2(xs, vz)]);
-                    acc.voids.push(xf(&v, rot));
-                }
-                k0 = k1;
-            }
+            let pad = Quad([v2(xa, yb), v2(xb, yb), v2(xb, yf), v2(xa, yf)]);
+            acc.pads.push(xf(&pad, rot));
+            acc.blockers.push(xf(&pad, rot));
             if cap > 0.05 {
                 for (c0, c1) in [(xa - cap, xa), (xb, xb + cap)] {
                     let q = Quad([v2(c0, yb), v2(c1, yb), v2(c1, yf), v2(c0, yf)]);
@@ -518,11 +484,6 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
             }
             for k in s0..i {
                 let x = g + (kmin + k as i64) as f64 * w;
-                let (yb, yf) = if off_x.iter().any(|&(lo, hi)| x + w / 2.0 >= lo && x + w / 2.0 <= hi) {
-                    shifted(h)
-                } else {
-                    (yb, yf)
-                };
                 let q = if h == 0 {
                     Quad([v2(x, yb), v2(x + w, yb), v2(x + w, yf), v2(x, yf)])
                 } else {
@@ -660,14 +621,44 @@ pub fn place(
             h.2 += dl;
         }
     }
+    // Rangées de référence (noue partout) ; une noue supprimée retire sa bande : les rangées
+    // au-dessus se rapprochent d'autant, et de nouvelles rangées prennent la place libérée.
+    let (nom, d) = (p.noue(), p.stall_d);
+    let c = (t.cos(), -t.sin());
+    let off_y: Vec<f64> = acc.noue_off.iter().map(|q| V2 { x: q[0], y: q[1] }.rot(c.0, c.1).y).collect();
+    let is_off = |yref: f64| nom > 0.0 && off_y.iter().any(|&y| (y - (yref + d + nom / 2.0)).abs() < 0.75);
     let mut strips = Vec::new();
-    for y0 in ys {
-        pack_double_row(&f, p, y0, rot, acc);
-        let (x0, x1, y1) = (f.xlo - 1.0, f.xhi + 1.0, y0 + p.double_depth());
-        strips.push(xf(
-            &Quad([v2(x0, y0), v2(x1, y0), v2(x1, y1), v2(x0, y1)]),
-            rot,
-        ));
+    let mut shift = 0.0;
+    let mut last_end = f64::MIN;
+    let (x0, x1) = (f.xlo - 1.0, f.xhi + 1.0);
+    let push_row = |acc: &mut Acc, strips: &mut Vec<Quad>, y0: f64, nw: f64, rf: f64| {
+        pack_double_row(&f, p, y0, nw, rf, rot, acc);
+        let y1 = y0 + 2.0 * d + nw;
+        strips.push(xf(&Quad([v2(x0, y0), v2(x1, y0), v2(x1, y1), v2(x0, y1)]), rot));
+        y1
+    };
+    for yref in ys {
+        let off = is_off(yref);
+        let nw = if off { 0.0 } else { nom };
+        last_end = push_row(acc, &mut strips, yref - shift, nw, yref);
+        if off {
+            shift += nom;
+        }
+    }
+    // Rangées supplémentaires dans la place libérée (la période suit la rangée précédente).
+    if shift > 0.0 {
+        let mut y0 = last_end + p.aisle;
+        let mut guard = 0;
+        while y0 < f.yhi && guard < 4 {
+            let rf = y0 + shift;
+            let before = acc.stalls.len();
+            let end = push_row(acc, &mut strips, y0, if is_off(rf) { 0.0 } else { nom }, rf);
+            if acc.stalls.len() == before {
+                strips.pop();
+            }
+            y0 = end + p.aisle;
+            guard += 1;
+        }
     }
     RowsOut {
         angle,

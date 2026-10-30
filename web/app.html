@@ -803,12 +803,13 @@ function hatchPattern() {
 function pathPoly(pts) { if (!pts.length) return; const a = toS(pts[0]); ctx.moveTo(a[0], a[1]); for (let i = 1; i < pts.length; i++) { const b = toS(pts[i]); ctx.lineTo(b[0], b[1]); } ctx.closePath(); }
 // Noues entre les places : un haricot allongé aux bouts arrondis (haut de talus en trait fort), des barbules
 // courtes vers l'intérieur, de longueurs alternées, et le fond figuré par un seul trait (fil d'eau).
-// Axe d'une noue (milieu du petit côté au milieu du petit côté opposé) ; une noue est supprimée si un repère
-// de site.noue_off tombe sur son axe (les repères suivent la noue à chaque calcul).
+// Axe d'une noue (milieu du petit côté au milieu du petit côté opposé). Supprimer une noue supprime celle de
+// toute sa rangée ; les repères de site.noue_off sont donnés sur la trame de référence du moteur.
 const noueAxis = (q) => [[(q[0][0] + q[3][0]) / 2, (q[0][1] + q[3][1]) / 2], [(q[1][0] + q[2][0]) / 2, (q[1][1] + q[2][1]) / 2]];
 function toggleNoue(i) {
-  const a = noueAxis(layout.noues[i]), mid = [(a[0][0] + a[1][0]) / 2, (a[0][1] + a[1][1]) / 2], off = layout.noues_off[i];
-  site.noue_off = (site.noue_off || []).filter((p) => distSeg(p, a[0], a[1])[0] >= 1.5);
+  // Repères sur la trame de référence (noues partout) : stables quand les rangées se referment.
+  const [ra, rb, mid] = layout.noue_ref[i], off = layout.noues_off[i];
+  site.noue_off = (site.noue_off || []).filter((p) => distSeg(p, ra, rb)[0] >= 0.75);
   if (!off) site.noue_off.push(mid);
   solve(false); commit(); markMine(); toast(off ? "Noue rétablie" : "Noue supprimée");
 }

@@ -224,6 +224,9 @@ pub struct Layout {
     /// Pour chaque noue, vrai si elle a été supprimée (reste listée pour pouvoir la rétablir).
     #[serde(default)]
     pub noues_off: Vec<bool>,
+    /// Pour chaque noue : [axe de sa rangée (début, fin), milieu du tronçon] sur la trame de référence.
+    #[serde(default)]
+    pub noue_ref: Vec<[[f64; 2]; 3]>,
     pub entrances: Vec<P2>,
     /// Cheminements piétons devant les portes des bâtiments.
     pub walks: Vec<[P2; 4]>,

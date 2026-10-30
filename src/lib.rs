@@ -298,12 +298,6 @@ pub fn solve(site: &Site) -> Layout {
             opened.union(&paved.intersection(&mp_of_quads(&cut)))
         }
     };
-    // Bandes libérées par une noue supprimée : elles redeviennent chaussée.
-    let paved = if acc.voids.is_empty() {
-        paved
-    } else {
-        paved.union(&z.core.intersection(&mp_of_quads(&acc.voids)))
-    };
     // Arrondis d'entrée : la chaussée gagne l'angle de part et d'autre de chaque accès.
     let paved = if turn_fillets.is_empty() {
         paved
@@ -514,21 +508,13 @@ pub fn solve(site: &Site) -> Layout {
     }
     out.cross = acc.cross.iter().map(q4).collect();
     out.noues = acc.noues.iter().map(q4).collect();
-    // Une noue est supprimée si un repère de `site.noue_off` tombe sur son axe.
+    // Une noue supprimée garde une largeur nulle (sa rangée s'est refermée).
     out.noues_off = out
         .noues
         .iter()
-        .map(|q| {
-            let a = [(q[0][0] + q[3][0]) / 2.0, (q[0][1] + q[3][1]) / 2.0];
-            let b = [(q[1][0] + q[2][0]) / 2.0, (q[1][1] + q[2][1]) / 2.0];
-            let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
-            let l2 = (dx * dx + dy * dy).max(1e-9);
-            site.noue_off.iter().any(|p| {
-                let t = (((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2).clamp(0.0, 1.0);
-                (p[0] - a[0] - dx * t).hypot(p[1] - a[1] - dy * t) < 1.5
-            })
-        })
+        .map(|q| (q[0][0] - q[3][0]).hypot(q[0][1] - q[3][1]) < 1e-6)
         .collect();
+    out.noue_ref = acc.noue_ref.clone();
     // Circulation : sens des voies et flèches au sol, sur la chaussée (voirie, allées
     // transversales, accès). Calculée au relâchement, pas pendant un glisser.
     if !p.quick {
