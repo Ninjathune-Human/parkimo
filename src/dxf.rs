@@ -606,7 +606,10 @@ pub fn export(inp: &ExportIn) -> ExportOut {
     for q in &lay.islands {
         w.ring("PRJ_ILOTS", q);
     }
-    for q in &lay.noues {
+    for (i, q) in lay.noues.iter().enumerate() {
+        if lay.noues_off.get(i).copied().unwrap_or(false) {
+            continue;
+        }
         w.ring("PRJ_NOUES", q);
     }
     for s in &lay.stalls {

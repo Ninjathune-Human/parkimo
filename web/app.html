@@ -440,6 +440,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <div class="field"><label for="p-building_margin">Trottoir autour du bâti</label><span class="unit"><input id="p-building_margin" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-door_w">Largeur d'entrée du bâtiment</label><span class="unit"><input id="p-door_w" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-skel">Squelette des voies</label><input id="p-skel" type="checkbox" class="switch" role="switch"></div>
+      <div class="field"><label for="p-nskel">Squelette des noues</label><input id="p-nskel" type="checkbox" class="switch" role="switch"></div>
     </div>
     <div class="pgroup">
       <div class="eyebrow">Paysage</div>
@@ -625,11 +626,14 @@ let site = EXAMPLES.ruisseau();
 let params = { ...DEFAULT_PARAMS };
 let exampleName = "ruisseau";
 let layout = null, lastAngle = null, lastMs = 0;
+let NSKEL = false; // squelette des noues affiché
+let noueBtns = []; // pastilles des noues au dernier dessin (centres écran)
 let SKEL = false; // squelette des voies affiché (réglage de présentation, hors historique)
 const PILL = { w: 68, h: 32 }; // pastilles du squelette
 let pills = []; // pastilles posées au dernier dessin (centres écran), pour le toucher
 let hoverEdge = null; // limite de parcelle survolée (ou touchée) : porte les boutons Sommet / Courbe
 const EBTN = { r: 10, gap: 19 };
+try { NSKEL = localStorage.getItem("trame.nskel") === "1"; } catch (e) { /* stockage indisponible */ }
 try { SKEL = localStorage.getItem("trame.skel") === "1"; } catch (e) { /* stockage indisponible */ }
 
 // Formes d'objets → polygones.
@@ -667,7 +671,7 @@ function engineInput(quick) {
   return {
     ...flatSite(), exclusions: site.exclusions.map(polyOutline),
     buildings: site.buildings.map((b) => { const d = doorGeom(b); return { poly: rectPoly(b), entrance: [d.p[0] + d.n[0] * params.building_margin, d.p[1] + d.n[1] * params.building_margin], door: { p: d.p, n: d.n, w: Math.min(params.door_w, d.L) } }; }),
-    landscapes: site.landscapes.map(polyOutline), basins: (site.basins || []).map(polyOutline), lanes: site.lanes || [],
+    landscapes: site.landscapes.map(polyOutline), basins: (site.basins || []).map(polyOutline), lanes: site.lanes || [], noue_off: site.noue_off || [],
     params: {
       stall_w: p.stall_w, stall_d: p.stall_d, noue_w: p.noue_w, basin_h: p.basin_h, basin_margin: p.basin_margin, aisle: p.aisle, aisle_one: p.aisle_one, entry_w: p.entry_w, building_margin: p.building_margin,
       planter_every: Math.max(0, Math.round(p.planter_every)), cap: p.cap, max_run: p.max_run,
@@ -799,11 +803,43 @@ function hatchPattern() {
 function pathPoly(pts) { if (!pts.length) return; const a = toS(pts[0]); ctx.moveTo(a[0], a[1]); for (let i = 1; i < pts.length; i++) { const b = toS(pts[i]); ctx.lineTo(b[0], b[1]); } ctx.closePath(); }
 // Noues entre les places : un haricot allongé aux bouts arrondis (haut de talus en trait fort), des barbules
 // courtes vers l'intérieur, de longueurs alternées, et le fond figuré par un seul trait (fil d'eau).
+// Axe d'une noue (milieu du petit côté au milieu du petit côté opposé) ; une noue est supprimée si un repère
+// de site.noue_off tombe sur son axe (les repères suivent la noue à chaque calcul).
+const noueAxis = (q) => [[(q[0][0] + q[3][0]) / 2, (q[0][1] + q[3][1]) / 2], [(q[1][0] + q[2][0]) / 2, (q[1][1] + q[2][1]) / 2]];
+function toggleNoue(i) {
+  const a = noueAxis(layout.noues[i]), mid = [(a[0][0] + a[1][0]) / 2, (a[0][1] + a[1][1]) / 2], off = layout.noues_off[i];
+  site.noue_off = (site.noue_off || []).filter((p) => distSeg(p, a[0], a[1])[0] >= 1.5);
+  if (!off) site.noue_off.push(mid);
+  solve(false); commit(); markMine(); toast(off ? "Noue rétablie" : "Noue supprimée");
+}
+function drawNoueSkeleton() {
+  noueBtns = []; const list = layout && !layout.error && layout.noues; if (!list) return;
+  const RED = "#d93a2f", R = 13;
+  ctx.save(); ctx.lineCap = "round";
+  list.forEach((q, i) => {
+    const a = noueAxis(q).map(toS), off = layout.noues_off[i], len = Math.hypot(a[1][0] - a[0][0], a[1][1] - a[0][1]); if (len < 6) return;
+    const ux = (a[1][0] - a[0][0]) / len, uy = (a[1][1] - a[0][1]) / len, g = Math.min(len * 0.1, 5), col = off ? RED : C.accent;
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.moveTo(a[0][0] + ux * g, a[0][1] + uy * g); ctx.lineTo(a[1][0] - ux * g, a[1][1] - uy * g); ctx.stroke();
+    for (const e of [a[0], a[1]]) { const k = e === a[0] ? 1 : -1; ctx.beginPath(); ctx.moveTo(e[0] + ux * k * g - uy * 5, e[1] + uy * k * g + ux * 5); ctx.lineTo(e[0] + ux * k * g + uy * 5, e[1] + uy * k * g - ux * 5); ctx.stroke(); }
+    if (len < 2 * R + 10) return;
+    const cx = (a[0][0] + a[1][0]) / 2, cy = (a[0][1] + a[1][1]) / 2; noueBtns.push({ i, x: cx, y: cy, R });
+    ctx.save(); ctx.shadowColor = "rgba(0, 0, 0, .22)"; ctx.shadowBlur = 8; ctx.shadowOffsetY = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = C["glass-solid"]; ctx.fill(); ctx.restore();
+    ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = 2; ctx.beginPath();
+    if (!off) { ctx.moveTo(cx - 4.5, cy - 4.5); ctx.lineTo(cx + 4.5, cy + 4.5); ctx.moveTo(cx + 4.5, cy - 4.5); ctx.lineTo(cx - 4.5, cy + 4.5); }
+    else { ctx.arc(cx, cy, 5, -Math.PI * 0.6, Math.PI * 1.2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(cx - 4.5, cy - 7); ctx.lineTo(cx - 3.2, cy - 2.6); ctx.lineTo(cx - 7.6, cy - 3.6); }
+    ctx.stroke();
+  });
+  ctx.restore();
+}
 function drawNoues() {
   const list = layout && !layout.error && layout.noues; if (!list || !list.length) return;
   ctx.globalAlpha = 0.55; ctx.strokeStyle = C["tree-edge"]; ctx.lineCap = "butt"; ctx.lineJoin = "round";
   const step = Math.max(0.8, 5 / view.s), outlines = [], ticks = [], fonds = [];
-  for (const q of list) {
+  for (const [i, q] of list.entries()) {
+    if (layout.noues_off[i]) continue;
     const L = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]), nw = Math.hypot(q[3][0] - q[0][0], q[3][1] - q[0][1]); if (L < 0.6 || nw < 0.3) continue;
     const ux = (q[1][0] - q[0][0]) / L, uy = (q[1][1] - q[0][1]) / L, cx = (q[3][0] - q[0][0]) / nw, cy = (q[3][1] - q[0][1]) / nw;
     const r = Math.min(nw, L) / 2, W = (t, v) => [q[0][0] + ux * t + cx * v, q[0][1] + uy * t + cy * v];
@@ -931,6 +967,7 @@ function draw() {
     // Couche Habillage : véhicules sous les arbres
     drawDressing();
     if (SKEL) drawSkeleton();
+    if (NSKEL) drawNoueSkeleton(); else noueBtns = [];
   }
 
   // Calque Servitudes
@@ -1278,6 +1315,7 @@ const snap = (x, s) => +(Math.round(x / s) * s).toFixed(3);
 function hitTest(w) {
   const h = HIT(), h2 = h * h;
   if (hoverEdge) { const part = edgeBtnAt(toS(w)); if (part) return { kind: "ebtn", ref: hoverEdge, part }; }
+  if (NSKEL) { const sp = toS(w); for (const b of noueBtns) if (Math.hypot(sp[0] - b.x, sp[1] - b.y) <= b.R + 6) return { kind: "nbtn", i: b.i }; }
   if (SKEL) { const sp = toS(w); for (const b of pills) if (Math.abs(sp[0] - b.x) <= PILL.w / 2 + 4 && Math.abs(sp[1] - b.y) <= PILL.h / 2 + 6) return { kind: "pill", i: b.i, part: sp[0] < b.x ? "dir" : "lanes" }; }
   if (sel && sel.type === "building") {
     const o = site.buildings[sel.i];
@@ -1411,6 +1449,7 @@ function endPointer(ev) {
   // Toucher simple
   lastTap = { t: dbl ? 0 : now, x: sp[0], y: sp[1] };
   const h = d.hit;
+  if (h && h.kind === "nbtn") { toggleNoue(h.i); return; }
   if (h && h.kind === "pill") { (h.part === "dir" ? reverseLane : toggleLanes)(h.i); return; }
   if (h && h.kind === "ebtn") { (h.part === "add" ? insertVertexRef(h.ref, 0.5) : curveRef(h.ref)); return; }
   if (dbl && h) {
@@ -1608,6 +1647,11 @@ $("#o-range").addEventListener("change", () => commit());
 // Squelette des voies : axes de la chaussée. Au milieu de chaque voie, une pastille à deux boutons :
 // sens de parcours (à inverser sur une voie à sens unique) et nombre de voies (2 ⇄ 1). Le choix est
 // mémorisé dans le site par un repère (milieu de la voie, direction), recalé à chaque calcul.
+$("#p-nskel").checked = NSKEL;
+$("#p-nskel").addEventListener("change", (ev) => {
+  NSKEL = ev.target.checked; try { localStorage.setItem("trame.nskel", NSKEL ? "1" : "0"); } catch (e) { /* stockage indisponible */ }
+  if (NSKEL) toast("Au milieu de chaque noue : une pastille pour la supprimer ou la rétablir"); redraw();
+});
 $("#p-skel").checked = SKEL;
 $("#p-skel").addEventListener("change", (ev) => {
   SKEL = ev.target.checked; try { localStorage.setItem("trame.skel", SKEL ? "1" : "0"); } catch (e) { /* stockage indisponible */ }

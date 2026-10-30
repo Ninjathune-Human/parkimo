@@ -507,6 +507,21 @@ pub fn solve(site: &Site) -> Layout {
     }
     out.cross = acc.cross.iter().map(q4).collect();
     out.noues = acc.noues.iter().map(q4).collect();
+    // Une noue est supprimée si un repère de `site.noue_off` tombe sur son axe.
+    out.noues_off = out
+        .noues
+        .iter()
+        .map(|q| {
+            let a = [(q[0][0] + q[3][0]) / 2.0, (q[0][1] + q[3][1]) / 2.0];
+            let b = [(q[1][0] + q[2][0]) / 2.0, (q[1][1] + q[2][1]) / 2.0];
+            let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+            let l2 = (dx * dx + dy * dy).max(1e-9);
+            site.noue_off.iter().any(|p| {
+                let t = (((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2).clamp(0.0, 1.0);
+                (p[0] - a[0] - dx * t).hypot(p[1] - a[1] - dy * t) < 1.5
+            })
+        })
+        .collect();
     // Circulation : sens des voies et flèches au sol, sur la chaussée (voirie, allées
     // transversales, accès). Calculée au relâchement, pas pendant un glisser.
     if !p.quick {

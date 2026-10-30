@@ -28,6 +28,9 @@ pub struct Site {
     /// Typologies de voie imposées depuis le squelette.
     #[serde(default)]
     pub lanes: Vec<LaneRule>,
+    /// Repères (milieux d'axe) des noues supprimées depuis le squelette des noues.
+    #[serde(default)]
+    pub noue_off: Vec<[f64; 2]>,
     #[serde(default)]
     pub params: Params,
 }
@@ -218,6 +221,9 @@ pub struct Layout {
     pub cross: Vec<[P2; 4]>,
     /// Noues entre les demi-rangées d'une rangée double : un quadrilatère par tronçon.
     pub noues: Vec<[P2; 4]>,
+    /// Pour chaque noue, vrai si elle a été supprimée (reste listée pour pouvoir la rétablir).
+    #[serde(default)]
+    pub noues_off: Vec<bool>,
     pub entrances: Vec<P2>,
     /// Cheminements piétons devant les portes des bâtiments.
     pub walks: Vec<[P2; 4]>,
