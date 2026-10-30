@@ -17,7 +17,7 @@ pub mod proj;
 pub mod region;
 pub mod rows;
 
-use geo::{BooleanOps, MultiPolygon};
+use geo::{Area, BooleanOps, MultiPolygon};
 use geom::{signed_area, v2, Quad, Region, V2};
 use layout::{Acc, KIND_IRVE, KIND_PMR, KIND_PMR_IRVE, KIND_STD};
 use model::{Layout, Metrics, Site, StallOut, P2};
@@ -54,6 +54,23 @@ fn entry_quads(site: &Site, parcel: &[V2], sign: f64) -> Vec<Quad> {
             let depth = s + if p.perimeter { p.stall_d } else { 0.0 } + p.aisle * 0.6;
             let hw = p.entry_w.clamp(2.5, 15.0) * 0.5;
             Quad::on_base(c - u * hw, c + u * hw, nn, depth)
+        })
+        .collect()
+}
+
+/// Cheminements devant les portes : largeur de la porte, du mur jusqu'à la chaussée.
+fn door_walks(site: &Site) -> Vec<Quad> {
+    let p = &site.params;
+    let depth = p.building_margin + if p.perimeter { p.stall_d } else { 0.0 };
+    site.buildings
+        .iter()
+        .filter_map(|b| b.door)
+        .filter(|d| depth > 0.01 && d.w > 0.1)
+        .map(|d| {
+            let n = v2(d.n[0], d.n[1]).norm();
+            let u = n.left();
+            let c = v2(d.p[0], d.p[1]);
+            Quad::on_base(c - u * (d.w * 0.5), c + u * (d.w * 0.5), n, depth)
         })
         .collect()
 }
@@ -197,6 +214,10 @@ pub fn solve(site: &Site) -> Layout {
     let (turn_keep, turn_fillets) = entry_turns(site, &z.parcel, &entries);
     let mut keepout = entries.clone();
     keepout.extend(turn_keep.iter().copied());
+    // Devant chaque porte : un cheminement de la largeur de la porte, du mur jusqu'à la chaussée
+    // (trottoir + profondeur de place), libre de places et de plantations.
+    let walks = door_walks(site);
+    keepout.extend(walks.iter().copied());
 
     let b_rings = region::rings_of(&z.b, 15.0);
     let b_region = Region::new(b_rings.clone());
@@ -352,6 +373,7 @@ pub fn solve(site: &Site) -> Layout {
     stall_pads.extend(acc.pads.iter().copied());
     let mut road = acc.cross.clone();
     road.extend(entries.iter().copied());
+    road.extend(walks.iter().copied());
     let pl = planted::build(&z.b, &paved, &stall_pads, &road, !p.quick);
     let paved = if pl.cut.0.is_empty() {
         paved
@@ -433,6 +455,25 @@ pub fn solve(site: &Site) -> Layout {
     out.planted = pl.polys;
     out.trees = acc.trees.iter().map(|t| p2(*t)).collect();
     out.entries = entries.iter().map(q4).collect();
+    out.walks = walks.iter().map(q4).collect();
+    {
+        let blocked = |polys: &[Vec<P2>]| {
+            polys.iter().any(|r| {
+                let ring: Vec<V2> = r.iter().map(|q| v2(q[0], q[1])).collect();
+                ring.len() >= 3
+                    && walks.iter().any(|w| {
+                        MultiPolygon::new(vec![region::to_poly(&ring)])
+                            .intersection(&MultiPolygon::new(vec![region::to_poly(&w.0)]))
+                            .unsigned_area()
+                            > 0.5
+                    })
+            })
+        };
+        if blocked(&site.landscapes) || blocked(&site.exclusions) {
+            out.warnings
+                .push("Entrée de bâtiment obstruée par un espace vert ou une servitude".into());
+        }
+    }
     out.cross = acc.cross.iter().map(q4).collect();
     // Circulation : sens des voies et flèches au sol, sur la chaussée (voirie, allées
     // transversales, accès). Calculée au relâchement, pas pendant un glisser.

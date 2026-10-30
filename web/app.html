@@ -660,7 +660,7 @@ function engineInput(quick) {
   const p = params;
   return {
     ...flatSite(), exclusions: site.exclusions.map(polyOutline),
-    buildings: site.buildings.map((b) => { const d = doorGeom(b); return { poly: rectPoly(b), entrance: [d.p[0] + d.n[0] * params.building_margin, d.p[1] + d.n[1] * params.building_margin] }; }),
+    buildings: site.buildings.map((b) => { const d = doorGeom(b); return { poly: rectPoly(b), entrance: [d.p[0] + d.n[0] * params.building_margin, d.p[1] + d.n[1] * params.building_margin], door: { p: d.p, n: d.n, w: Math.min(params.door_w, d.L) } }; }),
     landscapes: site.landscapes.map(polyOutline), lanes: site.lanes || [],
     params: {
       stall_w: p.stall_w, stall_d: p.stall_d, aisle: p.aisle, aisle_one: p.aisle_one, entry_w: p.entry_w, building_margin: p.building_margin,
@@ -868,9 +868,9 @@ function draw() {
     }
   });
   // Entrées des bâtiments : seuil de la largeur réglée, cheminement à travers le trottoir.
-  if (VIS.pbati) site.buildings.forEach((b) => {
+  if (VIS.pbati) site.buildings.forEach((b, bi) => {
     const d = doorGeom(b), hw = Math.min(params.door_w, d.L) / 2, m = params.building_margin, at = (s, o) => toS([d.p[0] + d.u[0] * s + d.n[0] * o, d.p[1] + d.u[1] * s + d.n[1] * o]);
-    const q = [at(-hw, 0), at(hw, 0), at(hw, m), at(-hw, m)];
+    const wk = layout && layout.walks && layout.walks[bi], q = wk ? wk.map(toS) : [at(-hw, 0), at(hw, 0), at(hw, m), at(-hw, m)];
     ctx.beginPath(); q.forEach((v, k) => (k ? ctx.lineTo(v[0], v[1]) : ctx.moveTo(v[0], v[1]))); ctx.closePath(); ctx.fillStyle = C.stripe; ctx.globalAlpha = 0.5; ctx.fill(); ctx.globalAlpha = 1;
     ctx.beginPath(); ctx.moveTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.strokeStyle = C.accent; ctx.lineWidth = 4; ctx.lineCap = "butt"; ctx.stroke();
     const c = toS(d.p), on = sel && sel.type === "building" && sel.i === site.buildings.indexOf(b);

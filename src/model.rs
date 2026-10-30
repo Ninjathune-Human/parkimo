@@ -49,6 +49,17 @@ pub struct Building {
     /// Entrée principale (sert au placement des places PMR).
     #[serde(default)]
     pub entrance: Option<P2>,
+    /// Porte : point sur le mur, normale sortante, largeur. Devant elle, un cheminement reste libre
+    /// de places et de plantations jusqu'à la chaussée.
+    #[serde(default)]
+    pub door: Option<Door>,
+}
+
+#[derive(Deserialize, Clone, Copy)]
+pub struct Door {
+    pub p: P2,
+    pub n: P2,
+    pub w: f64,
 }
 
 #[derive(Deserialize, Clone, Copy)]
@@ -163,6 +174,8 @@ pub struct Layout {
     pub entries: Vec<[P2; 4]>,
     pub cross: Vec<[P2; 4]>,
     pub entrances: Vec<P2>,
+    /// Cheminements piétons devant les portes des bâtiments.
+    pub walks: Vec<[P2; 4]>,
     /// Sens de circulation et flèches au sol.
     pub circulation: crate::circulation::Circulation,
     pub metrics: Metrics,
