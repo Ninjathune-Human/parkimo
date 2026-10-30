@@ -68,6 +68,8 @@ pub struct Params {
     pub aisle: f64,
     /// Largeur d'une voie passée à sens unique (m).
     pub aisle_one: f64,
+    /// Largeur d'un accès véhicules (m).
+    pub entry_w: f64,
     /// Part de places adaptées PMR.
     pub pmr_ratio: f64,
     /// Largeur d'une place PMR (m).
@@ -100,6 +102,7 @@ impl Default for Params {
             stall_d: 5.0,
             aisle: 6.0,
             aisle_one: 5.0,
+            entry_w: 6.0,
             pmr_ratio: 0.02,
             pmr_w: 3.3,
             irve_ratio: 0.2,

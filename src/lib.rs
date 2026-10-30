@@ -52,7 +52,8 @@ fn entry_quads(site: &Site, parcel: &[V2], sign: f64) -> Vec<Quad> {
             let c = a + (b - a) * t;
             let s = site.setbacks.get(e.edge).copied().unwrap_or(0.0);
             let depth = s + if p.perimeter { p.stall_d } else { 0.0 } + p.aisle * 0.6;
-            Quad::on_base(c - u * (p.aisle * 0.5), c + u * (p.aisle * 0.5), nn, depth)
+            let hw = p.entry_w.clamp(2.5, 15.0) * 0.5;
+            Quad::on_base(c - u * hw, c + u * hw, nn, depth)
         })
         .collect()
 }
