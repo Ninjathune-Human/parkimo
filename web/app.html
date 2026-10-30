@@ -430,6 +430,11 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <div class="field"><label for="p-skel">Squelette des voies</label><input id="p-skel" type="checkbox" class="switch" role="switch"></div>
       <div class="field"><label for="p-nskel">Squelette des noues</label><input id="p-nskel" type="checkbox" class="switch" role="switch"></div>
     </div>
+    <div class="pgroup">
+      <div class="eyebrow">Orientation des rangées</div>
+      <div class="field"><span class="seg" role="group" aria-label="Orientation"><button id="o-auto" aria-pressed="true">Optimisée</button><button id="o-fixed" aria-pressed="false">Imposée</button></span><span class="unit num" id="o-val"></span></div>
+      <input id="o-range" type="range" min="0" max="179" step="1" aria-label="Angle imposé" hidden>
+    </div>
     <button class="mi" role="menuitem" data-add="traverse"><span class="glyph" style="background:var(--asphalt)"></span><span>Traverse<small>Voie transversale qui coupe les rangées</small></span></button>
   </section>
 
@@ -458,11 +463,6 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <div class="field"><label for="p-pmr_ratio">Places PMR</label><span class="unit"><input id="p-pmr_ratio" type="text" inputmode="decimal" autocomplete="off">%</span></div>
       <div class="field"><label for="p-irve_ratio">Pré-équipement IRVE</label><span class="unit"><input id="p-irve_ratio" type="text" inputmode="decimal" autocomplete="off">%</span></div>
       <div class="field"><label for="p-irve_equip_ratio">Équipement IRVE (bornes)</label><span class="unit"><input id="p-irve_equip_ratio" type="text" inputmode="decimal" autocomplete="off">%</span></div>
-    </div>
-    <div class="pgroup">
-      <div class="eyebrow">Orientation des rangées</div>
-      <div class="field"><span class="seg" role="group" aria-label="Orientation"><button id="o-auto" aria-pressed="true">Optimisée</button><button id="o-fixed" aria-pressed="false">Imposée</button></span><span class="unit num" id="o-val"></span></div>
-      <input id="o-range" type="range" min="0" max="179" step="1" aria-label="Angle imposé" hidden>
     </div>
     <p class="note">Valeurs par défaut : place 2,50 × 5,00 m, PMR 3,30 m et 2 % (ERP), IRVE 20 % (bâtiment non résidentiel). À ajuster selon le PLU et la destination. Une allée est à double sens à partir de 5,00 m, à sens unique en dessous. Squelette affiché, chaque voie porte deux boutons : son sens de parcours, à inverser, et son nombre de voies. Une voie à sens unique prend sa largeur et les rangées voisines se rapprochent (5,00 m : places à 90°, NF P 91-100).</p>
   </section>
@@ -1673,6 +1673,7 @@ function syncParamsUI() {
   const auto = params.angle === null;
   $("#o-auto").setAttribute("aria-pressed", String(auto)); $("#o-fixed").setAttribute("aria-pressed", String(!auto));
   $("#o-range").hidden = auto; if (!auto) $("#o-range").value = Math.round(params.angle);
+  if (!$("#modmenu").hidden) placeMenu("#b-mod", "#modmenu");
 }
 let paramTimer = null;
 for (const k of PKEYS) $("#p-" + k).addEventListener("input", (ev) => {
