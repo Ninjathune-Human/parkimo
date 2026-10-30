@@ -801,7 +801,7 @@ function pathPoly(pts) { if (!pts.length) return; const a = toS(pts[0]); ctx.mov
 // courtes vers l'intérieur, de longueurs alternées, et le fond figuré par un seul trait (fil d'eau).
 function drawNoues() {
   const list = layout && !layout.error && layout.noues; if (!list || !list.length) return;
-  ctx.strokeStyle = C["tree-edge"]; ctx.lineCap = "butt"; ctx.lineJoin = "round";
+  ctx.globalAlpha = 0.55; ctx.strokeStyle = C["tree-edge"]; ctx.lineCap = "butt"; ctx.lineJoin = "round";
   const step = Math.max(0.8, 5 / view.s), outlines = [], ticks = [], fonds = [];
   for (const q of list) {
     const L = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]), nw = Math.hypot(q[3][0] - q[0][0], q[3][1] - q[0][1]); if (L < 0.6 || nw < 0.3) continue;
@@ -823,11 +823,12 @@ function drawNoues() {
     }
     if (L > 3 * r) fonds.push([W(L * 0.12 + r * 0.5, r), W(L * 0.88 - r * 0.5, r)]);
   }
-  ctx.fillStyle = "rgba(20,40,25,.14)"; ctx.beginPath(); for (const o of outlines) { const a = toS(o[0]); ctx.moveTo(a[0], a[1]); for (const p of o.slice(1)) { const b = toS(p); ctx.lineTo(b[0], b[1]); } ctx.closePath(); } ctx.fill();
+  ctx.globalAlpha = 1; ctx.fillStyle = "rgba(20,40,25,.07)"; ctx.beginPath(); for (const o of outlines) { const a = toS(o[0]); ctx.moveTo(a[0], a[1]); for (const p of o.slice(1)) { const b = toS(p); ctx.lineTo(b[0], b[1]); } ctx.closePath(); } ctx.fill(); ctx.globalAlpha = 0.55;
   const seg = (a, b) => { const p0 = toS(a), p1 = toS(b); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); };
-  ctx.beginPath(); for (const [a, b] of ticks) seg(a, b); ctx.lineWidth = 0.8; ctx.stroke();
-  ctx.beginPath(); for (const [a, b] of fonds) seg(a, b); ctx.lineWidth = 1; ctx.stroke();
-  ctx.beginPath(); for (const o of outlines) { const a = toS(o[0]); ctx.moveTo(a[0], a[1]); for (const p of o.slice(1)) { const b = toS(p); ctx.lineTo(b[0], b[1]); } ctx.closePath(); } ctx.lineWidth = 1.6; ctx.stroke();
+  ctx.beginPath(); for (const [a, b] of ticks) seg(a, b); ctx.lineWidth = 0.5; ctx.stroke();
+  ctx.beginPath(); for (const [a, b] of fonds) seg(a, b); ctx.lineWidth = 0.6; ctx.stroke();
+  ctx.beginPath(); for (const o of outlines) { const a = toS(o[0]); ctx.moveTo(a[0], a[1]); for (const p of o.slice(1)) { const b = toS(p); ctx.lineTo(b[0], b[1]); } ctx.closePath(); } ctx.lineWidth = 0.9; ctx.stroke();
+  ctx.globalAlpha = 1;
 }
 // Bassin de rétention : zone verte en creux. Haut de talus (trait fort), pied de talus (trait fin, fond
 // plus sombre) et barbules, du haut vers le bas, alternativement longues et courtes pour figurer la pente.
@@ -839,9 +840,9 @@ function drawBasins() {
     if (info && info.outer) { ctx.beginPath(); for (const r of info.outer) pathPoly(r); ctx.fillStyle = C.island; ctx.fill("evenodd"); }
     fillPoly(top, C.island);
     if (bottom.length) {
-      ctx.beginPath(); for (const r of bottom) pathPoly(r); ctx.fillStyle = "rgba(20,40,25,.16)"; ctx.fill("evenodd");
+      ctx.beginPath(); for (const r of bottom) pathPoly(r); ctx.fillStyle = "rgba(20,40,25,.08)"; ctx.fill("evenodd");
     }
-    ctx.strokeStyle = C["tree-edge"]; ctx.lineCap = "butt";
+    ctx.globalAlpha = 0.55; ctx.strokeStyle = C["tree-edge"]; ctx.lineCap = "butt";
     if (run > 0) {
       // Barbules : normale intérieure (haut de talus en sens trigonométrique : à gauche), coupée au pied de talus.
       const ccw = polyArea(top) > 0, step = Math.max(1, 5 / view.s);
@@ -857,10 +858,11 @@ function drawBasins() {
         }
         carry = (carry + L) % step;
       }
-      ctx.lineWidth = 0.8; ctx.stroke();
+      ctx.lineWidth = 0.5; ctx.stroke();
     }
-    if (bottom.length) { ctx.beginPath(); for (const r of bottom) pathPoly(r); ctx.lineWidth = 0.9; ctx.stroke(); }
-    ctx.beginPath(); pathPoly(top); ctx.lineWidth = 1.8; ctx.stroke();
+    if (bottom.length) { ctx.beginPath(); for (const r of bottom) pathPoly(r); ctx.lineWidth = 0.6; ctx.stroke(); }
+    ctx.beginPath(); pathPoly(top); ctx.lineWidth = 1; ctx.stroke();
+    ctx.globalAlpha = 1;
     if (view.s > 2.2) {
       const c = toS([top.reduce((s, p) => s + p[0], 0) / top.length, top.reduce((s, p) => s + p[1], 0) / top.length]);
       ctx.fillStyle = C["building-label"]; ctx.textAlign = "center"; ctx.textBaseline = "middle";
