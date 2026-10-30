@@ -797,6 +797,34 @@ function hatchPattern() {
 }
 
 function pathPoly(pts) { if (!pts.length) return; const a = toS(pts[0]); ctx.moveTo(a[0], a[1]); for (let i = 1; i < pts.length; i++) { const b = toS(pts[i]); ctx.lineTo(b[0], b[1]); } ctx.closePath(); }
+// Noues entre les places : même figuré que le bassin. Deux lignes de haut de talus (les bords), un fil d'eau
+// au milieu et des barbules des bords vers le fil d'eau, alternativement longues et courtes.
+function drawNoues() {
+  const list = layout && !layout.error && layout.noues; if (!list || !list.length) return;
+  const lineTo = (a, b) => { const p0 = toS(a), p1 = toS(b); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); };
+  ctx.fillStyle = "rgba(20,40,25,.14)"; ctx.beginPath(); for (const q of list) pathPoly(q); ctx.fill();
+  ctx.strokeStyle = C["tree-edge"]; ctx.lineCap = "butt";
+  const step = Math.max(1, 5 / view.s);
+  ctx.beginPath();
+  for (const q of list) {
+    const L = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]), nw = Math.hypot(q[3][0] - q[0][0], q[3][1] - q[0][1]); if (L < 0.3 || nw < 0.3) continue;
+    const ux = (q[1][0] - q[0][0]) / L, uy = (q[1][1] - q[0][1]) / L, cx = (q[3][0] - q[0][0]) / nw, cy = (q[3][1] - q[0][1]) / nw, half = nw / 2;
+    for (let t = step / 2, n = 0; t < L; t += step, n++) {
+      const len = half * (n % 2 ? 0.45 : 0.85), x = q[0][0] + ux * t, y = q[0][1] + uy * t;
+      lineTo([x, y], [x + cx * len, y + cy * len]);
+      const x2 = q[3][0] + ux * t, y2 = q[3][1] + uy * t;
+      lineTo([x2, y2], [x2 - cx * len, y2 - cy * len]);
+    }
+  }
+  ctx.lineWidth = 0.8; ctx.stroke();
+  ctx.beginPath();
+  for (const q of list) {
+    lineTo([(q[0][0] + q[3][0]) / 2, (q[0][1] + q[3][1]) / 2], [(q[1][0] + q[2][0]) / 2, (q[1][1] + q[2][1]) / 2]);
+  }
+  ctx.lineWidth = 0.9; ctx.stroke();
+  ctx.beginPath(); for (const q of list) { lineTo(q[0], q[1]); lineTo(q[3], q[2]); }
+  ctx.lineWidth = 1.6; ctx.stroke();
+}
 // Bassin de rétention : zone verte en creux. Haut de talus (trait fort), pied de talus (trait fin, fond
 // plus sombre) et barbules, du haut vers le bas, alternativement longues et courtes pour figurer la pente.
 function drawBasins() {
@@ -892,6 +920,7 @@ function draw() {
       ctx.fillStyle = C.island;
       ctx.beginPath(); for (const poly of layout.planted || []) for (const r of poly) pathPoly(r); ctx.fill("evenodd");
       ctx.beginPath(); for (const q of layout.islands) pathPoly(q); ctx.fill();
+      drawNoues();
     }
     // Couche Habillage : véhicules sous les arbres
     drawDressing();
@@ -2443,7 +2472,7 @@ $("#m-ok").addEventListener("click", importArea);
 // ============================================================================
 // Calque de l'interface → calques AutoCAD correspondants.
 const DXF_LAYERS = {
-  places: ["PRJ_PLACES", "PRJ_PLACES_PMR", "PRJ_PLACES_IRVE", "PRJ_PLACES_IRVE_EQ"], pvoirie: ["PRJ_VOIRIE"], sens: ["PRJ_SIGNALISATION"], ilots: ["PRJ_ILOTS"],
+  places: ["PRJ_PLACES", "PRJ_PLACES_PMR", "PRJ_PLACES_IRVE", "PRJ_PLACES_IRVE_EQ"], pvoirie: ["PRJ_VOIRIE"], sens: ["PRJ_SIGNALISATION"], ilots: ["PRJ_ILOTS", "PRJ_NOUES"],
   vehicules: ["HAB_VEHICULES"], arbres: ["HAB_ARBRES"],
   pbati: ["PRJ_BATIMENTS", "PRJ_ESPACES_VERTS", "PRJ_BASSIN_TALUS_HAUT", "PRJ_BASSIN_TALUS_BAS"], servitudes: ["PRJ_SERVITUDES"], recul: ["PRJ_RECUL"],
   ovoirie: ["OCC_VOIRIE"], bati: ["OCC_BATI"], vegetation: ["OCC_VEGETATION"],

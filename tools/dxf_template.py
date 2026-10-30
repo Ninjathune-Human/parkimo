@@ -28,6 +28,7 @@ LAYERS = [
     ("PRJ_ILOTS", 92, "Continuous", 18, "Projet : ilots plantes"),
     ("PRJ_BATIMENTS", 7, "Continuous", 50, "Projet : batiments"),
     ("PRJ_ESPACES_VERTS", 92, "Continuous", 18, "Projet : espaces verts"),
+    ("PRJ_NOUES", 94, "Continuous", 18, "Projet : noues entre rangees"),
     ("PRJ_BASSIN_TALUS_HAUT", 94, "Continuous", 35, "Projet : bassin de retention, haut de talus"),
     ("PRJ_BASSIN_TALUS_BAS", 94, "Continuous", 18, "Projet : bassin de retention, pied de talus"),
     ("PRJ_SERVITUDES", 6, "Continuous", 25, "Projet : servitudes"),

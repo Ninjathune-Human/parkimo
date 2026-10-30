@@ -506,6 +506,7 @@ pub fn solve(site: &Site) -> Layout {
         }
     }
     out.cross = acc.cross.iter().map(q4).collect();
+    out.noues = acc.noues.iter().map(q4).collect();
     // Circulation : sens des voies et flèches au sol, sur la chaussée (voirie, allées
     // transversales, accès). Calculée au relâchement, pas pendant un glisser.
     if !p.quick {

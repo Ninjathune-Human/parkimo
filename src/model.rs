@@ -216,6 +216,8 @@ pub struct Layout {
     pub trees: Vec<P2>,
     pub entries: Vec<[P2; 4]>,
     pub cross: Vec<[P2; 4]>,
+    /// Noues entre les demi-rangées d'une rangée double : un quadrilatère par tronçon.
+    pub noues: Vec<[P2; 4]>,
     pub entrances: Vec<P2>,
     /// Cheminements piétons devant les portes des bâtiments.
     pub walks: Vec<[P2; 4]>,

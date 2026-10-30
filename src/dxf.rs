@@ -606,6 +606,9 @@ pub fn export(inp: &ExportIn) -> ExportOut {
     for q in &lay.islands {
         w.ring("PRJ_ILOTS", q);
     }
+    for q in &lay.noues {
+        w.ring("PRJ_NOUES", q);
+    }
     for s in &lay.stalls {
         let layer = match s.k {
             1 | 3 => "PRJ_PLACES_PMR",

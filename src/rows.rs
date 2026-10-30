@@ -410,6 +410,25 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
         }
     }
 
+    // Noue entre les deux demi-rangées : un tronçon par suite continue de places.
+    if nw > 0.0 {
+        let mut i = 0;
+        while i < n {
+            if !(v[0][i] || v[1][i]) {
+                i += 1;
+                continue;
+            }
+            let s0 = i;
+            while i < n && (v[0][i] || v[1][i]) {
+                i += 1;
+            }
+            let xa = g + (kmin + s0 as i64) as f64 * w;
+            let xb = g + (kmin + i as i64) as f64 * w;
+            let q = Quad([v2(xa, y0 + d), v2(xb, y0 + d), v2(xb, y0 + d + nw), v2(xa, y0 + d + nw)]);
+            acc.noues.push(xf(&q, rot));
+        }
+    }
+
     let mut placed = 0usize;
     for h in 0..2 {
         let row = acc.new_row();

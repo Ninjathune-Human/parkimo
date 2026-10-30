@@ -36,6 +36,8 @@ pub struct Acc {
     pub trees: Vec<V2>,
     pub pads: Vec<Quad>,
     pub cross: Vec<Quad>,
+    /// Noues entre demi-rangées (un quadrilatère par tronçon continu).
+    pub noues: Vec<Quad>,
     /// Emprises bloquant la circulation (rangées intérieures, îlots).
     pub blockers: Vec<Quad>,
     pub next_row: u32,
@@ -51,6 +53,7 @@ impl Acc {
             trees: Vec::new(),
             pads: Vec::new(),
             cross: Vec::new(),
+            noues: Vec::new(),
             blockers: Vec::new(),
             next_row: 0,
         }
