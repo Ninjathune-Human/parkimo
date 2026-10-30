@@ -588,6 +588,9 @@ pub fn export(inp: &ExportIn) -> ExportOut {
     for (i, bs) in site.basins.iter().enumerate() {
         w.ring("PRJ_BASSIN_TALUS_HAUT", bs);
         if let Some(o) = lay.basins.get(i) {
+            for r in &o.outer {
+                w.ring("PRJ_ESPACES_VERTS", r);
+            }
             for r in &o.bottom {
                 w.ring("PRJ_BASSIN_TALUS_BAS", r);
             }

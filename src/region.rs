@@ -67,6 +67,13 @@ fn drop_small(mp: MultiPolygon<f64>, min_area: f64) -> MultiPolygon<f64> {
     )
 }
 
+pub fn grow(mp: &MultiPolygon<f64>, d: f64) -> MultiPolygon<f64> {
+    if d <= 0.0 {
+        return mp.clone();
+    }
+    mp.buffer_with_style(BufferStyle::new(d).line_join(LineJoin::Round(ROUND)))
+}
+
 pub fn erode(mp: &MultiPolygon<f64>, d: f64) -> MultiPolygon<f64> {
     if d <= 0.0 {
         return mp.clone();
@@ -163,7 +170,16 @@ pub fn build(site: &Site) -> Option<Zones> {
             obstacles.push(poly);
         }
     }
-    for l in site.landscapes.iter().chain(site.basins.iter()) {
+    for l in &site.basins {
+        let r = clean_ring(&l.iter().map(|q| v2(q[0], q[1])).collect::<Vec<_>>());
+        if r.len() >= 3 {
+            obstacles.push(grow(
+                &MultiPolygon::new(vec![to_poly(&r)]),
+                p.basin_margin.clamp(0.0, 10.0),
+            ));
+        }
+    }
+    for l in &site.landscapes {
         let r = clean_ring(&l.iter().map(|q| v2(q[0], q[1])).collect::<Vec<_>>());
         if r.len() >= 3 {
             obstacles.push(MultiPolygon::new(vec![to_poly(&r)]));

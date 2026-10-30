@@ -465,19 +465,26 @@ pub fn solve(site: &Site) -> Layout {
         .map(|b| {
             let ring = crate::geom::clean_ring(&b.iter().map(|q| v2(q[0], q[1])).collect::<Vec<_>>());
             let mut run = (p.basin_h.clamp(0.0, 10.0)) * 3.0;
-            if ring.len() < 3 || run < 0.05 {
-                return BasinOut { run: 0.0, bottom: vec![] };
+            if ring.len() < 3 {
+                return BasinOut::default();
             }
             let mp = MultiPolygon::new(vec![region::to_poly(&ring)]);
+            let outer: Vec<Vec<P2>> = region::rings_of(&region::grow(&mp, p.basin_margin.clamp(0.0, 10.0)), 0.5)
+                .iter()
+                .map(|r| r.iter().map(|q| p2(*q)).collect())
+                .collect();
+            if run < 0.05 {
+                return BasinOut { run: 0.0, outer, ..Default::default() };
+            }
             for _ in 0..8 {
                 let rings = region::rings_of(&region::erode(&mp, run), 0.5);
                 if !rings.is_empty() {
                     let bottom = rings.iter().map(|r| r.iter().map(|q| p2(*q)).collect()).collect();
-                    return BasinOut { run, bottom };
+                    return BasinOut { run, bottom, outer: outer.clone() };
                 }
                 run *= 0.7;
             }
-            BasinOut { run, bottom: vec![] }
+            BasinOut { run, outer, ..Default::default() }
         })
         .collect();
     {

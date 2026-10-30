@@ -432,6 +432,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <div class="field"><label for="p-stall_w">Largeur de place</label><span class="unit"><input id="p-stall_w" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-stall_d">Longueur de place</label><span class="unit"><input id="p-stall_d" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-basin_h">Hauteur bassin de rétention</label><span class="unit"><input id="p-basin_h" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+      <div class="field"><label for="p-basin_margin">Verdure autour du bassin</label><span class="unit"><input id="p-basin_margin" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-aisle">Largeur d'allée</label><span class="unit"><input id="p-aisle" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-noue_w">Noue entre rangées (0 = aucune)</label><span class="unit"><input id="p-noue_w" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-aisle_one">Largeur voie en sens unique</label><span class="unit"><input id="p-aisle_one" type="text" inputmode="decimal" autocomplete="off">m</span></div>
@@ -596,7 +597,7 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((res) => setTimeout(
 // ============================================================================
 // Données : sites d'exemple (mètres, repère local, y vers le haut).
 // ============================================================================
-const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, max_run: 60, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null };
+const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, basin_margin: 2, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, max_run: 60, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null };
 
 function arc(cx, cy, r, a0, a1, n) {
   const pts = [];
@@ -668,7 +669,7 @@ function engineInput(quick) {
     buildings: site.buildings.map((b) => { const d = doorGeom(b); return { poly: rectPoly(b), entrance: [d.p[0] + d.n[0] * params.building_margin, d.p[1] + d.n[1] * params.building_margin], door: { p: d.p, n: d.n, w: Math.min(params.door_w, d.L) } }; }),
     landscapes: site.landscapes.map(polyOutline), basins: (site.basins || []).map(polyOutline), lanes: site.lanes || [],
     params: {
-      stall_w: p.stall_w, stall_d: p.stall_d, noue_w: p.noue_w, basin_h: p.basin_h, aisle: p.aisle, aisle_one: p.aisle_one, entry_w: p.entry_w, building_margin: p.building_margin,
+      stall_w: p.stall_w, stall_d: p.stall_d, noue_w: p.noue_w, basin_h: p.basin_h, basin_margin: p.basin_margin, aisle: p.aisle, aisle_one: p.aisle_one, entry_w: p.entry_w, building_margin: p.building_margin,
       planter_every: Math.max(0, Math.round(p.planter_every)), cap: p.cap, max_run: p.max_run,
       pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100, irve_equip_ratio: p.irve_equip_ratio / 100,
       angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle,
@@ -803,6 +804,7 @@ function drawBasins() {
   list.forEach((P, bi) => {
     const top = polyOutline(P); if (top.length < 3) return;
     const info = layout && !layout.error && layout.basins && layout.basins[bi], bottom = info ? info.bottom : [], run = info ? info.run : 0;
+    if (info && info.outer) { ctx.beginPath(); for (const r of info.outer) pathPoly(r); ctx.fillStyle = C.island; ctx.fill("evenodd"); }
     fillPoly(top, C.island);
     if (bottom.length) {
       ctx.beginPath(); for (const r of bottom) pathPoly(r); ctx.fillStyle = "rgba(20,40,25,.16)"; ctx.fill("evenodd");
@@ -1549,7 +1551,7 @@ window.addEventListener("keydown", (ev) => {
 // ============================================================================
 // Hypothèses.
 // ============================================================================
-const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "max_run", "pmr_ratio", "irve_ratio", "irve_equip_ratio"];
+const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "max_run", "pmr_ratio", "irve_ratio", "irve_equip_ratio"];
 function syncParamsUI() {
   for (const k of PKEYS) $("#p-" + k).value = String(params[k]).replace(".", ",");
   const auto = params.angle === null;

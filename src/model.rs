@@ -80,6 +80,8 @@ pub struct Params {
     pub stall_d: f64,
     /// Hauteur (profondeur) des bassins de rétention (m) ; talus 3 pour 1.
     pub basin_h: f64,
+    /// Bande de verdure autour du haut de talus d'un bassin : accès et entretien (m).
+    pub basin_margin: f64,
     /// Largeur de la noue entre les deux demi-rangées d'une rangée double (m, 0 = aucune, sinon 1 à 6).
     pub noue_w: f64,
     /// Largeur d'allée double sens (m).
@@ -136,6 +138,7 @@ impl Default for Params {
             stall_w: 2.5,
             stall_d: 5.0,
             basin_h: 1.5,
+            basin_margin: 2.0,
             noue_w: 0.0,
             aisle: 6.0,
             aisle_one: 5.0,
@@ -171,6 +174,8 @@ pub struct StallOut {
 pub struct BasinOut {
     pub run: f64,
     pub bottom: Vec<Vec<P2>>,
+    /// Limite extérieure de la bande de verdure d'accès.
+    pub outer: Vec<Vec<P2>>,
 }
 
 #[derive(Serialize, Default)]
