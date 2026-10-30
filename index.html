@@ -805,33 +805,37 @@ function hatchPattern() {
 }
 
 function pathPoly(pts) { if (!pts.length) return; const a = toS(pts[0]); ctx.moveTo(a[0], a[1]); for (let i = 1; i < pts.length; i++) { const b = toS(pts[i]); ctx.lineTo(b[0], b[1]); } ctx.closePath(); }
-// Noues entre les places : même figuré que le bassin. Deux lignes de haut de talus (les bords), un fil d'eau
-// au milieu et des barbules des bords vers le fil d'eau, alternativement longues et courtes.
+// Noues entre les places : un haricot allongé aux bouts arrondis (haut de talus en trait fort), des barbules
+// courtes vers l'intérieur, de longueurs alternées, et le fond figuré par un seul trait (fil d'eau).
 function drawNoues() {
   const list = layout && !layout.error && layout.noues; if (!list || !list.length) return;
-  const lineTo = (a, b) => { const p0 = toS(a), p1 = toS(b); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); };
-  ctx.fillStyle = "rgba(20,40,25,.14)"; ctx.beginPath(); for (const q of list) pathPoly(q); ctx.fill();
-  ctx.strokeStyle = C["tree-edge"]; ctx.lineCap = "butt";
-  const step = Math.max(1, 5 / view.s);
-  ctx.beginPath();
+  ctx.strokeStyle = C["tree-edge"]; ctx.lineCap = "butt"; ctx.lineJoin = "round";
+  const step = Math.max(0.8, 5 / view.s), outlines = [], ticks = [], fonds = [];
   for (const q of list) {
-    const L = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]), nw = Math.hypot(q[3][0] - q[0][0], q[3][1] - q[0][1]); if (L < 0.3 || nw < 0.3) continue;
-    const ux = (q[1][0] - q[0][0]) / L, uy = (q[1][1] - q[0][1]) / L, cx = (q[3][0] - q[0][0]) / nw, cy = (q[3][1] - q[0][1]) / nw, half = nw / 2;
-    for (let t = step / 2, n = 0; t < L; t += step, n++) {
-      const len = half * (n % 2 ? 0.45 : 0.85), x = q[0][0] + ux * t, y = q[0][1] + uy * t;
-      lineTo([x, y], [x + cx * len, y + cy * len]);
-      const x2 = q[3][0] + ux * t, y2 = q[3][1] + uy * t;
-      lineTo([x2, y2], [x2 - cx * len, y2 - cy * len]);
+    const L = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]), nw = Math.hypot(q[3][0] - q[0][0], q[3][1] - q[0][1]); if (L < 0.6 || nw < 0.3) continue;
+    const ux = (q[1][0] - q[0][0]) / L, uy = (q[1][1] - q[0][1]) / L, cx = (q[3][0] - q[0][0]) / nw, cy = (q[3][1] - q[0][1]) / nw;
+    const r = Math.min(nw, L) / 2, W = (t, v) => [q[0][0] + ux * t + cx * v, q[0][1] + uy * t + cy * v];
+    // Contour du haricot dans le repère de la noue (t le long, v en travers), sens trigonométrique.
+    const pts = []; const arc = (t0, a0, a1) => { for (let k = 0; k <= 8; k++) { const a = a0 + (a1 - a0) * k / 8; pts.push(W(t0 + r * Math.cos(a), r + r * Math.sin(a))); } };
+    arc(L - r, -Math.PI / 2, Math.PI / 2); arc(r, Math.PI / 2, 3 * Math.PI / 2);
+    outlines.push(pts);
+    let carry = 0, n = 0;
+    for (let k = 0; k < pts.length; k++) {
+      const a = pts[k], b = pts[(k + 1) % pts.length], seg = Math.hypot(b[0] - a[0], b[1] - a[1]); if (seg < 1e-6) continue;
+      const dx = (b[0] - a[0]) / seg, dy = (b[1] - a[1]) / seg;
+      for (let t = step - carry; t <= seg; t += step, n++) {
+        const len = r * (n % 2 ? 0.3 : 0.55), o = [a[0] + dx * t, a[1] + dy * t];
+        ticks.push([o, [o[0] - dy * len, o[1] + dx * len]]);
+      }
+      carry = (carry + seg) % step;
     }
+    if (L > 3 * r) fonds.push([W(L * 0.12 + r * 0.5, r), W(L * 0.88 - r * 0.5, r)]);
   }
-  ctx.lineWidth = 0.8; ctx.stroke();
-  ctx.beginPath();
-  for (const q of list) {
-    lineTo([(q[0][0] + q[3][0]) / 2, (q[0][1] + q[3][1]) / 2], [(q[1][0] + q[2][0]) / 2, (q[1][1] + q[2][1]) / 2]);
-  }
-  ctx.lineWidth = 0.9; ctx.stroke();
-  ctx.beginPath(); for (const q of list) { lineTo(q[0], q[1]); lineTo(q[3], q[2]); }
-  ctx.lineWidth = 1.6; ctx.stroke();
+  ctx.fillStyle = "rgba(20,40,25,.14)"; ctx.beginPath(); for (const o of outlines) { const a = toS(o[0]); ctx.moveTo(a[0], a[1]); for (const p of o.slice(1)) { const b = toS(p); ctx.lineTo(b[0], b[1]); } ctx.closePath(); } ctx.fill();
+  const seg = (a, b) => { const p0 = toS(a), p1 = toS(b); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); };
+  ctx.beginPath(); for (const [a, b] of ticks) seg(a, b); ctx.lineWidth = 0.8; ctx.stroke();
+  ctx.beginPath(); for (const [a, b] of fonds) seg(a, b); ctx.lineWidth = 1; ctx.stroke();
+  ctx.beginPath(); for (const o of outlines) { const a = toS(o[0]); ctx.moveTo(a[0], a[1]); for (const p of o.slice(1)) { const b = toS(p); ctx.lineTo(b[0], b[1]); } ctx.closePath(); } ctx.lineWidth = 1.6; ctx.stroke();
 }
 // Bassin de rétention : zone verte en creux. Haut de talus (trait fort), pied de talus (trait fin, fond
 // plus sombre) et barbules, du haut vers le bas, alternativement longues et courtes pour figurer la pente.
