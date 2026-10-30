@@ -424,8 +424,16 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
             }
             let xa = g + (kmin + s0 as i64) as f64 * w;
             let xb = g + (kmin + i as i64) as f64 * w;
-            let q = Quad([v2(xa, y0 + d), v2(xb, y0 + d), v2(xb, y0 + d + nw), v2(xa, y0 + d + nw)]);
-            acc.noues.push(xf(&q, rot));
+            // La noue s'arrête là où le cœur s'arrête : elle ne déborde jamais sur la chaussée.
+            let mut inside = Vec::new();
+            strip_intervals(&f.rings, y0 + d + 1e-4, y0 + d + nw - 1e-4, &mut inside);
+            for (a, b) in inside {
+                let (lo, hi) = (a.max(xa), b.min(xb));
+                if hi - lo >= 1.0 {
+                    let q = Quad([v2(lo, y0 + d), v2(hi, y0 + d), v2(hi, y0 + d + nw), v2(lo, y0 + d + nw)]);
+                    acc.noues.push(xf(&q, rot));
+                }
+            }
         }
     }
 
