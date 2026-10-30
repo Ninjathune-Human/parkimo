@@ -591,8 +591,9 @@ pub fn export(inp: &ExportIn) -> ExportOut {
             for r in &o.outer {
                 w.ring("PRJ_ESPACES_VERTS", r);
             }
-            for r in &o.bottom {
-                w.ring("PRJ_BASSIN_TALUS_BAS", r);
+            if o.fond.len() >= 2 {
+                let pts = w.map(&o.fond);
+                w.lwpoly("PRJ_BASSIN_FOND", &pts, false);
             }
         }
     }

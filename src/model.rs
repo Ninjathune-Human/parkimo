@@ -169,11 +169,11 @@ pub struct StallOut {
     pub e: bool,
 }
 
-/// Pied de talus d'un bassin : emprise horizontale du talus et anneaux du fond.
+/// Bassin de rétention : emprise horizontale du talus (3 × hauteur) et fil d'eau central (le fond).
 #[derive(Serialize, Clone, Default)]
 pub struct BasinOut {
     pub run: f64,
-    pub bottom: Vec<Vec<P2>>,
+    pub fond: Vec<P2>,
     /// Limite extérieure de la bande de verdure d'accès.
     pub outer: Vec<Vec<P2>>,
 }
