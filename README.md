@@ -50,6 +50,7 @@ Calque **Sens de circulation** dans la couche Projet ; à l'export, bloc `SIG_FL
 - **Barre d'outils**, dans l'ordre de la création : **Nouveau** (projet vierge, exemples, retour à « Mon site ») · **Carte** (fond IGN et cadastre) · **Tracer** (parcelle dessinée) · **Ajouter** (bâtiment, espace vert, servitude, accès) | **Hypothèses** · **Habillage** · **Exporter** | annuler, rétablir. Elle se centre dans la zone libre du plan ; quand elle ne tient pas sur l'écran (iPad en portrait), les libellés laissent place aux icônes, encoches des menus conservées ; sur téléphone, les boutons se partagent toute la largeur.
 - **Colonne de gauche** : le bilan en haut, les couches en bas ; les couches cèdent la hauteur qui manque et défilent. Sur téléphone, les deux panneaux sont repliés en haut et un seul s'ouvre à la fois.
 - **Limites de la parcelle** : au survol d'un bord (ou en le touchant sur tablette), deux boutons apparaissent en son milieu, alignés sur le segment : **+** ajoute un sommet, **arc** arrondit le segment ou le redresse. Un segment arrondi est un vrai arc de cercle (flèche mémorisée en fraction de la corde) : on règle la courbure en glissant la poignée située au-delà de son sommet, et l'arc suit le déplacement des sommets. Seul le moteur et l'export DXF reçoivent un contour discrétisé (un côté tous les 4° environ). Ajouter un sommet sur un arc le coupe en deux arcs du même cercle. Les mêmes boutons, la même poignée et les mêmes arcs valent pour les segments des servitudes et des espaces verts imposés (la flèche est portée par le sommet : `[x, y, k]`). Le long d'une courbe, les places périphériques sont des trapèzes : un seul trait, porté par la normale locale de la limite, sépare deux places voisines, sans interstice ni chevauchement.
+- **Entrée des bâtiments** : chaque bâtiment porte une entrée (barre sur son pourtour, largeur réglée dans Hypothèses, cheminement à travers le trottoir). Glissez sa poignée le long du contour pour la placer ; par défaut, elle est sur l'arête la plus proche du premier accès véhicules. Elle suit le bâtiment qu'on déplace, tourne ou redimensionne, et sert de cible aux places PMR.
 - **Bouton de cadrage et échelle** en haut à droite (en bas à droite sur téléphone et sur la carte).
 
 ## Fond de carte IGN
@@ -102,6 +103,7 @@ Le squelette du fichier (en-tête, tables, calques, types de ligne, blocs) est p
 | Largeur d'allée | 6,00 m, double sens | usage courant PLU ; double sens à partir de 5,00 m (NF P 91-120, 5,50 m en NF P 91-100), sens unique en dessous |
 | Largeur voie en sens unique | 5,00 m | NF P 91-100, places à 90° (2,80 m minimum pour une voie de circulation en NF P 91-120) |
 | Largeur de l'entrée | 6,00 m | accès véhicules ; réglable (usage courant : 3,00 m minimum en sens unique, 5,00 à 6,00 m à double sens) |
+| Largeur d'entrée du bâtiment | 3,00 m | seuil et cheminement à travers le trottoir ; réglable |
 | Place PMR | 3,30 × 5,00 m, 2 % (min. 1) | arrêté du 20 avril 2017 (ERP) |
 | IRVE | 20 % pré-équipées, dont 2 % PMR (min. 1) | CCH L111-3-4, non résidentiel neuf |
 
