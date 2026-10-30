@@ -458,12 +458,13 @@ pub fn solve(site: &Site) -> Layout {
     out.trees = acc.trees.iter().map(|t| p2(*t)).collect();
     out.entries = entries.iter().map(q4).collect();
     out.walks = walks.iter().map(q4).collect();
-    // Bassins de rétention : emprise du talus (3 × hauteur) et fil d'eau central.
+    // Bassins de rétention : pied de talus à `3 × hauteur` du haut de talus (réduit si le bassin est étroit).
     out.basins = site
         .basins
         .iter()
         .map(|b| {
             let ring = crate::geom::clean_ring(&b.iter().map(|q| v2(q[0], q[1])).collect::<Vec<_>>());
+            let mut run = (p.basin_h.clamp(0.0, 10.0)) * 3.0;
             if ring.len() < 3 {
                 return BasinOut::default();
             }
@@ -472,11 +473,18 @@ pub fn solve(site: &Site) -> Layout {
                 .iter()
                 .map(|r| r.iter().map(|q| p2(*q)).collect())
                 .collect();
-            BasinOut {
-                run: p.basin_h.clamp(0.0, 10.0) * 3.0,
-                fond: centerline(&ring).iter().map(|q| p2(*q)).collect(),
-                outer,
+            if run < 0.05 {
+                return BasinOut { run: 0.0, outer, ..Default::default() };
             }
+            for _ in 0..8 {
+                let rings = region::rings_of(&region::erode(&mp, run), 0.5);
+                if !rings.is_empty() {
+                    let bottom = rings.iter().map(|r| r.iter().map(|q| p2(*q)).collect()).collect();
+                    return BasinOut { run, bottom, outer: outer.clone() };
+                }
+                run *= 0.7;
+            }
+            BasinOut { run, outer, ..Default::default() }
         })
         .collect();
     {
@@ -706,63 +714,4 @@ pub unsafe extern "C" fn export_dxf_json(ptr: *const u8, n: usize) -> *const u8 
 #[no_mangle]
 pub extern "C" fn out_len() -> usize {
     OUT.with(|o| o.borrow().len())
-}
-
-/// Fil d'eau d'un bassin : ligne médiane le long de l'axe principal du contour (milieux des cordes
-/// perpendiculaires à l'axe), lissée et raccourcie de 15 % à chaque bout.
-fn centerline(ring: &[V2]) -> Vec<V2> {
-    let n = ring.len() as f64;
-    let c = ring.iter().fold(V2::default(), |a, b| a + *b) * (1.0 / n);
-    let (mut sxx, mut sxy, mut syy) = (0.0, 0.0, 0.0);
-    for q in ring {
-        let d = *q - c;
-        sxx += d.x * d.x;
-        sxy += d.x * d.y;
-        syy += d.y * d.y;
-    }
-    let th = 0.5 * (2.0 * sxy).atan2(sxx - syy);
-    let (a, nrm) = (v2(th.cos(), th.sin()), v2(-th.sin(), th.cos()));
-    let ts: Vec<f64> = ring.iter().map(|q| (*q - c).dot(a)).collect();
-    let (t0, t1) = ts.iter().fold((f64::MAX, f64::MIN), |m, t| (m.0.min(*t), m.1.max(*t)));
-    let len = t1 - t0;
-    if len < 1.0 {
-        return vec![];
-    }
-    let steps = ((len / 0.5).ceil() as usize).clamp(8, 200);
-    let mut pts: Vec<V2> = Vec::new();
-    for k in 0..=steps {
-        let t = t0 + len * k as f64 / steps as f64;
-        // Intersections de la droite perpendiculaire à l'axe avec le contour.
-        let mut xs: Vec<f64> = Vec::new();
-        for i in 0..ring.len() {
-            let (p, q) = (ring[i], ring[(i + 1) % ring.len()]);
-            let (tp, tq) = ((p - c).dot(a) - t, (q - c).dot(a) - t);
-            if (tp <= 0.0) != (tq <= 0.0) {
-                let u = tp / (tp - tq);
-                xs.push(((p - c) + (q - p) * u).dot(nrm));
-            }
-        }
-        xs.sort_by(|x, y| x.partial_cmp(y).unwrap());
-        // Plus longue corde intérieure (paires d'intersections).
-        let best = xs
-            .chunks(2)
-            .filter(|ch| ch.len() == 2)
-            .max_by(|x, y| (x[1] - x[0]).partial_cmp(&(y[1] - y[0])).unwrap());
-        if let Some(ch) = best {
-            pts.push(c + a * t + nrm * ((ch[0] + ch[1]) * 0.5));
-        }
-    }
-    // Lissage (moyenne glissante) puis raccourcissement de 15 % à chaque bout.
-    let m = pts.len();
-    if m < 5 {
-        return vec![];
-    }
-    let sm: Vec<V2> = (0..m)
-        .map(|i| {
-            let (lo, hi) = (i.saturating_sub(3), (i + 3).min(m - 1));
-            (lo..=hi).fold(V2::default(), |s, j| s + pts[j]) * (1.0 / (hi - lo + 1) as f64)
-        })
-        .collect();
-    let cut = (m as f64 * 0.15).round() as usize;
-    sm[cut..m - cut].to_vec()
 }
