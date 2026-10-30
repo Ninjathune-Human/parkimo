@@ -342,7 +342,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
 
   <section id="newmenu" class="menu glass" hidden aria-label="Nouveau">
    <div id="new-list" role="menu">
-    <button class="mi" role="menuitem" id="n-blank"><span class="glyph ex"><svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><path d="M10.5 2.5H5A1.5 1.5 0 0 0 3.5 4v10A1.5 1.5 0 0 0 5 15.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10.5 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span>Projet vierge<small>Carte IGN, puis parcelle cadastrale ou tracée</small></span></button>
+    <button class="mi" role="menuitem" id="n-blank"><span class="glyph ex"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M10.5 2.5H5A1.5 1.5 0 0 0 3.5 4v10A1.5 1.5 0 0 0 5 15.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10.5 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span><span>Projet vierge<small>Carte IGN, puis parcelle cadastrale ou tracée</small></span></button>
     <button class="mi" role="menuitem" id="n-map"><span class="glyph ex"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="6.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2.6 9h12.8M9 2.4c2 2 2.8 4.2 2.8 6.6S11 13.6 9 15.6M9 2.4C7 4.4 6.2 6.6 6.2 9S7 13.6 9 15.6" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></span><span>Carte IGN<small>Choisir une parcelle sur le cadastre</small></span></button>
     <button class="mi" role="menuitem" id="b-draw" aria-pressed="false"><span class="glyph ex"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 14 6 4l9 3-3 8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="3" cy="14" r="1.6" fill="currentColor"/><circle cx="6" cy="4" r="1.6" fill="currentColor"/><circle cx="15" cy="7" r="1.6" fill="currentColor"/></svg></span><span>Tracer une parcelle<small>Placer les sommets sur le plan</small></span></button>
     <button class="mi" role="menuitemradio" aria-checked="false" data-ex="mine" id="new-mine" hidden><span class="glyph ex"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 16s-5-4.6-5-8.5a5 5 0 0 1 10 0C14 11.4 9 16 9 16z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="9" cy="7.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span><span>Mon site</span><svg class="check" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="m2.5 7.5 3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -360,7 +360,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
     <div class="sheet-actions"><button class="tb small" id="e-draw">Tracer une parcelle</button><button class="tb primary" id="e-map">Ouvrir la carte</button></div>
   </div>
 
-  <button class="glass fab" id="b-fit" aria-label="Zoom sur les zones travaillées" title="Zoom sur les zones travaillées (F)"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M3 7.5V3h4.5M12.5 3H17v4.5M17 12.5V17h-4.5M7.5 17H3v-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="7" y="7" width="6" height="6" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+  <button class="glass fab" id="b-fit" aria-label="Zoom sur les zones travaillées" title="Zoom sur les zones travaillées (F)"><svg width="18" height="18" viewBox="0 0 20 20"><path d="M3 7.5V3h4.5M12.5 3H17v4.5M17 12.5V17h-4.5M7.5 17H3v-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="7" y="7" width="6" height="6" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
 
   <div id="side">
     <section id="stats" class="glass" data-open="true">
@@ -429,14 +429,13 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
     <button class="tb" id="sel-merge" hidden>Ajouter à l'étude</button>
     <button class="tb" id="sel-shape" hidden>Forme en L</button>
     <button class="tb" id="sel-rot" hidden>Pivoter 90°</button>
-    <button class="tb danger" id="sel-del">Supprimer</button>
   </div>
 
   <div id="addmenu" class="menu glass" hidden role="menu" aria-label="Ajouter">
     <button class="mi" role="menuitem" data-add="building"><span class="glyph" style="background:var(--building)"></span><span>Bâtiment<small>Emprise rectangulaire, trottoir autour</small></span></button>
     <button class="mi" role="menuitem" data-add="buildingL"><span class="glyph" style="background:var(--building);clip-path:polygon(0 0,40% 0,40% 60%,100% 60%,100% 100%,0 100%)"></span><span>Bâtiment en L</span></button>
     <button class="mi" role="menuitem" data-add="landscape"><span class="glyph" style="background:var(--island)"></span><span>Espace vert<small>Zone plantée imposée</small></span></button>
-    <button class="mi" role="menuitem" data-add="basin"><span class="glyph" style="background:var(--island);box-shadow:inset 0 0 0 2px var(--tree-edge)"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3v3.2M8.5 3v1.8M12 3v3.2M15.5 3v1.8M5 17v-3.2M8.5 17v-1.8M12 17v-3.2M15.5 17v-1.8" fill="none" stroke="var(--tree-edge)" stroke-width="1.3" stroke-linecap="round"/></svg></span><span>Bassin de rétention<small>Zone verte en creux, talus haut et bas</small></span></button>
+    <button class="mi" role="menuitem" data-add="basin"><span class="glyph" style="background:var(--island);box-shadow:inset 0 0 0 2px var(--tree-edge)"><svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3v3.2M8.5 3v1.8M12 3v3.2M15.5 3v1.8M5 17v-3.2M8.5 17v-1.8M12 17v-3.2M15.5 17v-1.8" fill="none" stroke="var(--tree-edge)" stroke-width="1.3" stroke-linecap="round"/></svg></span><span>Bassin de rétention<small>Zone verte en creux, talus haut et bas</small></span></button>
     <button class="mi" role="menuitem" data-add="exclusion"><span class="glyph" style="background:var(--excl);opacity:.8"></span><span>Zone non aedificandi<small>Zone inondable, réseau, emprise interdite</small></span></button>
     <button class="mi" role="menuitem" data-add="entry"><span class="glyph" style="background:var(--asphalt)"></span><span>Accès véhicules<small>Sur la limite de parcelle</small></span></button>
   </div>
@@ -527,7 +526,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
 
   <nav id="toolbar" class="glass" aria-label="Outils">
     <button class="tb" id="b-new" aria-expanded="false" aria-controls="newmenu" title="Nouveau projet ou exemple"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M10.5 2.5H5A1.5 1.5 0 0 0 3.5 4v10A1.5 1.5 0 0 0 5 15.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M9 8v5M6.5 10.5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">Nouveau</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    <button class="tb primary" id="b-add" title="Ajouter un objet" aria-expanded="false" aria-controls="addmenu"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="lbl">Ajouter</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="tb primary" id="b-add" title="Ajouter un objet" aria-expanded="false" aria-controls="addmenu"><svg width="18" height="18" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="lbl">Ajouter</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button class="tb" id="b-mod" title="Modifier : squelettes et traverses" aria-expanded="false" aria-controls="modmenu"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 14.5 3.6 11 11.8 2.8a1.4 1.4 0 0 1 2 0l1.4 1.4a1.4 1.4 0 0 1 0 2L7 14.4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg><span class="lbl">Modifier</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <span class="vsep" aria-hidden="true"></span>
     <button class="tb" id="b-params" title="Hypothèses" aria-expanded="false" aria-controls="params"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 5h7M14 5h1M3 13h1M8 13h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="5" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="6" cy="13" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span class="lbl">Hypothèses</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -552,7 +551,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
     <div id="mapinfo" class="glass" role="status"></div>
     <div id="mapmsg" class="glass" hidden>Le fond de carte IGN n'est pas accessible depuis cette page : elle n'a pas le droit de charger des données externes. Ouvrez la version autonome <b>index.html</b>, en local ou sur GitHub Pages.</div>
     <nav id="maptools" class="glass" aria-label="Outils de la carte">
-      <button class="tb" id="m-back"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Plan</span></button>
+      <button class="tb" id="m-back"><svg width="18" height="18" viewBox="0 0 16 16"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Plan</span></button>
       <span class="vsep" aria-hidden="true"></span>
       <button class="tb" id="m-rect"><svg width="18" height="18" viewBox="0 0 18 18"><rect x="3" y="4" width="12" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2"/></svg><span class="lbl">Emprise</span></button>
       <button class="tb on" id="m-cad" aria-pressed="true"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 3h12v12H3zM3 9h7M10 3v12M10 7h5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="lbl">Cadastre</span></button>
@@ -669,7 +668,7 @@ let SKEL = false; // squelette des voies affiché (réglage de présentation, ho
 const PILL = { w: 68, h: 32 }; // pastilles du squelette
 let pills = []; // pastilles posées au dernier dessin (centres écran), pour le toucher
 let hoverEdge = null; // limite de parcelle survolée (ou touchée) : porte les boutons Sommet / Courbe
-const EBTN = { r: 10, gap: 19 };
+const EBTN = { r: 9, gap: 19 };
 try { NSKEL = localStorage.getItem("trame.nskel") === "1"; } catch (e) { /* stockage indisponible */ }
 try { SKEL = localStorage.getItem("trame.skel") === "1"; } catch (e) { /* stockage indisponible */ }
 
@@ -859,15 +858,15 @@ function drawTraverses() {
     ctx.strokeStyle = C.accent; ctx.lineWidth = 3; ctx.setLineDash([9, 6]); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); ctx.setLineDash([]);
     for (const q of [a, b]) { ctx.beginPath(); ctx.arc(q[0], q[1], 6, 0, Math.PI * 2); ctx.fillStyle = C["glass-solid"]; ctx.fill(); ctx.lineWidth = 2; ctx.stroke(); }
     ctx.save(); ctx.shadowColor = "rgba(0, 0, 0, .22)"; ctx.shadowBlur = 8; ctx.shadowOffsetY = 2;
-    ctx.beginPath(); ctx.arc(cx, cy, 13, 0, Math.PI * 2); ctx.fillStyle = C["glass-solid"]; ctx.fill(); ctx.restore();
-    ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, 13, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI * 2); ctx.fillStyle = C["glass-solid"]; ctx.fill(); ctx.restore();
+    ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI * 2); ctx.stroke();
     ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx - 4.5, cy - 4.5); ctx.lineTo(cx + 4.5, cy + 4.5); ctx.moveTo(cx + 4.5, cy - 4.5); ctx.lineTo(cx - 4.5, cy + 4.5); ctx.stroke();
   }
   ctx.restore();
 }
 function drawNoueSkeleton() {
   noueBtns = []; const list = layout && !layout.error && layout.noues; if (!list) return;
-  const RED = "#d93a2f", R = 13;
+  const RED = "#d93a2f", R = 9;
   ctx.save(); ctx.lineCap = "round";
   list.forEach((q, i) => {
     const off = layout.noues_off[i], a = noueAxis(q).map(toS),
@@ -1062,6 +1061,7 @@ function draw() {
   drawCadSel();
   drawHandles();
   drawEdgeBtns();
+  drawSelDel();
   drawScale(view.s);
   drawDraft();
 }
@@ -1196,6 +1196,36 @@ function edgeBtns(r) {
   let ux = e.u[0], uy = -e.u[1]; if (ux < -1e-6 || (Math.abs(ux) <= 1e-6 && uy > 0)) { ux = -ux; uy = -uy; }
   const ang = Math.atan2(uy, ux);
   return [{ part: "add", x: m[0] - ux * EBTN.gap, y: m[1] - uy * EBTN.gap, ang, mx: m[0], my: m[1] }, { part: "curve", x: m[0] + ux * EBTN.gap, y: m[1] + uy * EBTN.gap, ang, mx: m[0], my: m[1] }];
+}
+// Icône de suppression près de l'élément sélectionné (poignée, accès ou objet entier).
+const ICON_R = 9; // rayon commun des icônes (celui des accès)
+let selDelBtn = null;
+function selAnchor() {
+  if (!sel) return null;
+  if (sel.type === "vertex") return site.parcel[sel.i] || null;
+  if (sel.type === "entry") { const en = site.entries[sel.i]; return en && en.edge < site.parcel.length ? entryPoint(en) : null; }
+  if (sel.type === "building") { const b = site.buildings[sel.i]; return b ? [b.cx, b.cy] : null; }
+  if (POLY[sel.type]) {
+    const e = site[POLY[sel.type]][sel.i]; if (!e) return null;
+    if (sel.v != null && e[sel.v]) return e[sel.v];
+    const o = polyOutline(e); return [o.reduce((a, q) => a + q[0], 0) / o.length, o.reduce((a, q) => a + q[1], 0) / o.length];
+  }
+  return null;
+}
+function drawSelDel() {
+  selDelBtn = null; if (mode !== "edit") return;
+  const a = selAnchor(); if (!a) return;
+  const q = toS(a), x = Math.max(ICON_R + 4, Math.min(W - ICON_R - 4, q[0] + 24)), y = Math.max(ICON_R + 4, Math.min(H - ICON_R - 4, q[1] - 24));
+  selDelBtn = { x, y };
+  ctx.save(); ctx.translate(x, y); ctx.shadowColor = "rgba(0, 0, 0, .22)"; ctx.shadowBlur = 6; ctx.shadowOffsetY = 1.5;
+  ctx.beginPath(); ctx.arc(0, 0, ICON_R, 0, Math.PI * 2); ctx.fillStyle = C["glass-solid"]; ctx.fill();
+  ctx.shadowColor = "transparent"; ctx.strokeStyle = "#d93a2f"; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.lineWidth = 1.6; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(-3.6, -3.6); ctx.lineTo(3.6, 3.6); ctx.moveTo(3.6, -3.6); ctx.lineTo(-3.6, 3.6); ctx.stroke();
+  ctx.restore();
+}
+function deleteHandle() {
+  if (sel && POLY[sel.type] && sel.v != null && site[POLY[sel.type]][sel.i].length > 3) { removePolyVertex(sel.type, sel.i, sel.v); return; }
+  deleteSel();
 }
 function drawEdgeBtns() {
   if (mode !== "edit") return;
@@ -1368,13 +1398,14 @@ const snap = (x, s) => +(Math.round(x / s) * s).toFixed(3);
 
 function hitTest(w) {
   const h = HIT(), h2 = h * h;
+  if (selDelBtn) { const sp = toS(w); if (Math.hypot(sp[0] - selDelBtn.x, sp[1] - selDelBtn.y) <= ICON_R + 8) return { kind: "sdel" }; }
   if (hoverEdge) { const part = edgeBtnAt(toS(w)); if (part) return { kind: "ebtn", ref: hoverEdge, part }; }
   if (SKEL) {
     const sp = toS(w), T = site.traverses || [];
     for (let i = 0; i < T.length; i++) {
       const a = toS(T[i][0]), b = toS(T[i][1]);
       for (let k = 0; k < 2; k++) { const q = k ? b : a; if (Math.hypot(sp[0] - q[0], sp[1] - q[1]) <= 14) return { kind: "tend", i, k }; }
-      if (Math.hypot(sp[0] - (a[0] + b[0]) / 2, sp[1] - (a[1] + b[1]) / 2) <= 19) return { kind: "tbtn", i };
+      if (Math.hypot(sp[0] - (a[0] + b[0]) / 2, sp[1] - (a[1] + b[1]) / 2) <= 15) return { kind: "tbtn", i };
     }
   }
   if (NSKEL) { const sp = toS(w); for (const b of noueBtns) if (Math.hypot(sp[0] - b.x, sp[1] - b.y) <= b.R + 6) return { kind: "nbtn", i: b.i }; }
@@ -1404,11 +1435,11 @@ function hitTest(w) {
 function setSel(s) { sel = s; updateSelbar(); redraw(); }
 function updateSelbar() {
   const bar = $("#selbar");
-  if (!sel || sel.type === "pedge") { bar.hidden = true; $("#hint").style.opacity = ""; return; }
+  if (!sel || (sel.type !== "cadastre" && sel.type !== "building")) { bar.hidden = true; $("#hint").style.opacity = ""; return; }
   bar.hidden = false; $("#hint").style.opacity = "0";
   const shape = $("#sel-shape"), rotb = $("#sel-rot");
   shape.hidden = sel.type !== "building"; rotb.hidden = sel.type !== "building";
-  $("#sel-study").hidden = sel.type !== "cadastre"; $("#sel-merge").hidden = sel.type !== "cadastre" || site.parcel.length < 3; $("#sel-del").hidden = sel.type === "cadastre";
+  $("#sel-study").hidden = sel.type !== "cadastre"; $("#sel-merge").hidden = sel.type !== "cadastre" || site.parcel.length < 3;
   if (sel.type === "cadastre") { const f = basemap.layers.parcelles[sel.i]; $("#sel-what").textContent = "Parcelle " + cadName(f); $("#sel-dim").textContent = [f.p.contenance ? fmtInt(f.p.contenance) + " m²" : "", f.p.nom_com].filter(Boolean).join(" · "); return; }
   let what = "", dim = "";
   if (sel.type === "building") { const b = site.buildings[sel.i]; what = b.shape === "L" ? "Bâtiment en L" : "Bâtiment"; dim = fmtInt(Math.abs(polyArea(rectPoly(b)))) + " m²"; shape.textContent = b.shape === "L" ? "Forme rectangle" : "Forme en L"; }
@@ -1494,7 +1525,7 @@ canvas.addEventListener("pointermove", (ev) => {
       break;
     }
     case "tend": site.traverses[h.i][h.k] = [snap(w[0], 0.1), snap(w[1], 0.1)]; break;
-    case "pedge": case "cadastre": case "pill": case "ebtn": case "nbtn": case "tbtn": drag.kind = "pan"; return;
+    case "pedge": case "cadastre": case "pill": case "ebtn": case "nbtn": case "tbtn": case "sdel": drag.kind = "pan"; return;
   }
   updateSelbar(); requestSolve(true);
 });
@@ -1512,6 +1543,7 @@ function endPointer(ev) {
   // Toucher simple
   lastTap = { t: dbl ? 0 : now, x: sp[0], y: sp[1] };
   const h = d.hit;
+  if (h && h.kind === "sdel") { deleteHandle(); return; }
   if (h && h.kind === "nbtn") { toggleNoue(h.i); return; }
   if (h && h.kind === "tbtn") { site.traverses.splice(h.i, 1); solve(false); commit(); markMine(); toast("Traverse supprimée"); return; }
   if (h && h.kind === "pill") { (h.part === "dir" ? reverseLane : toggleLanes)(h.i); return; }
@@ -1646,7 +1678,6 @@ function deleteSel() {
   else if (sel.type === "vertex") { if (site.parcel.length > 3) { removeParcelVertex(sel.i); return; } toast("Une parcelle garde au moins trois sommets"); return; }
   setSel(null); solve(false); commit(); markMine();
 }
-$("#sel-del").addEventListener("click", deleteSel);
 $("#sel-rot").addEventListener("click", () => { const o = site.buildings[sel.i]; o.rot = (o.rot + 90) % 360; updateSelbar(); solve(false); commit(); });
 $("#sel-shape").addEventListener("click", () => { const o = site.buildings[sel.i]; o.shape = o.shape === "L" ? "rect" : "L"; updateSelbar(); solve(false); commit(); });
 
