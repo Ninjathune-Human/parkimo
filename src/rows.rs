@@ -72,7 +72,7 @@ fn row_starts(
     out: &mut Vec<f64>,
     mut hits: Option<&mut Vec<Narrowed>>,
 ) -> usize {
-    let d2 = 2.0 * p.stall_d;
+    let d2 = p.double_depth();
     let per = d2 + p.aisle;
     let one = p.aisle_one.min(p.aisle);
     let mut j0 = ((f.ylo - d2 - phase) / per).floor() as i64;
@@ -154,7 +154,8 @@ fn score(f: &Frame, p: &Params, phase: f64, buf: &mut Vec<(f64, f64)>, ys: &mut 
     for &y0 in ys.iter() {
         strip_intervals(&f.rings, y0 + 1e-4, y0 + d - 1e-4, buf);
         total += quick_count(buf, p);
-        strip_intervals(&f.rings, y0 + d + 1e-4, y0 + 2.0 * d - 1e-4, buf);
+        let y1 = y0 + d + p.noue();
+        strip_intervals(&f.rings, y1 + 1e-4, y1 + d - 1e-4, buf);
         total += quick_count(buf, p);
     }
     total
@@ -196,7 +197,7 @@ fn ang_dist(a: f64, b: f64) -> f64 {
 }
 
 pub fn optimize(core: &[Vec<V2>], b_rings: &[Vec<V2>], p: &Params) -> (f64, f64, u32) {
-    let per = 2.0 * p.stall_d + p.aisle;
+    let per = p.double_depth() + p.aisle;
     let aligned = edge_angles(b_rings);
     let bonus = |a: f64| {
         if aligned.iter().any(|&e| ang_dist(e, a) < 0.3) {
@@ -279,9 +280,10 @@ pub fn optimize(core: &[Vec<V2>], b_rings: &[Vec<V2>], p: &Params) -> (f64, f64,
 /// Découpe exacte d'une rangée double. Renvoie le nombre de places posées.
 fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Acc) -> usize {
     let (w, d, cap) = (p.stall_w, p.stall_d, p.cap);
+    let nw = p.noue();
     let mut halves: [Vec<(f64, f64)>; 2] = [Vec::new(), Vec::new()];
     strip_intervals(&f.rings, y0 + 1e-4, y0 + d - 1e-4, &mut halves[0]);
-    strip_intervals(&f.rings, y0 + d + 1e-4, y0 + 2.0 * d - 1e-4, &mut halves[1]);
+    strip_intervals(&f.rings, y0 + d + nw + 1e-4, y0 + 2.0 * d + nw - 1e-4, &mut halves[1]);
     for h in halves.iter_mut() {
         *h = h
             .iter()
@@ -379,8 +381,8 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
             let q = Quad([
                 v2(x0, y0),
                 v2(x1, y0),
-                v2(x1, y0 + 2.0 * d),
-                v2(x0, y0 + 2.0 * d),
+                v2(x1, y0 + 2.0 * d + nw),
+                v2(x0, y0 + 2.0 * d + nw),
             ]);
             acc.cross.push(xf(&q, rot));
         }
@@ -414,7 +416,7 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
         let (yb, yf) = if h == 0 {
             (y0 + d, y0)
         } else {
-            (y0 + d, y0 + 2.0 * d)
+            (y0 + d + nw, y0 + 2.0 * d + nw)
         };
         let mut i = 0;
         while i < n {
@@ -518,7 +520,7 @@ pub fn place(
     let mut f = frame(core, angle, narrow);
     let t = angle.to_radians();
     let rot = (t.cos(), t.sin());
-    let d2 = 2.0 * p.stall_d;
+    let d2 = p.double_depth();
     let mut ys = Vec::new();
     let mut narrowed = Vec::new();
     // Côté de l'anneau calé : la trame glisse pour que la rangée la plus proche l'affleure.
@@ -586,7 +588,7 @@ pub fn place(
     let mut strips = Vec::new();
     for y0 in ys {
         pack_double_row(&f, p, y0, rot, acc);
-        let (x0, x1, y1) = (f.xlo - 1.0, f.xhi + 1.0, y0 + 2.0 * p.stall_d);
+        let (x0, x1, y1) = (f.xlo - 1.0, f.xhi + 1.0, y0 + p.double_depth());
         strips.push(xf(
             &Quad([v2(x0, y0), v2(x1, y0), v2(x1, y1), v2(x0, y1)]),
             rot,

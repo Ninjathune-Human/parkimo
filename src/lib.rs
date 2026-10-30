@@ -253,7 +253,7 @@ pub fn solve(site: &Site) -> Layout {
             }
         }
         if !ring_pts.is_empty() {
-            let per = 2.0 * p.stall_d + p.aisle;
+            let per = p.double_depth() + p.aisle;
             let (core, pn) = narrow_ring(&z.band, &z.core, &ring_pts, p.aisle, one, grid.0, per);
             z.core = core;
             pin = pn;

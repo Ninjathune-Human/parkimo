@@ -75,6 +75,8 @@ pub struct Params {
     pub stall_w: f64,
     /// Longueur d'une place (m).
     pub stall_d: f64,
+    /// Largeur de la noue entre les deux demi-rangées d'une rangée double (m, 0 = aucune, sinon 1 à 6).
+    pub noue_w: f64,
     /// Largeur d'allée double sens (m).
     pub aisle: f64,
     /// Largeur d'une voie passée à sens unique (m).
@@ -108,11 +110,27 @@ pub struct Params {
     pub angle_hint: Option<f64>,
 }
 
+impl Params {
+    /// Noue effective entre demi-rangées : 0 (aucune) ou entre 1 et 6 m.
+    pub fn noue(&self) -> f64 {
+        if self.noue_w < 0.5 {
+            0.0
+        } else {
+            self.noue_w.clamp(1.0, 6.0)
+        }
+    }
+    /// Profondeur d'une rangée double : deux places dos à dos, noue comprise.
+    pub fn double_depth(&self) -> f64 {
+        2.0 * self.stall_d + self.noue()
+    }
+}
+
 impl Default for Params {
     fn default() -> Self {
         Params {
             stall_w: 2.5,
             stall_d: 5.0,
+            noue_w: 0.0,
             aisle: 6.0,
             aisle_one: 5.0,
             entry_w: 6.0,
