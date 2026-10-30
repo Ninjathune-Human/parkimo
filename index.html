@@ -1315,9 +1315,19 @@ function curveParcelEdge(i) {
   setSel(null); solve(false); commit(); markMine(); toast(was ? "Segment redressé" : "Segment arrondi · glissez le point pour régler l'arc");
 }
 function removeParcelVertex(i) {
-  const n = site.parcel.length; ensureArcs(); site.arcs[(i - 1 + n) % n] = 0;
+  const n = site.parcel.length; ensureArcs();
+  const pv = (i - 1 + n) % n, nw = i ? i - 1 : n - 2; // arête précédente avant / après retrait
+  const Lp = edgeInfo(pv).L, Li = edgeInfo(i).L, ang = (k) => 4 * Math.atan(2 * k);
+  // Les deux arêtes n'en font plus qu'une : les angles de leurs arcs s'additionnent (un arc coupé en deux se reforme à l'identique).
+  const th = ang(site.arcs[pv]) + ang(site.arcs[i]), km = Math.tan(th / 4) / 2;
+  site.arcs[pv] = Math.max(-ARC_MAX, Math.min(ARC_MAX, +km.toFixed(5)));
   site.parcel.splice(i, 1); site.setbacks.splice(i, 1); site.arcs.splice(i, 1);
-  site.entries = site.entries.map((en) => { if (en.edge === i) return { edge: (i - 1 + n - 1) % (n - 1), t: 0.5 }; return { edge: en.edge > i ? en.edge - 1 : en.edge, t: en.t }; });
+  // Les accès gardent leur position sur la limite.
+  site.entries = site.entries.map((en) => {
+    if (en.edge === pv) return { edge: nw, t: en.t * Lp / (Lp + Li) };
+    if (en.edge === i) return { edge: nw, t: (Lp + en.t * Li) / (Lp + Li) };
+    return { edge: en.edge > i ? en.edge - 1 : en.edge, t: en.t };
+  });
   setSel(null); solve(false); commit(); markMine(); toast("Sommet supprimé");
 }
 
