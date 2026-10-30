@@ -29,6 +29,8 @@ enum Side {
     Road,
     /// Limite de la zone stationnable (recul, bâti, servitude, espace vert imposé).
     Edge,
+    /// Cheminement devant l'entrée d'un bâtiment : jamais d'arrondi de giration à son contact.
+    Walk,
 }
 
 /// `b` : zone stationnable ; `paved` : voirie ; `stalls` : places et fonds de rangées ;
@@ -39,10 +41,12 @@ pub fn build(
     paved: &MultiPolygon<f64>,
     stalls: &[Quad],
     road: &[Quad],
+    walks: &[Quad],
     clean: bool,
 ) -> Planted {
     let mut hard: Vec<Quad> = stalls.to_vec();
     hard.extend_from_slice(road);
+    hard.extend_from_slice(walks);
     let rest = b.difference(&crate::mp_of_quads(&hard).union(paved));
     // Filets dégénérés : quand les rangées sont légèrement en biais, la chaussée et le front des
     // places ne coïncident qu'au millimètre près et laissent des filets d'épaisseur nulle qui
@@ -80,6 +84,8 @@ pub fn build(
         let probe = Quad([p, p + v2(0.01, 0.0), p + v2(0.01, 0.01), p + v2(0.0, 0.01)]);
         if hash.hits(&probe) {
             Side::Stall
+        } else if walks.iter().any(|q| q.contains(p)) {
+            Side::Walk
         } else if roads.contains(p) || road.iter().any(|q| q.contains(p)) {
             Side::Road
         } else {
@@ -179,6 +185,8 @@ fn round_ring(ring: &[V2], r: f64, side: &dyn Fn(V2, V2) -> Side) -> Vec<V2> {
             turn_at(i) > 15f64.to_radians()
                 && s_in != Side::Stall
                 && s_out != Side::Stall
+                && s_in != Side::Walk
+                && s_out != Side::Walk
                 && (s_in == Side::Road || s_out == Side::Road)
         })
         .collect();

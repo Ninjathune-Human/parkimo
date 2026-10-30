@@ -373,8 +373,7 @@ pub fn solve(site: &Site) -> Layout {
     stall_pads.extend(acc.pads.iter().copied());
     let mut road = acc.cross.clone();
     road.extend(entries.iter().copied());
-    road.extend(walks.iter().copied());
-    let pl = planted::build(&z.b, &paved, &stall_pads, &road, !p.quick);
+    let pl = planted::build(&z.b, &paved, &stall_pads, &road, &walks, !p.quick);
     let paved = if pl.cut.0.is_empty() {
         paved
     } else {
