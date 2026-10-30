@@ -463,6 +463,7 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
                         row,
                         idx: k as i32,
                         perimeter: false,
+                        equipped: false,
                     });
                     placed += 1;
                 }

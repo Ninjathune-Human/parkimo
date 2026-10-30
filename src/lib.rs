@@ -365,7 +365,7 @@ pub fn solve(site: &Site) -> Layout {
     if targets.is_empty() {
         targets.push(centroid);
     }
-    let (pmr_req, irve_req) = finish::assign_kinds(&mut stalls, &targets, p);
+    let (pmr_req, irve_req, eq_req) = finish::assign_kinds(&mut stalls, &targets, p);
 
     // Espaces plantés : le résiduel de la zone stationnable, arrondi côté chaussée ; la chaussée
     // reprend les arrondis.
@@ -407,6 +407,8 @@ pub fn solve(site: &Site) -> Layout {
         pmr_required: pmr_req,
         irve: count(KIND_IRVE) + count(KIND_PMR_IRVE),
         irve_required: irve_req,
+        irve_equipped: stalls.iter().filter(|s| s.equipped).count(),
+        irve_equipped_required: eq_req,
         trees: acc.trees.len(),
         perimeter_stalls: perim,
         interior_stalls: n - perim,
@@ -436,6 +438,7 @@ pub fn solve(site: &Site) -> Layout {
         .map(|s| StallOut {
             q: q4(&s.q),
             k: s.kind,
+            e: s.equipped,
         })
         .collect();
     // Îlots des rangées intérieures ; les îlots d'extrémité et de bordure font partie des espaces plantés.

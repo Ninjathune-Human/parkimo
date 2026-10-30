@@ -15,6 +15,8 @@ pub struct Stall {
     pub row: u32,
     pub idx: i32,
     pub perimeter: bool,
+    /// Borne installée (sinon, pour une place IRVE : simple pré-équipement).
+    pub equipped: bool,
 }
 
 impl Stall {

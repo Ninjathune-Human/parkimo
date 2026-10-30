@@ -178,6 +178,7 @@ pub fn place(b: &Region, drive: &Region, p: &Params, entries: &[Quad], acc: &mut
                     row,
                     idx,
                     perimeter: true,
+                    equipped: false,
                 });
                 idx += 1;
                 run += 1;

@@ -597,6 +597,7 @@ pub fn export(inp: &ExportIn) -> ExportOut {
     for s in &lay.stalls {
         let layer = match s.k {
             1 | 3 => "PRJ_PLACES_PMR",
+            2 if s.e => "PRJ_PLACES_IRVE_EQ",
             2 => "PRJ_PLACES_IRVE",
             _ => "PRJ_PLACES",
         };
@@ -647,8 +648,8 @@ pub fn export(inp: &ExportIn) -> ExportOut {
             }
         ),
         format!(
-            "Trame - {} places dont {} PMR et {} IRVE pré-équipées",
-            m.stalls, m.pmr, m.irve
+            "Trame - {} places dont {} PMR, {} IRVE pré-équipées et {} équipées",
+            m.stalls, m.pmr, m.irve, m.irve_equipped
         ),
     ];
     if let Some([x0, y0, x1, y1]) = c.emprise {

@@ -355,6 +355,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <div id="stats-body">
         <div class="row"><span class="k"><i class="sw" style="background:var(--pmr)"></i>PMR</span><span class="v" id="s-pmr"></span></div>
         <div class="row"><span class="k"><i class="sw" style="background:var(--irve)"></i>IRVE pré-équipées</span><span class="v" id="s-irve"></span></div>
+        <div class="row"><span class="k"><i class="sw" style="background:var(--irve)"></i>IRVE équipées (bornes)</span><span class="v" id="s-irve-eq"></span></div>
         <div class="row"><span class="k">En bordure / au cœur</span><span class="v" id="s-split"></span></div>
         <div class="row"><span class="k"><i class="sw" style="background:var(--tree)"></i>Arbres</span><span class="v" id="s-trees"></span></div>
         <div class="row"><span class="k">Enrobé par place</span><span class="v" id="s-eff"></span></div>
@@ -446,6 +447,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <div class="eyebrow">Quotas</div>
       <div class="field"><label for="p-pmr_ratio">Places PMR</label><span class="unit"><input id="p-pmr_ratio" type="text" inputmode="decimal" autocomplete="off">%</span></div>
       <div class="field"><label for="p-irve_ratio">Pré-équipement IRVE</label><span class="unit"><input id="p-irve_ratio" type="text" inputmode="decimal" autocomplete="off">%</span></div>
+      <div class="field"><label for="p-irve_equip_ratio">Équipement IRVE (bornes)</label><span class="unit"><input id="p-irve_equip_ratio" type="text" inputmode="decimal" autocomplete="off">%</span></div>
     </div>
     <div class="pgroup">
       <div class="eyebrow">Orientation des rangées</div>
@@ -591,7 +593,7 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((res) => setTimeout(
 // ============================================================================
 // Données : sites d'exemple (mètres, repère local, y vers le haut).
 // ============================================================================
-const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, max_run: 60, pmr_ratio: 2, irve_ratio: 20, angle: null };
+const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, max_run: 60, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null };
 
 function arc(cx, cy, r, a0, a1, n) {
   const pts = [];
@@ -665,7 +667,7 @@ function engineInput(quick) {
     params: {
       stall_w: p.stall_w, stall_d: p.stall_d, aisle: p.aisle, aisle_one: p.aisle_one, entry_w: p.entry_w, building_margin: p.building_margin,
       planter_every: Math.max(0, Math.round(p.planter_every)), cap: p.cap, max_run: p.max_run,
-      pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100,
+      pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100, irve_equip_ratio: p.irve_equip_ratio / 100,
       angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle,
     },
   };
@@ -827,6 +829,10 @@ function draw() {
       ctx.beginPath(); for (const st of layout.stalls) pathPoly(st.q); ctx.fill();
       const kinds = [null, C.pmr, C.irve, C["pmr-irve"]];
       for (let k = 1; k <= 3; k++) { ctx.beginPath(); for (const st of layout.stalls) if (st.k === k) pathPoly(st.q); ctx.fillStyle = kinds[k]; ctx.fill(); }
+      // Borne installée : repère clair au fond de la place (sinon la place IRVE est seulement pré-équipée).
+      ctx.fillStyle = C.stripe; ctx.beginPath();
+      for (const st of layout.stalls) if (st.e) { const q = st.q.map(toS), x = (q[0][0] + q[1][0]) / 2, y = (q[0][1] + q[1][1]) / 2, cx = (q[0][0] + q[1][0] + q[2][0] + q[3][0]) / 4, cy = (q[0][1] + q[1][1] + q[2][1] + q[3][1]) / 4, r = 0.3 * view.s; const px = x + (cx - x) * 0.45, py = y + (cy - y) * 0.45; ctx.moveTo(px + r, py); ctx.arc(px, py, r, 0, 6.2832); }
+      ctx.fill();
       ctx.strokeStyle = C.stripe; ctx.lineWidth = Math.max(0.6, 0.12 * view.s); ctx.lineCap = "butt";
       ctx.beginPath();
       for (const st of layout.stalls) { const q = st.q.map(toS); ctx.moveTo(q[3][0], q[3][1]); ctx.lineTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.lineTo(q[2][0], q[2][1]); }
@@ -1151,7 +1157,7 @@ function updateStats(quick) {
   const m = layout && layout.metrics;
   if (!m) {
     $("#s-total").textContent = "0";
-    for (const id of ["#s-pmr", "#s-irve", "#s-split", "#s-trees", "#s-eff", "#s-parcel", "#s-green", "#s-angle", "#o-val"]) $(id).textContent = "–";
+    for (const id of ["#s-pmr", "#s-irve", "#s-irve-eq", "#s-split", "#s-trees", "#s-eff", "#s-parcel", "#s-green", "#s-angle", "#o-val"]) $(id).textContent = "–";
     $("#warn").hidden = !baseShown() || site.parcel.length >= 3; $("#warn").textContent = "Touchez une parcelle cadastrale puis « Étudier », ou tracez une parcelle.";
     $("#engine").textContent = "";
     return;
@@ -1159,6 +1165,7 @@ function updateStats(quick) {
   $("#s-total").textContent = fmtInt(m.stalls);
   $("#s-pmr").innerHTML = `${m.pmr} / ${m.pmr_required}${chip(m.pmr >= m.pmr_required)}`;
   $("#s-irve").innerHTML = `${m.irve} / ${m.irve_required}${chip(m.irve >= m.irve_required)}`;
+  $("#s-irve-eq").innerHTML = `${m.irve_equipped} / ${m.irve_equipped_required}${chip(m.irve_equipped >= m.irve_equipped_required)}`;
   $("#s-split").textContent = `${m.perimeter_stalls} / ${m.interior_stalls}`;
   $("#s-trees").textContent = fmtInt(m.trees);
   $("#s-eff").textContent = m.stalls ? fmt1(m.m2_paved_per_stall) + " m²" : "–";
@@ -1491,7 +1498,7 @@ window.addEventListener("keydown", (ev) => {
 // ============================================================================
 // Hypothèses.
 // ============================================================================
-const PKEYS = ["stall_w", "stall_d", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "max_run", "pmr_ratio", "irve_ratio"];
+const PKEYS = ["stall_w", "stall_d", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "max_run", "pmr_ratio", "irve_ratio", "irve_equip_ratio"];
 function syncParamsUI() {
   for (const k of PKEYS) $("#p-" + k).value = String(params[k]).replace(".", ",");
   const auto = params.angle === null;
@@ -2380,7 +2387,7 @@ $("#m-ok").addEventListener("click", importArea);
 // ============================================================================
 // Calque de l'interface → calques AutoCAD correspondants.
 const DXF_LAYERS = {
-  places: ["PRJ_PLACES", "PRJ_PLACES_PMR", "PRJ_PLACES_IRVE"], pvoirie: ["PRJ_VOIRIE"], sens: ["PRJ_SIGNALISATION"], ilots: ["PRJ_ILOTS"],
+  places: ["PRJ_PLACES", "PRJ_PLACES_PMR", "PRJ_PLACES_IRVE", "PRJ_PLACES_IRVE_EQ"], pvoirie: ["PRJ_VOIRIE"], sens: ["PRJ_SIGNALISATION"], ilots: ["PRJ_ILOTS"],
   vehicules: ["HAB_VEHICULES"], arbres: ["HAB_ARBRES"],
   pbati: ["PRJ_BATIMENTS", "PRJ_ESPACES_VERTS"], servitudes: ["PRJ_SERVITUDES"], recul: ["PRJ_RECUL"],
   ovoirie: ["OCC_VOIRIE"], bati: ["OCC_BATI"], vegetation: ["OCC_VEGETATION"],

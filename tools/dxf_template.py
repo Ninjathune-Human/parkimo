@@ -24,6 +24,7 @@ LAYERS = [
     ("PRJ_PLACES", 7, "Continuous", 18, "Projet : places standard"),
     ("PRJ_PLACES_PMR", 150, "Continuous", 18, "Projet : places PMR"),
     ("PRJ_PLACES_IRVE", 3, "Continuous", 18, "Projet : places pre-equipees IRVE"),
+    ("PRJ_PLACES_IRVE_EQ", 83, "Continuous", 18, "Projet : places IRVE equipees (borne installee)"),
     ("PRJ_ILOTS", 92, "Continuous", 18, "Projet : ilots plantes"),
     ("PRJ_BATIMENTS", 7, "Continuous", 50, "Projet : batiments"),
     ("PRJ_ESPACES_VERTS", 92, "Continuous", 18, "Projet : espaces verts"),

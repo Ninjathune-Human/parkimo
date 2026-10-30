@@ -87,6 +87,8 @@ pub struct Params {
     pub pmr_w: f64,
     /// Part de places pré-équipées IRVE.
     pub irve_ratio: f64,
+    /// Part de places IRVE équipées d'une borne (une par tranche de 20 places), prises parmi les pré-équipées.
+    pub irve_equip_ratio: f64,
     /// Un îlot planté toutes les N places (0 = aucun).
     pub planter_every: u32,
     /// Longueur des îlots d'extrémité de rangée (m, 0 = aucun).
@@ -117,6 +119,7 @@ impl Default for Params {
             pmr_ratio: 0.02,
             pmr_w: 3.3,
             irve_ratio: 0.2,
+            irve_equip_ratio: 0.05,
             planter_every: 8,
             cap: 1.5,
             max_run: 60.0,
@@ -135,6 +138,8 @@ impl Default for Params {
 pub struct StallOut {
     pub q: [P2; 4],
     pub k: u8,
+    /// Borne installée.
+    pub e: bool,
 }
 
 #[derive(Serialize, Default)]
@@ -149,6 +154,8 @@ pub struct Metrics {
     pub pmr_required: usize,
     pub irve: usize,
     pub irve_required: usize,
+    pub irve_equipped: usize,
+    pub irve_equipped_required: usize,
     pub trees: usize,
     pub perimeter_stalls: usize,
     pub interior_stalls: usize,

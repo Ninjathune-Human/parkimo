@@ -176,7 +176,7 @@ fn nearest(p: V2, targets: &[V2]) -> f64 {
 
 /// Remplace des groupes de 4 places alignées par des places PMR au plus près des cibles,
 /// puis marque les places pré-équipées IRVE. Renvoie (pmr, irve) requis.
-pub fn assign_kinds(stalls: &mut Vec<Stall>, targets: &[V2], p: &Params) -> (usize, usize) {
+pub fn assign_kinds(stalls: &mut Vec<Stall>, targets: &[V2], p: &Params) -> (usize, usize, usize) {
     let w = p.stall_w;
     let group = 4usize;
     let k_pmr = ((group as f64 * w) / p.pmr_w + 1e-9).floor() as usize;
@@ -255,6 +255,7 @@ pub fn assign_kinds(stalls: &mut Vec<Stall>, targets: &[V2], p: &Params) -> (usi
                     row: s0.row,
                     idx: -1,
                     perimeter: s0.perimeter,
+                    equipped: false,
                 });
             }
             pmr += k_pmr;
@@ -300,7 +301,28 @@ pub fn assign_kinds(stalls: &mut Vec<Stall>, targets: &[V2], p: &Params) -> (usi
             }
         }
     }
-    (pmr_req, irve_req)
+    // Bornes installées, prises parmi les places IRVE : la PMR d'abord, puis au plus près des cibles.
+    let eq_req = if irve_req > 0 && p.irve_equip_ratio > 0.0 {
+        (((total as f64 * p.irve_equip_ratio) + 1e-9).floor() as usize).clamp(1, irve_req)
+    } else {
+        0
+    };
+    let mut ids: Vec<usize> = (0..stalls.len())
+        .filter(|&i| stalls[i].kind == KIND_IRVE || stalls[i].kind == KIND_PMR_IRVE)
+        .collect();
+    ids.sort_by(|&a, &b| {
+        let ka = (stalls[a].kind != KIND_PMR_IRVE) as u8;
+        let kb = (stalls[b].kind != KIND_PMR_IRVE) as u8;
+        ka.cmp(&kb).then(
+            nearest(stalls[a].access_point(0.0), targets)
+                .partial_cmp(&nearest(stalls[b].access_point(0.0), targets))
+                .unwrap(),
+        )
+    });
+    for &i in ids.iter().take(eq_req) {
+        stalls[i].equipped = true;
+    }
+    (pmr_req, irve_req, eq_req)
 }
 
 fn adjacent_dir(a: &Quad, b: &Quad) -> bool {
