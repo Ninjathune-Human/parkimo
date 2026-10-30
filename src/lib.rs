@@ -298,6 +298,12 @@ pub fn solve(site: &Site) -> Layout {
             opened.union(&paved.intersection(&mp_of_quads(&cut)))
         }
     };
+    // Bandes libérées par une noue supprimée : elles redeviennent chaussée.
+    let paved = if acc.voids.is_empty() {
+        paved
+    } else {
+        paved.union(&z.core.intersection(&mp_of_quads(&acc.voids)))
+    };
     // Arrondis d'entrée : la chaussée gagne l'angle de part et d'autre de chaque accès.
     let paved = if turn_fillets.is_empty() {
         paved

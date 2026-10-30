@@ -474,9 +474,29 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, rot: (f64, f64), acc: &mut Ac
             }
             let xa = g + (kmin + s0 as i64) as f64 * w;
             let xb = g + (kmin + i as i64) as f64 * w;
-            let pad = Quad([v2(xa, yb), v2(xb, yb), v2(xb, yf), v2(xa, yf)]);
-            acc.pads.push(xf(&pad, rot));
-            acc.blockers.push(xf(&pad, rot));
+            // Emprise par tronçon : une demi-rangée recalée sur une noue supprimée a sa propre emprise.
+            let is_off = |k: usize| {
+                let xc = g + (kmin + k as i64) as f64 * w + w / 2.0;
+                h == 1 && off_x.iter().any(|&(lo, hi)| xc >= lo && xc <= hi)
+            };
+            let mut k0 = s0;
+            while k0 < i {
+                let o = is_off(k0);
+                let mut k1 = k0;
+                while k1 < i && is_off(k1) == o {
+                    k1 += 1;
+                }
+                let (ya, yz) = if o { (y0 + d, y0 + 2.0 * d) } else { (yb, yf) };
+                let (xs, xe) = (g + (kmin + k0 as i64) as f64 * w, g + (kmin + k1 as i64) as f64 * w);
+                let pad = Quad([v2(xs, ya), v2(xe, ya), v2(xe, yz), v2(xs, yz)]);
+                acc.pads.push(xf(&pad, rot));
+                acc.blockers.push(xf(&pad, rot));
+                if o {
+                    let v = Quad([v2(xs, y0 + 2.0 * d), v2(xe, y0 + 2.0 * d), v2(xe, y0 + 2.0 * d + nw), v2(xs, y0 + 2.0 * d + nw)]);
+                    acc.voids.push(xf(&v, rot));
+                }
+                k0 = k1;
+            }
             if cap > 0.05 {
                 for (c0, c1) in [(xa - cap, xa), (xb, xb + cap)] {
                     let q = Quad([v2(c0, yb), v2(c1, yb), v2(c1, yf), v2(c0, yf)]);

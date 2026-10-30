@@ -43,6 +43,8 @@ pub struct Acc {
     pub next_row: u32,
     /// Repères des noues supprimées (milieux d'axe, repère monde).
     pub noue_off: Vec<[f64; 2]>,
+    /// Bandes libérées par le recalage d'une demi-rangée sur une noue supprimée (reviennent à la chaussée).
+    pub voids: Vec<Quad>,
 }
 
 impl Acc {
@@ -59,6 +61,7 @@ impl Acc {
             blockers: Vec::new(),
             next_row: 0,
             noue_off: Vec::new(),
+            voids: Vec::new(),
         }
     }
     pub fn new_row(&mut self) -> u32 {
