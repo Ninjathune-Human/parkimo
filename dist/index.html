@@ -629,7 +629,7 @@ let SKEL = false; // squelette des voies affiché (réglage de présentation, ho
 const PILL = { w: 68, h: 32 }; // pastilles du squelette
 let pills = []; // pastilles posées au dernier dessin (centres écran), pour le toucher
 let hoverEdge = null; // limite de parcelle survolée (ou touchée) : porte les boutons Sommet / Courbe
-const EBTN = { r: 14, gap: 25 };
+const EBTN = { r: 10, gap: 19 };
 try { SKEL = localStorage.getItem("trame.skel") === "1"; } catch (e) { /* stockage indisponible */ }
 
 // Formes d'objets → polygones.
@@ -935,28 +935,31 @@ function edgeBtns(i) {
   if (i === null || i >= site.parcel.length) return [];
   const e = edgeInfo(i); if (e.L * view.s < 100) return [];
   const m = toS(e.mid);
-  return [{ part: "add", x: m[0] - EBTN.gap, y: m[1] }, { part: "curve", x: m[0] + EBTN.gap, y: m[1] }];
+  // Boutons posés sur le segment, dans son inclinaison (écran) : « + » côté gauche (ou haut), arc côté droit.
+  let ux = e.u[0], uy = -e.u[1]; if (ux < -1e-6 || (Math.abs(ux) <= 1e-6 && uy > 0)) { ux = -ux; uy = -uy; }
+  const ang = Math.atan2(uy, ux);
+  return [{ part: "add", x: m[0] - ux * EBTN.gap, y: m[1] - uy * EBTN.gap, ang, mx: m[0], my: m[1] }, { part: "curve", x: m[0] + ux * EBTN.gap, y: m[1] + uy * EBTN.gap, ang, mx: m[0], my: m[1] }];
 }
 function drawEdgeBtns() {
   if (mode !== "edit") return;
   for (const b of edgeBtns(hoverEdge)) {
     ctx.save(); ctx.translate(b.x, b.y);
-    ctx.shadowColor = "rgba(0, 0, 0, .22)"; ctx.shadowBlur = 8; ctx.shadowOffsetY = 2;
+    ctx.shadowColor = "rgba(0, 0, 0, .22)"; ctx.shadowBlur = 6; ctx.shadowOffsetY = 1.5;
     ctx.beginPath(); ctx.arc(0, 0, EBTN.r, 0, Math.PI * 2); ctx.fillStyle = C["glass-solid"]; ctx.fill();
     ctx.shadowColor = "transparent"; ctx.strokeStyle = C.sep; ctx.lineWidth = 1; ctx.stroke();
-    ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.beginPath();
-    if (b.part === "add") { ctx.moveTo(-5.5, 0); ctx.lineTo(5.5, 0); ctx.moveTo(0, -5.5); ctx.lineTo(0, 5.5); }
-    else { ctx.moveTo(-7, 4); ctx.quadraticCurveTo(0, -8, 7, 4); }
+    ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5; ctx.lineCap = "round"; ctx.beginPath();
+    if (b.part === "add") { ctx.moveTo(-4, 0); ctx.lineTo(4, 0); ctx.moveTo(0, -4); ctx.lineTo(0, 4); }
+    else { ctx.rotate(b.ang); ctx.moveTo(-5, 3); ctx.quadraticCurveTo(0, -5.5, 5, 3); }
     ctx.stroke(); ctx.restore();
   }
 }
 function edgeBtnAt(sp) {
-  for (const b of edgeBtns(hoverEdge)) if (Math.hypot(sp[0] - b.x, sp[1] - b.y) <= EBTN.r + 4) return b.part;
+  for (const b of edgeBtns(hoverEdge)) if (Math.hypot(sp[0] - b.x, sp[1] - b.y) <= EBTN.r + 5) return b.part;
   return null;
 }
 function edgeUnder(sp) {
   if (mode !== "edit" || !site.parcel.length) return null;
-  if (edgeBtnAt(sp)) return hoverEdge;
+  if (hoverEdge !== null) { const b = edgeBtns(hoverEdge)[0]; if (b && Math.hypot(sp[0] - b.mx, sp[1] - b.my) <= EBTN.gap + EBTN.r + 8) return hoverEdge; }
   for (let i = 0; i < site.parcel.length; i++) {
     const e = edgeInfo(i); if (e.L * view.s < 100) continue;
     const a = toS(e.a), b = toS(e.b), dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1;
