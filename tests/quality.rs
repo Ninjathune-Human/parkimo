@@ -50,7 +50,11 @@ fn check(site: &Site, lay: &Layout, name: &str) {
     for (i, s) in lay.stalls.iter().enumerate() {
         let q = quad(&s.q);
         let front = (q.0[2] + q.0[3]) * 0.5;
-        let n = (q.0[3] - q.0[0]).norm();
+        // 1 m hors de la face avant, perpendiculairement à celle-ci (les places inclinées ont un axe oblique).
+        let mut n = (q.0[2] - q.0[3]).norm().left();
+        if n.dot(front - q.center()) < 0.0 {
+            n = -n;
+        }
         let p = front + n * 1.0;
         let on_road = drive.contains(p) || extra.iter().any(|e| e.contains(p));
         assert!(
@@ -146,6 +150,38 @@ fn random_parcels_never_break_invariants() {
         let site: Site = serde_json::from_value(json).unwrap();
         let lay = trame::solve(&site);
         check(&site, &lay, &format!("aléatoire {case}"));
+    }
+}
+
+#[test]
+fn random_parcels_with_oblique_stalls_never_break_invariants() {
+    let mut seed: u64 = 42;
+    let mut rnd = || {
+        seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        ((seed >> 33) as f64) / (1u64 << 31) as f64
+    };
+    for case in 0..60 {
+        let n = 3 + (rnd() * 9.0) as usize;
+        let r0 = 40.0 + rnd() * 90.0;
+        let mut parcel = Vec::new();
+        for i in 0..n {
+            let a = i as f64 / n as f64 * std::f64::consts::TAU;
+            let r = r0 * (0.6 + 0.4 * rnd());
+            parcel.push([r * a.cos(), r * a.sin()]);
+        }
+        let setbacks: Vec<f64> = (0..n).map(|_| (rnd() * 6.0).floor()).collect();
+        let json = serde_json::json!({
+            "parcel": parcel, "setbacks": setbacks,
+            "entries": [{"edge": 0, "t": 0.5}],
+            "buildings": if case % 3 == 0 { serde_json::json!([{"poly": [[-10,-10],[15,-10],[15,12],[-10,12]]}]) } else { serde_json::json!([]) },
+            "exclusions": if case % 4 == 1 { serde_json::json!([[[-200,-6],[200,-2],[200,6],[-200,3]]]) } else { serde_json::json!([]) }
+        });
+        let mut site: Site = serde_json::from_value(json).unwrap();
+        site.params.slant = [75.0, 60.0, 45.0, 30.0][case % 4];
+        let lay = trame::solve(&site);
+        check(&site, &lay, &format!("aléatoire oblique {case} ({}°)", site.params.slant));
     }
 }
 
@@ -662,4 +698,84 @@ fn traverse_cuts_rows_and_removing_it_restores_them() {
     check(&site, &cut, "rect");
     site.traverses.clear();
     assert_eq!(trame::solve(&site).stalls.len(), base.stalls.len());
+}
+
+/// Largeur de voie de Neufert (p. 272) pour des places de 2,50 m.
+fn neufert_aisle(slant: f64) -> f64 {
+    match slant as i32 {
+        75 => 5.0,
+        60 => 4.0,
+        45 | 30 => 3.0,
+        _ => unreachable!(),
+    }
+}
+
+#[test]
+fn oblique_stalls_follow_neufert_aisles_and_keep_the_plan_valid() {
+    for name in ["rect", "courbe", "ruisseau", "triangle"] {
+        for slant in [75.0, 60.0, 45.0, 30.0] {
+            let mut site = load(name);
+            site.params.slant = slant;
+            let lay = trame::solve(&site);
+            let tag = format!("{name} à {slant}°");
+            assert!(lay.metrics.interior_stalls > 0, "{tag}: aucune place intérieure");
+            check(&site, &lay, &tag);
+            check_circulation(&lay, &tag);
+            // Allée entre rangées : largeur de Neufert, en toutes circonstances.
+            let a = neufert_aisle(slant);
+            assert!((lay.row_aisle - a).abs() < 1e-6, "{tag}: allée {} au lieu de {a}", lay.row_aisle);
+            // Les places inclinées sont des parallélogrammes de pas w / sin(angle) le long de l'allée.
+            let pitch = 2.5 / slant.to_radians().sin();
+            let n_oblique = lay
+                .stalls
+                .iter()
+                .filter(|s| {
+                    let q = quad(&s.q);
+                    let (front, back) = ((q.0[3] - q.0[2]).len(), (q.0[1] - q.0[0]).len());
+                    (front - pitch).abs() < 0.02 && (back - pitch).abs() < 0.02
+                })
+                .count();
+            assert!(
+                n_oblique >= lay.metrics.interior_stalls / 2,
+                "{tag}: {n_oblique} places au pas de {pitch:.2} m seulement"
+            );
+        }
+    }
+}
+
+#[test]
+fn oblique_default_is_perpendicular_and_unchanged() {
+    let site = load("rect");
+    assert_eq!(site.params.slant, 90.0);
+    assert!((site.params.row_aisle() - site.params.aisle).abs() < 1e-9);
+}
+
+#[test]
+fn neufert_aisle_table_is_fully_integrated() {
+    // Tableau p. 272 : largeur de voie selon l'angle et la largeur de place (2,30 / 2,40 / 2,50 m).
+    let table = [
+        (90.0, [6.50, 6.00, 5.50]),
+        (75.0, [5.50, 5.25, 5.00]),
+        (60.0, [4.50, 4.25, 4.00]),
+        (45.0, [3.50, 3.25, 3.00]),
+        (30.0, [3.00, 3.00, 3.00]),
+    ];
+    for (slant, cols) in table {
+        for (w, want) in [2.30, 2.40, 2.50].into_iter().zip(cols) {
+            let mut p = trame::model::Params::default();
+            p.slant = slant;
+            p.stall_w = w;
+            assert!((p.neufert_aisle() - want).abs() < 1e-9, "{slant}° à {w} m : {}", p.neufert_aisle());
+            if slant < 90.0 {
+                assert!((p.row_aisle() - want).abs() < 1e-9);
+            }
+        }
+    }
+    // Valeurs intermédiaires interpolées, hors table bornées.
+    let mut p = trame::model::Params::default();
+    p.slant = 60.0;
+    p.stall_w = 2.35;
+    assert!((p.neufert_aisle() - 4.375).abs() < 1e-9);
+    p.stall_w = 2.8;
+    assert!((p.neufert_aisle() - 4.0).abs() < 1e-9);
 }

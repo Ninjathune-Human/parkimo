@@ -34,6 +34,14 @@ impl Chain {
     fn len(&self) -> f64 {
         *self.cum.last().unwrap()
     }
+    /// Vrai si la chaîne est un arc (somme des changements de direction aux sommets intérieurs).
+    fn is_curved(&self) -> bool {
+        let n = self.pts.len();
+        (1..n.saturating_sub(1))
+            .map(|i| turn_at(self.pts[i - 1], self.pts[i], self.pts[i + 1]).abs())
+            .sum::<f64>()
+            > 0.15
+    }
     fn at(&self, s: f64) -> V2 {
         let i = match self.cum.binary_search_by(|c| c.partial_cmp(&s).unwrap()) {
             Ok(i) => return self.pts[i],
@@ -110,7 +118,11 @@ fn tangent(ch: &Chain, s: f64, h: f64) -> V2 {
 /// resserrent vers l'allée : on élargit la corde du fond jusqu'à ce que l'entrée de la place (face
 /// avant) mesure bien la largeur demandée. `Err(true)` : au-delà de `s_end` ; `Err(false)` : corde
 /// trop ouverte (angle, fin de chaîne), pas de place ici.
-fn build_stall(ch: &Chain, s: f64, w: f64, d: f64, s_end: f64) -> Result<(f64, V2, Quad), bool> {
+/// `c` : cotangente de l'inclinaison (0 pour des places perpendiculaires). Une place inclinée est un
+/// parallélogramme dont le fond (sur la limite) est de longueur `w` et dont l'avant est reculé de
+/// `c d` contre le sens de la limite : la voie est parcourue dans le sens de la limite, la place
+/// s'incline dans le sens de la marche.
+fn build_stall(ch: &Chain, s: f64, w: f64, d: f64, c: f64, s_end: f64) -> Result<(f64, V2, Quad), bool> {
     let p0 = ch.at(s);
     let mut chord = w;
     for _ in 0..6 {
@@ -138,9 +150,10 @@ fn build_stall(ch: &Chain, s: f64, w: f64, d: f64, s_end: f64) -> Result<(f64, V
         }
         // Le trait qui sépare deux places voisines suit la normale locale de la limite (médiane des
         // deux côtés d'un éventail) : sur une courbe, les places sont des trapèzes qui se touchent.
-        let (n0, n1) = (tangent(ch, s, w * 0.5).left(), tangent(ch, s1, w * 0.5).left());
+        let (t0, t1) = (tangent(ch, s, w * 0.5), tangent(ch, s1, w * 0.5));
+        let (n0, n1) = (t0.left(), t1.left());
         let (b0, b1) = (p0 + n0 * shift, p1 + n1 * shift);
-        let q = Quad([b0, b1, b1 + n1 * d, b0 + n0 * d]);
+        let q = Quad([b0, b1, b1 + n1 * d - t1 * (c * d), b0 + n0 * d - t0 * (c * d)]);
         let front = (q.0[2] - q.0[3]).len();
         if front >= w - 1e-3 {
             return Ok((s1, n, q));
@@ -157,7 +170,7 @@ fn build_stall(ch: &Chain, s: f64, w: f64, d: f64, s_end: f64) -> Result<(f64, V
 /// (début de la première place, fin permise). Le reste de place de chaque tronçon est réparti
 /// équitablement de part et d'autre de chaque obstacle (même jeu des deux côtés, au plus le reste
 /// disponible), sans jamais perdre une place.
-fn segments(ch: &Chain, w: f64, d: f64, s0: f64, s_end: f64, entries: &[Quad]) -> Vec<(f64, f64)> {
+fn segments(ch: &Chain, w: f64, d: f64, c: f64, s0: f64, s_end: f64, entries: &[Quad]) -> Vec<(f64, f64)> {
     const SCAN: f64 = 0.1;
     // Intervalles bloqués : (fin de la dernière place possible, début de la première place libre).
     let mut obs: Vec<(f64, f64)> = Vec::new();
@@ -165,7 +178,7 @@ fn segments(ch: &Chain, w: f64, d: f64, s0: f64, s_end: f64, entries: &[Quad]) -
         let mut cur: Option<f64> = None;
         let mut s = s0;
         while s + w <= s_end + 1e-6 {
-            if let Ok((s1, _, q)) = build_stall(ch, s, w, d, s_end) {
+            if let Ok((s1, _, q)) = build_stall(ch, s, w, d, c, s_end) {
                 let hit = entries.iter().any(|e| e.overlaps(&q));
                 match (hit, cur) {
                     (true, None) => cur = Some(s1 - SCAN),
@@ -197,7 +210,7 @@ fn segments(ch: &Chain, w: f64, d: f64, s0: f64, s_end: f64, entries: &[Quad]) -
         .iter()
         .map(|&(a, b)| {
             let (mut s, mut e) = (a, a);
-            while let Ok((s1, _, _)) = build_stall(ch, s, w, d, b) {
+            while let Ok((s1, _, _)) = build_stall(ch, s, w, d, c, b) {
                 s = s1;
                 e = s1;
             }
@@ -232,22 +245,24 @@ fn segments(ch: &Chain, w: f64, d: f64, s0: f64, s_end: f64, entries: &[Quad]) -
 
 /// `b` : zone stationnable ; `drive` : B érodée de la profondeur de place (zone circulable).
 pub fn place(b: &Region, drive: &Region, p: &Params, entries: &[Quad], acc: &mut Acc) {
-    let (w, d) = (p.stall_w, p.stall_d);
-    let a_chk = (p.aisle - 0.3).max(3.0);
+    let (w, d, c) = (p.row_pitch(), p.row_d(), p.row_shear());
+    let a_chk = (p.row_aisle() - 0.3).max(3.0);
     let mut chains: Vec<Chain> = b.rings.iter().flat_map(|r| chains_of(r)).collect();
     chains.sort_by(|x, y| y.len().partial_cmp(&x.len()).unwrap());
 
     for ch in &chains {
         let chain_end = ch.len() - corner_trim(ch.turn_end, d, a_chk);
         let chain_start = corner_trim(ch.turn_start, d, a_chk);
-        for (seg_start, s_end) in segments(ch, w, d, chain_start, chain_end, entries) {
+        // Sur un arc, un îlot est un coin de verdure entre deux places en éventail : on n'en pose pas.
+        let planter_every = if ch.is_curved() { 0 } else { p.planter_every };
+        for (seg_start, s_end) in segments(ch, w, d, c, chain_start, chain_end, entries) {
             let mut s = seg_start;
             let mut row = acc.new_row();
             let mut idx = 0i32;
             let mut run = 0u32;
             let mut last_ok = false;
             while s + w <= s_end + 1e-6 {
-                let (s1, n, q) = match build_stall(ch, s, w, d, s_end) {
+                let (s1, n, q) = match build_stall(ch, s, w, d, c, s_end) {
                     Ok(x) => x,
                     Err(true) => break,
                     Err(false) => {
@@ -257,7 +272,7 @@ pub fn place(b: &Region, drive: &Region, p: &Params, entries: &[Quad], acc: &mut
                         continue;
                     }
                 };
-                let planter_turn = p.planter_every > 0 && run >= p.planter_every;
+                let planter_turn = planter_every > 0 && run >= planter_every;
                 let ok_geom = b.contains_quad(&q, TOL)
                     && !acc.hash.hits(&q.shrink(TOL))
                     && !acc.access.hits(&q.shrink(TOL))

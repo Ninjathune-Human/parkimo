@@ -177,9 +177,9 @@ body {
   max-height: calc(100dvh - 92px - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px));
 }
 /* Hauteur insuffisante mais largeur disponible : deux colonnes, sans ascenseur */
-#params.two { width: min(760px, calc(100vw - 32px)); grid-template-columns: 1fr 1fr; column-gap: 28px; }
-#params.two > h3, #params.two > .note { grid-column: 1 / -1; }
-#params.two > .pgroup:first-of-type { grid-row: span 3; align-self: start; }
+#params.two { width: min(760px, calc(100vw - 32px)); display: block; column-count: 2; column-gap: 28px; }
+#params.two > h3 { column-span: all; margin-bottom: 8px; }
+#params.two > .pgroup { break-inside: avoid; margin-bottom: 10px; }
 #params h3 { margin: 0; font-size: 17px; font-weight: 600; }
 .pgroup { display: grid; gap: 0; }
 .pgroup .eyebrow { padding: 6px 0 4px; }
@@ -442,6 +442,11 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <div class="field"><span class="seg" role="group" aria-label="Orientation"><button id="o-auto" aria-pressed="true">Optimisée</button><button id="o-fixed" aria-pressed="false">Imposée</button></span><span class="unit num" id="o-val"></span></div>
       <input id="o-range" type="range" min="0" max="179" step="1" aria-label="Angle imposé" hidden>
     </div>
+    <div class="pgroup">
+      <div class="eyebrow">Inclinaison des places</div>
+      <div class="field"><span class="seg" role="group" aria-label="Inclinaison des places" id="sl-seg"><button data-sl="90" aria-pressed="true">90°</button><button data-sl="75" aria-pressed="false">75°</button><button data-sl="60" aria-pressed="false">60°</button><button data-sl="45" aria-pressed="false">45°</button><button data-sl="30" aria-pressed="false">30°</button></span></div>
+      <p class="note" id="sl-note"></p>
+    </div>
     <button class="mi" role="menuitem" data-add="traverse"><span class="glyph" style="background:var(--asphalt)"></span><span>Traverse<small>Voie transversale qui coupe les rangées</small></span></button>
   </section>
 
@@ -464,22 +469,20 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
   <section id="params" class="menu glass" hidden aria-label="Paramètres">
     <h3>Paramètres</h3>
     <div class="pgroup">
-      <div class="eyebrow">Places et voies</div>
+      <div class="eyebrow">Places</div>
       <div class="field"><label for="p-stall_w">Largeur de place</label><span class="unit"><input id="p-stall_w" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-stall_d">Longueur de place</label><span class="unit"><input id="p-stall_d" type="text" inputmode="decimal" autocomplete="off">m</span></div>
-      <div class="field"><label for="p-basin_h">Hauteur bassin de rétention</label><span class="unit"><input id="p-basin_h" type="text" inputmode="decimal" autocomplete="off">m</span></div>
-      <div class="field"><label for="p-basin_margin">Verdure autour du bassin</label><span class="unit"><input id="p-basin_margin" type="text" inputmode="decimal" autocomplete="off">m</span></div>
-      <div class="field"><label for="p-aisle">Largeur d'allée</label><span class="unit"><input id="p-aisle" type="text" inputmode="decimal" autocomplete="off">m</span></div>
-      <div class="field"><label for="p-noue_w">Noue entre rangées (0 = aucune)</label><span class="unit"><input id="p-noue_w" type="text" inputmode="decimal" autocomplete="off">m</span></div>
-      <div class="field"><label for="p-aisle_one">Largeur voie en sens unique</label><span class="unit"><input id="p-aisle_one" type="text" inputmode="decimal" autocomplete="off">m</span></div>
-      <div class="field"><label for="p-entry_w">Largeur de l'entrée</label><span class="unit"><input id="p-entry_w" type="text" inputmode="decimal" autocomplete="off">m</span></div>
-      <div class="field"><label for="p-building_margin">Trottoir autour du bâti</label><span class="unit"><input id="p-building_margin" type="text" inputmode="decimal" autocomplete="off">m</span></div>
-      <div class="field"><label for="p-door_w">Largeur d'entrée du bâtiment</label><span class="unit"><input id="p-door_w" type="text" inputmode="decimal" autocomplete="off">m</span></div>
     </div>
     <div class="pgroup">
-      <div class="eyebrow">Paysage</div>
-      <div class="field"><label for="p-planter_every">Îlot planté toutes les</label><span class="unit"><input id="p-planter_every" type="text" inputmode="decimal" autocomplete="off">places</span></div>
-      <div class="field"><label for="p-cap">Îlot en bout de rangée</label><span class="unit"><input id="p-cap" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+      <div class="eyebrow">Voies</div>
+      <div class="field"><label for="p-aisle">Largeur d'allée</label><span class="unit"><input id="p-aisle" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+      <div class="field"><label for="p-aisle_one">Largeur voie en sens unique</label><span class="unit"><input id="p-aisle_one" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+      <div class="field"><label for="p-entry_w">Largeur de l'entrée</label><span class="unit"><input id="p-entry_w" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+    </div>
+    <div class="pgroup">
+      <div class="eyebrow">Bâtiment</div>
+      <div class="field"><label for="p-building_margin">Trottoir autour du bâti</label><span class="unit"><input id="p-building_margin" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+      <div class="field"><label for="p-door_w">Largeur d'entrée du bâtiment</label><span class="unit"><input id="p-door_w" type="text" inputmode="decimal" autocomplete="off">m</span></div>
     </div>
     <div class="pgroup">
       <div class="eyebrow">Quotas</div>
@@ -487,7 +490,14 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <div class="field"><label for="p-irve_ratio">Pré-équipement IRVE</label><span class="unit"><input id="p-irve_ratio" type="text" inputmode="decimal" autocomplete="off">%</span></div>
       <div class="field"><label for="p-irve_equip_ratio">Équipement IRVE (bornes)</label><span class="unit"><input id="p-irve_equip_ratio" type="text" inputmode="decimal" autocomplete="off">%</span></div>
     </div>
-    <p class="note">Valeurs par défaut : place 2,50 × 5,00 m, PMR 3,30 m et 2 % (ERP), IRVE 20 % (bâtiment non résidentiel). À ajuster selon le PLU et la destination. Une allée est à double sens à partir de 5,00 m, à sens unique en dessous. Squelette affiché, chaque voie porte deux boutons : son sens de parcours, à inverser, et son nombre de voies. Une voie à sens unique prend sa largeur et les rangées voisines se rapprochent (5,00 m : places à 90°, NF P 91-100).</p>
+    <div class="pgroup">
+      <div class="eyebrow">Paysage</div>
+      <div class="field"><label for="p-noue_w">Noue entre rangées (0 = aucune)</label><span class="unit"><input id="p-noue_w" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+      <div class="field"><label for="p-basin_h">Hauteur bassin de rétention</label><span class="unit"><input id="p-basin_h" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+      <div class="field"><label for="p-basin_margin">Verdure autour du bassin</label><span class="unit"><input id="p-basin_margin" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+      <div class="field"><label for="p-planter_every">Îlot planté toutes les</label><span class="unit"><input id="p-planter_every" type="text" inputmode="decimal" autocomplete="off">pl</span></div>
+      <div class="field"><label for="p-cap">Îlot en bout de rangée</label><span class="unit"><input id="p-cap" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+    </div>
   </section>
 
   <section id="export" class="menu glass" hidden aria-label="Exporter">
@@ -632,7 +642,7 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((res) => setTimeout(
 // ============================================================================
 // Données : sites d'exemple (mètres, repère local, y vers le haut).
 // ============================================================================
-const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, basin_margin: 2, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null };
+const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, basin_margin: 2, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null, slant: 90 };
 
 function arc(cx, cy, r, a0, a1, n) {
   const pts = [];
@@ -707,7 +717,7 @@ function engineInput(quick) {
     buildings: site.buildings.map((b) => { const d = doorGeom(b); return { poly: rectPoly(b), entrance: [d.p[0] + d.n[0] * params.building_margin, d.p[1] + d.n[1] * params.building_margin], door: { p: d.p, n: d.n, w: Math.min(params.door_w, d.L) } }; }),
     landscapes: site.landscapes.map(polyOutline), basins: (site.basins || []).map(polyOutline), lanes: site.lanes || [], noue_off: site.noue_off || [], traverses: site.traverses || [],
     params: {
-      stall_w: p.stall_w, stall_d: p.stall_d, noue_w: p.noue_w, basin_h: p.basin_h, basin_margin: p.basin_margin, aisle: p.aisle, aisle_one: p.aisle_one, entry_w: p.entry_w, building_margin: p.building_margin,
+      slant: p.slant, stall_w: p.stall_w, stall_d: p.stall_d, noue_w: p.noue_w, basin_h: p.basin_h, basin_margin: p.basin_margin, aisle: p.aisle, aisle_one: p.aisle_one, entry_w: p.entry_w, building_margin: p.building_margin,
       planter_every: Math.max(0, Math.round(p.planter_every)), cap: p.cap,
       pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100, irve_equip_ratio: p.irve_equip_ratio / 100,
       angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle,
@@ -1380,7 +1390,7 @@ function updateStats(quick) {
   const w = layout.warnings || [];
   $("#warn").hidden = !w.length; $("#warn").textContent = w.join(" · ");
   $("#engine").textContent = `Moteur Rust · ${Engine.kind} · ${fmt1(lastMs)} ms · ${fmtInt(layout.evals)} variantes ${quick ? "(direct)" : "testées"}`;
-  $("#o-val").textContent = fmt1(layout.angle) + "°";
+  $("#o-val").textContent = fmt1(layout.angle) + "°"; updateSlantNote();
 }
 
 // ============================================================================
@@ -1777,8 +1787,16 @@ function updateCost() {
   $("#c-er").textContent = rng(E); $("#c-et").textContent = `${fmtEuro(et[0])} – ${fmtEuro(et[1])}`;
   $("#c-note").textContent = n < BAREME[0].a ? "Moins de 20 places : hors barème, la première tranche est appliquée par défaut." : n > BAREME[4].b ? "Plus de 1 000 places : hors barème, la dernière tranche est appliquée par défaut." : `Tranche ${r.a} à ${r.b} places.`;
 }
+function updateSlantNote() {
+  const a = layout && layout.row_aisle ? fmt1(layout.row_aisle).replace(/,0$/, "") : "";
+  $("#sl-note").textContent = params.slant < 90
+    ? `Épis à ${params.slant}° : allée de ${a || "–"} m entre rangées (Neufert p. 272), à sens unique en alternance. `
+    : `Places perpendiculaires : allée réglée dans Paramètres (${fmt1(params.aisle).replace(/,0$/, "")} m ; Neufert p. 272 : ${layout && layout.neufert_aisle ? fmt1(layout.neufert_aisle).replace(/,0$/, "") : "–"} m pour des places de ${fmt1(params.stall_w).replace(/,0$/, "")} m).`;
+}
 function syncParamsUI() {
   for (const k of PKEYS) $("#p-" + k).value = String(params[k]).replace(".", ",");
+  for (const b of $("#sl-seg").children) b.setAttribute("aria-pressed", String(+b.dataset.sl === params.slant));
+  updateSlantNote();
   const auto = params.angle === null;
   $("#o-auto").setAttribute("aria-pressed", String(auto)); $("#o-fixed").setAttribute("aria-pressed", String(!auto));
   $("#o-range").hidden = auto; if (!auto) $("#o-range").value = Math.round(params.angle);
@@ -1788,6 +1806,10 @@ let paramTimer = null;
 for (const k of PKEYS) $("#p-" + k).addEventListener("input", (ev) => {
   const v = parseFloat(ev.target.value.replace(",", ".")); if (!isFinite(v)) return;
   params[k] = v; clearTimeout(paramTimer); paramTimer = setTimeout(() => { lastAngle = null; solve(false); commit(); }, 120);
+});
+$("#sl-seg").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-sl]"); if (!b || +b.dataset.sl === params.slant) return;
+  params.slant = +b.dataset.sl; syncParamsUI(); lastAngle = null; solve(false); commit();
 });
 $("#o-auto").addEventListener("click", () => { params.angle = null; syncParamsUI(); solve(false); commit(); });
 $("#o-fixed").addEventListener("click", () => { params.angle = layout ? Math.round(layout.angle) : 0; syncParamsUI(); solve(false); commit(); });

@@ -51,7 +51,7 @@ fn entry_quads(site: &Site, parcel: &[V2], sign: f64) -> Vec<Quad> {
             let t = e.t.clamp(0.0, 1.0);
             let c = a + (b - a) * t;
             let s = site.setbacks.get(e.edge).copied().unwrap_or(0.0);
-            let depth = s + if p.perimeter { p.stall_d } else { 0.0 } + p.aisle * 0.6;
+            let depth = s + if p.perimeter { p.row_d() } else { 0.0 } + p.row_aisle() * 0.6;
             let hw = p.entry_w.clamp(2.5, 15.0) * 0.5;
             Quad::on_base(c - u * hw, c + u * hw, nn, depth)
         })
@@ -61,7 +61,7 @@ fn entry_quads(site: &Site, parcel: &[V2], sign: f64) -> Vec<Quad> {
 /// Cheminements devant les portes : largeur de la porte, du mur jusqu'à la chaussée.
 fn door_walks(site: &Site) -> Vec<Quad> {
     let p = &site.params;
-    let depth = p.building_margin + if p.perimeter { p.stall_d } else { 0.0 };
+    let depth = p.building_margin + if p.perimeter { p.row_d() } else { 0.0 };
     site.buildings
         .iter()
         .filter_map(|b| b.door)
@@ -92,7 +92,7 @@ pub fn entry_turns(site: &Site, parcel: &[V2], entries: &[Quad]) -> (Vec<Quad>, 
         let u = (b - a).norm();
         let nn = (q.0[3] - q.0[0]).norm();
         let s = site.setbacks.get(e.edge).copied().unwrap_or(0.0);
-        let depth = s + if p.perimeter { p.stall_d } else { 0.0 };
+        let depth = s + if p.perimeter { p.row_d() } else { 0.0 };
         for (corner, side) in [(a, -u), (b, u)] {
             let k = corner + nn * depth;
             keep.push(Quad([k, k + side * r, k + side * r - nn * r, k - nn * r]));
@@ -237,7 +237,7 @@ pub fn solve(site: &Site) -> Layout {
     let mut narrow_rule: Vec<usize> = Vec::new();
     let mut narrowed = false;
     let mut pin = None;
-    if one < p.aisle - 0.05 {
+    if one < p.aisle - 0.05 && !p.oblique() {
         let in_core = Region::new(core_rings0.clone());
         let mut ring_pts: Vec<(V2, V2)> = Vec::new();
         for (k, r) in site.lanes.iter().enumerate().filter(|(_, r)| r.sens == 1) {
@@ -246,6 +246,9 @@ pub fn solve(site: &Site) -> Layout {
             };
             narrowed = true;
             if in_core.contains(q) {
+                if p.oblique() {
+                    continue; // les allées inclinées ont déjà la largeur d'une voie à sens unique
+                }
                 narrow.push((q, v2(d[0], d[1])));
                 narrow_rule.push(k);
             } else {
@@ -253,7 +256,7 @@ pub fn solve(site: &Site) -> Layout {
             }
         }
         if !ring_pts.is_empty() {
-            let per = p.double_depth() + p.aisle;
+            let per = p.row_double_depth() + p.row_aisle();
             let (core, pn) = narrow_ring(&z.band, &z.core, &ring_pts, p.aisle, one, grid.0, per);
             z.core = core;
             pin = pn;
@@ -277,14 +280,24 @@ pub fn solve(site: &Site) -> Layout {
         let strips = mp_of_quads(&rows.strips);
         z.band.difference(&z.core.intersection(&strips))
     };
+    // Places inclinées : l'aire de manœuvre devant chaque place de bordure reste chaussée, y compris
+    // aux angles où le cœur, plus arrondi, rogne la bande.
+    let paved = if p.oblique() && !acc.access.quads.is_empty() {
+        paved.union(&mp_of_quads(&acc.access.quads).intersection(&z.band))
+    } else {
+        paved
+    };
     // Pointes : la chaussée plus étroite que l'allée (angles aigus, effilements) est retirée,
     // sauf l'aire de manœuvre devant les places périphériques. Au relâchement seulement : pendant
     // un glisser, le calcul direct reste léger.
     let paved = if p.quick {
         paved
     } else {
-        let w = if narrowed { one } else { p.aisle };
-        let opened = region::open(&paved, (w - 0.3).max(3.0) * 0.5);
+        let mut w = if narrowed { one } else { p.aisle };
+        if p.oblique() {
+            w = w.min(p.row_aisle());
+        }
+        let opened = region::open(&paved, (w - 0.3).max(3.0).min(w - 0.1) * 0.5);
         let kept = Region::new(region::rings_of(&opened, 0.0));
         let cut: Vec<Quad> = acc
             .access
@@ -533,8 +546,12 @@ pub fn solve(site: &Site) -> Layout {
             let q = q + ny * (actual - q.dot(ny));
             r.p = [q.x, q.y];
         }
+        // Places inclinées : deux allées voisines sont parcourues en sens inverses, chaque rangée
+        // double s'incline vers le sens de l'allée qu'elle borde. Ces sens sont imposés à l'analyse
+        // (sans repère visible pour le concepteur, dont les propres repères restent prioritaires).
+        let hints = if p.oblique() { aisle_hints(&rows, &paved_rings, p, &stalls) } else { Vec::new() };
         out.circulation =
-            circulation::analyse(&paved_rings, &lanes, &entries, p.aisle, one, &rules);
+            circulation::analyse(&paved_rings, &lanes, &entries, p.aisle, one, &rules, &hints);
         for &(i, regular, actual) in &rows.narrowed {
             let r = &mut out.circulation.lanes[narrow_rule[i]];
             if r.fix {
@@ -572,7 +589,58 @@ pub fn solve(site: &Site) -> Layout {
     }
     out.angle = r3(rows.angle);
     out.phase = r3(rows.phase);
+    out.row_aisle = r3(p.row_aisle());
+    out.neufert_aisle = r3(p.neufert_aisle());
     out.evals = rows.evals;
+    out
+}
+
+/// Sens imposés aux allées entre rangées inclinées : des repères tous les 6 m environ le long de
+/// l'axe de chaque allée, là où la chaussée existe.
+fn aisle_hints(rows: &rows::RowsOut, paved_rings: &[Vec<V2>], p: &model::Params, stalls: &[layout::Stall]) -> Vec<model::LaneRule> {
+    let region = Region::new(paved_rings.to_vec());
+    let (t, mut out) = (rows.angle.to_radians(), Vec::new());
+    let (c, s) = (t.cos(), t.sin());
+    let (mut xlo, mut xhi) = (f64::MAX, f64::MIN);
+    for q in &rows.strips {
+        for v in q.0.iter() {
+            let x = v.x * c + v.y * s; // abscisse dans le repère des rangées
+            xlo = xlo.min(x);
+            xhi = xhi.max(x);
+        }
+    }
+    let mut r: Vec<(f64, f64, usize)> = rows.rows.clone();
+    r.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    for w in r.windows(2) {
+        let (gap0, gap1) = (w[0].1, w[1].0);
+        if gap1 - gap0 > p.row_aisle() * 1.5 || gap1 - gap0 < 0.5 {
+            continue; // pas une allée entre rangées voisines
+        }
+        let flow = if w[0].2 == 0 { -1.0 } else { 1.0 };
+        let (ex, ey) = (c * flow, s * flow);
+        let y = 0.5 * (gap0 + gap1);
+        let mut x = xlo + 3.0;
+        while x < xhi - 3.0 {
+            let (wx, wy) = (x * c - y * s, x * s + y * c);
+            if region.contains(v2(wx, wy)) {
+                out.push(model::LaneRule { p: [wx, wy], sens: 1, d: Some([ex, ey]), fix: true });
+            }
+            x += 6.0;
+        }
+    }
+    // Anneau : sens unique dans le sens de la limite (places à droite de la voie), en face des
+    // places de bordure, tous les trois emplacements environ.
+    for (i, s) in stalls.iter().filter(|s| s.perimeter).enumerate() {
+        if i % 3 != 0 {
+            continue;
+        }
+        let u = (s.q.0[1] - s.q.0[0]).norm();
+        let front = (s.q.0[2] + s.q.0[3]) * 0.5;
+        let c = front + u.left() * (p.row_aisle() * 0.5);
+        if region.contains(c) {
+            out.push(model::LaneRule { p: [c.x, c.y], sens: 1, d: Some([u.x, u.y]), fix: true });
+        }
+    }
     out
 }
 

@@ -100,6 +100,9 @@ pub struct Params {
     pub pmr_ratio: f64,
     /// Largeur d'une place PMR (m).
     pub pmr_w: f64,
+    /// Inclinaison des places des rangées intérieures par rapport à l'allée (degrés) : 30, 45, 60,
+    /// 75 ou 90 (perpendiculaire, valeur par défaut). Les valeurs voisines sont ramenées à la plus proche.
+    pub slant: f64,
     /// Part de places pré-équipées IRVE.
     pub irve_ratio: f64,
     /// Part de places IRVE équipées d'une borne (une par tranche de 20 places), prises parmi les pré-équipées.
@@ -134,6 +137,70 @@ impl Params {
     pub fn double_depth(&self) -> f64 {
         2.0 * self.stall_d + self.noue()
     }
+    /// Inclinaison retenue des places intérieures : 30, 45, 60, 75 ou 90 degrés.
+    pub fn slant_deg(&self) -> f64 {
+        [30.0, 45.0, 60.0, 75.0, 90.0]
+            .into_iter()
+            .min_by(|a, b| (a - self.slant).abs().partial_cmp(&(b - self.slant).abs()).unwrap())
+            .unwrap()
+    }
+    /// Places intérieures en épis (inclinées) plutôt que perpendiculaires à l'allée.
+    pub fn oblique(&self) -> bool {
+        self.slant_deg() < 89.5
+    }
+    /// Profondeur d'une place inclinée, mesurée perpendiculairement à l'allée : le rectangle
+    /// largeur × longueur de la place, pivoté de l'angle d'inclinaison.
+    pub fn row_d(&self) -> f64 {
+        if !self.oblique() {
+            return self.stall_d;
+        }
+        let a = self.slant_deg().to_radians();
+        self.stall_d * a.sin() + self.stall_w * a.cos()
+    }
+    /// Pas des places le long de l'allée : la largeur de place est mesurée perpendiculairement à son axe.
+    pub fn row_pitch(&self) -> f64 {
+        if !self.oblique() {
+            return self.stall_w;
+        }
+        self.stall_w / self.slant_deg().to_radians().sin()
+    }
+    /// Cotangente de l'inclinaison : décalage latéral du fond d'une place par mètre de profondeur.
+    pub fn row_shear(&self) -> f64 {
+        if !self.oblique() {
+            return 0.0;
+        }
+        let a = self.slant_deg().to_radians();
+        a.cos() / a.sin()
+    }
+    /// Largeur de l'allée entre rangées : celle du réglage pour des places à 90 degrés, sinon la
+    /// largeur de voie de Neufert (p. 272) selon l'angle et la largeur de place, par interpolation.
+    pub fn row_aisle(&self) -> f64 {
+        if !self.oblique() {
+            return self.aisle;
+        }
+        self.neufert_aisle()
+    }
+    /// Largeur de voie du tableau de Neufert (p. 272) pour l'inclinaison et la largeur de place
+    /// courantes, 90 degrés compris ; interpolée entre les colonnes 2,30 / 2,40 / 2,50 m et bornée
+    /// à ces colonnes.
+    pub fn neufert_aisle(&self) -> f64 {
+        // Colonnes : places de 2,30 m, 2,40 m, 2,50 m.
+        let col: [f64; 3] = match self.slant_deg() as i32 {
+            90 => [6.50, 6.00, 5.50],
+            75 => [5.50, 5.25, 5.00],
+            60 => [4.50, 4.25, 4.00],
+            45 => [3.50, 3.25, 3.00],
+            _ => [3.00, 3.00, 3.00],
+        };
+        let t = ((self.stall_w - 2.3) / 0.1).clamp(0.0, 2.0);
+        let i = (t.floor() as usize).min(1);
+        let f = t - i as f64;
+        col[i] * (1.0 - f) + col[i + 1] * f
+    }
+    /// Profondeur d'une rangée double inclinée, noue comprise.
+    pub fn row_double_depth(&self) -> f64 {
+        2.0 * self.row_d() + self.noue()
+    }
 }
 
 impl Default for Params {
@@ -149,6 +216,7 @@ impl Default for Params {
             entry_w: 6.0,
             pmr_ratio: 0.02,
             pmr_w: 3.3,
+            slant: 90.0,
             irve_ratio: 0.2,
             irve_equip_ratio: 0.05,
             planter_every: 8,
@@ -237,6 +305,10 @@ pub struct Layout {
     pub metrics: Metrics,
     pub angle: f64,
     pub phase: f64,
+    /// Largeur de l'allée entre rangées intérieures (m) : celle de Neufert si les places sont inclinées.
+    pub row_aisle: f64,
+    /// Largeur de voie de Neufert (p. 272) pour l'inclinaison et la largeur de place réglées (m).
+    pub neufert_aisle: f64,
     pub evals: u32,
     pub warnings: Vec<String>,
 }

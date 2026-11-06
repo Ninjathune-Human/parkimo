@@ -807,8 +807,14 @@ pub fn analyse(
     entries: &[Quad],
     aisle: f64,
     aisle_one: f64,
-    rules: &[LaneRule],
+    user_rules: &[LaneRule],
+    hints: &[LaneRule],
 ) -> Circulation {
+    // Sens imposés par le plan (rangées inclinées) d'abord, repères du concepteur ensuite : à repères
+    // multiples, le dernier l'emporte.
+    let nh = hints.len();
+    let all: Vec<LaneRule> = hints.iter().chain(user_rules.iter()).copied().collect();
+    let rules = &all[..];
     let mut out = Circulation::default();
     let Some(g) = build_grid(rings, quads) else {
         return out;
@@ -1039,7 +1045,7 @@ pub fn analyse(
             dir[e] = 0;
         }
         if dir[e] == 0 {
-            if k < nf {
+            if k < nf && imposed[e].map_or(true, |i| i >= nh) {
                 out.refused += 1;
             } else {
                 out.narrow_two_way += 1;
@@ -1112,7 +1118,7 @@ pub fn analyse(
             pts: axis.iter().map(|p| [r3(p.x), r3(p.y)]).collect(),
             w: r3(width[e]),
             sens: if dir[e] == 0 { 2 } else { 1 },
-            rule: imposed[e],
+            rule: imposed[e].and_then(|k| k.checked_sub(nh)),
         });
         if !comp[ed[e].0] || len < ARROW_L + 1.0 {
             continue;
@@ -1182,6 +1188,7 @@ pub fn analyse(
             }
         }
     }
+    out.lanes.drain(..nh.min(out.lanes.len()));
     out
 }
 
@@ -1269,7 +1276,7 @@ mod tests {
     fn wide_corridor_is_two_way_with_paired_arrows_on_the_right() {
         // Allée de 50 × 6 m, accès à l'ouest.
         let e = entry(v2(-8.0, 6.0), v2(-8.0, 0.0), v2(1.0, 0.0), 8.5);
-        let c = analyse(&[rect(0.0, 0.0, 50.0, 6.0)], &[e], &[e], 6.0, 5.0, &[]);
+        let c = analyse(&[rect(0.0, 0.0, 50.0, 6.0)], &[e], &[e], 6.0, 5.0, &[], &[]);
         assert!(
             !c.axes.is_empty() && c.axes.iter().all(|a| a.sens == 2),
             "{:?}",
@@ -1300,7 +1307,7 @@ mod tests {
         let mut inner = rect(4.0, 4.0, 56.0, 36.0);
         inner.reverse();
         let e = entry(v2(28.0, -10.0), v2(32.0, -10.0), v2(0.0, 1.0), 10.5);
-        let c = analyse(&[outer, inner], &[e], &[e], 4.0, 5.0, &[]);
+        let c = analyse(&[outer, inner], &[e], &[e], 4.0, 5.0, &[], &[]);
         let one_way: Vec<&Axis> = c.axes.iter().filter(|a| a.sens == 1).collect();
         assert!(!one_way.is_empty(), "{:?}", c.axes);
         assert_eq!(c.narrow_two_way, 1, "l'accès unique reste à double sens");
@@ -1325,6 +1332,7 @@ mod tests {
             4.0,
             5.0,
             &[],
+            &[],
         );
         assert!(c.axes.iter().any(|a| a.sens == 1), "{:?}", c.axes);
         let dirs: Vec<f64> = c.arrows.iter().map(|a| a.a.to_radians().cos()).collect();
@@ -1340,7 +1348,7 @@ mod tests {
         let mut inner = rect(w, w, 60.0 - w, 40.0 - w);
         inner.reverse();
         let e = entry(v2(28.0, -10.0), v2(32.0, -10.0), v2(0.0, 1.0), 10.5);
-        analyse(&[outer, inner], &[e], &[e], w, 5.0, rules)
+        analyse(&[outer, inner], &[e], &[e], w, 5.0, rules, &[])
     }
 
     fn rule(x: f64, y: f64, sens: u8) -> LaneRule {

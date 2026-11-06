@@ -192,9 +192,9 @@ pub fn build(site: &Site) -> Option<Zones> {
     };
     let b = drop_small(b, 15.0);
 
-    let d = if p.perimeter { p.stall_d } else { 0.0 };
+    let d = if p.perimeter { p.row_d() } else { 0.0 };
     let band = drop_small(erode(&b, d), 1.0);
-    let core = drop_small(erode(&band, p.aisle), 1.0);
+    let core = drop_small(erode(&band, p.row_aisle()), 1.0);
 
     Some(Zones {
         parcel,
