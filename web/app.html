@@ -19,6 +19,7 @@
   --building: #394045;
   --building-edge: #1B1F21;
   --building-label: #E9EDEB;
+  --slab: #D4DAD7;
   --excl: #8B5A87;
   --setback: #DE7428;
   --pmr: #2F6ED4;
@@ -60,7 +61,7 @@
   :root:not([data-theme="light"]) {
     --ground: #111514; --grid: rgba(214, 232, 222, .045); --grid-strong: rgba(214, 232, 222, .09);
     --parcel: #26342B; --parcel-edge: #8EA595; --asphalt: #4B5154; --stripe: #DCE2DF;
-    --island: #3E6235; --tree: #5D9250; --tree-edge: #9CC78F; --building: #C7CECA; --building-edge: #F1F4F2;
+    --island: #3E6235; --tree: #5D9250; --tree-edge: #9CC78F; --building: #C7CECA; --building-edge: #F1F4F2; --slab: #343A3D;
     --building-label: #18201C; --excl: #A974A4; --setback: #F08A3C; --pmr: #4C8BF0; --irve: #3DB878; --pmr-irve: #2EA9CF;
     --accent: #0A84FF; --label: #EEF3F0; --label-2: rgba(238, 243, 240, .64); --label-3: rgba(238, 243, 240, .36);
     --sep: rgba(238, 243, 240, .10); --glass: rgba(30, 36, 33, .74); --glass-solid: #1E2421; --glass-edge: rgba(238, 243, 240, .12);
@@ -73,7 +74,7 @@
 :root[data-theme="dark"] {
   --ground: #111514; --grid: rgba(214, 232, 222, .045); --grid-strong: rgba(214, 232, 222, .09);
   --parcel: #26342B; --parcel-edge: #8EA595; --asphalt: #4B5154; --stripe: #DCE2DF;
-  --island: #3E6235; --tree: #5D9250; --tree-edge: #9CC78F; --building: #C7CECA; --building-edge: #F1F4F2;
+  --island: #3E6235; --tree: #5D9250; --tree-edge: #9CC78F; --building: #C7CECA; --building-edge: #F1F4F2; --slab: #343A3D;
   --building-label: #18201C; --excl: #A974A4; --setback: #F08A3C; --pmr: #4C8BF0; --irve: #3DB878; --pmr-irve: #2EA9CF;
   --accent: #0A84FF; --label: #EEF3F0; --label-2: rgba(238, 243, 240, .64); --label-3: rgba(238, 243, 240, .36);
   --sep: rgba(238, 243, 240, .10); --glass: rgba(30, 36, 33, .74); --glass-solid: #1E2421; --glass-edge: rgba(238, 243, 240, .12);
@@ -366,7 +367,8 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
         <div class="row"><span class="k"><i class="sw" style="background:var(--irve)"></i>IRVE équipées (bornes)</span><span class="v" id="s-irve-eq"></span></div>
         <div class="row"><span class="k">En bordure / au cœur</span><span class="v" id="s-split"></span></div>
         <div class="row"><span class="k"><i class="sw" style="background:var(--tree)"></i>Arbres</span><span class="v" id="s-trees"></span></div>
-        <div class="row"><span class="k">Enrobé par place</span><span class="v" id="s-eff"></span></div>
+        <div class="row" id="r-dalle" hidden><span class="k">Dalle</span><span class="v" id="s-dalle"></span></div>
+        <div class="row"><span class="k" id="k-eff">Enrobé par place</span><span class="v" id="s-eff"></span></div>
         <div class="row"><span class="k">Parcelle</span><span class="v" id="s-parcel"></span></div>
         <div class="row"><span class="k">Espaces verts</span><span class="v" id="s-green"></span></div>
         <div class="row"><span class="k">Orientation des rangées</span><span class="v" id="s-angle"></span></div>
@@ -381,6 +383,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
           <div class="eyebrow">Projet</div>
           <label class="lrow"><span><span class="sws"><i class="sw" style="background:var(--asphalt)"></i><i class="sw" style="background:var(--pmr)"></i><i class="sw" style="background:var(--irve)"></i></span>Places</span><input type="checkbox" class="switch" role="switch" data-lay="places"></label>
           <label class="lrow"><span><i class="sw" style="background:var(--asphalt)"></i>Voirie</span><input type="checkbox" class="switch" role="switch" data-lay="pvoirie"></label>
+          <label class="lrow" id="lay-structure" hidden><span><i class="sw" style="background:var(--slab);box-shadow:inset 0 0 0 2px var(--building)"></i>Structure (dalle, poteaux, trame)</span><input type="checkbox" class="switch" role="switch" data-lay="structure"></label>
           <label class="lrow"><span><svg class="sw-ico" width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><path d="M1 3h8.5M8 1l2.5 2L8 5M13 7H4.5M6 5 3.5 7 6 9" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Sens de circulation</span><input type="checkbox" class="switch" role="switch" data-lay="sens"></label>
           <label class="lrow"><span><i class="sw" style="background:var(--island)"></i>Îlots plantés</span><input type="checkbox" class="switch" role="switch" data-lay="ilots"></label>
           <label class="lrow"><span><i class="sw" style="background:var(--building)"></i>Bâtiments et espaces verts</span><input type="checkbox" class="switch" role="switch" data-lay="pbati"></label>
@@ -469,6 +472,20 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
   <section id="params" class="menu glass" hidden aria-label="Paramètres">
     <h3>Paramètres</h3>
     <div class="pgroup">
+      <div class="eyebrow">Type d'étude</div>
+      <div class="field"><span class="seg" role="group" aria-label="Type d'étude" id="t-seg"><button data-t="surface" aria-pressed="true">Surface</button><button data-t="silo" aria-pressed="false">Silo</button></span></div>
+      <div id="silo-fields" hidden>
+        <div class="field"><label for="p-silo_etage">Hauteur d'étage</label><span class="unit"><input id="p-silo_etage" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+        <div class="field"><label for="p-silo_dalle">Épaisseur de dalle</label><span class="unit"><input id="p-silo_dalle" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+        <div class="field"><label for="p-silo_pu">Poteau le long des allées</label><span class="unit"><input id="p-silo_pu" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+        <div class="field"><label for="p-silo_pv">Poteau en travers</label><span class="unit"><input id="p-silo_pv" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+        <div class="field"><label for="p-silo_travee">Places entre poteaux</label><span class="unit"><input id="p-silo_travee" type="text" inputmode="decimal" autocomplete="off">pl</span></div>
+        <div class="field"><label for="p-silo_facade">Rive de façade</label><span class="unit"><input id="p-silo_facade" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+        <div class="field"><label for="p-silo_rives">Places le long des pignons</label><input id="p-silo_rives" type="checkbox" class="switch" role="switch"></div>
+        <p class="note">Plateau unique à grande portée : modules place + allée + place, poteaux en façade et en dos à dos. Poteaux et rive : hypothèses d'esquisse à confirmer par le bureau d'études.</p>
+      </div>
+    </div>
+    <div class="pgroup">
       <div class="eyebrow">Places</div>
       <div class="field"><label for="p-stall_w">Largeur de place</label><span class="unit"><input id="p-stall_w" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-stall_d">Longueur de place</label><span class="unit"><input id="p-stall_d" type="text" inputmode="decimal" autocomplete="off">m</span></div>
@@ -508,6 +525,11 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
     </div>
     <p class="note" id="x-note"></p>
     <button class="tb primary wide" id="x-go">Télécharger le DXF</button>
+    <div class="pgroup" id="x-bim" hidden>
+      <div class="eyebrow">Maquette BIM</div>
+      <p class="note">IFC4 : niveaux, dalles, poteaux, places et allées, types, propriétés, identifiants stables d'un export à l'autre.</p>
+      <button class="tb wide" id="x-ifc">Télécharger la maquette IFC</button>
+    </div>
     <div class="pgroup">
       <div class="eyebrow">Tableur</div>
       <p class="note">Ratios du parking, surfaces, hypothèses, estimation financière, emplacement et dates du projet.</p>
@@ -642,7 +664,8 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((res) => setTimeout(
 // ============================================================================
 // Données : sites d'exemple (mètres, repère local, y vers le haut).
 // ============================================================================
-const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, basin_margin: 2, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null, slant: 90 };
+const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, basin_margin: 2, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null, slant: 90,
+  silo: false, silo_etage: 2.9, silo_dalle: 0.4, silo_pu: 0.3, silo_pv: 0.6, silo_travee: 3, silo_facade: 0.2, silo_rives: true };
 
 function arc(cx, cy, r, a0, a1, n) {
   const pts = [];
@@ -722,6 +745,7 @@ function engineInput(quick) {
       pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100, irve_equip_ratio: p.irve_equip_ratio / 100,
       angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle,
     },
+    ouvrage: p.silo ? { actif: true, facade: p.silo_facade, poteau: [p.silo_pu, p.silo_pv], travee: Math.max(1, Math.round(p.silo_travee)), rives: !!p.silo_rives, angle: p.angle, hauteur_etage: p.silo_etage, dalle: p.silo_dalle } : null,
   };
 }
 
@@ -833,7 +857,7 @@ function fit(animate) {
 let C = {};
 function readColors() {
   const cs = getComputedStyle(document.documentElement);
-  for (const k of ["glass-solid", "sep", "ground", "grid", "grid-strong", "parcel", "parcel-edge", "asphalt", "stripe", "island", "tree", "tree-edge", "building", "building-edge", "building-label", "excl", "setback", "pmr", "irve", "pmr-irve", "accent", "label", "label-2", "cad", "cad-halo", "cad-label", "cad-bati", "cad-bati-edge", "cad-sheet", "cad-commune", "veg", "veg-tint", "occ-voirie"]) C[k] = cs.getPropertyValue("--" + k).trim();
+  for (const k of ["glass-solid", "sep", "ground", "grid", "grid-strong", "parcel", "parcel-edge", "asphalt", "stripe", "island", "tree", "tree-edge", "building", "building-edge", "building-label", "slab", "excl", "setback", "pmr", "irve", "pmr-irve", "accent", "label", "label-2", "cad", "cad-halo", "cad-label", "cad-bati", "cad-bati-edge", "cad-sheet", "cad-commune", "veg", "veg-tint", "occ-voirie"]) C[k] = cs.getPropertyValue("--" + k).trim();
   hatch = null; vegPat = null;
 }
 let hatch = null;
@@ -994,6 +1018,8 @@ function draw() {
   if (VIS.pbati) drawBasins();
 
   if (layout && !layout.error) {
+    // Calque Structure : dalle du parc en ouvrage
+    if (layout.ouvrage && VIS.structure) { ctx.beginPath(); pathPoly(layout.ouvrage.dalle); ctx.fillStyle = C.slab; ctx.fill(); }
     // Calque Voirie
     if (VIS.pvoirie) {
       ctx.fillStyle = C.asphalt;
@@ -1015,6 +1041,7 @@ function draw() {
       for (const st of layout.stalls) { const q = st.q.map(toS); ctx.moveTo(q[3][0], q[3][1]); ctx.lineTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.lineTo(q[2][0], q[2][1]); }
       ctx.stroke();
     }
+    if (layout.ouvrage && VIS.structure) drawStructure(layout.ouvrage);
     // Calque Sens de circulation : flèches peintes sur la chaussée
     if (VIS.sens && view.s > 1.0 && layout.circulation && layout.circulation.arrows.length) {
       planTransform(ctx, DPR, view.s, view.ox, view.oy); ctx.fillStyle = C.stripe; ctx.fill(arrowsPath(layout)); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -1073,6 +1100,24 @@ function draw() {
   drawSelDel();
   drawScale(view.s);
   drawDraft();
+}
+
+// Parc en ouvrage : contour de dalle, files de la trame (trait mixte, repère au bout), poteaux.
+function drawStructure(o) {
+  const font = getComputedStyle(document.body).fontFamily;
+  ctx.beginPath(); pathPoly(o.dalle); ctx.strokeStyle = C.building; ctx.lineWidth = 1.5; ctx.stroke();
+  if (view.s > 0.8) {
+    ctx.save(); ctx.strokeStyle = C.accent; ctx.globalAlpha = 0.55; ctx.lineWidth = 1; ctx.setLineDash([10, 3, 2, 3]);
+    ctx.beginPath(); for (const a of o.axes) { const A = toS(a.a), B = toS(a.b); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); } ctx.stroke(); ctx.restore();
+    const r = 9;
+    ctx.font = `600 10px ${font}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (const a of o.axes) {
+      const A = toS(a.a), B = toS(a.b), L = Math.hypot(A[0] - B[0], A[1] - B[1]) || 1, c = [A[0] + (A[0] - B[0]) / L * r, A[1] + (A[1] - B[1]) / L * r];
+      ctx.beginPath(); ctx.arc(c[0], c[1], r, 0, Math.PI * 2); ctx.fillStyle = C.ground; ctx.fill(); ctx.strokeStyle = C.accent; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.fillStyle = C.accent; ctx.fillText(a.nom, c[0], c[1] + 0.5);
+    }
+  }
+  ctx.fillStyle = C.building; ctx.beginPath(); for (const q of o.poteaux) pathPoly(q); ctx.fill();
 }
 
 // Point d'étiquette : centre de l'emprise, ou de la plus longue aile pour un L.
@@ -1378,6 +1423,9 @@ function updateStats(quick) {
     return;
   }
   $("#s-total").textContent = fmtInt(m.stalls); updateCost();
+  const ov = layout.ouvrage;
+  $("#r-dalle").hidden = !ov; $("#lay-structure").hidden = !ov; $("#k-eff").textContent = ov ? "Dalle par place" : "Enrobé par place";
+  if (ov) $("#s-dalle").textContent = `${fmt1(ov.largeur)} × ${fmt1(ov.longueur)} m · ${ov.modules}${ov.demi_module ? ",5" : ""} module${ov.modules + (ov.demi_module ? 0.5 : 0) >= 2 ? "s" : ""}`;
   $("#s-pmr").innerHTML = `${m.pmr} / ${m.pmr_required}${chip(m.pmr >= m.pmr_required)}`;
   $("#s-irve").innerHTML = `${m.irve} / ${m.irve_required}${chip(m.irve >= m.irve_required)}`;
   $("#s-irve-eq").innerHTML = `${m.irve_equipped} / ${m.irve_equipped_required}${chip(m.irve_equipped >= m.irve_equipped_required)}`;
@@ -1385,7 +1433,7 @@ function updateStats(quick) {
   $("#s-trees").textContent = fmtInt(m.trees);
   $("#s-eff").textContent = m.stalls ? fmt1(m.m2_paved_per_stall) + " m²" : "–";
   $("#s-parcel").textContent = m.parcel_area >= 10000 ? fmt1(m.parcel_area / 10000).replace(/,0$/, "") + " ha" : fmtInt(m.parcel_area) + " m²";
-  $("#s-green").textContent = m.parcel_area ? fmtInt(100 * m.green_area / m.parcel_area) + " %" : "–";
+  $("#s-green").textContent = m.parcel_area && !ov ? fmtInt(100 * m.green_area / m.parcel_area) + " %" : "–";
   $("#s-angle").textContent = fmt1(layout.angle) + "°" + (params.angle === null ? "" : " imposé");
   const w = layout.warnings || [];
   $("#warn").hidden = !w.length; $("#warn").textContent = w.join(" · ");
@@ -1748,7 +1796,7 @@ window.addEventListener("keydown", (ev) => {
 // ============================================================================
 // Paramètres.
 // ============================================================================
-const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "pmr_ratio", "irve_ratio", "irve_equip_ratio"];
+const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "pmr_ratio", "irve_ratio", "irve_equip_ratio", "silo_etage", "silo_dalle", "silo_pu", "silo_pv", "silo_travee", "silo_facade"];
 // Estimation au ratio (parking de surface, métropole niçoise) : barème par tranche de places, en € HT/place.
 const BAREME_0 = [
   { a: 20, b: 50, t: [2300, 3800], e: [2700, 4400] },
@@ -1795,6 +1843,8 @@ function updateSlantNote() {
 }
 function syncParamsUI() {
   for (const k of PKEYS) $("#p-" + k).value = String(params[k]).replace(".", ",");
+  for (const b of $("#t-seg").children) b.setAttribute("aria-pressed", String((b.dataset.t === "silo") === !!params.silo));
+  $("#silo-fields").hidden = !params.silo; $("#p-silo_rives").checked = !!params.silo_rives;
   for (const b of $("#sl-seg").children) b.setAttribute("aria-pressed", String(+b.dataset.sl === params.slant));
   updateSlantNote();
   const auto = params.angle === null;
@@ -1807,6 +1857,12 @@ for (const k of PKEYS) $("#p-" + k).addEventListener("input", (ev) => {
   const v = parseFloat(ev.target.value.replace(",", ".")); if (!isFinite(v)) return;
   params[k] = v; clearTimeout(paramTimer); paramTimer = setTimeout(() => { lastAngle = null; solve(false); commit(); }, 120);
 });
+$("#t-seg").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-t]"); if (!b || (b.dataset.t === "silo") === !!params.silo) return;
+  params.silo = b.dataset.t === "silo"; syncParamsUI(); lastAngle = null; solve(false); commit();
+  if (!$("#params").hidden) placeMenu("#b-params", "#params");
+});
+$("#p-silo_rives").addEventListener("change", (ev) => { params.silo_rives = ev.target.checked; lastAngle = null; solve(false); commit(); });
 $("#sl-seg").addEventListener("click", (ev) => {
   const b = ev.target.closest("button[data-sl]"); if (!b || +b.dataset.sl === params.slant) return;
   params.slant = +b.dataset.sl; syncParamsUI(); lastAngle = null; solve(false); commit();
@@ -2138,7 +2194,7 @@ const CADR = { layer: "CADASTRALPARCELS.PARCELLAIRE_EXPRESS", style: "PCI vecteu
 const CAD_TYPES = { parcelles: "parcelle", bati: "batiment", feuilles: "feuille", communes: "commune" };
 // Calques : ce que l'on affiche ou masque. Chacun devient un calque AutoCAD à l'export.
 const LAYER_DEFAULTS = {
-  places: true, pvoirie: true, sens: true, ilots: true, pbati: true, servitudes: true, recul: true, vehicules: true, arbres: true,
+  places: true, pvoirie: true, structure: true, sens: true, ilots: true, pbati: true, servitudes: true, recul: true, vehicules: true, arbres: true,
   ovoirie: true, bati: true, vegetation: true,
   photo: true, parcelles: true, numeros: true, feuilles: false, communes: true,
 };
@@ -2694,7 +2750,7 @@ $("#m-ok").addEventListener("click", importArea);
 // ============================================================================
 // Calque de l'interface → calques AutoCAD correspondants.
 const DXF_LAYERS = {
-  places: ["PRJ_PLACES", "PRJ_PLACES_PMR", "PRJ_PLACES_IRVE", "PRJ_PLACES_IRVE_EQ"], pvoirie: ["PRJ_VOIRIE"], sens: ["PRJ_SIGNALISATION"], ilots: ["PRJ_ILOTS", "PRJ_NOUES"],
+  places: ["PRJ_PLACES", "PRJ_PLACES_PMR", "PRJ_PLACES_IRVE", "PRJ_PLACES_IRVE_EQ"], pvoirie: ["PRJ_VOIRIE"], structure: ["STR_DALLE", "STR_POTEAUX", "STR_AXES", "STR_REPERES"], sens: ["PRJ_SIGNALISATION"], ilots: ["PRJ_ILOTS", "PRJ_NOUES"],
   vehicules: ["HAB_VEHICULES"], arbres: ["HAB_ARBRES"],
   pbati: ["PRJ_BATIMENTS", "PRJ_ESPACES_VERTS", "PRJ_BASSIN_TALUS_HAUT", "PRJ_BASSIN_TALUS_BAS"], servitudes: ["PRJ_SERVITUDES"], recul: ["PRJ_RECUL"],
   ovoirie: ["OCC_VOIRIE"], bati: ["OCC_BATI"], vegetation: ["OCC_VEGETATION"],
@@ -2716,10 +2772,12 @@ function updateExportUI() {
     $("#x-note").textContent = "Plan non géoréférencé : coordonnées locales en mètres. Importez un fond de carte pour exporter en Lambert-93. Les calques masqués sont exportés éteints.";
   }
   $("#x-go").disabled = site.parcel.length < 3 && !geo; $("#x-xls").disabled = !(layout && layout.metrics);
+  $("#x-bim").hidden = !(layout && layout.ouvrage);
 }
 $("#x-l93").addEventListener("click", () => { XCRS = "L93"; try { localStorage.setItem("trame.crs", XCRS); } catch (e) { /* stockage indisponible */ } updateExportUI(); });
 $("#x-cc").addEventListener("click", () => { XCRS = "CC"; try { localStorage.setItem("trame.crs", XCRS); } catch (e) { /* stockage indisponible */ } updateExportUI(); });
 $("#x-go").addEventListener("click", exportDxf);
+$("#x-ifc").addEventListener("click", exportIfc);
 
 function slug(t) { return normTxt(t || "plan").replace(/ /g, "-") || "plan"; }
 async function exportDxf() {
@@ -2755,6 +2813,19 @@ async function exportDxf() {
   const name = `trame-${slug(commune || (exampleName === "mine" ? "mon site" : exampleName))}-${crs.toLowerCase()}-${day}.dxf`;
   closeMenus();
   await saveFile(name, out.dxf, `${fmtInt(out.entities)} entités · ${out.crs}${out.epsg ? " (EPSG:" + out.epsg + ")" : ""}`, "application/dxf", "DXF");
+}
+
+// Maquette IFC4 du parc en ouvrage : graine des identifiants propre au projet (date de création).
+async function exportIfc() {
+  if (!Engine.ex || !(layout && layout.ouvrage)) return;
+  const geo = baseShown(), crs = geo ? (XCRS === "CC" ? "CC" + ccZone() : "L93") : "LOCAL";
+  const input = { site: engineInput(false), georef: geo ? { o: basemap.O, k: basemap.k } : null, crs, date: new Date().toISOString().slice(0, 19), projet: "parkimo-" + meta.created };
+  const out = Engine.call("export_ifc_json", input);
+  if (out.error || out.erreur) { toast("Export impossible : " + (out.error || out.erreur)); return; }
+  const commune = geo ? ((basemap.layers.parcelles.find((f) => f.p.nom_com) || { p: {} }).p.nom_com || "") : "";
+  const name = `parkimo-${slug(commune || (exampleName === "mine" ? "mon site" : exampleName))}-silo-${new Date().toISOString().slice(0, 10)}.ifc`;
+  closeMenus();
+  await saveFile(name, out.ifc, `${fmtInt(out.elements)} éléments · ${out.crs}${out.epsg ? " (EPSG:" + out.epsg + ")" : ""}`, "application/x-step", "IFC");
 }
 
 // Export tableur : classeur XML Spreadsheet 2003 (.xls), lu par Excel, LibreOffice et Numbers, sans bibliothèque.

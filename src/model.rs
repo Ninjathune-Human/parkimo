@@ -36,6 +36,9 @@ pub struct Site {
     pub traverses: Vec<[[f64; 2]; 2]>,
     #[serde(default)]
     pub params: Params,
+    /// Parc de stationnement en ouvrage (silo) : absent ou inactif = parking de surface.
+    #[serde(default)]
+    pub ouvrage: Option<crate::ouvrage::Ouvrage>,
 }
 
 /// Typologie imposée au tronçon d'axe qui passe par `p` (repère recalé à chaque calcul).
@@ -311,4 +314,7 @@ pub struct Layout {
     pub neufert_aisle: f64,
     pub evals: u32,
     pub warnings: Vec<String>,
+    /// Parc en ouvrage : trame, poteaux, dalle, niveaux (absent pour un parking de surface).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ouvrage: Option<crate::ouvrage::OuvrageOut>,
 }

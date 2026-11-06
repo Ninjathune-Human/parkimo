@@ -116,6 +116,17 @@ Bouton **Exporter** : fichier DXF AutoCAD 2010 (texte UTF-8), unités en mètres
 
 Le squelette du fichier (en-tête, tables, calques, types de ligne, blocs) est produit par ezdxf (`tools/dxf_template.py`) ; chaque export est relu par ezdxf dans les tests, sans erreur d'audit.
 
+## Parking en ouvrage (Silo, lot 1)
+
+Menu **Paramètres**, « Type d'étude » : Surface ou **Silo**. Le lot 1 dessine un plateau unique à grande portée dans la zone constructible ; rampes, noyaux (escaliers, ascenseurs) et niveaux multiples viendront aux lots suivants.
+
+- **Module** : place + allée + place (2 × 5,00 + 6,00 = 16,00 m avec les réglages par défaut), places à 90° seulement. Poteaux en façade et en dos à dos, dans le premier 1,10 m du fond de place (NF P 91-100, fig. 2 : largeur au droit de l'obstacle ≥ 2,00 m), une travée toutes les 3 places (réglable). Rangées de pignon et allées transversales si la dalle le permet (« Places le long des pignons »).
+- **Emprise** : recherche du plus grand plateau rectangulaire inscrit (trame 0,50 m, orientations des limites et tous les 3°) qui maximise le nombre de places. Un angle imposé dans Modifier est respecté.
+- **Trame** : axes repérés 1, 2, 3… et A, B, C… ; dalle, poteaux et axes forment le calque « Structure ». Hauteur d'étage, épaisseur de dalle, sections de poteaux et rive de façade sont des hypothèses d'esquisse à confirmer par le bureau d'études.
+- **Normes** (`src/ouvrage/normes.rs`) : valeurs NF P 91-100, Neufert, PS (arrêté du 25 juin 1980), accessibilité, chacune avec sa source ; longueurs de rampe et flèches de raccordement calculées.
+- **DXF** : calques `STR_DALLE`, `STR_POTEAUX`, `STR_AXES`, `STR_REPERES`.
+- **Maquette IFC** (menu Exporter, « Télécharger la maquette IFC ») : IFC4 (ISO 16739-1:2018), écrite par le moteur Rust. Structure spatiale Projet / Site / Bâtiment / Niveau ; `IfcSlab` (dalle et toiture), `IfcColumn`, `IfcSpace` PARKING pour chaque place et chaque allée (`Pset_SpaceParking`), `IfcGrid` de la trame ; types partagés (`PKM_Poteau_BA_30x60`…) et propriétés `PKM_Stationnement`. Identifiants stables d'un export à l'autre (dérivés du repère de chaque élément). Géoréférencement `IfcMapConversion` en Lambert-93 ou CC quand le site est sur fond de carte. Contrôle : `python3 tools/check_ifc.py fichier.ifc` (ifcopenshell, règles EXPRESS). Import Revit non encore vérifié.
+
 ## Valeurs par défaut
 
 | Paramètre | Valeur | Source |
@@ -147,6 +158,7 @@ src/planted.rs    espaces plantés, arrondis en bordure de chaussée
 src/occupation.rs occupation du sol : voirie, bâti, végétation
 src/proj.rs       projections Lambert-93 et CC (RGF93, GRS80)
 src/dxf.rs        export DXF AutoCAD 2010 géoréférencé
+src/ouvrage/      parking en ouvrage : normes sourcées, plateau à grande portée, modèle BIM, écriture IFC4
 src/dxf_template.dxf squelette AutoCAD (calques, types de ligne, blocs d'habillage)
 src/symbols.json  symboles d'habillage (véhicules, arbres) et flèche au sol, partagés par l'interface et l'export
 src/lib.rs        orchestration, union de parcelles, interface WebAssembly (JSON en entrée, JSON en sortie)
@@ -154,6 +166,9 @@ tests/quality.rs  invariants : aucun chevauchement, aucune place hors zone ou sa
                   flèches dans la chaussée, sens unique fortement connexe, bascule des voies par le squelette,
                   voies resserrées à la largeur sens unique, repères stables, sens de parcours imposé
 examples/dxf.rs   export d'un scénario en DXF
+examples/ifc.rs   export d'un scénario en IFC (scenarios/silo.json)
+tests/ouvrage.rs  plateaux sans chevauchement ni poteau dans les allées, identifiants stables, export IFC
+tools/check_ifc.py validation d'un fichier IFC (ifcopenshell)
 web/app.html      interface (canvas, poignées, panneaux, mode carte, couches et calques, export)
 tools/bundle.py   assemble dist/index.html avec le moteur embarqué
 tools/wrap_w2j.py repli JavaScript du moteur (wasm2js)

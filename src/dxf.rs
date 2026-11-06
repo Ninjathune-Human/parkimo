@@ -625,6 +625,31 @@ pub fn export(inp: &ExportIn) -> ExportOut {
         }
         w.ring(layer, &s.q);
     }
+    // Parc en ouvrage : dalle, poteaux, files de la trame et leurs repères (cercle et nom).
+    if let Some(o) = &lay.ouvrage {
+        w.ring("STR_DALLE", &o.dalle);
+        for q in &o.poteaux {
+            let l = vec![w.map(q)];
+            w.hatch("STR_POTEAUX", &l, &Fill::Solid);
+            w.ring("STR_POTEAUX", q);
+        }
+        for a in &o.axes {
+            let pts = w.map(&[a.a, a.b]);
+            w.lwpoly("STR_AXES", &pts, false);
+            let ((ax, ay), (bx, by)) = (pts[0], pts[1]);
+            let l = ((ax - bx).hypot(ay - by)).max(1e-9);
+            let (r, ux, uy) = (0.8, (ax - bx) / l, (ay - by) / l);
+            let (cx, cy) = (ax + ux * r, ay + uy * r);
+            let cercle: Vec<(f64, f64)> = (0..24)
+                .map(|k| {
+                    let t = k as f64 * std::f64::consts::TAU / 24.0;
+                    (cx + r * t.cos(), cy + r * t.sin())
+                })
+                .collect();
+            w.lwpoly("STR_REPERES", &cercle, true);
+            w.text("STR_REPERES", cx, cy, 0.6, &a.nom, true);
+        }
+    }
     // Signalisation horizontale : flèches de sens de circulation.
     for a in &lay.circulation.arrows {
         w.insert("PRJ_SIGNALISATION", "SIG_FLECHE", a.p, a.a, 1.0);

@@ -11,6 +11,7 @@ pub mod geom;
 pub mod layout;
 pub mod model;
 pub mod occupation;
+pub mod ouvrage;
 pub mod perimeter;
 pub mod planted;
 pub mod proj;
@@ -204,6 +205,9 @@ pub(crate) fn mp_of_quads(qs: &[Quad]) -> MultiPolygon<f64> {
 }
 
 pub fn solve(site: &Site) -> Layout {
+    if let Some(o) = site.ouvrage.as_ref().filter(|o| o.actif) {
+        return ouvrage::solve(site, o);
+    }
     let p = &site.params;
     let mut out = Layout::default();
     let Some(mut z) = region::build(site) else {
@@ -786,6 +790,15 @@ pub unsafe extern "C" fn occupation_json(ptr: *const u8, n: usize) -> *const u8 
 #[no_mangle]
 pub unsafe extern "C" fn export_dxf_json(ptr: *const u8, n: usize) -> *const u8 {
     json_call(ptr, n, dxf::export)
+}
+
+/// Export IFC4 du parc en ouvrage.
+///
+/// # Safety
+/// `ptr` doit pointer vers `n` octets JSON valides alloués par `alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn export_ifc_json(ptr: *const u8, n: usize) -> *const u8 {
+    json_call(ptr, n, ouvrage::ifc::export)
 }
 
 #[no_mangle]
