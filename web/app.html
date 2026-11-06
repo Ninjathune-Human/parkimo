@@ -1874,7 +1874,7 @@ window.addEventListener("keydown", (ev) => {
 // ============================================================================
 const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "pmr_ratio", "irve_ratio", "irve_equip_ratio", "silo_etage", "silo_dalle", "silo_pu", "silo_pv", "silo_retrait", "silo_travee", "silo_facade"];
 // Densité de la trame du silo : libellés du bilan et du tableur.
-const DENSITE = { longue: "Portée longue", moyenne: "Portée moyenne", courte: "Portée courte" };
+const DENSITE = { longue: "Longue", moyenne: "Moyenne", courte: "Courte" };
 // Estimation au ratio (parking de surface, métropole niçoise) : barème par tranche de places, en € HT/place.
 const BAREME_0 = [
   { a: 20, b: 50, t: [2300, 3800], e: [2700, 4400] },
@@ -2958,7 +2958,7 @@ function buildXls() {
   row("Densité", n && pa ? n / (pa / 10000) : "", "places / ha", "N1"); row("Constructible par place", n ? m.buildable_area / n : "", "m² / place", "N1");
   sec("Hypothèses de calcul");
   for (const k of PKEYS) { const lab = $(`label[for="p-${k}"]`), u = $("#p-" + k).parentElement.textContent.trim(); if (lab) row(lab.textContent, params[k], u, "N2"); }
-  if (layout.ouvrage) { row("Trame du silo", DENSITE[params.silo_densite]); row("Portée en travers", layout.ouvrage.portee, "m", "N2"); }
+  if (layout.ouvrage) { row("Portée de la trame (silo)", DENSITE[params.silo_densite]); row("Portée en travers", layout.ouvrage.portee, "m", "N2"); }
   sec("Estimation financière (€ HT, métropole niçoise)");
   row("Tranche du barème", `${br.a} à ${br.b} places`);
   row("Travaux seuls : ratio mini", T[0], "€ / place"); row("Travaux seuls : ratio maxi", T[1], "€ / place");
