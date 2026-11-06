@@ -4,7 +4,7 @@
 
 use trame::geom::{v2, Quad, QuadHash, Region};
 use trame::model::Site;
-use trame::ouvrage::{bim, ifc, Ouvrage};
+use trame::ouvrage::{bim, ifc, EmpriseIn, Ouvrage};
 use trame::region;
 
 fn quad(q: &[[f64; 2]; 4]) -> Quad {
@@ -71,6 +71,43 @@ fn plateaux_sur_les_scenarios() {
             o.m2_place
         );
     }
+}
+
+#[test]
+fn emprise_dessinee_a_la_main() {
+    let avec = |cx: f64, cy: f64, w: f64, h: f64, rot: f64, fixe: [f64; 2]| {
+        let mut s = site("rect");
+        s.ouvrage.as_mut().unwrap().emprise = Some(EmpriseIn { cx, cy, w, h, rot, fixe });
+        trame::solve(&s)
+    };
+    let centre = |o: &trame::ouvrage::OuvrageOut| {
+        let c = o.dalle.iter().fold([0.0, 0.0], |a, p| [a[0] + p[0] / 4.0, a[1] + p[1] / 4.0]);
+        v2(c[0], c[1])
+    };
+    let zone = |w: &[String]| w.iter().any(|x| x.contains("dalle"));
+
+    // Dimensions ramenées aux plus proches réalisables, centre et angle conservés.
+    let lay = avec(60.0, 40.0, 61.3, 31.0, 30.0, [0.0, 0.0]);
+    let o = lay.ouvrage.as_ref().expect("plateau");
+    assert!((o.longueur - 62.4).abs() < 1e-6 && (o.largeur - 32.4).abs() < 1e-6, "{} × {}", o.longueur, o.largeur);
+    assert!((o.angle.rem_euclid(180.0) - 30.0).abs() < 1e-6, "angle {}", o.angle);
+    assert!((centre(o) - v2(60.0, 40.0)).len() < 1e-6);
+    assert!(!zone(&lay.warnings), "{:?}", lay.warnings);
+    assert_eq!(lay.metrics.stalls, lay.stalls.len());
+    let d = Region::new(vec![o.dalle.iter().map(|p| v2(p[0], p[1])).collect()]);
+    assert!(lay.stalls.iter().all(|st| d.contains_quad(&quad(&st.q), 0.01)), "place hors dalle");
+
+    // Côté fixe : le côté −u reste à 30,65 m du centre demandé.
+    let lay = avec(60.0, 40.0, 61.3, 32.4, 0.0, [-1.0, 0.0]);
+    let o = lay.ouvrage.as_ref().unwrap();
+    let xmin = o.dalle.iter().map(|p| p[0]).fold(f64::MAX, f64::min);
+    assert!((xmin - (60.0 - 30.65)).abs() < 1e-6, "xmin {xmin}");
+
+    // Hors parcelle, puis dans les reculs : avertissements distincts.
+    let w = avec(5.0, 40.0, 62.4, 32.4, 0.0, [0.0, 0.0]).warnings;
+    assert!(w.iter().any(|x| x.contains("dépasse la parcelle")), "{w:?}");
+    let w = avec(60.0, 19.0, 62.4, 32.4, 0.0, [0.0, 0.0]).warnings;
+    assert!(w.iter().any(|x| x.contains("zone constructible")), "{w:?}");
 }
 
 #[test]

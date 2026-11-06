@@ -13,6 +13,7 @@ use crate::geom::{signed_area, v2, Quad, V2};
 use crate::layout::KIND_STD;
 use crate::model::{Layout, Metrics, Site, StallOut, P2};
 use crate::region;
+use geo::{BooleanOps, MultiPolygon};
 use plateau::{Emprise, Gabarit, Plan};
 use serde::{Deserialize, Serialize};
 
@@ -32,6 +33,8 @@ pub struct Ouvrage {
     pub rives: bool,
     /// Direction imposée des allées (degrés) ; absente = optimisée.
     pub angle: Option<f64>,
+    /// Emprise dessinée à la main ; absente = plus grand plateau de la zone constructible.
+    pub emprise: Option<EmpriseIn>,
     /// Hauteur d'étage (plancher à plancher), en mètres.
     pub hauteur_etage: f64,
     /// Épaisseur de dalle, en mètres.
@@ -50,11 +53,44 @@ impl Default for Ouvrage {
             travee: 3,
             rives: true,
             angle: None,
+            emprise: None,
             hauteur_etage: 2.90,
             dalle: 0.40,
             cote: 0.0,
             nom: "Parc de stationnement".into(),
         }
+    }
+}
+
+/// Emprise du plateau saisie à la main : centre, longueur le long des allées `w`, largeur en
+/// travers `h`, direction des allées `rot` (degrés). Les dimensions sont ramenées aux plus proches
+/// réalisables ; `fixe` (−1, 0 ou 1 par axe local) désigne le côté qui ne bouge pas pendant ce
+/// recalage, 0 gardant le centre.
+#[derive(Deserialize, Clone, Debug)]
+pub struct EmpriseIn {
+    pub cx: f64,
+    pub cy: f64,
+    pub w: f64,
+    pub h: f64,
+    pub rot: f64,
+    #[serde(default)]
+    pub fixe: [f64; 2],
+}
+
+fn emprise_manuelle(g: &Gabarit, m: &EmpriseIn) -> Emprise {
+    let (larg, long) = plateau::dimensions_proches(g, m.h, m.w);
+    let r = m.rot.to_radians();
+    let u = v2(r.cos(), r.sin());
+    let v = u.left();
+    let centre = v2(m.cx, m.cy)
+        - u * (m.fixe[0] * (long - m.w) / 2.0)
+        - v * (m.fixe[1] * (larg - m.h) / 2.0);
+    Emprise {
+        o: centre - u * (long / 2.0) - v * (larg / 2.0),
+        u,
+        v,
+        largeur: larg,
+        longueur: long,
     }
 }
 
@@ -165,9 +201,28 @@ pub fn solve(site: &Site, o: &Ouvrage) -> Layout {
     if p.slant < 89.5 {
         out.warnings.push("Silo : places à 90° seulement dans ce lot".into());
     }
-    let Some((e, _)) = plateau::chercher(&g, &rings, &angles, 0.5, impose) else {
-        out.warnings.push("Emprise trop petite pour une rangée de places et son allée".into());
-        return out;
+    let e = if let Some(m) = &o.emprise {
+        let e = emprise_manuelle(&g, m);
+        let dalle = MultiPolygon::new(vec![region::to_poly(&[
+            e.monde(v2(0.0, 0.0)),
+            e.monde(v2(e.longueur, 0.0)),
+            e.monde(v2(e.longueur, e.largeur)),
+            e.monde(v2(0.0, e.largeur)),
+        ])]);
+        let hors = |zone: &MultiPolygon<f64>| region::mp_area(&dalle.difference(zone)) > 0.5;
+        if hors(&MultiPolygon::new(vec![region::to_poly(&z.parcel)])) {
+            out.warnings.push("La dalle dépasse la parcelle".into());
+        } else if hors(&z.b) {
+            out.warnings
+                .push("La dalle sort de la zone constructible (reculs, bâtiments, servitudes, espaces verts)".into());
+        }
+        e
+    } else {
+        let Some((e, _)) = plateau::chercher(&g, &rings, &angles, 0.5, impose) else {
+            out.warnings.push("Emprise trop petite pour une rangée de places et son allée".into());
+            return out;
+        };
+        e
     };
     let e = repere_usuel(e);
     let Some(plan) = plateau::construire(&g, e.largeur, e.longueur) else {

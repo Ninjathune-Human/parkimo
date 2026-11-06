@@ -424,6 +424,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
     <button class="tb" id="sel-merge" hidden>Ajouter à l'étude</button>
     <button class="tb" id="sel-shape" hidden>Forme en L</button>
     <button class="tb" id="sel-rot" hidden>Pivoter 90°</button>
+    <button class="tb" id="sel-auto" hidden>Emprise automatique</button>
   </div>
 
   <div id="addmenu" class="menu glass" hidden role="menu" aria-label="Ajouter">
@@ -745,7 +746,7 @@ function engineInput(quick) {
       pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100, irve_equip_ratio: p.irve_equip_ratio / 100,
       angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle,
     },
-    ouvrage: p.silo ? { actif: true, facade: p.silo_facade, poteau: [p.silo_pu, p.silo_pv], travee: Math.max(1, Math.round(p.silo_travee)), rives: !!p.silo_rives, angle: p.angle, hauteur_etage: p.silo_etage, dalle: p.silo_dalle } : null,
+    ouvrage: p.silo ? { actif: true, facade: p.silo_facade, poteau: [p.silo_pu, p.silo_pv], travee: Math.max(1, Math.round(p.silo_travee)), rives: !!p.silo_rives, angle: p.angle, hauteur_etage: p.silo_etage, dalle: p.silo_dalle, emprise: site.slab ? { cx: site.slab.cx, cy: site.slab.cy, w: site.slab.w, h: site.slab.h, rot: site.slab.rot, fixe: site.slab.fixe || [0, 0] } : null } : null,
   };
 }
 
@@ -761,7 +762,7 @@ function commit() {
   try { localStorage.setItem("trame.v1", JSON.stringify({ site, params, exampleName, mineSite, meta })); } catch (e) { /* stockage indisponible */ }
   updateUndo();
 }
-function restore(s) { const o = JSON.parse(s); site = o.site; params = o.params; exampleName = o.exampleName; sel = null; syncParamsUI(); syncExample(); updateLayersUI(); solve(false); }
+function restore(s) { const o = JSON.parse(s); site = o.site; params = o.params; exampleName = o.exampleName; sel = null; updateSelbar(); syncParamsUI(); syncExample(); updateLayersUI(); solve(false); }
 function undo() { if (hist.past.length < 2) return; hist.future.push(hist.past.pop()); restore(hist.past[hist.past.length - 1]); updateUndo(); }
 function redo() { if (!hist.future.length) return; const s = hist.future.pop(); hist.past.push(s); restore(s); updateUndo(); }
 function updateUndo() { $("#b-undo").disabled = hist.past.length < 2; $("#b-redo").disabled = !hist.future.length; }
@@ -1241,6 +1242,22 @@ function setbackHandle(i) { const e = edgeInfo(i), s = Math.max(site.setbacks[i]
 function entryPoint(en) { return edgeInfo(en.edge).at(en.t); }
 function objCorners(o) { const c = Math.cos(o.rot * Math.PI / 180), s = Math.sin(o.rot * Math.PI / 180), w = o.w / 2, h = o.h / 2; return [[-w, -h], [w, -h], [w, h], [-w, h]].map(([x, y]) => [o.cx + x * c - y * s, o.cy + x * s + y * c]); }
 function rotHandle(o) { const c = Math.cos(o.rot * Math.PI / 180), s = Math.sin(o.rot * Math.PI / 180), d = o.h / 2 + 18 / view.s * 1.6; return [o.cx - d * s, o.cy + d * c]; }
+// Angle aimanté au degré et aux directions des limites de la parcelle (à 2,5° près).
+function snapRot(a) { a = snap(((a % 360) + 360) % 360, 1); for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); const ea = Math.atan2(e.u[1], e.u[0]) * 180 / Math.PI; for (const k of [0, 90, 180, 270]) { const t = ((ea + k) % 360 + 360) % 360; if (Math.abs(t - a) < 2.5) a = +t.toFixed(2); } } return a; }
+// Dalle du silo telle que calculée, au format des bâtiments : w le long des allées, h en travers, rot = direction des allées.
+// site.slab (emprise dessinée) est absent tant que l'emprise est automatique.
+function slabObj() {
+  const ov = layout && layout.ouvrage; if (!ov) return null;
+  const d = ov.dalle;
+  return { cx: (d[0][0] + d[1][0] + d[2][0] + d[3][0]) / 4, cy: (d[0][1] + d[1][1] + d[2][1] + d[3][1]) / 4, w: ov.longueur, h: ov.largeur, rot: site.slab ? site.slab.rot : ov.angle };
+}
+const slabOn = () => !!(layout && layout.ouvrage && VIS.structure && mode === "edit");
+// Rotation : pastille dans le prolongement du coin opposé aux repères de la trame (toujours dégagé).
+function slabRotHandle() { const o = slabObj(), d = layout.ouvrage.dalle[2], v = [d[0] - o.cx, d[1] - o.cy], k = 34 / view.s / (Math.hypot(v[0], v[1]) || 1); return [d[0] + v[0] * k, d[1] + v[1] * k]; }
+// Milieux des côtés : 0 et 2 en travers (−h, +h), 1 et 3 en long (+w, −w).
+function slabMids(o) { const cs = objCorners(o); return cs.map((c, k) => [(c[0] + cs[(k + 1) % 4][0]) / 2, (c[1] + cs[(k + 1) % 4][1]) / 2]); }
+// Après une modification, l'emprise enregistrée prend les dimensions retenues par le moteur.
+function syncSlab() { const o = slabObj(); if (site.slab && o) site.slab = { cx: +o.cx.toFixed(3), cy: +o.cy.toFixed(3), w: o.w, h: o.h, rot: site.slab.rot }; }
 
 // Boutons au milieu d'une limite survolée : ajouter un sommet, arrondir le segment.
 function edgeBtns(r) {
@@ -1364,6 +1381,25 @@ function drawHandles() {
     ctx.beginPath(); pathPoly(polyOutline(e)); ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.stroke();
     e.forEach((v, k) => squareHandle(toS(v), sel.v === k));
   }
+  if (sel.type === "slab" && slabOn()) {
+    const o = slabObj(), cs = objCorners(o), S = cs.map(toS), M = slabMids(o).map(toS), r = toS(slabRotHandle()), q = toS(layout.ouvrage.dalle[2]);
+    const act = drag && drag.moved && drag.hit ? drag.hit : null;
+    ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]); ctx.beginPath(); S.forEach((c, k) => (k ? ctx.lineTo(c[0], c[1]) : ctx.moveTo(c[0], c[1]))); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+    // Rotation : pastille reliée à son coin.
+    ctx.beginPath(); ctx.moveTo(q[0], q[1]); ctx.lineTo(r[0], r[1]); ctx.stroke();
+    ctx.beginPath(); ctx.arc(r[0], r[1], 8, 0, Math.PI * 2); ctx.fillStyle = act && act.kind === "srotate" ? C.accent : C.ground; ctx.fill(); ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.stroke();
+    // Étirement : une barrette au milieu de chaque côté, dans son alignement.
+    M.forEach((m, k) => {
+      const a = S[k], b = S[(k + 1) % 4];
+      ctx.save(); ctx.translate(m[0], m[1]); ctx.rotate(Math.atan2(b[1] - a[1], b[0] - a[0]));
+      ctx.beginPath(); ctx.roundRect(-12, -4, 24, 8, 4); ctx.fillStyle = act && act.kind === "sresize" && act.k === k ? C.accent : C.ground; ctx.fill(); ctx.strokeStyle = C.accent; ctx.lineWidth = 1.8; ctx.stroke();
+      ctx.restore();
+    });
+    // Cotes au quart des côtés, pour laisser les barrettes libres.
+    const mw = slabMids(o);
+    dimLabel(mw[3], cs[0], fmt1(o.h) + " m", font);
+    dimLabel(cs[0], mw[0], fmt1(o.w) + " m", font);
+  }
 }
 function squareHandle(p, on, size) {
   const s = size || (on ? 9 : 7);
@@ -1404,6 +1440,7 @@ function solve(quick) {
   // Repères du squelette recalés par le moteur sur le milieu de leur voie (une voie resserrée se décale).
   const ln = !quick && layout && layout.circulation && layout.circulation.lanes;
   if (ln && site.lanes && ln.length === site.lanes.length) site.lanes = ln;
+  if (sel && sel.type === "slab") { if (!(layout && layout.ouvrage)) sel = null; updateSelbar(); }
   updateStats(quick); redraw();
 }
 let solveQueued = false, solveQuick = false;
@@ -1477,6 +1514,11 @@ function hitTest(w) {
   if (sel && POLY[sel.type]) {
     const e = site[POLY[sel.type]][sel.i]; for (let k = 0; k < e.length; k++) if (dist2(w, e[k]) < h2) return { kind: "evertex", type: sel.type, i: sel.i, k };
   }
+  if (sel && sel.type === "slab" && slabOn()) {
+    const o = slabObj();
+    if (dist2(w, slabRotHandle()) < h2 * 2) return { kind: "srotate" };
+    const m = slabMids(o); for (let k = 0; k < 4; k++) if (dist2(w, m[k]) < h2 * 2) return { kind: "sresize", k };
+  }
   if (VIS.pbati) for (let i = site.buildings.length - 1; i >= 0; i--) if (dist2(w, doorGeom(site.buildings[i]).p) < h2 * 1.2) return { kind: "door", i };
   for (let i = 0; i < site.entries.length; i++) if (site.entries[i].edge < site.parcel.length && dist2(w, entryPoint(site.entries[i])) < h2 * 1.3) return { kind: "entry", i };
   for (let i = 0; i < site.parcel.length; i++) if (dist2(w, site.parcel[i]) < h2) return { kind: "vertex", i };
@@ -1487,6 +1529,8 @@ function hitTest(w) {
   if (VIS.pbati) for (let i = (site.basins || []).length - 1; i >= 0; i--) { const e = polyOutline(site.basins[i]); if (pointInPoly(w, e)) return { kind: "move", type: "basin", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "basin", i }; }
   if (VIS.servitudes) for (let i = site.exclusions.length - 1; i >= 0; i--) { const e = polyOutline(site.exclusions[i]); if (pointInPoly(w, e)) return { kind: "move", type: "exclusion", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "exclusion", i }; }
   { const nb = nearEdge(w); if (nb && nb.d < h * 0.7) return { kind: "pedge", i: nb.i, t: nb.t }; }
+  // Dalle du silo : un toucher la sélectionne ; sélectionnée, elle se déplace (sinon le geste fait glisser le plan).
+  if (slabOn() && pointInPoly(w, layout.ouvrage.dalle)) return { kind: sel && sel.type === "slab" ? "smove" : "slab" };
   const ci = cadParcelAt(w); if (ci >= 0) return { kind: "cadastre", i: ci };
   return null;
 }
@@ -1494,10 +1538,18 @@ function hitTest(w) {
 function setSel(s) { sel = s; updateSelbar(); redraw(); }
 function updateSelbar() {
   const bar = $("#selbar");
-  if (!sel || (sel.type !== "cadastre" && sel.type !== "building")) { bar.hidden = true; $("#hint").style.opacity = ""; return; }
+  if (!sel || (sel.type !== "cadastre" && sel.type !== "building" && !(sel.type === "slab" && slabObj()))) { bar.hidden = true; $("#hint").style.opacity = ""; return; }
   bar.hidden = false; $("#hint").style.opacity = "0";
   const shape = $("#sel-shape"), rotb = $("#sel-rot");
-  shape.hidden = sel.type !== "building"; rotb.hidden = sel.type !== "building";
+  shape.hidden = sel.type !== "building"; rotb.hidden = sel.type !== "building" && sel.type !== "slab";
+  rotb.textContent = sel.type === "slab" ? "Tourner les allées" : "Pivoter 90°";
+  $("#sel-auto").hidden = sel.type !== "slab" || !site.slab;
+  if (sel.type === "slab") {
+    const o = slabObj();
+    $("#sel-what").textContent = site.slab ? "Dalle" : "Dalle · emprise automatique";
+    $("#sel-dim").textContent = `${fmt1(o.h)} × ${fmt1(o.w)} m · allées à ${fmt1(((o.rot % 180) + 180) % 180)}°`;
+    return;
+  }
   $("#sel-study").hidden = sel.type !== "cadastre"; $("#sel-merge").hidden = sel.type !== "cadastre" || site.parcel.length < 3;
   if (sel.type === "cadastre") { const f = basemap.layers.parcelles[sel.i]; $("#sel-what").textContent = "Parcelle " + cadName(f); $("#sel-dim").textContent = [f.p.contenance ? fmtInt(f.p.contenance) + " m²" : "", f.p.nom_com].filter(Boolean).join(" · "); return; }
   let what = "", dim = "";
@@ -1523,6 +1575,7 @@ canvas.addEventListener("pointerdown", (ev) => {
   if (mode === "draw") { drag = { kind: "drawtap", sp }; return; }
   const hit = hitTest(w);
   drag = { kind: hit ? hit.kind : "pan", hit, sp, w0: w, moved: false, orig: JSON.stringify(site) };
+  if (hit && (hit.kind === "smove" || hit.kind === "srotate" || hit.kind === "sresize")) drag.slab0 = slabObj();
   if (hit) {
     if (hit.kind === "move") setSel({ type: hit.type, i: hit.i });
     else if (hit.kind === "vertex") setSel({ type: "vertex", i: hit.i });
@@ -1572,7 +1625,20 @@ canvas.addEventListener("pointermove", (ev) => {
     }
     case "door": { const b = site.buildings[h.i], P = rectPoly(b); let best = null; for (let i = 0; i < P.length; i++) { const [dd, t] = distSeg(w, P[i], P[(i + 1) % P.length]); if (!best || dd < best.d) best = { d: dd, e: i, t }; } b.door = { e: best.e, t: +best.t.toFixed(4) }; break; }
     case "evertex": { const P = site[POLY[h.type]][h.i]; P[h.k] = withK(snap(w[0], 0.1), snap(w[1], 0.1), vk(P[h.k])); break; }
-    case "rotate": { const o = site.buildings[h.i]; let a = Math.atan2(w[1] - o.cy, w[0] - o.cx) * 180 / Math.PI - 90; a = snap(((a % 360) + 360) % 360, 1); for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); const ea = Math.atan2(e.u[1], e.u[0]) * 180 / Math.PI; for (const k of [0, 90, 180, 270]) { const t = ((ea + k) % 360 + 360) % 360; if (Math.abs(t - a) < 2.5) a = +t.toFixed(2); } } o.rot = a; break; }
+    case "rotate": { const o = site.buildings[h.i]; o.rot = snapRot(Math.atan2(w[1] - o.cy, w[0] - o.cx) * 180 / Math.PI - 90); break; }
+    case "smove": case "srotate": case "sresize": {
+      const o0 = drag.slab0, o = site.slab = { ...o0, fixe: [0, 0] };
+      if (drag.kind === "smove") { o.cx = snap(o0.cx + w[0] - drag.w0[0], 0.1); o.cy = snap(o0.cy + w[1] - drag.w0[1], 0.1); }
+      else if (drag.kind === "srotate") o.rot = snapRot(o0.rot + (Math.atan2(w[1] - o0.cy, w[0] - o0.cx) - Math.atan2(drag.w0[1] - o0.cy, drag.w0[0] - o0.cx)) * 180 / Math.PI);
+      else {
+        // Côté étiré, côté opposé fixe : le moteur ramène la dimension à des modules (en travers) et des places (en long) entiers.
+        const d = rot([w[0] - o0.cx, w[1] - o0.cy], -o0.rot), long = h.k % 2 === 1, s = h.k === 1 || h.k === 2 ? 1 : -1;
+        const half = (long ? o0.w : o0.h) / 2, size = Math.max(1, s * d[long ? 0 : 1] + half), c = -s * half + s * size / 2;
+        const cw = rot(long ? [c, 0] : [0, c], o0.rot);
+        o.cx = o0.cx + cw[0]; o.cy = o0.cy + cw[1]; o[long ? "w" : "h"] = size; o.fixe = long ? [-s, 0] : [0, -s];
+      }
+      break;
+    }
     case "resize": {
       const o = site.buildings[h.i];
       const signs = [[-1, -1], [1, -1], [1, 1], [-1, 1]], [sx, sy] = signs[h.k];
@@ -1591,7 +1657,7 @@ canvas.addEventListener("pointermove", (ev) => {
       break;
     }
     case "tend": site.traverses[h.i][h.k] = [snap(w[0], 0.1), snap(w[1], 0.1)]; break;
-    case "pedge": case "cadastre": case "pill": case "ebtn": case "nbtn": case "tbtn": case "sdel": drag.kind = "pan"; return;
+    case "pedge": case "cadastre": case "pill": case "ebtn": case "nbtn": case "tbtn": case "sdel": case "slab": drag.kind = "pan"; return;
   }
   updateSelbar(); requestSolve(true);
 });
@@ -1605,7 +1671,7 @@ function endPointer(ev) {
   if (mode === "map") return;
   const now = performance.now(), dbl = now - lastTap.t < 350 && Math.hypot(sp[0] - lastTap.x, sp[1] - lastTap.y) < 16;
   if (d.kind === "drawtap") { onDrawTap(toW(sp[0], sp[1]), dbl, sp); lastTap = { t: now, x: sp[0], y: sp[1] }; return; }
-  if (d.moved) { if (d.kind !== "pan") { solve(false); commit(); markMine(); } return; }
+  if (d.moved) { if (d.kind !== "pan") { solve(false); if (d.slab0) { syncSlab(); updateSelbar(); } commit(); markMine(); } return; }
   // Toucher simple
   lastTap = { t: dbl ? 0 : now, x: sp[0], y: sp[1] };
   const h = d.hit;
@@ -1621,6 +1687,7 @@ function endPointer(ev) {
     if (h.kind === "move" && POLY[h.type]) { const P = site[POLY[h.type]][h.i], nb = nearRing(P, (i) => vk(P[i]), toW(sp[0], sp[1])); if (nb && nb.d < HIT()) { insertPolyVertex(h.type, h.i, nb.i, nb.t); return; } }
   }
   if (h && h.kind === "cadastre") { setSel({ type: "cadastre", i: h.i }); return; }
+  if (h && h.kind === "slab") { setSel({ type: "slab" }); return; }
   { const nb = nearAnyEdge(toW(sp[0], sp[1])); setHoverEdge(nb && nb.d * view.s < 12 && edgeRef(nb.ref).L * view.s >= 100 ? nb.ref : null); }
   if (!h || h.kind === "pedge" || h.kind === "setback") setSel(null);
 }
@@ -1744,7 +1811,12 @@ function deleteSel() {
   else if (sel.type === "vertex") { if (site.parcel.length > 3) { removeParcelVertex(sel.i); return; } toast("Une parcelle garde au moins trois sommets"); return; }
   setSel(null); solve(false); commit(); markMine();
 }
-$("#sel-rot").addEventListener("click", () => { const o = site.buildings[sel.i]; o.rot = (o.rot + 90) % 360; updateSelbar(); solve(false); commit(); });
+$("#sel-rot").addEventListener("click", () => {
+  // Dalle : même emprise, allées perpendiculaires.
+  if (sel.type === "slab") { const o = slabObj(); site.slab = { cx: o.cx, cy: o.cy, w: o.h, h: o.w, rot: (o.rot + 90) % 360 }; solve(false); syncSlab(); updateSelbar(); commit(); markMine(); return; }
+  const o = site.buildings[sel.i]; o.rot = (o.rot + 90) % 360; updateSelbar(); solve(false); commit();
+});
+$("#sel-auto").addEventListener("click", () => { site.slab = null; solve(false); updateSelbar(); commit(); markMine(); });
 $("#sel-shape").addEventListener("click", () => { const o = site.buildings[sel.i]; o.shape = o.shape === "L" ? "rect" : "L"; updateSelbar(); solve(false); commit(); });
 
 function closeMenus(except) {

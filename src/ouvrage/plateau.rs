@@ -119,6 +119,30 @@ fn rive_par_bout(g: &Gabarit, t: &Travers) -> usize {
     n
 }
 
+/// Dimensions réalisables les plus proches de `larg` × `l` (l le long des allées) : en travers,
+/// façades + modules entiers (+ demi-module) ; en long, extrémités + places entières. Au moins
+/// une rangée de places et son allée.
+pub fn dimensions_proches(g: &Gabarit, larg: f64, l: f64) -> (f64, f64) {
+    let m = g.module();
+    let demi_l = g.d + g.allee + g.pv;
+    let n_max = ((larg - 2.0 * g.facade).max(0.0) / m).ceil() as u32 + 1;
+    let mut best = 2.0 * g.facade + demi_l;
+    for n in 0..=n_max {
+        for demi in [false, true] {
+            if n == 0 && !demi {
+                continue;
+            }
+            let x = 2.0 * g.facade + n as f64 * m + if demi { demi_l } else { 0.0 };
+            if (x - larg).abs() < (best - larg).abs() - 1e-9 {
+                best = x;
+            }
+        }
+    }
+    let debut = g.facade + g.bout();
+    let k = ((l - 2.0 * debut) / g.w).round().max(1.0);
+    (best, 2.0 * debut + k * g.w)
+}
+
 /// Nombre de places d'un plateau `larg` × `l` (l le long des allées), sans rien construire.
 pub fn compte(g: &Gabarit, larg: f64, l: f64) -> Option<(usize, Travers, Long)> {
     let t = travers(g, larg)?;
@@ -510,5 +534,25 @@ mod tests {
         assert_eq!(n, direct);
         let a = e.u.y.atan2(e.u.x).to_degrees().rem_euclid(180.0);
         assert!((a - 30.0).abs() < 1e-6, "angle {a}");
+    }
+
+    #[test]
+    fn dimensions_les_plus_proches() {
+        // Largeurs réalisables : 12,00 (demi-module) ; 16,40 ; 28,00 ; 32,40 ; 44,00 ; 48,40…
+        // Longueurs : 2 × 11,20 + k × 2,50.
+        let g = gab();
+        let cas = [
+            ((30.0, 60.0), (28.0, 59.9)),
+            ((31.0, 61.3), (32.4, 62.4)),
+            ((3.0, 5.0), (12.0, 24.9)),
+            ((47.0, 100.0), (48.4, 99.9)),
+        ];
+        for ((larg, l), (el, ell)) in cas {
+            let (a, b) = dimensions_proches(&g, larg, l);
+            assert!((a - el).abs() < 1e-9 && (b - ell).abs() < 1e-9, "{larg} × {l} → {a} × {b}");
+            // Les dimensions retenues sont exactement celles que le plateau occupe.
+            let (_, t, lo) = compte(&g, a, b).expect("plateau réalisable");
+            assert!((t.largeur - a).abs() < 1e-9 && (lo.longueur - b).abs() < 1e-9);
+        }
     }
 }
