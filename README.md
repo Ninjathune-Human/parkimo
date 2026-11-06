@@ -108,7 +108,7 @@ Bouton **Exporter** : fichier DXF AutoCAD 2010 (texte UTF-8), unités en mètres
 
 | Couche | Calques AutoCAD |
 |---|---|
-| Projet | `PRJ_PARCELLE`, `PRJ_RECUL`, `PRJ_VOIRIE`, `PRJ_SIGNALISATION`, `PRJ_PLACES`, `PRJ_PLACES_PMR`, `PRJ_PLACES_IRVE`, `PRJ_PLACES_IRVE_EQ`, `PRJ_ILOTS`, `PRJ_NOUES`, `PRJ_BATIMENTS`, `PRJ_ESPACES_VERTS`, `PRJ_BASSIN_TALUS_HAUT`, `PRJ_BASSIN_TALUS_BAS`, `PRJ_SERVITUDES` |
+| Projet | `PRJ_PARCELLE`, `PRJ_RECUL`, `PRJ_VOIRIE`, `PRJ_SIGNALISATION`, `PRJ_RAMPES`, `PRJ_PLACES`, `PRJ_PLACES_PMR`, `PRJ_PLACES_IRVE`, `PRJ_PLACES_IRVE_EQ`, `PRJ_ILOTS`, `PRJ_NOUES`, `PRJ_BATIMENTS`, `PRJ_ESPACES_VERTS`, `PRJ_BASSIN_TALUS_HAUT`, `PRJ_BASSIN_TALUS_BAS`, `PRJ_SERVITUDES` |
 | Habillage | `HAB_VEHICULES`, `HAB_ARBRES` |
 | Occupation du sol | `OCC_VOIRIE`, `OCC_BATI`, `OCC_VEGETATION` |
 | Cadastre | `CAD_PARCELLES`, `CAD_NUMEROS`, `CAD_FEUILLES`, `CAD_COMMUNES` |
@@ -118,9 +118,10 @@ Le squelette du fichier (en-tête, tables, calques, types de ligne, blocs) est p
 
 ## Parking en ouvrage (Silo, lot 1)
 
-Menu **Paramètres**, « Type d'étude » : Surface ou **Silo**. Le lot 1 dessine un plateau unique dans la zone constructible ; rampes, noyaux (escaliers, ascenseurs) et niveaux multiples viendront aux lots suivants.
+Menu **Paramètres**, « Type d'étude » : Surface ou **Silo**. Le lot 1 dessine le plateau dans la zone constructible ; le lot 2 ajoute les niveaux et les rampes droites ; les noyaux (escaliers, ascenseurs) et la maquette IFC à plusieurs niveaux suivent.
 
 - **Module** : place + allée + place (2 × 5,00 + 6,00 = 16,00 m avec les réglages par défaut), places à 90° seulement, 3 places au plus entre poteaux (réglable) : les travées d'une rangée sont réparties également, elles diffèrent d'une place au plus et chaque file tombe sur une séparation de places (16 places : 3, 2, 3, 3, 2, 3 au lieu de 3, 3, 3, 3, 4). Rangées de pignon et allées transversales si la dalle le permet (« Places le long des pignons ») : les places de pignon se calent contre les files intérieures, le reste part contre les façades, et une file de poteaux en tête de ces places coupe la portée entre la façade et le début des rangées.
+- **Niveaux et rampes** (Paramètres : « Niveaux », « Pente des rampes ») : au-delà d'un niveau, une rampe droite à sens unique dans chaque bande de pignon, contre l'allée transversale, montée à un bout depuis une façade latérale, descente à l'autre bout vers la façade opposée ; elles se superposent d'un niveau à l'autre. Voie de 3,25 m (2,75 + 2 × 0,25, Neufert p. 274-276 ; NF P 91-100 : 3,00 au moins). Longueur horizontale L = h / p + (10 + 15) × p / 2 (pente ≤ 18 %, raccords R 10 en sommet et R 15 en pied, NF P 91-100 § 3.4) : 18,36 m pour 2,90 m d'étage à 18 %. Places de pignon, poteaux et poutres retirés dans l'emprise des rampes ; au dernier niveau, le pignon de la montée reçoit ses places. Le plan montre un niveau courant ; le bilan donne les places par niveau courant, au dernier niveau et au total. Contrôles : longueur disponible entre façades, hauteur libre perpendiculaire à la rampe (2,00 m plus la flèche du raccord de sommet, sous le plancher du dessus). Calque DXF `PRJ_RAMPES` (voie, axe fléché, « Montée 18 % »). La maquette IFC reste à un niveau (niveau courant) pour l'instant.
 - **Portée** (densité de la trame en travers des allées, Paramètres) :
   - **Longue** : poteaux en façade et en dos à dos, dans le premier 1,10 m du fond de place (NF P 91-100, fig. 2 : largeur au droit de l'obstacle ≥ 2,00 m) ; portée d'un module (15,70 à 16,00 m).
   - **Moyenne** : poteaux en tête des deux rangées de chaque dos à dos (11,65 / 8,10 / 11,65 m pour deux modules).

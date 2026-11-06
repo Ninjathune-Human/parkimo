@@ -370,6 +370,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
         <div class="row"><span class="k"><i class="sw" style="background:var(--tree)"></i>Arbres</span><span class="v" id="s-trees"></span></div>
         <div class="row" id="r-dalle" hidden><span class="k">Dalle</span><span class="v" id="s-dalle"></span></div>
         <div class="row" id="r-trame" hidden><span class="k">Trame</span><span class="v" id="s-trame"></span></div>
+        <div class="row" id="r-niveaux" hidden><span class="k">Niveaux</span><span class="v" id="s-niveaux"></span></div>
         <div class="row" id="r-plancher" hidden><span class="k">Plancher</span><span class="v" id="s-plancher"></span></div>
         <div class="row"><span class="k" id="k-eff">Enrobé par place</span><span class="v" id="s-eff"></span></div>
         <div class="row"><span class="k">Parcelle</span><span class="v" id="s-parcel"></span></div>
@@ -481,14 +482,16 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <div id="silo-fields" hidden>
         <div class="field"><span class="seg" role="group" aria-label="Système constructif" id="sy-seg"><button data-s="coule" aria-pressed="true">Béton coulé</button><button data-s="prefa" aria-pressed="false">Préfabriqué</button><button data-s="mixte" aria-pressed="false">Acier-béton</button></span></div>
         <div class="field"><label id="d-lab">Portée</label><span class="seg" role="group" aria-labelledby="d-lab" id="d-seg"><button data-d="longue" aria-pressed="true">Longue</button><button data-d="moyenne" aria-pressed="false">Moyenne</button><button data-d="courte" aria-pressed="false">Courte</button></span></div>
+        <div class="field"><label for="p-silo_niveaux">Niveaux</label><span class="unit"><input id="p-silo_niveaux" type="text" inputmode="numeric" autocomplete="off">niv.</span></div>
         <div class="field"><label for="p-silo_etage">Hauteur d'étage</label><span class="unit"><input id="p-silo_etage" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+        <div class="field"><label for="p-silo_pente">Pente des rampes</label><span class="unit"><input id="p-silo_pente" type="text" inputmode="decimal" autocomplete="off">%</span></div>
         <div class="field"><label for="p-silo_pu">Poteau le long des allées</label><span class="unit"><input id="p-silo_pu" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_pv">Poteau en travers</label><span class="unit"><input id="p-silo_pv" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_retrait">Retrait en tête de place</label><span class="unit"><input id="p-silo_retrait" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_travee">Places entre poteaux, au plus</label><span class="unit"><input id="p-silo_travee" type="text" inputmode="decimal" autocomplete="off">pl</span></div>
         <div class="field"><label for="p-silo_facade">Rive de façade</label><span class="unit"><input id="p-silo_facade" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_rives">Places le long des pignons</label><input id="p-silo_rives" type="checkbox" class="switch" role="switch"></div>
-        <p class="note">Le système fixe le plancher : béton coulé (dalle post-contrainte, poutres et dalle, plancher-dalle), préfabriqué (dalles alvéolées de 1,20 m sur poutres précontraintes, places de 2,40 m), acier-béton (solives IPE et dalle mixte, portée longue). Portée longue : poteaux en façade et en dos à dos ; moyenne : en tête des rangées dos à dos ; courte : en tête de chaque rangée, le nu à 0,65 m au moins de l'allée (NF P 91-100, tab. 3). Hypothèses d'esquisse à confirmer par le bureau d'études et le fabricant.</p>
+        <p class="note">Le système fixe le plancher : béton coulé (dalle post-contrainte, poutres et dalle, plancher-dalle), préfabriqué (dalles alvéolées de 1,20 m sur poutres précontraintes, places de 2,40 m), acier-béton (solives IPE et dalle mixte, portée longue). Portée longue : poteaux en façade et en dos à dos ; moyenne : en tête des rangées dos à dos ; courte : en tête de chaque rangée, le nu à 0,65 m au moins de l'allée (NF P 91-100, tab. 3). Au-delà d'un niveau, rampes droites à sens unique dans les pignons, montée à un bout, descente à l'autre (18 % au plus, raccords R 10 et R 15, NF P 91-100 ; voie de 3,25 m, Neufert). Hypothèses d'esquisse à confirmer par le bureau d'études et le fabricant.</p>
       </div>
     </div>
     <div class="pgroup">
@@ -671,7 +674,7 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((res) => setTimeout(
 // Données : sites d'exemple (mètres, repère local, y vers le haut).
 // ============================================================================
 const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, basin_margin: 2, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null, slant: 90,
-  silo: false, silo_etage: 2.9, silo_systeme: "coule", silo_pu: 0.3, silo_pv: 0.6, silo_travee: 3, silo_facade: 0.2, silo_rives: true, silo_densite: "longue", silo_retrait: 0.65 };
+  silo: false, silo_etage: 2.9, silo_niveaux: 1, silo_pente: 18, silo_systeme: "coule", silo_pu: 0.3, silo_pv: 0.6, silo_travee: 3, silo_facade: 0.2, silo_rives: true, silo_densite: "longue", silo_retrait: 0.65 };
 
 function arc(cx, cy, r, a0, a1, n) {
   const pts = [];
@@ -751,7 +754,7 @@ function engineInput(quick) {
       pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100, irve_equip_ratio: p.irve_equip_ratio / 100,
       angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle,
     },
-    ouvrage: p.silo ? { actif: true, facade: p.silo_facade, poteau: [p.silo_pu, p.silo_pv], travee: Math.max(1, Math.round(p.silo_travee)), rives: !!p.silo_rives, densite: p.silo_densite, retrait: p.silo_retrait, systeme: p.silo_systeme, angle: p.angle, hauteur_etage: p.silo_etage, emprise: site.slab ? { cx: site.slab.cx, cy: site.slab.cy, w: site.slab.w, h: site.slab.h, rot: site.slab.rot, fixe: site.slab.fixe || [0, 0] } : null } : null,
+    ouvrage: p.silo ? { actif: true, facade: p.silo_facade, poteau: [p.silo_pu, p.silo_pv], travee: Math.max(1, Math.round(p.silo_travee)), rives: !!p.silo_rives, densite: p.silo_densite, retrait: p.silo_retrait, systeme: p.silo_systeme, angle: p.angle, hauteur_etage: p.silo_etage, niveaux: Math.max(1, Math.round(p.silo_niveaux)), pente_rampe: p.silo_pente / 100, emprise: site.slab ? { cx: site.slab.cx, cy: site.slab.cy, w: site.slab.w, h: site.slab.h, rot: site.slab.rot, fixe: site.slab.fixe || [0, 0] } : null } : null,
   };
 }
 
@@ -1031,6 +1034,7 @@ function draw() {
       ctx.fillStyle = C.asphalt;
       ctx.beginPath(); for (const r of layout.paved) pathPoly(r); ctx.fill("evenodd");
       ctx.beginPath(); for (const q of layout.pads) pathPoly(q); for (const q of layout.cross) pathPoly(q); for (const q of layout.entries) pathPoly(q); ctx.fill();
+      if (layout.ouvrage) drawRampes(layout.ouvrage.rampes);
     }
     // Calque Places
     if (VIS.places) {
@@ -1106,6 +1110,26 @@ function draw() {
   drawSelDel();
   drawScale(view.s);
   drawDraft();
+}
+
+// Rampes du silo : voie en enrobé, axe fléché dans le sens de parcours, sens et pente le long de l'axe.
+function drawRampes(rs) {
+  if (!rs.length) return;
+  const font = getComputedStyle(document.body).fontFamily;
+  ctx.fillStyle = C.asphalt; ctx.beginPath(); for (const r of rs) pathPoly(r.q); ctx.fill();
+  ctx.strokeStyle = C.stripe; ctx.lineWidth = 1; ctx.stroke();
+  for (const r of rs) {
+    const A = toS(r.de), B = toS(r.a), L = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1, ux = (B[0] - A[0]) / L, uy = (B[1] - A[1]) / L, k = Math.min(10, L / 6);
+    ctx.beginPath(); ctx.moveTo(A[0] + ux * k, A[1] + uy * k); ctx.lineTo(B[0] - ux * k, B[1] - uy * k); ctx.lineWidth = 1.5; ctx.stroke();
+    const T = [B[0] - ux * k, B[1] - uy * k];
+    ctx.beginPath(); ctx.moveTo(T[0] - ux * 7 - uy * 4, T[1] - uy * 7 + ux * 4); ctx.lineTo(T[0], T[1]); ctx.lineTo(T[0] - ux * 7 + uy * 4, T[1] - uy * 7 - ux * 4); ctx.stroke();
+    if (view.s > 2.5) {
+      let a = Math.atan2(uy, ux); if (a > Math.PI / 2 || a < -Math.PI / 2) a += Math.PI;
+      ctx.save(); ctx.translate((A[0] + B[0]) / 2, (A[1] + B[1]) / 2); ctx.rotate(a);
+      ctx.font = `600 11px ${font}`; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.fillStyle = C.stripe;
+      ctx.fillText(`${r.montee ? "Montée" : "Descente"} ${Math.round(r.pente * 100)} %`, 0, -4); ctx.restore();
+    }
+  }
 }
 
 // Parc en ouvrage : contour de dalle, poutres et solives (sous la dalle : tirets), files de la trame
@@ -1475,6 +1499,7 @@ function updateStats(quick) {
   $("#r-dalle").hidden = !ov; $("#lay-structure").hidden = !ov; $("#k-eff").textContent = ov ? "Dalle par place" : "Enrobé par place";
   if (ov) $("#s-dalle").textContent = `${fmt1(ov.largeur)} × ${fmt1(ov.longueur)} m · ${ov.modules}${ov.demi_module ? ",5" : ""} module${ov.modules + (ov.demi_module ? 0.5 : 0) >= 2 ? "s" : ""}`;
   $("#r-trame").hidden = !ov; if (ov) $("#s-trame").textContent = `${DENSITE[params.silo_densite]} · portée ${fmt1(ov.portee)} m`;
+  $("#r-niveaux").hidden = !ov || ov.niveaux < 2; if (ov && ov.niveaux > 1) $("#s-niveaux").textContent = `${ov.niveaux} · ${fmtInt(ov.places_niveau)} places par niveau, ${fmtInt(ov.places_dernier)} au dernier`;
   $("#r-plancher").hidden = !ov; if (ov) { $("#s-plancher").textContent = `${ov.plancher.court} · étage ≥ ${ov.plancher.hauteur_min.toFixed(2).replace(".", ",")} m`; $("#r-plancher").title = ov.plancher.libelle + " (" + ov.plancher.source + ")"; }
   $("#s-pmr").innerHTML = `${m.pmr} / ${m.pmr_required}${chip(m.pmr >= m.pmr_required)}`;
   $("#s-irve").innerHTML = `${m.irve} / ${m.irve_required}${chip(m.irve >= m.irve_required)}`;
@@ -1881,7 +1906,7 @@ window.addEventListener("keydown", (ev) => {
 // ============================================================================
 // Paramètres.
 // ============================================================================
-const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "pmr_ratio", "irve_ratio", "irve_equip_ratio", "silo_etage", "silo_pu", "silo_pv", "silo_retrait", "silo_travee", "silo_facade"];
+const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "pmr_ratio", "irve_ratio", "irve_equip_ratio", "silo_niveaux", "silo_etage", "silo_pente", "silo_pu", "silo_pv", "silo_retrait", "silo_travee", "silo_facade"];
 // Densité de la trame du silo : libellés du bilan et du tableur.
 const DENSITE = { longue: "Longue", moyenne: "Moyenne", courte: "Courte" };
 // Systèmes constructifs du silo : libellé, poteau par défaut [le long des allées, en travers], largeur de place,
@@ -2858,7 +2883,7 @@ $("#m-ok").addEventListener("click", importArea);
 // ============================================================================
 // Calque de l'interface → calques AutoCAD correspondants.
 const DXF_LAYERS = {
-  places: ["PRJ_PLACES", "PRJ_PLACES_PMR", "PRJ_PLACES_IRVE", "PRJ_PLACES_IRVE_EQ"], pvoirie: ["PRJ_VOIRIE"], structure: ["STR_DALLE", "STR_POUTRES", "STR_POTEAUX", "STR_AXES", "STR_REPERES"], sens: ["PRJ_SIGNALISATION"], ilots: ["PRJ_ILOTS", "PRJ_NOUES"],
+  places: ["PRJ_PLACES", "PRJ_PLACES_PMR", "PRJ_PLACES_IRVE", "PRJ_PLACES_IRVE_EQ"], pvoirie: ["PRJ_VOIRIE", "PRJ_RAMPES"], structure: ["STR_DALLE", "STR_POUTRES", "STR_POTEAUX", "STR_AXES", "STR_REPERES"], sens: ["PRJ_SIGNALISATION"], ilots: ["PRJ_ILOTS", "PRJ_NOUES"],
   vehicules: ["HAB_VEHICULES"], arbres: ["HAB_ARBRES"],
   pbati: ["PRJ_BATIMENTS", "PRJ_ESPACES_VERTS", "PRJ_BASSIN_TALUS_HAUT", "PRJ_BASSIN_TALUS_BAS"], servitudes: ["PRJ_SERVITUDES"], recul: ["PRJ_RECUL"],
   ovoirie: ["OCC_VOIRIE"], bati: ["OCC_BATI"], vegetation: ["OCC_VEGETATION"],
@@ -2985,6 +3010,8 @@ function buildXls() {
   for (const k of PKEYS) { const lab = $(`label[for="p-${k}"]`), u = $("#p-" + k).parentElement.textContent.trim(); if (lab) row(lab.textContent, params[k], u, "N2"); }
   if (layout.ouvrage) {
     const pl = layout.ouvrage.plancher;
+    const ov = layout.ouvrage;
+    if (ov.niveaux > 1) { row("Niveaux", ov.niveaux, "niveaux"); row("Places par niveau courant", ov.places_niveau, "places"); row("Places au dernier niveau", ov.places_dernier, "places"); for (const r of ov.rampes) row(r.montee ? "Rampe de montée" : "Rampe de descente", `${Math.round(r.pente * 100)} %, ${r.longueur.toFixed(2).replace(".", ",")} m (raccords R 10 et R 15 compris)`); }
     row("Système constructif (silo)", SYSTEMES[params.silo_systeme].nom); row("Portée de la trame (silo)", DENSITE[params.silo_densite]); row("Portée en travers", layout.ouvrage.portee, "m", "N2");
     row("Plancher", pl.libelle); if (pl.ossature) row(pl.ossature.solive ? "Solives" : "Poutres", `${pl.ossature.profil.replace("_", " ")} : ${layout.ouvrage.poutres.length}`); row("Épaisseur du plancher", pl.epaisseur, "m", "N2"); row("Retombée", pl.retombee, "m", "N2"); row("Hauteur d'étage minimale", pl.hauteur_min, "m (NF P 91-100, § 3.2)", "N2"); row("Source du plancher", pl.source);
   }

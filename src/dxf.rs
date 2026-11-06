@@ -653,6 +653,22 @@ pub fn export(inp: &ExportIn) -> ExportOut {
             w.text("STR_REPERES", cx, cy, 0.6, &a.nom, true);
         }
     }
+    // Rampes : voie, axe dans le sens de parcours avec sa pointe, pente au milieu.
+    if let Some(o) = &lay.ouvrage {
+        for r in &o.rampes {
+            w.ring("PRJ_RAMPES", &r.q);
+            let pts = w.map(&[r.de, r.a]);
+            w.lwpoly("PRJ_RAMPES", &pts, false);
+            let ((ax, ay), (bx, by)) = (pts[0], pts[1]);
+            let l = ((bx - ax).hypot(by - ay)).max(1e-9);
+            let (ux, uy) = ((bx - ax) / l, (by - ay) / l);
+            let pointe = [(bx - ux * 1.2 - uy * 0.6, by - uy * 1.2 + ux * 0.6), (bx, by), (bx - ux * 1.2 + uy * 0.6, by - uy * 1.2 - ux * 0.6)];
+            w.lwpoly("PRJ_RAMPES", &pointe, false);
+            let quoi = if r.montee { "Montée" } else { "Descente" };
+            let txt = format!("{quoi} {} %", (r.pente * 100.0).round());
+            w.text("PRJ_RAMPES", (ax + bx) / 2.0, (ay + by) / 2.0, 0.5, &txt, true);
+        }
+    }
     // Signalisation horizontale : flèches de sens de circulation.
     for a in &lay.circulation.arrows {
         w.insert("PRJ_SIGNALISATION", "SIG_FLECHE", a.p, a.a, 1.0);

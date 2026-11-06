@@ -16,6 +16,7 @@ use crate::layout::KIND_STD;
 use crate::model::{Layout, Metrics, Site, StallOut, P2};
 use crate::region;
 use geo::{BooleanOps, MultiPolygon};
+use normes::{neufert, nf};
 use plateau::{Densite, Emprise, Gabarit, Plan};
 use systemes::Systeme;
 use serde::{Deserialize, Serialize};
@@ -46,6 +47,10 @@ pub struct Ouvrage {
     pub emprise: Option<EmpriseIn>,
     /// Hauteur d'étage (plancher à plancher), en mètres.
     pub hauteur_etage: f64,
+    /// Nombre de niveaux (rez-de-chaussée compris). Au-delà d'un, rampes droites en pignon.
+    pub niveaux: u32,
+    /// Pente des rampes (fraction) : 18 % au plus (NF P 91-100, § 3.4).
+    pub pente_rampe: f64,
     /// Altitude NGF du niveau de référence (plancher bas), en mètres.
     pub cote: f64,
     pub nom: String,
@@ -65,6 +70,8 @@ impl Default for Ouvrage {
             angle: None,
             emprise: None,
             hauteur_etage: 2.90,
+            niveaux: 1,
+            pente_rampe: 0.18,
             cote: 0.0,
             nom: "Parc de stationnement".into(),
         }
@@ -104,6 +111,15 @@ fn emprise_manuelle(g: &Gabarit, m: &EmpriseIn) -> Emprise {
 }
 
 impl Ouvrage {
+    /// Pente retenue : entre 5 % et 18 % (NF P 91-100, § 3.4).
+    fn pente(&self) -> f64 {
+        self.pente_rampe.clamp(0.05, nf::PENTE_RAMPE_MAX.v)
+    }
+    /// Longueur horizontale d'une rampe d'un étage, raccords R 10 en sommet et R 15 en pied compris.
+    pub fn longueur_rampe(&self) -> f64 {
+        normes::longueur_rampe(self.hauteur_etage, self.pente(), nf::RAYON_SOMMET_MIN.v, nf::RAYON_PIED_MIN.v)
+    }
+
     pub fn gabarit(&self, site: &Site) -> Gabarit {
         let p = &site.params;
         Gabarit {
@@ -117,8 +133,21 @@ impl Ouvrage {
             rives: self.rives,
             densite: self.densite,
             retrait: self.retrait.max(0.0),
+            rampe: (self.niveaux > 1).then(|| self.longueur_rampe()),
+            rampe_largeur: neufert::RAMPE_SENS_UNIQUE.v,
         }
     }
+}
+
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct RampeOut {
+    pub q: [P2; 4],
+    pub de: P2,
+    pub a: P2,
+    pub montee: bool,
+    pub pente: f64,
+    pub longueur: f64,
+    pub cle: String,
 }
 
 /// File de poteaux (axe de trame), prolongée de 3 m au-delà de la dalle.
@@ -180,6 +209,12 @@ pub struct OuvrageOut {
     pub places_cles: Vec<String>,
     pub places_rive: usize,
     pub places_modules: usize,
+    pub niveaux: u32,
+    /// Places d'un niveau courant et du dernier niveau.
+    pub places_niveau: usize,
+    pub places_dernier: usize,
+    /// Rampes droites : emprise de la voie, axe dans le sens de parcours (de → à), pente, longueur.
+    pub rampes: Vec<RampeOut>,
     pub surface: f64,
     pub m2_place: f64,
     pub hauteur_etage: f64,
@@ -332,8 +367,13 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
             e: false,
         })
         .collect();
-    let n = out.stalls.len();
-    let rive = plan.places.iter().filter(|pl| pl.rive).count();
+    // Places : niveau courant (le plan affiché) ; au dernier niveau, le pignon de la montée en plus.
+    let niv = o.niveaux.max(1) as usize;
+    let n_niv = out.stalls.len();
+    let n_dernier = n_niv + plan.places_dernier.len();
+    let n = if niv > 1 { (niv - 1) * n_niv + n_dernier } else { n_niv };
+    let rive_niv = plan.places.iter().filter(|pl| pl.rive).count();
+    let rive = if niv > 1 { (niv - 1) * rive_niv + rive_niv + plan.places_dernier.len() } else { rive_niv };
 
     // Chaussée : réunion des allées.
     let aq: Vec<Quad> = plan
@@ -384,11 +424,11 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
     } else {
         0
     };
-    out.metrics.paved_area = r3(surface);
+    out.metrics.paved_area = r3(surface * niv as f64);
     out.metrics.perimeter_stalls = rive;
     out.metrics.interior_stalls = n - rive;
     if n > 0 {
-        out.metrics.m2_paved_per_stall = r3(surface / n as f64);
+        out.metrics.m2_paved_per_stall = r3(surface * niv as f64 / n as f64);
         out.metrics.m2_parcel_per_stall = r3(out.metrics.parcel_area / n as f64);
     }
     // Pas d'espaces verts calculés en ouvrage : la parcelle hors dalle n'est pas qualifiée.
@@ -420,8 +460,35 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         ));
     }
 
-    out.warnings
-        .push("Silo, lot 1 : plateau unique, sans rampes ni noyaux ; PMR et IRVE à placer avec les ascenseurs".into());
+    // Rampes : longueur disponible entre façades, hauteur libre perpendiculaire à la rampe (2,00 m,
+    // majorée de la flèche du raccord de sommet, NF P 91-100, § 3.2) sous le plancher du dessus.
+    if niv > 1 {
+        let lr = o.longueur_rampe();
+        if plan.rampes.is_empty() {
+            out.warnings.push(format!(
+                "Rampes droites en pignon : {} m nécessaires, {} m entre façades (dalle trop étroite)",
+                fr2(lr),
+                fr2(larg - 2.0 * g.facade)
+            ));
+        }
+        if o.pente_rampe > nf::PENTE_RAMPE_MAX.v + 1e-9 {
+            out.warnings.push("Pente des rampes ramenée à 18 % (NF P 91-100, § 3.4)".into());
+        }
+        let libre = (o.hauteur_etage - pl.epaisseur) * o.pente().atan().cos();
+        let requis = nf::HAUTEUR_RAMPE.v + normes::fleche(nf::RAYON_SOMMET_MIN.v);
+        if libre < requis - 1e-9 {
+            out.warnings.push(format!(
+                "Hauteur libre sur rampe de {} m sous le minimum de {} m (NF P 91-100, § 3.2 : 2,00 m perpendiculaires à la rampe, plus la flèche du raccord)",
+                fr2(libre),
+                fr2(requis)
+            ));
+        }
+    }
+    out.warnings.push(if niv > 1 {
+        "Silo : escaliers et ascenseurs à venir ; PMR et IRVE à placer avec les ascenseurs".into()
+    } else {
+        "Silo, lot 1 : plateau unique, sans rampes ni noyaux ; PMR et IRVE à placer avec les ascenseurs".into()
+    });
     out.ouvrage = Some(OuvrageOut {
         dalle: [p2(w(corners[0])), p2(w(corners[1])), p2(w(corners[2])), p2(w(corners[3]))],
         angle: r3(angle),
@@ -459,10 +526,29 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         allees: plan.allees.iter().map(|(q, _)| quad(q)).collect(),
         allees_cles: plan.allees.iter().map(|(_, c)| c.clone()).collect(),
         places_cles: plan.places.iter().map(|pl| pl.cle.clone()).collect(),
-        places_rive: rive,
-        places_modules: n - rive,
+        places_rive: rive_niv,
+        places_modules: n_niv - rive_niv,
+        niveaux: niv as u32,
+        places_niveau: n_niv,
+        places_dernier: n_dernier,
+        rampes: plan
+            .rampes
+            .iter()
+            .map(|r| {
+                let (de, a) = if r.montee { (r.bas, r.haut) } else { (r.haut, r.bas) };
+                RampeOut {
+                    q: quad(&r.q),
+                    de: p2(w(de)),
+                    a: p2(w(a)),
+                    montee: r.montee,
+                    pente: r3(o.pente()),
+                    longueur: r3(o.longueur_rampe()),
+                    cle: r.cle.clone(),
+                }
+            })
+            .collect(),
         surface: r3(surface),
-        m2_place: if n > 0 { r3(surface / n as f64) } else { 0.0 },
+        m2_place: if n > 0 { r3(surface * niv as f64 / n as f64) } else { 0.0 },
         hauteur_etage: o.hauteur_etage,
         dalle_ep: r3(pl.epaisseur),
         cote: o.cote,

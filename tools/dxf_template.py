@@ -33,6 +33,7 @@ LAYERS = [
     ("PRJ_BASSIN_TALUS_BAS", 94, "Continuous", 18, "Projet : bassin de retention, pied de talus"),
     ("PRJ_SERVITUDES", 6, "Continuous", 25, "Projet : servitudes"),
     ("PRJ_SIGNALISATION", 7, "Continuous", 13, "Projet : signalisation horizontale (sens de circulation)"),
+    ("PRJ_RAMPES", 7, "Continuous", 25, "Projet : rampes entre niveaux (voie, sens de parcours, pente)"),
     ("STR_DALLE", 7, "Continuous", 35, "Structure : contour de dalle (parc en ouvrage)"),
     ("STR_POTEAUX", 7, "Continuous", 35, "Structure : poteaux"),
     ("STR_POUTRES", 7, "DASHED", 18, "Structure : poutres et solives (sous la dalle)"),

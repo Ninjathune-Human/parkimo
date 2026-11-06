@@ -222,3 +222,39 @@ fn systemes_constructifs() {
     (o.systeme, o.densite) = (Systeme::Mixte, Densite::Courte);
     assert!(avertit(&trame::solve(&s), "portée longue seulement"));
 }
+
+#[test]
+fn niveaux_et_rampes() {
+    // 3 niveaux : total = 2 × niveau courant + dernier niveau ; deux rampes de 18,36 m à 18 % ;
+    // rien dans les rampes ; hauteur libre sur rampe contrôlée ; dalle trop étroite signalée.
+    let mut s = site("rect");
+    s.ouvrage.as_mut().unwrap().niveaux = 3;
+    let lay = trame::solve(&s);
+    let o = lay.ouvrage.as_ref().unwrap();
+    assert_eq!(o.niveaux, 3);
+    assert_eq!(o.places_niveau, lay.stalls.len());
+    assert!(o.places_dernier > o.places_niveau);
+    assert_eq!(lay.metrics.stalls, 2 * o.places_niveau + o.places_dernier);
+    assert_eq!(o.rampes.len(), 2);
+    assert!(o.rampes.iter().all(|r| (r.pente - 0.18).abs() < 1e-9 && (r.longueur - 18.361).abs() < 1e-3));
+    assert!(o.rampes[0].montee && !o.rampes[1].montee);
+    let rampes: Vec<Quad> = o.rampes.iter().map(|r| quad(&r.q)).collect();
+    for (i, st) in lay.stalls.iter().enumerate() {
+        let q = quad(&st.q).shrink(0.01);
+        assert!(!rampes.iter().any(|r| r.overlaps(&q)), "place {i} dans une rampe");
+    }
+    for (k, po) in o.poteaux.iter().enumerate() {
+        let q = quad(po).shrink(0.01);
+        assert!(!rampes.iter().any(|r| r.overlaps(&q)), "poteau {} dans une rampe", o.poteaux_cles[k]);
+    }
+    let pas = |lay: &trame::model::Layout, mot: &str| !lay.warnings.iter().any(|w| w.contains(mot));
+    assert!(pas(&lay, "Rampes droites") && pas(&lay, "Hauteur libre sur rampe"), "{:?}", lay.warnings);
+    // Étage de 2,40 m : (2,40 − 0,40) × cos(atan 0,18) = 1,97 < 2,00 + 0,11.
+    s.ouvrage.as_mut().unwrap().hauteur_etage = 2.4;
+    assert!(!pas(&trame::solve(&s), "Hauteur libre sur rampe"));
+    // Dalle d'un module (16,40 m) : 16,00 m entre façades < 18,36 m.
+    s.ouvrage.as_mut().unwrap().hauteur_etage = 2.9;
+    s.ouvrage.as_mut().unwrap().emprise = Some(EmpriseIn { cx: 60.0, cy: 40.0, w: 60.0, h: 16.4, rot: 0.0, fixe: [0.0, 0.0] });
+    let lay = trame::solve(&s);
+    assert!(lay.ouvrage.as_ref().unwrap().rampes.is_empty() && !pas(&lay, "Rampes droites"), "{:?}", lay.warnings);
+}

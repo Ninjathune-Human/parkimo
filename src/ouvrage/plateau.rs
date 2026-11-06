@@ -49,6 +49,10 @@ pub struct Gabarit {
     pub densite: Densite,
     /// Poteau en tête de place : du nu du poteau au bord de l'allée.
     pub retrait: f64,
+    /// Plusieurs niveaux : longueur horizontale des rampes droites en pignon (raccords compris).
+    pub rampe: Option<f64>,
+    /// Largeur de la voie de rampe à sens unique.
+    pub rampe_largeur: f64,
 }
 
 impl Gabarit {
@@ -56,9 +60,10 @@ impl Gabarit {
     pub fn module(&self) -> f64 {
         2.0 * self.d + self.allee
     }
-    /// Zone d'extrémité depuis le nu intérieur de la façade : rive et allée transversale.
+    /// Zone d'extrémité depuis le nu intérieur de la façade : rive (places de pignon ou rampe) et
+    /// allée transversale.
     fn bout(&self) -> f64 {
-        if self.rives {
+        if self.rives || self.rampe.is_some() {
             self.d + self.allee
         } else {
             self.pu + self.allee
@@ -191,8 +196,12 @@ pub fn dimensions_proches(g: &Gabarit, larg: f64, l: f64) -> (f64, f64) {
     (best, 2.0 * debut + k * g.w)
 }
 
-/// Nombre de places d'un plateau `larg` × `l` (l le long des allées), sans rien construire.
+/// Nombre de places d'un plateau `larg` × `l` (l le long des allées), sans rien construire ; avec
+/// des rampes, celles d'un niveau courant (plateau construit).
 pub fn compte(g: &Gabarit, larg: f64, l: f64) -> Option<(usize, Travers, Long)> {
+    if g.rampe.is_some() {
+        return construire(g, larg, l).map(|p| (p.places.len(), p.travers, p.long));
+    }
     let t = travers(g, larg)?;
     let lo = long(g, l)?;
     let rangees = 2 * t.modules as usize + t.demi as usize;
@@ -211,6 +220,17 @@ pub struct PlaceLoc {
     pub rive: bool,
 }
 
+/// Rampe droite à sens unique, en repère local : emprise de la voie, extrémités basse et haute de
+/// son axe, montée ou descente.
+#[derive(Clone, Debug)]
+pub struct RampeLoc {
+    pub q: [V2; 4],
+    pub bas: V2,
+    pub haut: V2,
+    pub montee: bool,
+    pub cle: String,
+}
+
 #[derive(Clone, Debug)]
 pub struct PoteauLoc {
     pub c: V2,
@@ -222,8 +242,12 @@ pub struct PoteauLoc {
 pub struct Plan {
     pub travers: Travers,
     pub long: Long,
+    /// Places d'un niveau courant.
     pub places: Vec<PlaceLoc>,
+    /// Places de plus au dernier niveau : pignon de la rampe de montée, que plus rien ne traverse.
+    pub places_dernier: Vec<PlaceLoc>,
     pub allees: Vec<([V2; 4], String)>,
+    pub rampes: Vec<RampeLoc>,
     pub poteaux: Vec<PoteauLoc>,
     /// Files transversales (positions u), numérotées 1, 2, 3…
     pub axes_u: Vec<f64>,
@@ -252,6 +276,17 @@ pub fn lettre(i: usize) -> String {
 
 fn rect(u0: f64, v0: f64, u1: f64, v1: f64) -> [V2; 4] {
     [v2(u0, v0), v2(u1, v0), v2(u1, v1), v2(u0, v1)]
+}
+
+/// Deux rectangles alignés sur les axes se chevauchent (au-delà d'un contact).
+fn chevauche(a: &[V2; 4], b: &[V2; 4]) -> bool {
+    let bornes = |q: &[V2; 4]| {
+        q.iter().fold((f64::MAX, f64::MAX, f64::MIN, f64::MIN), |(x0, y0, x1, y1), p| {
+            (x0.min(p.x), y0.min(p.y), x1.max(p.x), y1.max(p.y))
+        })
+    };
+    let ((ax0, ay0, ax1, ay1), (bx0, by0, bx1, by1)) = (bornes(a), bornes(b));
+    ax1.min(bx1) - ax0.max(bx0) > 1e-6 && ay1.min(by1) - ay0.max(by0) > 1e-6
 }
 
 /// Construit le plateau `larg` × `l` (dimensions utiles, voir `compte`).
@@ -295,7 +330,39 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     // Files longitudinales.
     let axes_v = lignes_v(g, &t);
 
-    // Places de rive : fond contre la façade d'extrémité, entre deux files de poteaux.
+    // Rampes droites en pignon (plusieurs niveaux) : voie à sens unique contre l'allée
+    // transversale ; montée au premier pignon depuis la façade v bas, descente au second depuis la
+    // façade opposée. Elles se superposent d'un niveau à l'autre. Il faut toute leur longueur entre
+    // les façades latérales.
+    let mut rampes = Vec::new();
+    if let Some(lr) = g.rampe {
+        let (v0, v1) = (g.facade, t.largeur - g.facade);
+        if lr <= v1 - v0 + 1e-9 {
+            let wr = g.rampe_largeur;
+            let (a0, a1) = (g.facade + d - wr, g.facade + d);
+            let am = (a0 + a1) / 2.0;
+            rampes.push(RampeLoc {
+                q: rect(a0, v0, a1, v0 + lr),
+                bas: v2(am, v0),
+                haut: v2(am, v0 + lr),
+                montee: true,
+                cle: "RA/1".into(),
+            });
+            let (b0, b1) = (lo.longueur - g.facade - d, lo.longueur - g.facade - d + wr);
+            let bm = (b0 + b1) / 2.0;
+            rampes.push(RampeLoc {
+                q: rect(b0, v1 - lr, b1, v1),
+                bas: v2(bm, v1),
+                haut: v2(bm, v1 - lr),
+                montee: false,
+                cle: "RA/2".into(),
+            });
+        }
+    }
+    let mut places_dernier = Vec::new();
+
+    // Places de rive : fond contre la façade d'extrémité, entre deux files de poteaux. Sous une
+    // rampe, pas de place ; au dernier niveau, le pignon de la montée est libre.
     if g.rives {
         let n_win = axes_v.len() - 1;
         for (b, (fond, sens)) in [(g.facade, 1.0), (lo.longueur - g.facade, -1.0)].into_iter().enumerate() {
@@ -305,11 +372,19 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
                 for j in 0..k {
                     let (va, vb) = (v0 + j as f64 * w, v0 + (j + 1) as f64 * w);
                     let av = fond + sens * d;
-                    places.push(PlaceLoc {
+                    let pl = PlaceLoc {
                         q: [v2(fond, va), v2(fond, vb), v2(av, vb), v2(av, va)],
                         cle: format!("R{}/{}/{}", b + 1, lettre(s), j + 1),
                         rive: true,
-                    });
+                    };
+                    match rampes.get(b) {
+                        Some(r) if chevauche(&pl.q, &r.q) => {
+                            if r.montee {
+                                places_dernier.push(pl);
+                            }
+                        }
+                        _ => places.push(pl),
+                    }
                 }
             }
         }
@@ -338,8 +413,14 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     let mut poteaux = Vec::new();
     for (i, &u) in axes_u.iter().enumerate() {
         for (k, &v) in axes_v.iter().enumerate() {
+            let c = v2(u, v);
+            let q = rect(c.x - g.pu / 2.0, c.y - g.pv / 2.0, c.x + g.pu / 2.0, c.y + g.pv / 2.0);
+            // Rien dans l'emprise d'une rampe.
+            if rampes.iter().any(|r| chevauche(&q, &r.q)) {
+                continue;
+            }
             poteaux.push(PoteauLoc {
-                c: v2(u, v),
+                c,
                 cle: format!("P/{}{}", lettre(k), i + 1),
             });
         }
@@ -348,7 +429,9 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
         travers: t,
         long: lo,
         places,
+        places_dernier,
         allees,
+        rampes,
         poteaux,
         axes_u,
         axes_v,
@@ -396,6 +479,8 @@ pub fn ossature(plan: &Plan, sens: Sens, b: f64) -> Vec<([V2; 4], String)> {
             }
         }
     }
+    // Rien dans l'emprise d'une rampe.
+    out.retain(|(q, _)| !plan.rampes.iter().any(|r| chevauche(q, &r.q)));
     out
 }
 
@@ -535,6 +620,8 @@ mod tests {
             rives: true,
             densite: Densite::Longue,
             retrait: 0.65,
+            rampe: None,
+            rampe_largeur: 3.25,
         }
     }
 
@@ -641,6 +728,37 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn rampes_a_la_main() {
+        // 32,40 × 60 m, portée longue, rampe de 2,90 / 0,18 + (10 + 15) × 0,18 / 2 = 18,36 m.
+        // Montée : voie u 1,95 → 5,20 (3,25 m contre l'allée transversale), v 0,20 → 18,56.
+        // Places de pignon 1 : 1,20 → 16,20 (6) et 16,20 → 31,20 (6) ; la rampe couvre les 6
+        // premières et 16,20 → 18,70 → 7 retirées, 5 restent ; elles reviennent au dernier niveau.
+        // Descente : v 13,84 → 32,20 → 13,70 → 16,20 et les 6 suivantes retirées, 5 restent.
+        // Niveau courant : 60 + 5 + 5 = 70 places ; dernier : 77.
+        // Poteaux : 30, moins ceux de la file de tête de pignon dans les rampes (2 + 2) = 26.
+        let lr = crate::ouvrage::normes::longueur_rampe(2.9, 0.18, 10.0, 15.0);
+        assert!((lr - 18.3611).abs() < 1e-3, "{lr}");
+        let g = Gabarit { rampe: Some(lr), ..gab() };
+        let p = construire(&g, 32.4, 60.0).unwrap();
+        assert_eq!(p.rampes.len(), 2);
+        let r = &p.rampes[0];
+        assert!((r.q[0].x - 1.95).abs() < 1e-9 && (r.q[2].x - 5.2).abs() < 1e-9 && (r.q[2].y - (0.2 + lr)).abs() < 1e-9);
+        assert_eq!(p.places.len(), 70);
+        assert_eq!(p.places_dernier.len(), 7);
+        assert_eq!(p.poteaux.len(), 26);
+        assert_eq!(compte(&g, 32.4, 60.0).unwrap().0, 70);
+        // Rien dans les rampes : places, poteaux, poutres.
+        let q = |c: V2| rect(c.x - g.pu / 2.0, c.y - g.pv / 2.0, c.x + g.pu / 2.0, c.y + g.pv / 2.0);
+        for r in &p.rampes {
+            assert!(!p.places.iter().any(|pl| chevauche(&pl.q, &r.q)));
+            assert!(!p.poteaux.iter().any(|po| chevauche(&q(po.c), &r.q)));
+            assert!(!ossature(&p, Sens::Long, 1.1).iter().any(|(o, _)| chevauche(o, &r.q)));
+        }
+        // Un module (16,40 m) : 16,00 m entre façades < 18,36 m, pas de rampe.
+        assert!(construire(&g, 16.4, 60.0).unwrap().rampes.is_empty());
     }
 
     #[test]
