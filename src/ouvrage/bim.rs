@@ -187,6 +187,11 @@ pub fn modele(lay: &Layout, graine: &str, largeur_place: f64, longueur_place: f6
             format!("PKM_Poteau_{}_{}x{}", o.poteau_materiau, cm(l1.min(l2)), cm(l1.max(l2))),
         ));
     }
+    // Poutres ou solives du système constructif : type nommé par le profil.
+    let ossature = o.plancher.ossature.as_ref().map(|os| {
+        let (pre, quoi) = if os.solive { ("JOIST", "Solive") } else { ("BEAM", "Poutre") };
+        (ty("IfcBeam", pre, format!("PKM_{quoi}_{}", os.profil)), pre, quoi)
+    });
     let types_final = types;
 
     let g = |cle: &str| guid(graine, &format!("{niveau}/{cle}"));
@@ -235,6 +240,24 @@ pub fn modele(lay: &Layout, graine: &str, largeur_place: f64, longueur_place: f6
             h: h_libre,
             props: vec![prop("Pset_ColumnCommon", "LoadBearing", Valeur::Booleen(true))],
         });
+    }
+    // Poutres : la retombée, sous la toiture (le plancher est déjà la dalle).
+    if let Some((ti, pre, quoi)) = ossature {
+        let r = o.plancher.retombee;
+        for (q, cle) in o.poutres.iter().zip(&o.poutres_cles) {
+            elements.push(Element {
+                cle: cle.clone(),
+                guid: g(cle),
+                classe: "IfcBeam",
+                predefini: pre,
+                type_i: ti,
+                nom: format!("{quoi} {}", cle.trim_start_matches("PO/")),
+                profil: ccw(q.iter().map(pt).collect()),
+                z0: h_libre - r,
+                h: r,
+                props: vec![prop("Pset_BeamCommon", "LoadBearing", Valeur::Booleen(true))],
+            });
+        }
     }
     for (s, cle) in lay.stalls.iter().zip(&o.places_cles) {
         let k = format!("PL/{cle}");

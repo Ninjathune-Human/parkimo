@@ -185,6 +185,9 @@ fn systemes_constructifs() {
             if systeme == Systeme::Prefa {
                 s.params.stall_w = 2.4;
             }
+            if systeme == Systeme::Mixte {
+                o.travee = 2;
+            }
             let lay = trame::solve(&s);
             let ov = lay.ouvrage.as_ref().expect("plateau");
             assert!(ov.plancher.epaisseur > 0.0 && (ov.dalle_ep - ov.plancher.epaisseur).abs() < 1e-9);
@@ -193,7 +196,18 @@ fn systemes_constructifs() {
             assert!(!avertit(&lay, "démoduler"), "{systeme:?} {densite:?} : {:?}", lay.warnings);
             let m = bim::modele(&lay, "projet", s.params.stall_w, 5.0, 6.0).unwrap();
             assert!(m.types.iter().any(|t| t.nom == format!("PKM_Plancher_{}", ov.plancher.code)));
-            eprintln!("{systeme:?} {densite:?} : {} ; étage ≥ {:.2} m ; {} places", ov.plancher.libelle, ov.plancher.hauteur_min, lay.stalls.len());
+            // Poutres : une IfcBeam par poutre du plan, sous la toiture, de la hauteur de la retombée.
+            let poutres: Vec<_> = m.elements.iter().filter(|e| e.classe == "IfcBeam").collect();
+            assert_eq!(poutres.len(), ov.poutres.len(), "{systeme:?} {densite:?}");
+            assert_eq!(ov.poutres.is_empty(), ov.plancher.ossature.is_none(), "{systeme:?} {densite:?}");
+            assert!(poutres.iter().all(|e| (e.h - ov.plancher.retombee).abs() < 1e-9));
+            eprintln!(
+                "{systeme:?} {densite:?} : {} ; étage ≥ {:.2} m ; {} places ; {} poutres",
+                ov.plancher.libelle,
+                ov.plancher.hauteur_min,
+                lay.stalls.len(),
+                ov.poutres.len()
+            );
             // Étage trop bas : signalé.
             s.ouvrage.as_mut().unwrap().hauteur_etage = 2.3;
             assert!(avertit(&trame::solve(&s), "Hauteur d'étage"));

@@ -35,6 +35,7 @@ LAYERS = [
     ("PRJ_SIGNALISATION", 7, "Continuous", 13, "Projet : signalisation horizontale (sens de circulation)"),
     ("STR_DALLE", 7, "Continuous", 35, "Structure : contour de dalle (parc en ouvrage)"),
     ("STR_POTEAUX", 7, "Continuous", 35, "Structure : poteaux"),
+    ("STR_POUTRES", 7, "DASHED", 18, "Structure : poutres et solives (sous la dalle)"),
     ("STR_AXES", 1, "DASHDOT", 13, "Structure : files de la trame"),
     ("STR_REPERES", 1, "Continuous", 18, "Structure : reperes des files"),
     ("HAB_VEHICULES", 8, "Continuous", 13, "Habillage : vehicules"),

@@ -140,6 +140,16 @@ pub struct PlancherOut {
     /// Hauteur d'étage minimale : 2,20 m sous plafond, 2,00 m sous poutre (NF P 91-100, § 3.2).
     pub hauteur_min: f64,
     pub source: String,
+    /// Poutres ou solives : profil, section (m), solives (acier) ou poutres.
+    pub ossature: Option<OssatureOut>,
+}
+
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct OssatureOut {
+    pub profil: String,
+    pub b: f64,
+    pub h: f64,
+    pub solive: bool,
 }
 
 #[derive(Serialize, Clone, Debug, Default)]
@@ -161,6 +171,9 @@ pub struct OuvrageOut {
     pub axes: Vec<AxeOut>,
     pub poteaux: Vec<[P2; 4]>,
     pub poteaux_cles: Vec<String>,
+    /// Poutres ou solives (empreinte en plan) et leurs clés BIM.
+    pub poutres: Vec<[P2; 4]>,
+    pub poutres_cles: Vec<String>,
     pub allees: Vec<[P2; 4]>,
     pub allees_cles: Vec<String>,
     /// Clé BIM de chaque place, dans l'ordre de `Layout::stalls`.
@@ -383,10 +396,12 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
     out.angle = r3(angle);
     out.row_aisle = p.aisle;
 
-    // Plancher du système constructif : portée en travers, travée le long des allées.
-    let ecart = |a: &[f64]| a.windows(2).map(|p| p[1] - p[0]).fold(0.0, f64::max);
-    let portee = ecart(&plan.axes_v);
-    let pl = systemes::plancher(o.systeme, g.densite, portee, ecart(&plan.axes_u), g.w);
+    // Plancher du système constructif : portée en travers, travées le long des rangées et aux
+    // extrémités ; poutres ou solives de poteau à poteau.
+    let portee = plan.axes_v.windows(2).map(|p| p[1] - p[0]).fold(0.0, f64::max);
+    let (t_rangees, t_bouts) = plateau::travees(plan);
+    let pl = systemes::plancher(o.systeme, g.densite, portee, t_rangees, t_bouts);
+    let poutres = pl.ossature.as_ref().map_or(Vec::new(), |os| plateau::ossature(plan, os.sens, os.b));
     out.warnings.extend(pl.alertes.iter().cloned());
     let h_min = pl.hauteur_min();
     if o.hauteur_etage < h_min - 1e-9 {
@@ -404,10 +419,7 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
             fr2(tw)
         ));
     }
-    if o.systeme == Systeme::Mixte && g.travee > 4 {
-        out.warnings
-            .push("Acier-béton : poteaux tous les 2 à 4 places au plus (ArcelorMittal, AFGC 2017)".into());
-    }
+
     out.warnings
         .push("Silo, lot 1 : plateau unique, sans rampes ni noyaux ; PMR et IRVE à placer avec les ascenseurs".into());
     out.ouvrage = Some(OuvrageOut {
@@ -427,6 +439,12 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
             retombee: r3(pl.retombee),
             hauteur_min: r3(h_min),
             source: pl.source.into(),
+            ossature: pl.ossature.as_ref().map(|os| OssatureOut {
+                profil: os.profil.clone(),
+                b: r3(os.b),
+                h: r3(os.h),
+                solive: os.solive,
+            }),
         },
         poteau_materiau: o.systeme.materiau_poteau().into(),
         axes,
@@ -436,6 +454,8 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
             .map(|po| quad(&[po.c + v2(-hu, -hv), po.c + v2(hu, -hv), po.c + v2(hu, hv), po.c + v2(-hu, hv)]))
             .collect(),
         poteaux_cles: plan.poteaux.iter().map(|po| po.cle.clone()).collect(),
+        poutres: poutres.iter().map(|(q, _)| quad(q)).collect(),
+        poutres_cles: poutres.iter().map(|(_, c)| c.clone()).collect(),
         allees: plan.allees.iter().map(|(q, _)| quad(q)).collect(),
         allees_cles: plan.allees.iter().map(|(_, c)| c.clone()).collect(),
         places_cles: plan.places.iter().map(|pl| pl.cle.clone()).collect(),

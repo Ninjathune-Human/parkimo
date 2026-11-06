@@ -628,6 +628,9 @@ pub fn export(inp: &ExportIn) -> ExportOut {
     // Parc en ouvrage : dalle, poteaux, files de la trame et leurs repères (cercle et nom).
     if let Some(o) = &lay.ouvrage {
         w.ring("STR_DALLE", &o.dalle);
+        for q in &o.poutres {
+            w.ring("STR_POUTRES", q);
+        }
         for q in &o.poteaux {
             let l = vec![w.map(q)];
             w.hatch("STR_POTEAUX", &l, &Fill::Solid);

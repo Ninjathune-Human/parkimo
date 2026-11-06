@@ -11,6 +11,7 @@
 //!   l'allée : 0,65 m au moins sans surlargeur (NF P 91-100, tab. 3), le poteau entier dans les
 //!   1,25 m côté allée pour garder libre la zone des portières (Neufert p. 274).
 
+use super::systemes::Sens;
 use crate::geom::{rotate_rings, strip_intervals, v2, V2};
 use serde::Deserialize;
 
@@ -354,6 +355,50 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     })
 }
 
+/// Plus grands entraxes des files transversales : le long des rangées, puis dans les zones
+/// d'extrémité (places de pignon et allée transversale).
+pub fn travees(plan: &Plan) -> (f64, f64) {
+    let (d0, d1) = (plan.long.debut, plan.long.longueur - plan.long.debut);
+    let dans = |u: f64| u > d0 - 1e-6 && u < d1 + 1e-6;
+    let (mut r, mut b) = (0.0f64, 0.0f64);
+    for p in plan.axes_u.windows(2) {
+        if dans(p[0]) && dans(p[1]) {
+            r = r.max(p[1] - p[0]);
+        } else {
+            b = b.max(p[1] - p[0]);
+        }
+    }
+    (r, b)
+}
+
+/// Poutres ou solives de poteau à poteau, en repère local, largeur `b` rognée au contour de la
+/// dalle : sur chaque file transversale entre deux files longitudinales voisines (en travers), ou
+/// sur chaque file longitudinale entre deux files transversales voisines (le long des allées).
+/// Clé : `PO/{file}/{de}-{à}`.
+pub fn ossature(plan: &Plan, sens: Sens, b: f64) -> Vec<([V2; 4], String)> {
+    let (larg, long) = (plan.largeur(), plan.longueur());
+    let mut out = Vec::new();
+    match sens {
+        Sens::Travers => {
+            for (i, &u) in plan.axes_u.iter().enumerate() {
+                let (u0, u1) = ((u - b / 2.0).max(0.0), (u + b / 2.0).min(long));
+                for (k, p) in plan.axes_v.windows(2).enumerate() {
+                    out.push((rect(u0, p[0], u1, p[1]), format!("PO/{}/{}-{}", i + 1, lettre(k), lettre(k + 1))));
+                }
+            }
+        }
+        Sens::Long => {
+            for (k, &v) in plan.axes_v.iter().enumerate() {
+                let (v0, v1) = ((v - b / 2.0).max(0.0), (v + b / 2.0).min(larg));
+                for (i, p) in plan.axes_u.windows(2).enumerate() {
+                    out.push((rect(p[0], v0, p[1], v1), format!("PO/{}/{}-{}", lettre(k), i + 1, i + 2)));
+                }
+            }
+        }
+    }
+    out
+}
+
 /// Emprise d'un plateau dans le repère du plan : origine (coin de dalle), direction des allées u,
 /// direction en travers v, largeur (selon v) et longueur (selon u).
 #[derive(Clone, Copy, Debug)]
@@ -596,6 +641,30 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn ossature_a_la_main() {
+        // 32,40 × 60 m, 15 places par rangée.
+        // Moyenne, poutres en travers : 10 files transversales × 3 intervalles (4 files A à D) = 30.
+        let p = construire(&Gabarit { densite: Densite::Moyenne, ..gab() }, 32.4, 60.0).unwrap();
+        let o = ossature(&p, Sens::Travers, 0.32);
+        assert_eq!(o.len(), 30);
+        assert_eq!(o[0].1, "PO/1/A-B");
+        // Courte, poutres le long des allées : 6 files longitudinales × 9 intervalles = 54 ; la
+        // poutre de façade (axe à 0,50, largeur 1,10) est rognée au bord de dalle.
+        let p = construire(&Gabarit { densite: Densite::Courte, ..gab() }, 32.4, 60.0).unwrap();
+        let o = ossature(&p, Sens::Long, 1.10);
+        assert_eq!(o.len(), 54);
+        assert!(o[0].0[0].y.abs() < 1e-9 && (o[0].0[2].y - 1.05).abs() < 1e-9);
+        // Longue, 2 places au plus entre poteaux : files transversales à round(15 i / 8) = 2, 4, 6,
+        // 8, 9, 11, 13 places du début → 13 files (2 façades, 2 têtes de pignon, début, 7, fin) ;
+        // 13 × 2 intervalles = 26 solives. Entraxes : rangées 5,00 m au plus (4,85 aux bouts des
+        // rangées), extrémités 6,95 m (de 4,40 à 11,35).
+        let p = construire(&Gabarit { travee: 2, ..gab() }, 32.4, 60.0).unwrap();
+        assert_eq!(ossature(&p, Sens::Travers, 0.21).len(), 26);
+        let (r, b) = travees(&p);
+        assert!((r - 5.0).abs() < 1e-9 && (b - 6.95).abs() < 1e-9, "{r} {b}");
     }
 
     #[test]
