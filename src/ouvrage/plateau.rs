@@ -316,18 +316,17 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
 
     // Files transversales : façades d'extrémité, tête des places de rive (coupe la portée entre la
     // façade et le début des rangées), début et fin des rangées (poteaux au nu de l'allée
-    // transversale), puis toutes les `travee` places ; une dernière travée courte est absorbée.
-    let tw = g.travee.max(1) as f64 * w;
+    // transversale), puis des travées réparties également : `travee` places au plus, des tailles
+    // qui diffèrent d'une place au plus, chaque file sur une séparation de places.
     let tete = g.facade + d - g.retrait - g.pu / 2.0;
     let mut axes_u = vec![g.facade + g.pu / 2.0];
     if g.rives {
         axes_u.push(tete);
     }
     axes_u.push(debut + g.pu / 2.0);
-    let mut x = debut + tw;
-    while x < fin - tw / 2.0 - 1e-9 {
-        axes_u.push(x);
-        x += tw;
+    let nb = n.div_ceil(g.travee.max(1) as usize);
+    for i in 1..nb {
+        axes_u.push(debut + (i as f64 * n as f64 / nb as f64).round() * w);
     }
     axes_u.push(fin - g.pu / 2.0);
     if g.rives {
@@ -596,6 +595,28 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    fn travees_reparties() {
+        // 32,40 × 62,40 m : rangées de (62,40 − 2 × 11,20) / 2,50 = 16 places. Au plus 3 places
+        // par travée → 6 travées ; files à round(16 i / 6) = 3, 5, 8, 11, 13 places du début,
+        // soit des travées de 3, 2, 3, 3, 2, 3 places (au lieu de 3, 3, 3, 3, 4).
+        // Au plus 4 places, 15 places → 4 travées : round(15 i / 4) = 4, 8, 11 → 4, 4, 3, 4.
+        for (travee, l, attendu) in [(3, 62.4, vec![3.0, 5.0, 8.0, 11.0, 13.0]), (4, 60.0, vec![4.0, 8.0, 11.0])] {
+            let g = Gabarit { travee, ..gab() };
+            let p = construire(&g, 32.4, l).unwrap();
+            let debut = p.long.debut;
+            // Files intérieures : entre la file de début (debut + pu/2) et celle de fin.
+            let i0 = p.axes_u.iter().position(|&u| (u - (debut + g.pu / 2.0)).abs() < 1e-9).unwrap();
+            let k: Vec<f64> = p.axes_u[i0 + 1..i0 + 1 + attendu.len()].iter().map(|u| (u - debut) / g.w).collect();
+            assert_eq!(k.len(), attendu.len());
+            for (a, b) in k.iter().zip(&attendu) {
+                assert!((a - b).abs() < 1e-9, "travée {travee} : {k:?}, attendu {attendu:?}");
+            }
+            let fin = (p.axes_u[i0 + 1 + attendu.len()] + g.pu / 2.0 - debut) / g.w;
+            assert!((fin - p.long.par_rangee as f64).abs() < 1e-9);
         }
     }
 
