@@ -368,6 +368,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
         <div class="row"><span class="k">En bordure / au cœur</span><span class="v" id="s-split"></span></div>
         <div class="row"><span class="k"><i class="sw" style="background:var(--tree)"></i>Arbres</span><span class="v" id="s-trees"></span></div>
         <div class="row" id="r-dalle" hidden><span class="k">Dalle</span><span class="v" id="s-dalle"></span></div>
+        <div class="row" id="r-trame" hidden><span class="k">Trame</span><span class="v" id="s-trame"></span></div>
         <div class="row"><span class="k" id="k-eff">Enrobé par place</span><span class="v" id="s-eff"></span></div>
         <div class="row"><span class="k">Parcelle</span><span class="v" id="s-parcel"></span></div>
         <div class="row"><span class="k">Espaces verts</span><span class="v" id="s-green"></span></div>
@@ -476,14 +477,16 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <div class="eyebrow">Type d'étude</div>
       <div class="field"><span class="seg" role="group" aria-label="Type d'étude" id="t-seg"><button data-t="surface" aria-pressed="true">Surface</button><button data-t="silo" aria-pressed="false">Silo</button></span></div>
       <div id="silo-fields" hidden>
+        <div class="field"><label id="d-lab">Portée</label><span class="seg" role="group" aria-labelledby="d-lab" id="d-seg"><button data-d="longue" aria-pressed="true">Longue</button><button data-d="moyenne" aria-pressed="false">Moyenne</button><button data-d="courte" aria-pressed="false">Courte</button></span></div>
         <div class="field"><label for="p-silo_etage">Hauteur d'étage</label><span class="unit"><input id="p-silo_etage" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_dalle">Épaisseur de dalle</label><span class="unit"><input id="p-silo_dalle" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_pu">Poteau le long des allées</label><span class="unit"><input id="p-silo_pu" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_pv">Poteau en travers</label><span class="unit"><input id="p-silo_pv" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+        <div class="field"><label for="p-silo_retrait">Retrait en tête de place</label><span class="unit"><input id="p-silo_retrait" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_travee">Places entre poteaux</label><span class="unit"><input id="p-silo_travee" type="text" inputmode="decimal" autocomplete="off">pl</span></div>
         <div class="field"><label for="p-silo_facade">Rive de façade</label><span class="unit"><input id="p-silo_facade" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_rives">Places le long des pignons</label><input id="p-silo_rives" type="checkbox" class="switch" role="switch"></div>
-        <p class="note">Plateau unique à grande portée : modules place + allée + place, poteaux en façade et en dos à dos. Poteaux et rive : hypothèses d'esquisse à confirmer par le bureau d'études.</p>
+        <p class="note">Plateau unique : modules place + allée + place. Portée longue : poteaux en façade et en dos à dos. Moyenne : en tête des rangées dos à dos. Courte : en tête de chaque rangée. En tête de place, le nu du poteau est à 0,65 m au moins de l'allée (NF P 91-100, tab. 3). Poteaux et rive : hypothèses d'esquisse à confirmer par le bureau d'études.</p>
       </div>
     </div>
     <div class="pgroup">
@@ -666,7 +669,7 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((res) => setTimeout(
 // Données : sites d'exemple (mètres, repère local, y vers le haut).
 // ============================================================================
 const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, basin_margin: 2, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null, slant: 90,
-  silo: false, silo_etage: 2.9, silo_dalle: 0.4, silo_pu: 0.3, silo_pv: 0.6, silo_travee: 3, silo_facade: 0.2, silo_rives: true };
+  silo: false, silo_etage: 2.9, silo_dalle: 0.4, silo_pu: 0.3, silo_pv: 0.6, silo_travee: 3, silo_facade: 0.2, silo_rives: true, silo_densite: "longue", silo_retrait: 0.65 };
 
 function arc(cx, cy, r, a0, a1, n) {
   const pts = [];
@@ -746,7 +749,7 @@ function engineInput(quick) {
       pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100, irve_equip_ratio: p.irve_equip_ratio / 100,
       angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle,
     },
-    ouvrage: p.silo ? { actif: true, facade: p.silo_facade, poteau: [p.silo_pu, p.silo_pv], travee: Math.max(1, Math.round(p.silo_travee)), rives: !!p.silo_rives, angle: p.angle, hauteur_etage: p.silo_etage, dalle: p.silo_dalle, emprise: site.slab ? { cx: site.slab.cx, cy: site.slab.cy, w: site.slab.w, h: site.slab.h, rot: site.slab.rot, fixe: site.slab.fixe || [0, 0] } : null } : null,
+    ouvrage: p.silo ? { actif: true, facade: p.silo_facade, poteau: [p.silo_pu, p.silo_pv], travee: Math.max(1, Math.round(p.silo_travee)), rives: !!p.silo_rives, densite: p.silo_densite, retrait: p.silo_retrait, angle: p.angle, hauteur_etage: p.silo_etage, dalle: p.silo_dalle, emprise: site.slab ? { cx: site.slab.cx, cy: site.slab.cy, w: site.slab.w, h: site.slab.h, rot: site.slab.rot, fixe: site.slab.fixe || [0, 0] } : null } : null,
   };
 }
 
@@ -1463,6 +1466,7 @@ function updateStats(quick) {
   const ov = layout.ouvrage;
   $("#r-dalle").hidden = !ov; $("#lay-structure").hidden = !ov; $("#k-eff").textContent = ov ? "Dalle par place" : "Enrobé par place";
   if (ov) $("#s-dalle").textContent = `${fmt1(ov.largeur)} × ${fmt1(ov.longueur)} m · ${ov.modules}${ov.demi_module ? ",5" : ""} module${ov.modules + (ov.demi_module ? 0.5 : 0) >= 2 ? "s" : ""}`;
+  $("#r-trame").hidden = !ov; if (ov) $("#s-trame").textContent = `${DENSITE[params.silo_densite]} · portée ${fmt1(ov.portee)} m`;
   $("#s-pmr").innerHTML = `${m.pmr} / ${m.pmr_required}${chip(m.pmr >= m.pmr_required)}`;
   $("#s-irve").innerHTML = `${m.irve} / ${m.irve_required}${chip(m.irve >= m.irve_required)}`;
   $("#s-irve-eq").innerHTML = `${m.irve_equipped} / ${m.irve_equipped_required}${chip(m.irve_equipped >= m.irve_equipped_required)}`;
@@ -1868,7 +1872,9 @@ window.addEventListener("keydown", (ev) => {
 // ============================================================================
 // Paramètres.
 // ============================================================================
-const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "pmr_ratio", "irve_ratio", "irve_equip_ratio", "silo_etage", "silo_dalle", "silo_pu", "silo_pv", "silo_travee", "silo_facade"];
+const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "pmr_ratio", "irve_ratio", "irve_equip_ratio", "silo_etage", "silo_dalle", "silo_pu", "silo_pv", "silo_retrait", "silo_travee", "silo_facade"];
+// Densité de la trame du silo : libellés du bilan et du tableur.
+const DENSITE = { longue: "Portée longue", moyenne: "Portée moyenne", courte: "Portée courte" };
 // Estimation au ratio (parking de surface, métropole niçoise) : barème par tranche de places, en € HT/place.
 const BAREME_0 = [
   { a: 20, b: 50, t: [2300, 3800], e: [2700, 4400] },
@@ -1917,6 +1923,7 @@ function syncParamsUI() {
   for (const k of PKEYS) $("#p-" + k).value = String(params[k]).replace(".", ",");
   for (const b of $("#t-seg").children) b.setAttribute("aria-pressed", String((b.dataset.t === "silo") === !!params.silo));
   $("#silo-fields").hidden = !params.silo; $("#p-silo_rives").checked = !!params.silo_rives;
+  for (const b of $("#d-seg").children) b.setAttribute("aria-pressed", String(b.dataset.d === params.silo_densite));
   for (const b of $("#sl-seg").children) b.setAttribute("aria-pressed", String(+b.dataset.sl === params.slant));
   updateSlantNote();
   const auto = params.angle === null;
@@ -1935,6 +1942,10 @@ $("#t-seg").addEventListener("click", (ev) => {
   if (!$("#params").hidden) placeMenu("#b-params", "#params");
 });
 $("#p-silo_rives").addEventListener("change", (ev) => { params.silo_rives = ev.target.checked; lastAngle = null; solve(false); commit(); });
+$("#d-seg").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-d]"); if (!b || b.dataset.d === params.silo_densite) return;
+  params.silo_densite = b.dataset.d; syncParamsUI(); lastAngle = null; solve(false); commit();
+});
 $("#sl-seg").addEventListener("click", (ev) => {
   const b = ev.target.closest("button[data-sl]"); if (!b || +b.dataset.sl === params.slant) return;
   params.slant = +b.dataset.sl; syncParamsUI(); lastAngle = null; solve(false); commit();
@@ -2947,6 +2958,7 @@ function buildXls() {
   row("Densité", n && pa ? n / (pa / 10000) : "", "places / ha", "N1"); row("Constructible par place", n ? m.buildable_area / n : "", "m² / place", "N1");
   sec("Hypothèses de calcul");
   for (const k of PKEYS) { const lab = $(`label[for="p-${k}"]`), u = $("#p-" + k).parentElement.textContent.trim(); if (lab) row(lab.textContent, params[k], u, "N2"); }
+  if (layout.ouvrage) { row("Trame du silo", DENSITE[params.silo_densite]); row("Portée en travers", layout.ouvrage.portee, "m", "N2"); }
   sec("Estimation financière (€ HT, métropole niçoise)");
   row("Tranche du barème", `${br.a} à ${br.b} places`);
   row("Travaux seuls : ratio mini", T[0], "€ / place"); row("Travaux seuls : ratio maxi", T[1], "€ / place");

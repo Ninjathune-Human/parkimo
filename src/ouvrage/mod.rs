@@ -1,8 +1,9 @@
 //! Parcs de stationnement en ouvrage (silos, puis enterrés) : trame structurelle, plateaux,
 //! modèle BIM et export IFC.
 //!
-//! Lot 1 : silo à un niveau sur un plateau rectangulaire à grande portée (modules de 16 m pour
-//! des places de 5,00 m et des allées de 6,00 m), poteaux en façade et en dos à dos.
+//! Lot 1 : silo à un niveau sur un plateau rectangulaire (modules de 16 m pour des places de 5,00 m
+//! et des allées de 6,00 m), trame de densité longue (poteaux en façade et en dos à dos), moyenne ou
+//! courte (poteaux en tête de place).
 
 pub mod bim;
 pub mod ifc;
@@ -14,7 +15,7 @@ use crate::layout::KIND_STD;
 use crate::model::{Layout, Metrics, Site, StallOut, P2};
 use crate::region;
 use geo::{BooleanOps, MultiPolygon};
-use plateau::{Emprise, Gabarit, Plan};
+use plateau::{Densite, Emprise, Gabarit, Plan};
 use serde::{Deserialize, Serialize};
 
 /// Réglages d'un parc en ouvrage. Les dimensions de places et d'allées sont celles des
@@ -31,6 +32,10 @@ pub struct Ouvrage {
     pub travee: u32,
     /// Places de rive le long des façades d'extrémité.
     pub rives: bool,
+    /// Densité de la trame en travers : "longue", "moyenne" ou "courte".
+    pub densite: Densite,
+    /// Poteau en tête de place : du nu du poteau au bord de l'allée, en mètres.
+    pub retrait: f64,
     /// Direction imposée des allées (degrés) ; absente = optimisée.
     pub angle: Option<f64>,
     /// Emprise dessinée à la main ; absente = plus grand plateau de la zone constructible.
@@ -52,6 +57,8 @@ impl Default for Ouvrage {
             poteau: [0.30, 0.60],
             travee: 3,
             rives: true,
+            densite: Densite::Longue,
+            retrait: 0.65,
             angle: None,
             emprise: None,
             hauteur_etage: 2.90,
@@ -106,6 +113,8 @@ impl Ouvrage {
             pv: self.poteau[1].max(0.05),
             travee: self.travee.max(1),
             rives: self.rives,
+            densite: self.densite,
+            retrait: self.retrait.max(0.0),
         }
     }
 }
@@ -128,6 +137,8 @@ pub struct OuvrageOut {
     pub longueur: f64,
     pub modules: u32,
     pub demi_module: bool,
+    /// Plus grande distance entre deux files de poteaux voisines, en travers des allées.
+    pub portee: f64,
     pub axes: Vec<AxeOut>,
     pub poteaux: Vec<[P2; 4]>,
     pub poteaux_cles: Vec<String>,
@@ -200,6 +211,22 @@ pub fn solve(site: &Site, o: &Ouvrage) -> Layout {
     };
     if p.slant < 89.5 {
         out.warnings.push("Silo : places à 90° seulement dans ce lot".into());
+    }
+    // Poteaux en tête de place : rangées (densités moyenne et courte, profondeur du poteau en
+    // travers) et places de rive (profondeur le long des allées).
+    let tetes: Vec<f64> = [(g.densite != Densite::Longue, g.pv), (g.rives, g.pu)]
+        .into_iter()
+        .filter_map(|(oui, ep)| oui.then_some(ep))
+        .collect();
+    if !tetes.is_empty() {
+        if g.retrait < 0.65 - 1e-9 {
+            out.warnings
+                .push("Poteaux à moins de 0,65 m de l'allée : places à élargir (NF P 91-100, tab. 3)".into());
+        }
+        if tetes.iter().any(|ep| g.retrait + ep > 1.25 + 1e-9) {
+            out.warnings
+                .push("Poteaux au-delà de 1,25 m de l'allée : gêne à l'ouverture des portières (Neufert p. 274)".into());
+        }
     }
     let e = if let Some(m) = &o.emprise {
         let e = emprise_manuelle(&g, m);
@@ -340,6 +367,7 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         longueur: r3(long),
         modules: plan.travers.modules,
         demi_module: plan.travers.demi,
+        portee: r3(plan.axes_v.windows(2).map(|p| p[1] - p[0]).fold(0.0, f64::max)),
         axes,
         poteaux: plan
             .poteaux

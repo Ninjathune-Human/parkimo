@@ -1,9 +1,11 @@
-//! Parc en ouvrage (lot 1) : plateau de silo sur les scénarios de contrôle.
+//! Parc en ouvrage (lot 1) : plateau de silo sur les scénarios de contrôle, pour les trois densités
+//! de trame.
 //! Aucune place qui se chevauche ou sort de la zone stationnable, toute place donne sur une allée,
 //! aucun poteau dans une allée, identifiants BIM stables, IFC produit.
 
 use trame::geom::{v2, Quad, QuadHash, Region};
 use trame::model::Site;
+use trame::ouvrage::plateau::Densite;
 use trame::ouvrage::{bim, ifc, EmpriseIn, Ouvrage};
 use trame::region;
 
@@ -19,8 +21,13 @@ fn site(nom: &str) -> Site {
 
 #[test]
 fn plateaux_sur_les_scenarios() {
-    for nom in ["rect", "triangle", "courbe", "ruisseau", "etroit"] {
-        let s = site(nom);
+    let densites = [Densite::Longue, Densite::Moyenne, Densite::Courte];
+    for (nom, densite) in ["rect", "triangle", "courbe", "ruisseau", "etroit"]
+        .into_iter()
+        .flat_map(|n| densites.map(|d| (n, d)))
+    {
+        let mut s = site(nom);
+        s.ouvrage.as_mut().unwrap().densite = densite;
         let t = std::time::Instant::now();
         let lay = trame::solve(&s);
         let ms = t.elapsed().as_secs_f64() * 1e3;
@@ -61,13 +68,14 @@ fn plateaux_sur_les_scenarios() {
             assert!(!allees.iter().any(|a| a.overlaps(&pq)), "{nom} : poteau {} dans une allée", o.poteaux_cles[k]);
         }
         eprintln!(
-            "{nom} : {} places ({} en rive), dalle {:.2} × {:.2} m, {} modules{}, {:.1} m²/place, {ms:.1} ms",
+            "{nom} {densite:?} : {} places ({} en rive), dalle {:.2} × {:.2} m, {} modules{}, portée {:.2} m, {:.1} m²/place, {ms:.1} ms",
             lay.stalls.len(),
             o.places_rive,
             o.largeur,
             o.longueur,
             o.modules,
             if o.demi_module { " et demi" } else { "" },
+            o.portee,
             o.m2_place
         );
     }

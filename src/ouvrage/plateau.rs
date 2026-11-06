@@ -4,11 +4,28 @@
 //!
 //! Repère local : u le long des allées, v en travers ; origine au coin de la dalle.
 //!
-//! Poteaux : toujours dans le premier mètre du fond de place (≤ 1,10 m, NF P 91-100 fig. 2), à
-//! cheval sur une séparation de places ou contre l'allée transversale ; la largeur au droit de
-//! l'obstacle reste d'au moins 2,00 m pour des places de 2,30 m et plus.
+//! Poteaux, à cheval sur une séparation de places ou contre l'allée transversale :
+//! - au fond de place, dans le premier mètre (≤ 1,10 m, NF P 91-100 fig. 2) ; la largeur au droit
+//!   de l'obstacle reste d'au moins 2,00 m pour des places de 2,30 m et plus ;
+//! - en tête de place (densités moyenne et courte, places de rive), le nu à `retrait` du bord de
+//!   l'allée : 0,65 m au moins sans surlargeur (NF P 91-100, tab. 3), le poteau entier dans les
+//!   1,25 m côté allée pour garder libre la zone des portières (Neufert p. 274).
 
 use crate::geom::{rotate_rings, strip_intervals, v2, V2};
+use serde::Deserialize;
+
+/// Densité de la trame en travers des allées.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Densite {
+    /// Files en façade et sur les lignes de dos à dos : portée d'un module (16 m).
+    #[default]
+    Longue,
+    /// Files en tête des deux rangées de chaque dos à dos, en retrait de l'allée.
+    Moyenne,
+    /// Files en tête de chaque rangée, de part et d'autre de chaque allée.
+    Courte,
+}
 
 /// Dimensions du plateau.
 #[derive(Clone, Copy, Debug)]
@@ -28,6 +45,9 @@ pub struct Gabarit {
     pub travee: u32,
     /// Places de rive le long des façades d'extrémité.
     pub rives: bool,
+    pub densite: Densite,
+    /// Poteau en tête de place : du nu du poteau au bord de l'allée.
+    pub retrait: f64,
 }
 
 impl Gabarit {
@@ -94,29 +114,56 @@ pub fn long(g: &Gabarit, l: f64) -> Option<Long> {
     })
 }
 
-/// Files de poteaux en travers (positions v) : façade, lignes de dos à dos, façade opposée.
-fn lignes_v(g: &Gabarit, t: &Travers, mut f: impl FnMut(f64)) {
-    let m = g.module();
-    f(g.facade + g.pv / 2.0);
-    for k in 1..t.modules {
-        f(g.facade + k as f64 * m);
+/// Files de poteaux en travers (positions v, croissantes) : les deux façades et, selon la densité,
+/// les lignes de dos à dos (longue), la tête des deux rangées de chaque dos à dos (moyenne) ou la
+/// tête de chaque rangée (courte).
+pub fn lignes_v(g: &Gabarit, t: &Travers) -> Vec<f64> {
+    let (m, d) = (g.module(), g.d);
+    // Axe d'un poteau en tête de place, depuis le bord de l'allée.
+    let r = g.retrait + g.pv / 2.0;
+    // Dos à dos : entre deux modules, puis entre le dernier module et le demi-module.
+    let dos = (1..t.modules)
+        .chain((t.demi && t.modules > 0).then_some(t.modules))
+        .map(|k| g.facade + k as f64 * m);
+    let mut out = vec![g.facade + g.pv / 2.0];
+    match g.densite {
+        Densite::Longue => out.extend(dos),
+        Densite::Moyenne => {
+            for b in dos {
+                out.extend([b - (d - r), b + (d - r)]);
+            }
+        }
+        Densite::Courte => {
+            for k in 0..t.modules {
+                let vb = g.facade + k as f64 * m;
+                out.extend([vb + d - r, vb + m - d + r]);
+            }
+            if t.demi {
+                out.push(g.facade + t.modules as f64 * m + d - r);
+            }
+        }
     }
-    if t.demi && t.modules > 0 {
-        f(g.facade + t.modules as f64 * m);
-    }
-    f(t.largeur - g.facade - g.pv / 2.0);
+    out.push(t.largeur - g.facade - g.pv / 2.0);
+    out
 }
 
-/// Places de rive d'une façade d'extrémité : entre deux files de poteaux, à partir de l'axe.
+/// Places de rive d'une façade d'extrémité : places entières entre deux files de poteaux.
 fn rive_par_bout(g: &Gabarit, t: &Travers) -> usize {
-    let (mut prev, mut n) = (None::<f64>, 0usize);
-    lignes_v(g, t, |v| {
-        if let Some(p) = prev {
-            n += ((v - p + 1e-9) / g.w).floor() as usize;
-        }
-        prev = Some(v);
-    });
-    n
+    lignes_v(g, t)
+        .windows(2)
+        .map(|p| ((p[1] - p[0] + 1e-9) / g.w).floor() as usize)
+        .sum()
+}
+
+/// Début des `k` places de rive entre les files `a` et `b` : calées contre la file intérieure quand
+/// l'intervalle touche une façade (le reste part contre la façade), centrées sinon.
+fn debut_rive(a: f64, b: f64, k: usize, w: f64, facade_a: bool, facade_b: bool) -> f64 {
+    let reste = b - a - k as f64 * w;
+    match (facade_a, facade_b) {
+        (true, false) => a + reste,
+        (false, true) => a,
+        _ => a + reste / 2.0,
+    }
 }
 
 /// Dimensions réalisables les plus proches de `larg` × `l` (l le long des allées) : en travers,
@@ -245,16 +292,17 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     allees.push((rect(fin, v0, fin + g.allee, v1), "AL/X2".into()));
 
     // Files longitudinales.
-    let mut axes_v = Vec::new();
-    lignes_v(g, &t, |v| axes_v.push(v));
+    let axes_v = lignes_v(g, &t);
 
     // Places de rive : fond contre la façade d'extrémité, entre deux files de poteaux.
     if g.rives {
+        let n_win = axes_v.len() - 1;
         for (b, (fond, sens)) in [(g.facade, 1.0), (lo.longueur - g.facade, -1.0)].into_iter().enumerate() {
             for (s, pair) in axes_v.windows(2).enumerate() {
                 let k = ((pair[1] - pair[0] + 1e-9) / w).floor() as usize;
+                let v0 = debut_rive(pair[0], pair[1], k, w, s == 0, s + 1 == n_win);
                 for j in 0..k {
-                    let (va, vb) = (pair[0] + j as f64 * w, pair[0] + (j + 1) as f64 * w);
+                    let (va, vb) = (v0 + j as f64 * w, v0 + (j + 1) as f64 * w);
                     let av = fond + sens * d;
                     places.push(PlaceLoc {
                         q: [v2(fond, va), v2(fond, vb), v2(av, vb), v2(av, va)],
@@ -266,16 +314,25 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
         }
     }
 
-    // Files transversales : façades d'extrémité, début et fin des rangées (poteaux au nu de l'allée
+    // Files transversales : façades d'extrémité, tête des places de rive (coupe la portée entre la
+    // façade et le début des rangées), début et fin des rangées (poteaux au nu de l'allée
     // transversale), puis toutes les `travee` places ; une dernière travée courte est absorbée.
     let tw = g.travee.max(1) as f64 * w;
-    let mut axes_u = vec![g.facade + g.pu / 2.0, debut + g.pu / 2.0];
+    let tete = g.facade + d - g.retrait - g.pu / 2.0;
+    let mut axes_u = vec![g.facade + g.pu / 2.0];
+    if g.rives {
+        axes_u.push(tete);
+    }
+    axes_u.push(debut + g.pu / 2.0);
     let mut x = debut + tw;
     while x < fin - tw / 2.0 - 1e-9 {
         axes_u.push(x);
         x += tw;
     }
     axes_u.push(fin - g.pu / 2.0);
+    if g.rives {
+        axes_u.push(lo.longueur - tete);
+    }
     axes_u.push(lo.longueur - g.facade - g.pu / 2.0);
 
     let mut poteaux = Vec::new();
@@ -432,6 +489,8 @@ mod tests {
             pv: 0.6,
             travee: 3,
             rives: true,
+            densite: Densite::Longue,
+            retrait: 0.65,
         }
     }
 
@@ -454,9 +513,10 @@ mod tests {
         assert_eq!(p.places.len(), 84);
         assert_eq!(p.places.iter().filter(|q| q.rive).count(), 24);
         assert_eq!(p.axes_v.len(), 3);
-        // Files transversales : 2 façades + début + 4 intermédiaires (pas de 7,50 m) + fin.
-        assert_eq!(p.axes_u.len(), 2 + 2 + 4);
-        assert_eq!(p.poteaux.len(), 8 * 3);
+        // Files transversales : 2 façades + 2 têtes de rive + début + 4 intermédiaires (pas de
+        // 7,50 m) + fin.
+        assert_eq!(p.axes_u.len(), 2 + 2 + 2 + 4);
+        assert_eq!(p.poteaux.len(), 10 * 3);
     }
 
     #[test]
@@ -487,35 +547,99 @@ mod tests {
     }
 
     #[test]
-    fn poteaux_dans_le_fond_des_places() {
-        // Aucun poteau dans une allée ; tout poteau qui touche une place reste dans son premier mètre
-        // et laisse au moins 2,00 m de largeur (NF P 91-100, fig. 2).
-        let g = gab();
-        for (larg, l) in [(32.4, 60.0), (28.0, 41.3), (49.0, 77.7)] {
-            let p = construire(&g, larg, l).unwrap();
-            for po in &p.poteaux {
-                let (a, b) = (po.c - v2(g.pu / 2.0, g.pv / 2.0), po.c + v2(g.pu / 2.0, g.pv / 2.0));
-                let inter = |q: &[V2; 4]| {
-                    let (qa, qb) = (
-                        v2(q.iter().map(|p| p.x).fold(f64::MAX, f64::min), q.iter().map(|p| p.y).fold(f64::MAX, f64::min)),
-                        v2(q.iter().map(|p| p.x).fold(f64::MIN, f64::max), q.iter().map(|p| p.y).fold(f64::MIN, f64::max)),
-                    );
-                    let (ix, iy) = ((b.x.min(qb.x) - a.x.max(qa.x)), (b.y.min(qb.y) - a.y.max(qa.y)));
-                    (ix > 1e-6 && iy > 1e-6).then_some((ix, iy))
-                };
-                for (q, cle) in &p.allees {
-                    assert!(inter(q).is_none(), "{larg}×{l} : poteau {} dans {cle}", po.cle);
-                }
-                for pl in &p.places {
-                    if let Some((ix, iy)) = inter(&pl.q) {
-                        // Profondeur depuis le fond (q[0]-q[1]) et largeur restante.
+    fn poteaux_conformes() {
+        // Aucun poteau dans une allée. Tout poteau qui touche une place y laisse au moins 2,00 m de
+        // largeur et se trouve soit dans le premier 1,10 m du fond (NF P 91-100, fig. 2), soit en
+        // tête de place, le nu à 0,65 m au moins de l'allée (tab. 3) et le poteau entier dans les
+        // 1,25 m côté allée (Neufert p. 274).
+        for densite in [Densite::Longue, Densite::Moyenne, Densite::Courte] {
+            let g = Gabarit { densite, ..gab() };
+            for (larg, l) in [(32.4, 60.0), (28.0, 41.3), (49.0, 77.7), (12.0, 30.0)] {
+                let p = construire(&g, larg, l).unwrap();
+                for po in &p.poteaux {
+                    let (a, b) = (po.c - v2(g.pu / 2.0, g.pv / 2.0), po.c + v2(g.pu / 2.0, g.pv / 2.0));
+                    let inter = |q: &[V2; 4]| {
+                        let (qa, qb) = (
+                            v2(q.iter().map(|p| p.x).fold(f64::MAX, f64::min), q.iter().map(|p| p.y).fold(f64::MAX, f64::min)),
+                            v2(q.iter().map(|p| p.x).fold(f64::MIN, f64::max), q.iter().map(|p| p.y).fold(f64::MIN, f64::max)),
+                        );
+                        let (ix, iy) = ((b.x.min(qb.x) - a.x.max(qa.x)), (b.y.min(qb.y) - a.y.max(qa.y)));
+                        (ix > 1e-6 && iy > 1e-6).then_some((ix, iy))
+                    };
+                    for (q, cle) in &p.allees {
+                        assert!(inter(q).is_none(), "{densite:?} {larg}×{l} : poteau {} dans {cle}", po.cle);
+                    }
+                    for pl in &p.places {
+                        if inter(&pl.q).is_none() {
+                            continue;
+                        }
+                        let (ix, iy) = inter(&pl.q).unwrap();
+                        // Axe de la place : du fond (q[0]) vers l'avant (q[3]).
                         let fond_u = (pl.q[0].x - pl.q[1].x).abs() < 1e-9;
-                        let (prof, reste) = if fond_u { (ix, g.w - iy) } else { (iy, g.w - ix) };
-                        assert!(prof <= 1.10 + 1e-9 && reste >= 2.0 - 1e-9, "{larg}×{l} : {} dans {}", po.cle, pl.cle);
+                        let (f, av, ca, cb, reste) = if fond_u {
+                            (pl.q[0].x, pl.q[3].x, a.x, b.x, g.w - iy)
+                        } else {
+                            (pl.q[0].y, pl.q[3].y, a.y, b.y, g.w - ix)
+                        };
+                        let s = (av - f).signum();
+                        let (x, y) = ((ca - f) * s, (cb - f) * s);
+                        // Faces du poteau comptées depuis le fond, ramenées à la place.
+                        let (t0, t1) = (x.min(y).max(0.0), x.max(y).min(g.d));
+                        let au_fond = t1 <= 1.10 + 1e-9;
+                        let en_tete = g.d - t1 >= 0.65 - 1e-9 && g.d - t0 <= 1.25 + 1e-9;
+                        assert!(
+                            reste >= 2.0 - 1e-9 && (au_fond || en_tete),
+                            "{densite:?} {larg}×{l} : {} dans {} (faces à {t0:.2} et {t1:.2} du fond)",
+                            po.cle,
+                            pl.cle
+                        );
                     }
                 }
             }
         }
+    }
+
+    #[test]
+    fn densites_a_la_main() {
+        // Plateau 32,40 × 60 m (2 modules), poteaux 0,30 × 0,60, retrait 0,65 : axe d'un poteau en
+        // tête de rangée à 0,65 + 0,30 = 0,95 m de l'allée.
+        // - longue : files 0,50 / 16,20 / 31,90, portées 15,70 ; rives 6 + 6 par façade ;
+        // - moyenne : 0,50 / 12,15 / 20,25 / 31,90 (16,20 ∓ 4,05), portées 11,65 / 8,10 / 11,65 ;
+        //   rives 4 + 3 + 4 = 11 par façade ;
+        // - courte : 0,50 / 4,25 / 12,15 / 20,25 / 28,15 / 31,90, portées 3,75 / 7,90 / 8,10 / 7,90 /
+        //   3,75 ; rives 1 + 3 + 3 + 3 + 1 = 11 par façade.
+        // 60 places de modules dans les trois cas ; files transversales : 2 façades + 2 têtes de rive
+        // (0,20 + 5,00 − 0,65 − 0,15 = 4,40 m) + début + 4 intermédiaires + fin = 10.
+        let cas = [
+            (Densite::Longue, vec![0.5, 16.2, 31.9], 84),
+            (Densite::Moyenne, vec![0.5, 12.15, 20.25, 31.9], 82),
+            (Densite::Courte, vec![0.5, 4.25, 12.15, 20.25, 28.15, 31.9], 82),
+        ];
+        for (densite, files, n) in cas {
+            let g = Gabarit { densite, ..gab() };
+            let p = construire(&g, 32.4, 60.0).unwrap();
+            assert_eq!(p.axes_v.len(), files.len(), "{densite:?}");
+            for (a, b) in p.axes_v.iter().zip(&files) {
+                assert!((a - b).abs() < 1e-9, "{densite:?} : file à {a}, attendue à {b}");
+            }
+            assert_eq!(p.places.len(), n, "{densite:?}");
+            assert_eq!(compte(&g, 32.4, 60.0).unwrap().0, n, "{densite:?}");
+            assert_eq!(p.axes_u.len(), 10, "{densite:?}");
+            assert!((p.axes_u[1] - 4.4).abs() < 1e-9 && (p.axes_u[8] - 55.5).abs() < 1e-9);
+            assert_eq!(p.poteaux.len(), 10 * files.len(), "{densite:?}");
+        }
+        // Places de rive en longue : la file centrale tombe sur une séparation de places et les deux
+        // restes de 0,70 m partent contre les façades latérales.
+        let p = construire(&gab(), 32.4, 60.0).unwrap();
+        let mut bords: Vec<f64> = p
+            .places
+            .iter()
+            .filter(|q| q.rive && q.q[0].x < 1.0)
+            .flat_map(|q| [q.q[0].y, q.q[1].y])
+            .collect();
+        bords.sort_by(f64::total_cmp);
+        assert!((bords[0] - 1.2).abs() < 1e-9 && (bords[bords.len() - 1] - 31.2).abs() < 1e-9, "{bords:?}");
+        assert!(bords.iter().any(|y| (y - 16.2).abs() < 1e-9));
     }
 
     #[test]

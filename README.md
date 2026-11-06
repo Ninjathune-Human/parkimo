@@ -118,9 +118,15 @@ Le squelette du fichier (en-tête, tables, calques, types de ligne, blocs) est p
 
 ## Parking en ouvrage (Silo, lot 1)
 
-Menu **Paramètres**, « Type d'étude » : Surface ou **Silo**. Le lot 1 dessine un plateau unique à grande portée dans la zone constructible ; rampes, noyaux (escaliers, ascenseurs) et niveaux multiples viendront aux lots suivants.
+Menu **Paramètres**, « Type d'étude » : Surface ou **Silo**. Le lot 1 dessine un plateau unique dans la zone constructible ; rampes, noyaux (escaliers, ascenseurs) et niveaux multiples viendront aux lots suivants.
 
-- **Module** : place + allée + place (2 × 5,00 + 6,00 = 16,00 m avec les réglages par défaut), places à 90° seulement. Poteaux en façade et en dos à dos, dans le premier 1,10 m du fond de place (NF P 91-100, fig. 2 : largeur au droit de l'obstacle ≥ 2,00 m), une travée toutes les 3 places (réglable). Rangées de pignon et allées transversales si la dalle le permet (« Places le long des pignons »).
+- **Module** : place + allée + place (2 × 5,00 + 6,00 = 16,00 m avec les réglages par défaut), places à 90° seulement, une travée toutes les 3 places (réglable). Rangées de pignon et allées transversales si la dalle le permet (« Places le long des pignons ») : les places de pignon se calent contre les files intérieures, le reste part contre les façades, et une file de poteaux en tête de ces places coupe la portée entre la façade et le début des rangées.
+- **Portée** (densité de la trame en travers des allées, Paramètres) :
+  - **Longue** : poteaux en façade et en dos à dos, dans le premier 1,10 m du fond de place (NF P 91-100, fig. 2 : largeur au droit de l'obstacle ≥ 2,00 m) ; portée d'un module (15,70 à 16,00 m).
+  - **Moyenne** : poteaux en tête des deux rangées de chaque dos à dos (11,65 / 8,10 / 11,65 m pour deux modules).
+  - **Courte** : poteaux en tête de chaque rangée, de part et d'autre de chaque allée (8,10 m au plus) ; plancher-dalle envisageable.
+
+  En tête de place, le nu du poteau est à « Retrait en tête de place » du bord de l'allée : 0,65 m par défaut, minimum sans surlargeur (NF P 91-100, tab. 3), et le poteau reste entier dans les 1,25 m côté allée pour garder libre la zone des portières (Neufert p. 274). Le bilan signale un retrait plus faible ou un poteau qui sort de cette bande, et affiche la portée en travers. Plateau de 32,40 × 60 m : 84 places en portée longue, 82 en moyenne et en courte (une place de pignon de moins par façade).
 - **Emprise** : recherche du plus grand plateau rectangulaire inscrit (trame 0,50 m, orientations des limites et tous les 3°) qui maximise le nombre de places. Un angle imposé dans Modifier est respecté.
 - **Édition de la dalle** : toucher la dalle la sélectionne. Glisser à l'intérieur la déplace ; la pastille ronde la fait tourner (aimantée au degré et aux directions des limites) ; les barrettes au milieu des côtés l'étirent, côté opposé fixe, par modules entiers en travers et par places entières en long. « Tourner les allées » garde l'emprise et passe les allées à 90° ; « Emprise automatique » revient à la recherche. Une dalle dessinée peut sortir des reculs : le bilan le signale.
 - **Trame** : axes repérés 1, 2, 3… et A, B, C… ; dalle, poteaux et axes forment le calque « Structure ». Hauteur d'étage, épaisseur de dalle, sections de poteaux et rive de façade sont des hypothèses d'esquisse à confirmer par le bureau d'études.
@@ -168,7 +174,7 @@ tests/quality.rs  invariants : aucun chevauchement, aucune place hors zone ou sa
                   voies resserrées à la largeur sens unique, repères stables, sens de parcours imposé
 examples/dxf.rs   export d'un scénario en DXF
 examples/ifc.rs   export d'un scénario en IFC (scenarios/silo.json)
-tests/ouvrage.rs  plateaux sans chevauchement ni poteau dans les allées, identifiants stables, export IFC
+tests/ouvrage.rs  plateaux sans chevauchement ni poteau dans les allées (trois densités), identifiants stables, export IFC
 tools/check_ifc.py validation d'un fichier IFC (ifcopenshell)
 web/app.html      interface (canvas, poignées, panneaux, mode carte, couches et calques, export)
 tools/bundle.py   assemble dist/index.html avec le moteur embarqué
