@@ -3,12 +3,13 @@
 //!
 //! Lot 1 : silo à un niveau sur un plateau rectangulaire (modules de 16 m pour des places de 5,00 m
 //! et des allées de 6,00 m), trame de densité longue (poteaux en façade et en dos à dos), moyenne ou
-//! courte (poteaux en tête de place).
+//! courte (poteaux en tête de place), plancher du système constructif retenu (`systemes`).
 
 pub mod bim;
 pub mod ifc;
 pub mod normes;
 pub mod plateau;
+pub mod systemes;
 
 use crate::geom::{signed_area, v2, Quad, V2};
 use crate::layout::KIND_STD;
@@ -16,6 +17,7 @@ use crate::model::{Layout, Metrics, Site, StallOut, P2};
 use crate::region;
 use geo::{BooleanOps, MultiPolygon};
 use plateau::{Densite, Emprise, Gabarit, Plan};
+use systemes::Systeme;
 use serde::{Deserialize, Serialize};
 
 /// Réglages d'un parc en ouvrage. Les dimensions de places et d'allées sont celles des
@@ -36,14 +38,14 @@ pub struct Ouvrage {
     pub densite: Densite,
     /// Poteau en tête de place : du nu du poteau au bord de l'allée, en mètres.
     pub retrait: f64,
+    /// Système constructif : "coule", "prefa" ou "mixte". Il fixe le plancher (épaisseur, retombée).
+    pub systeme: Systeme,
     /// Direction imposée des allées (degrés) ; absente = optimisée.
     pub angle: Option<f64>,
     /// Emprise dessinée à la main ; absente = plus grand plateau de la zone constructible.
     pub emprise: Option<EmpriseIn>,
     /// Hauteur d'étage (plancher à plancher), en mètres.
     pub hauteur_etage: f64,
-    /// Épaisseur de dalle, en mètres.
-    pub dalle: f64,
     /// Altitude NGF du niveau de référence (plancher bas), en mètres.
     pub cote: f64,
     pub nom: String,
@@ -59,10 +61,10 @@ impl Default for Ouvrage {
             rives: true,
             densite: Densite::Longue,
             retrait: 0.65,
+            systeme: Systeme::Coule,
             angle: None,
             emprise: None,
             hauteur_etage: 2.90,
-            dalle: 0.40,
             cote: 0.0,
             nom: "Parc de stationnement".into(),
         }
@@ -127,6 +129,19 @@ pub struct AxeOut {
     pub b: P2,
 }
 
+/// Plancher du système constructif (voir `systemes::Plancher`).
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct PlancherOut {
+    pub code: String,
+    pub court: String,
+    pub libelle: String,
+    pub epaisseur: f64,
+    pub retombee: f64,
+    /// Hauteur d'étage minimale : 2,20 m sous plafond, 2,00 m sous poutre (NF P 91-100, § 3.2).
+    pub hauteur_min: f64,
+    pub source: String,
+}
+
 #[derive(Serialize, Clone, Debug, Default)]
 pub struct OuvrageOut {
     /// Contour de la dalle.
@@ -139,6 +154,10 @@ pub struct OuvrageOut {
     pub demi_module: bool,
     /// Plus grande distance entre deux files de poteaux voisines, en travers des allées.
     pub portee: f64,
+    pub systeme: String,
+    pub plancher: PlancherOut,
+    /// Matériau des poteaux pour les types BIM : "BA" ou "Acier".
+    pub poteau_materiau: String,
     pub axes: Vec<AxeOut>,
     pub poteaux: Vec<[P2; 4]>,
     pub poteaux_cles: Vec<String>,
@@ -154,6 +173,11 @@ pub struct OuvrageOut {
     pub dalle_ep: f64,
     pub cote: f64,
     pub nom: String,
+}
+
+/// Longueur en mètres, deux décimales, virgule.
+fn fr2(x: f64) -> String {
+    format!("{x:.2}").replace('.', ",")
 }
 
 fn r3(x: f64) -> f64 {
@@ -358,6 +382,32 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
     out.metrics.green_area = 0.0;
     out.angle = r3(angle);
     out.row_aisle = p.aisle;
+
+    // Plancher du système constructif : portée en travers, travée le long des allées.
+    let ecart = |a: &[f64]| a.windows(2).map(|p| p[1] - p[0]).fold(0.0, f64::max);
+    let portee = ecart(&plan.axes_v);
+    let pl = systemes::plancher(o.systeme, g.densite, portee, ecart(&plan.axes_u), g.w);
+    out.warnings.extend(pl.alertes.iter().cloned());
+    let h_min = pl.hauteur_min();
+    if o.hauteur_etage < h_min - 1e-9 {
+        out.warnings.push(format!(
+            "Hauteur d'étage de {} m sous le minimum de {} m (NF P 91-100, § 3.2 : 2,20 m sous plafond, 2,00 m sous poutre ; {})",
+            fr2(o.hauteur_etage),
+            fr2(h_min),
+            pl.court
+        ));
+    }
+    let tw = g.travee as f64 * g.w;
+    if o.systeme == Systeme::Prefa && ((tw / systemes::DAP_LARGEUR).round() * systemes::DAP_LARGEUR - tw).abs() > 1e-6 {
+        out.warnings.push(format!(
+            "Travée de {} m : dalles alvéolées de 1,20 m à démoduler au droit des poteaux (places de 2,40 m : travées multiples de 1,20 m)",
+            fr2(tw)
+        ));
+    }
+    if o.systeme == Systeme::Mixte && g.travee > 4 {
+        out.warnings
+            .push("Acier-béton : poteaux tous les 2 à 4 places au plus (ArcelorMittal, AFGC 2017)".into());
+    }
     out.warnings
         .push("Silo, lot 1 : plateau unique, sans rampes ni noyaux ; PMR et IRVE à placer avec les ascenseurs".into());
     out.ouvrage = Some(OuvrageOut {
@@ -367,7 +417,18 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         longueur: r3(long),
         modules: plan.travers.modules,
         demi_module: plan.travers.demi,
-        portee: r3(plan.axes_v.windows(2).map(|p| p[1] - p[0]).fold(0.0, f64::max)),
+        portee: r3(portee),
+        systeme: o.systeme.nom().into(),
+        plancher: PlancherOut {
+            code: pl.code.clone(),
+            court: pl.court.clone(),
+            libelle: pl.libelle.clone(),
+            epaisseur: r3(pl.epaisseur),
+            retombee: r3(pl.retombee),
+            hauteur_min: r3(h_min),
+            source: pl.source.into(),
+        },
+        poteau_materiau: o.systeme.materiau_poteau().into(),
         axes,
         poteaux: plan
             .poteaux
@@ -383,7 +444,7 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         surface: r3(surface),
         m2_place: if n > 0 { r3(surface / n as f64) } else { 0.0 },
         hauteur_etage: o.hauteur_etage,
-        dalle_ep: o.dalle,
+        dalle_ep: r3(pl.epaisseur),
         cote: o.cote,
         nom: o.nom.clone(),
     });

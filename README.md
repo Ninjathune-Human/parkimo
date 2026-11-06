@@ -129,10 +129,19 @@ Menu **Paramètres**, « Type d'étude » : Surface ou **Silo**. Le lot 1 dessin
   En tête de place, le nu du poteau est à « Retrait en tête de place » du bord de l'allée : 0,65 m par défaut, minimum sans surlargeur (NF P 91-100, tab. 3), et le poteau reste entier dans les 1,25 m côté allée pour garder libre la zone des portières (Neufert p. 274). Le bilan signale un retrait plus faible ou un poteau qui sort de cette bande, et affiche la portée en travers. Plateau de 32,40 × 60 m : 84 places en portée longue, 82 en moyenne et en courte (une place de pignon de moins par façade).
 - **Emprise** : recherche du plus grand plateau rectangulaire inscrit (trame 0,50 m, orientations des limites et tous les 3°) qui maximise le nombre de places. Un angle imposé dans Modifier est respecté.
 - **Édition de la dalle** : toucher la dalle la sélectionne. Glisser à l'intérieur la déplace ; la pastille ronde la fait tourner (aimantée au degré et aux directions des limites) ; les barrettes au milieu des côtés l'étirent, côté opposé fixe, par modules entiers en travers et par places entières en long. « Tourner les allées » garde l'emprise et passe les allées à 90° ; « Emprise automatique » revient à la recherche. Une dalle dessinée peut sortir des reculs : le bilan le signale.
-- **Trame** : axes repérés 1, 2, 3… et A, B, C… ; dalle, poteaux et axes forment le calque « Structure ». Hauteur d'étage, épaisseur de dalle, sections de poteaux et rive de façade sont des hypothèses d'esquisse à confirmer par le bureau d'études.
+- **Système constructif** (Paramètres, au-dessus de la portée) : il fixe le plancher, ses produits et sa retombée (`src/ouvrage/systemes.rs`, chaque valeur avec sa source). Choisir un système applique ses valeurs par défaut (poteau, largeur de place).
+
+  | Système | Longue | Moyenne | Courte |
+  |---|---|---|---|
+  | Béton coulé en place | dalle post-contrainte allégée 40 cm, sans retombée (silo République, Reims) | poutres BA en travers h = L/15 et dalle pleine e = L/30 (BAEL 91) | plancher-dalle, 22 à 35 cm pour 8 à 12 m (interpolé) |
+  | Préfabriqué béton | dalles alvéolées 1,20 m + compression 5 cm sur poutres précontraintes à retombée ≤ 15 cm : plus petite dalle NERVA (Rector) dont la portée courante (portée maximale / 1,4, rapport des FDES) couvre la portée ; places de 2,40 m (2 dalles) | idem | idem |
+  | Mixte acier-béton | dalle mixte 14 cm sur bac collaborant, solives IPE 400 tous les 2,50 m (ArcelorMittal, AFGC 2017), poteaux HEA 180 (parking CHL, Luxembourg) | non prévu | non prévu |
+
+  Hauteur d'étage minimale : 2,20 m sous plafond et 2,00 m sous poutre (NF P 91-100, § 3.2), plus l'épaisseur et la retombée du plancher ; le bilan l'affiche et signale une hauteur d'étage plus faible. Avertissements : travée qui n'est pas un multiple de 1,20 m en préfabriqué (dalles à démoduler), portée hors gamme ou au-delà de la portée courante, acier-béton hors portée longue ou à plus de 4 places entre poteaux. Les portées sont des entraxes de files (valeur sûre).
+- **Trame** : axes repérés 1, 2, 3… et A, B, C… ; dalle, poteaux et axes forment le calque « Structure ». Hauteur d'étage, plancher, sections de poteaux et rive de façade sont des hypothèses d'esquisse à confirmer par le bureau d'études et le fabricant.
 - **Normes** (`src/ouvrage/normes.rs`) : valeurs NF P 91-100, Neufert, PS (arrêté du 25 juin 1980), accessibilité, chacune avec sa source ; longueurs de rampe et flèches de raccordement calculées.
 - **DXF** : calques `STR_DALLE`, `STR_POTEAUX`, `STR_AXES`, `STR_REPERES`.
-- **Maquette IFC** (menu Exporter, « Télécharger la maquette IFC ») : IFC4 (ISO 16739-1:2018), écrite par le moteur Rust. Structure spatiale Projet / Site / Bâtiment / Niveau ; `IfcSlab` (dalle et toiture), `IfcColumn`, `IfcSpace` PARKING pour chaque place et chaque allée (`Pset_SpaceParking`), `IfcGrid` de la trame ; types partagés (`PKM_Poteau_BA_30x60`…) et propriétés `PKM_Stationnement`. Identifiants stables d'un export à l'autre (dérivés du repère de chaque élément). Géoréférencement `IfcMapConversion` en Lambert-93 ou CC quand le site est sur fond de carte. Contrôle : `python3 tools/check_ifc.py fichier.ifc` (ifcopenshell, règles EXPRESS). Import Revit non encore vérifié.
+- **Maquette IFC** (menu Exporter, « Télécharger la maquette IFC ») : IFC4 (ISO 16739-1:2018), écrite par le moteur Rust. Structure spatiale Projet / Site / Bâtiment / Niveau ; `IfcSlab` (dalle et toiture), `IfcColumn`, `IfcSpace` PARKING pour chaque place et chaque allée (`Pset_SpaceParking`), `IfcGrid` de la trame ; types partagés nommés par produit (`PKM_Plancher_DAP_NSC27+5`, `PKM_Poteau_Acier_17x18`, `PKM_Poteau_BA_30x60`…) et propriétés `PKM_Stationnement`. Identifiants stables d'un export à l'autre (dérivés du repère de chaque élément). Géoréférencement `IfcMapConversion` en Lambert-93 ou CC quand le site est sur fond de carte. Contrôle : `python3 tools/check_ifc.py fichier.ifc` (ifcopenshell, règles EXPRESS). Import Revit non encore vérifié.
 
 ## Valeurs par défaut
 
@@ -165,7 +174,7 @@ src/planted.rs    espaces plantés, arrondis en bordure de chaussée
 src/occupation.rs occupation du sol : voirie, bâti, végétation
 src/proj.rs       projections Lambert-93 et CC (RGF93, GRS80)
 src/dxf.rs        export DXF AutoCAD 2010 géoréférencé
-src/ouvrage/      parking en ouvrage : normes sourcées, plateau à grande portée, modèle BIM, écriture IFC4
+src/ouvrage/      parking en ouvrage : normes sourcées, plateau et densité de trame, systèmes constructifs, modèle BIM, écriture IFC4
 src/dxf_template.dxf squelette AutoCAD (calques, types de ligne, blocs d'habillage)
 src/symbols.json  symboles d'habillage (véhicules, arbres) et flèche au sol, partagés par l'interface et l'export
 src/lib.rs        orchestration, union de parcelles, interface WebAssembly (JSON en entrée, JSON en sortie)

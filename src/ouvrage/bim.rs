@@ -168,8 +168,8 @@ pub fn modele(lay: &Layout, graine: &str, largeur_place: f64, longueur_place: f6
         types.push(TypeBim { classe, predefini, nom });
         types.len() - 1
     };
-    let t_dalle = ty("IfcSlab", "FLOOR", format!("PKM_Dalle_BA_{}", cm(o.dalle_ep)));
-    let t_toit = ty("IfcSlab", "ROOF", format!("PKM_Toiture_BA_{}", cm(o.dalle_ep)));
+    let t_dalle = ty("IfcSlab", "FLOOR", format!("PKM_Plancher_{}", o.plancher.code));
+    let t_toit = ty("IfcSlab", "ROOF", format!("PKM_Toiture_{}", o.plancher.code));
     let t_place = ty(
         "IfcSpace",
         "PARKING",
@@ -184,7 +184,7 @@ pub fn modele(lay: &Layout, graine: &str, largeur_place: f64, longueur_place: f6
         t_poteaux.push(ty(
             "IfcColumn",
             "COLUMN",
-            format!("PKM_Poteau_BA_{}x{}", cm(l1.min(l2)), cm(l1.max(l2))),
+            format!("PKM_Poteau_{}_{}x{}", o.poteau_materiau, cm(l1.min(l2)), cm(l1.max(l2))),
         ));
     }
     let types_final = types;

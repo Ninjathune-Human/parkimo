@@ -6,6 +6,7 @@
 use trame::geom::{v2, Quad, QuadHash, Region};
 use trame::model::Site;
 use trame::ouvrage::plateau::Densite;
+use trame::ouvrage::systemes::Systeme;
 use trame::ouvrage::{bim, ifc, EmpriseIn, Ouvrage};
 use trame::region;
 
@@ -165,4 +166,45 @@ fn export_ifc() {
     s2.ouvrage = None;
     let o2 = ifc::export(&ifc::IfcIn { site: s2, georef: None, crs: "LOCAL".into(), date: String::new(), projet: String::new() });
     assert!(o2.erreur.is_some());
+}
+
+#[test]
+fn systemes_constructifs() {
+    // Chaque système porte un plancher ; épaisseur reprise par la dalle ; hauteur d'étage contrôlée
+    // (NF P 91-100, § 3.2) ; module des dalles alvéolées contrôlé en préfabriqué.
+    let avertit = |lay: &trame::model::Layout, mot: &str| lay.warnings.iter().any(|w| w.contains(mot));
+    for (systeme, densites) in [
+        (Systeme::Coule, vec![Densite::Longue, Densite::Moyenne, Densite::Courte]),
+        (Systeme::Prefa, vec![Densite::Longue, Densite::Moyenne, Densite::Courte]),
+        (Systeme::Mixte, vec![Densite::Longue]),
+    ] {
+        for densite in densites {
+            let mut s = site("rect");
+            let o = s.ouvrage.as_mut().unwrap();
+            (o.systeme, o.densite) = (systeme, densite);
+            if systeme == Systeme::Prefa {
+                s.params.stall_w = 2.4;
+            }
+            let lay = trame::solve(&s);
+            let ov = lay.ouvrage.as_ref().expect("plateau");
+            assert!(ov.plancher.epaisseur > 0.0 && (ov.dalle_ep - ov.plancher.epaisseur).abs() < 1e-9);
+            assert!(ov.plancher.hauteur_min > 2.2 && ov.plancher.hauteur_min < 2.9, "{systeme:?} {densite:?}");
+            assert!(!avertit(&lay, "Hauteur d'étage"), "{systeme:?} {densite:?} : {:?}", lay.warnings);
+            assert!(!avertit(&lay, "démoduler"), "{systeme:?} {densite:?} : {:?}", lay.warnings);
+            let m = bim::modele(&lay, "projet", s.params.stall_w, 5.0, 6.0).unwrap();
+            assert!(m.types.iter().any(|t| t.nom == format!("PKM_Plancher_{}", ov.plancher.code)));
+            eprintln!("{systeme:?} {densite:?} : {} ; étage ≥ {:.2} m ; {} places", ov.plancher.libelle, ov.plancher.hauteur_min, lay.stalls.len());
+            // Étage trop bas : signalé.
+            s.ouvrage.as_mut().unwrap().hauteur_etage = 2.3;
+            assert!(avertit(&trame::solve(&s), "Hauteur d'étage"));
+        }
+    }
+    // Préfabriqué avec des places de 2,50 m : 3 × 2,50 = 7,50 m, pas un multiple de 1,20 m.
+    let mut s = site("rect");
+    s.ouvrage.as_mut().unwrap().systeme = Systeme::Prefa;
+    assert!(avertit(&trame::solve(&s), "démoduler"));
+    // Acier-béton en portée courte : signalé.
+    let o = s.ouvrage.as_mut().unwrap();
+    (o.systeme, o.densite) = (Systeme::Mixte, Densite::Courte);
+    assert!(avertit(&trame::solve(&s), "portée longue seulement"));
 }
