@@ -188,10 +188,12 @@ fn dans(anneau: &[V2], p: V2) -> bool {
     })
 }
 
-/// Seuil d'une cage : 0,50 m devant le milieu de l'avant de la place, dans l'allée.
-fn seuil(q: &[V2; 4]) -> V2 {
+/// Seuil d'une cage : porte de 0,90 m au milieu de l'avant de la place, et la bande de 1,00 m
+/// devant elle dans l'allée (milieu et bouts).
+fn seuil(q: &[V2; 4]) -> [V2; 3] {
     let (m, f) = ((q[2] + q[3]) * 0.5, (q[0] + q[1]) * 0.5);
-    m + (m - f).norm() * 0.5
+    let (n, t) = ((m - f).norm(), (q[2] - q[3]).norm());
+    [m + n, m + n + t * 0.45, m + n - t * 0.45]
 }
 
 fn bornes(q: &[V2; 4]) -> (V2, V2) {
@@ -321,7 +323,7 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool) -> Evacuati
     // Candidates : places présentes à tous les niveaux dont la porte ne débouche pas dans l'épure
     // d'une rampe, une par point du réseau (en façade de préférence, deux places dos à dos ayant
     // la même porte).
-    let libre = |pl: &PlaceLoc| !plan.girations.iter().any(|gi| dans(&gi.contour, seuil(&pl.q)));
+    let libre = |pl: &PlaceLoc| !seuil(&pl.q).iter().any(|&p| plan.girations.iter().any(|gi| dans(&gi.contour, p)));
     let mut cands: Vec<(usize, Cible, bool)> = Vec::new();
     for (i, pl) in plan.places.iter().enumerate() {
         if !libre(pl) {

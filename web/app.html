@@ -125,8 +125,8 @@ body {
 #stats-body { padding: 0 16px 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 30px; border-top: .5px solid var(--sep); font-size: 14px; }
 .row:first-child { border-top: 0; }
-.row .k { color: var(--label-2); display: flex; align-items: center; gap: 7px; flex: none; }
-.row .v { font-variant-numeric: tabular-nums; font-weight: 500; text-align: right; min-width: 0; }
+.row .k { color: var(--label-2); display: flex; align-items: center; gap: 7px; flex: 0 100 auto; min-width: min-content; }
+.row .v { font-variant-numeric: tabular-nums; font-weight: 500; text-align: right; flex: 0 1 auto; min-width: 0; }
 .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
 .chip { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 99px; margin-left: 6px; white-space: nowrap; display: inline-block; }
 .chip.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
