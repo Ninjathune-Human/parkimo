@@ -1153,14 +1153,43 @@ function drawRampes(rs) {
     const B = a[n - 1], P = a[n - 2], L = Math.hypot(B[0] - P[0], B[1] - P[1]) || 1, ux = (B[0] - P[0]) / L, uy = (B[1] - P[1]) / L;
     ctx.beginPath(); ctx.moveTo(B[0] - ux * 7 - uy * 4, B[1] - uy * 7 + ux * 4); ctx.lineTo(B[0], B[1]); ctx.lineTo(B[0] - ux * 7 + uy * 4, B[1] - uy * 7 - ux * 4); ctx.stroke();
     if (view.s > 2.5) {
-      const k = Math.floor((n - 1) / 2), M = [(a[k][0] + a[k + 1][0]) / 2, (a[k][1] + a[k + 1][1]) / 2];
-      let t = Math.atan2(a[k + 1][1] - a[k][1], a[k + 1][0] - a[k][0]); if (t > Math.PI / 2 || t < -Math.PI / 2) t += Math.PI;
-      ctx.save(); ctx.translate(M[0], M[1]); ctx.rotate(t);
+      ctx.save();
       ctx.font = `600 11px ${font}`; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.fillStyle = C.stripe;
       const nom = { u: "Demi-rampe", virage: "Demi-tour", plateau: "Pente" }[r.forme] || (r.montee ? "Montée" : "Descente");
-      ctx.fillText(r.forme === "virage" ? nom : `${nom} ${(r.pente * 100).toFixed(r.forme === "droite" ? 0 : 1).replace(".", ",")} %`, 0, -4); ctx.restore();
+      const txt = r.forme === "virage" ? nom : `${nom} ${(r.pente * 100).toFixed(r.forme === "droite" ? 0 : 1).replace(".", ",")} %`;
+      if (r.forme === "helice") arcText(txt, a, toS(r.de), font);
+      else {
+        const k = Math.floor((n - 1) / 2), M = [(a[k][0] + a[k + 1][0]) / 2, (a[k][1] + a[k + 1][1]) / 2];
+        let t = Math.atan2(a[k + 1][1] - a[k][1], a[k + 1][0] - a[k][0]); if (t > Math.PI / 2 || t < -Math.PI / 2) t += Math.PI;
+        ctx.translate(M[0], M[1]); ctx.rotate(t); ctx.fillText(txt, 0, -4);
+      }
+      ctx.restore();
     }
   }
+}
+
+// Libellé d'une tour hélicoïdale : texte courbe le long de l'axe de sa voie (cercle passant par
+// trois points de l'axe a, repère écran), centré sur le point opposé à la porte D, dans l'axe du
+// parking, juste au-delà de l'axe, à la taille de la tour jusqu'à 11 px. Lettres tête vers
+// l'extérieur, ou vers l'intérieur quand elles seraient à l'envers ; texte vertical lu de bas en
+// haut.
+function arcText(txt, a, D, font) {
+  const [A, B, E] = [a[0], a[Math.floor(a.length / 3)], a[Math.floor((2 * a.length) / 3)]];
+  const d = 2 * (A[0] * (B[1] - E[1]) + B[0] * (E[1] - A[1]) + E[0] * (A[1] - B[1]));
+  if (Math.abs(d) < 1e-9) return;
+  const q = (P) => P[0] * P[0] + P[1] * P[1];
+  const C = [(q(A) * (B[1] - E[1]) + q(B) * (E[1] - A[1]) + q(E) * (A[1] - B[1])) / d, (q(A) * (E[0] - B[0]) + q(B) * (A[0] - E[0]) + q(E) * (B[0] - A[0])) / d];
+  const phi = Math.atan2(C[1] - D[1], C[0] - D[0]), t = phi + Math.PI / 2;
+  const fs = Math.min(11, 2 * view.s), s = Math.cos(t) > 0.01 || (Math.cos(t) > -0.01 && Math.sin(t) < 0) ? 1 : -1;
+  const rb = Math.hypot(A[0] - C[0], A[1] - C[1]) + 3 + fs / 2;
+  ctx.font = `600 ${fs}px ${font}`; ctx.textBaseline = "middle";
+  const ws = [...txt].map((ch) => ctx.measureText(ch).width);
+  let ang = phi - (s * ws.reduce((x, y) => x + y, 0)) / (2 * rb);
+  [...txt].forEach((ch, i) => {
+    const m = ang + (s * ws[i]) / (2 * rb);
+    ctx.save(); ctx.translate(C[0] + rb * Math.cos(m), C[1] + rb * Math.sin(m)); ctx.rotate(m + (s * Math.PI) / 2); ctx.fillText(ch, 0, 0); ctx.restore();
+    ang += (s * ws[i]) / rb;
+  });
 }
 
 // Épures de giration des rampes (NF P 91-100, § 3.3) : bande balayée, trajectoire en tirets
