@@ -44,7 +44,7 @@ Les plateaux sont eux-mêmes la rampe ; on se gare le long de la pente, sans per
 - Chambéry, parking Ravet (Hérault Arnod) : 499 places ; on monte depuis la rue sur des rampes en légère pente qui servent de plateaux autour d'un patio planté, on redescend par une spirale cylindrique de l'autre côté ; boucle à sens unique, flux montant et descendant sans croisement.
 - Spiral car park : 16 m de large et 57 m de long au moins, on monte et on descend sur les mêmes rampes.
 
-### 2.5 Rampes hélicoïdales (non implanté)
+### 2.5 Rampes hélicoïdales (implanté)
 
 Hélice simple à double sens, ou double hélice : une pour monter, une pour descendre, imbriquées ou concentriques. Accès direct à chaque niveau, plateaux libres, mais emprise et coût élevés (Neufert). Conditions : voie courbe à sens unique de 4,00 m, rayon extérieur d'au moins 8,50 m, pente de 18 % au plus mesurée dans l'axe (NF P 91-100 § 3.3 et 3.4) ; Neufert : dévers de plus de 3 %, bord intérieur à plus de 5 m, une voie de 4,00 m entre R 5,00 et R 9,00 (5,50 m avec mur et bordure), deux voies 8,60 m.
 
@@ -53,6 +53,8 @@ Hélice simple à double sens, ou double hélice : une pour monter, une pour des
 - Lyon, garage Atlas : hélice à double révolution de 12 %, montée de 6 m imbriquée avec la descente, noyau d'ascenseurs et d'escalier au centre.
 - Lyon, parking des Célestins (Targe, Wilmotte, Buren) : 439 places sur 6,5 niveaux, rampe hélicoïdale autour d'un puits central.
 - Gif-sur-Yvette, silo du campus Paris-Saclay (GaP Architectes, Un1on) : 317 places sur 5 niveaux, plateaux horizontaux, rampe circulaire à l'angle nord-est.
+
+Dans Parkimo : deux tours hélicoïdales à sens unique sur plateaux horizontaux, montée à un bout et descente à l'autre (le principe de Bron, une voie par sens, mais dans deux tours), au gabarit Neufert de la rampe courbe à une voie. Analyse Parkimo, pour des plateaux horizontaux : dans une hélice à double sens, l'un des sens coupe l'autre à chaque porte ; avec deux hélices concentriques, il faut traverser la voie extérieure pour atteindre l'intérieure ; deux hélices imbriquées (Chambord) font alterner les portes d'un côté à l'autre de la tour d'un niveau au suivant. Deux tours séparées gardent une porte au même endroit à chaque niveau, dans le sens de la circulation.
 
 ### 2.6 Rampes centrales de distribution (non implanté)
 
@@ -66,14 +68,15 @@ Rampes au cœur du plateau qui séparent les flux montants et descendants, noyau
 - **Conditions (calculé, allées de 6,00 m, voie de rampe de 3,25 m, rampe de 18,36 m pour 2,90 m d'étage à 18 %) :**
   - en rangée : bouche à 8,50 − 6,00 = 2,50 m du début des rangées ; allée d'approche dont la trajectoire passe à 13,00 m au moins de l'axe de la voie (deux quarts de tour de 6,50 m), donc une seconde allée ; sortie en S de 8,46 m jusqu'à 1,50 m dans l'allée ; rangées d'au moins 2,50 + 18,36 + 8,46 = 29,32 m ;
   - en pignon : 18,36 + 2 × 6,50 = 31,36 m entre les trajectoires des allées d'entrée et de sortie, soit 32,00 m pour trois modules (34,00 m en serrant les trajectoires à 2,00 m des bords) ; deux modules n'offrent que 18,00 m ;
+  - hélice : un tour par niveau, si bien que la porte de chaque niveau est au même endroit ; on y entre et on en sort dans le sens de la voie, tangente à la voie ouest de l'allée transversale (circulation à droite, voie au quart de l'allée). Tour contre la file de façade : 0,30 + 9,50 + 9,00 − 1,50 − 1,50 + 6,00 = 21,80 m de bande d'extrémité, places de pignon contre l'allée transversale. La voie de l'allée passe sur la tour sur √(9,50² − 6,00²) = 7,37 m de part et d'autre de la tangence (la porte) ; avant la porte, un quart de tour depuis l'allée la plus haute, après, un quart de tour vers la plus basse : 2 × (6,50 + 7,37) = 27,73 m entre leurs trajectoires, soit trois modules (34,00 m) ; deux n'en offrent que 18,00. Pente dans l'axe de la voie (R 7,00) : 2,90 / (2π × 7,00) = 6,6 %. Les tours se superposent d'un niveau à l'autre, à une hauteur d'étage d'écart ;
   - en demi-niveaux : courbe à double sens de la NF (voie intérieure de 3,50 m au rayon extérieur 8,50 m, voie extérieure de 3,00 m jusqu'à 11,50 m) ; trajectoires au milieu des voies, rayons 6,75 et 10,00. Les voies intérieures des deux allées (à 1,50 m de leur bord côté dos à dos) doivent être à 2 × 6,75 = 13,50 m : 10,00 m de places dos à dos et 3,00 m de demi-voies n'en font que 13,00, d'où un joint de 0,50 m entre les demi-plateaux. Zone d'extrémité de 0,30 + 11,50 = 11,80 m (file de façade et demi-rampe), sans places de pignon. La voie extérieure, plus large en courbe, s'écarte de 0,25 m de son axe en ligne droite dans la zone d'extrémité. Pente mesurée dans l'axe de la voie intérieure : 1,45 / (π × 6,75) = 6,8 % pour 2,90 m d'étage. Les demi-rampes se superposent d'un niveau à l'autre, à une hauteur d'étage d'écart.
 - **Pourquoi les rampes en pignon du lot 2 ne passaient pas.** Elles commençaient et finissaient aux angles de façade : il fallait un demi-tour dans 9,25 m (allée de 6,00 m et voie de 3,25 m), quand l'épure NF en demande 2 × 8,50 = 17,00 m.
-- **Choix automatique.** Parkimo construit les trois implantations et garde celle qui laisse le plus de places par niveau courant. Sur 32,40 × 60 m : en rangée seulement (60 places par niveau courant, 64 au rez et au dernier ; les demi-niveaux demandent 32,90 m). Sur 48,40 × 60 m : 102 en rangée contre 98 en pignon. Sur 33 × 100 m : 124 en rangée contre 120 en demi-niveaux. La recherche de dalle fait passer les emprises où les rampes tiennent avant les autres.
+- **Choix automatique.** Parkimo construit les quatre implantations et garde celle qui laisse le plus de places par niveau courant. Sur 32,40 × 60 m : en rangée seulement (60 places par niveau courant, 64 au rez et au dernier ; les demi-niveaux demandent 32,90 m). Sur 48,40 × 60 m : 102 en rangée contre 98 en pignon. Sur 33 × 100 m : 124 en rangée contre 120 en demi-niveaux. Sur 48,40 × 80 m : 96 places par niveau courant avec les tours hélicoïdales (100 au rez et au dernier). La recherche de dalle fait passer les emprises où les rampes tiennent avant les autres.
 
 ## 4. Pistes
 
-1. Hélice : tour de rampe adossée, plateaux libres et réversibles.
-2. Plateaux inclinés.
+1. Plateaux inclinés.
+2. Tour hélicoïdale adossée hors de la dalle, plateaux libres et réversibles ; bande arrière des tours pour les noyaux (escaliers, ascenseurs).
 3. Sortie rapide : descente courte au centre ou rampe de retour ; demi-niveaux à plus de deux demi-plateaux.
 4. Accès depuis la voirie : palier à 5 % au plus sur 4,00 m (NF P 91-100 § 3.4), giration d'entrée sur le site.
 

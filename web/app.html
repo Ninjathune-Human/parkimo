@@ -490,14 +490,14 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
         <div class="field"><label for="p-silo_niveaux">Niveaux</label><span class="unit"><input id="p-silo_niveaux" type="text" inputmode="numeric" autocomplete="off">niv.</span></div>
         <div class="field"><label for="p-silo_etage">Hauteur d'étage</label><span class="unit"><input id="p-silo_etage" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_pente">Pente des rampes</label><span class="unit"><input id="p-silo_pente" type="text" inputmode="decimal" autocomplete="off">%</span></div>
-        <div class="field pile" id="ra-field"><label id="ra-lab">Rampes</label><span class="seg" role="group" aria-labelledby="ra-lab" id="ra-seg"><button data-ra="auto" aria-pressed="true">Auto</button><button data-ra="rangee" aria-pressed="false">En rangée</button><button data-ra="pignon" aria-pressed="false">En pignon</button><button data-ra="demi" aria-pressed="false">Demi-niveaux</button></span></div>
+        <div class="field pile" id="ra-field"><label id="ra-lab">Rampes</label><span class="seg" role="group" aria-labelledby="ra-lab" id="ra-seg"><button data-ra="auto" aria-pressed="true">Auto</button><button data-ra="rangee" aria-pressed="false">Rangée</button><button data-ra="pignon" aria-pressed="false">Pignon</button><button data-ra="demi" aria-pressed="false">Demi-niveaux</button><button data-ra="helice" aria-pressed="false">Hélice</button></span></div>
         <div class="field"><label for="p-silo_pu">Poteau le long des allées</label><span class="unit"><input id="p-silo_pu" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_pv">Poteau en travers</label><span class="unit"><input id="p-silo_pv" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_retrait">Retrait en tête de place</label><span class="unit"><input id="p-silo_retrait" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_travee">Places entre poteaux, au plus</label><span class="unit"><input id="p-silo_travee" type="text" inputmode="decimal" autocomplete="off">pl</span></div>
         <div class="field"><label for="p-silo_facade">Rive de façade</label><span class="unit"><input id="p-silo_facade" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_rives">Places le long des pignons</label><input id="p-silo_rives" type="checkbox" class="switch" role="switch"></div>
-        <p class="note">Le système fixe le plancher : béton coulé (dalle post-contrainte, poutres et dalle, plancher-dalle), préfabriqué (dalles alvéolées de 1,20 m sur poutres précontraintes, places de 2,40 m), acier-béton (solives IPE et dalle mixte, portée longue). Portée longue : poteaux en façade et en dos à dos ; moyenne : en tête des rangées dos à dos ; courte : en tête de chaque rangée, le nu à 0,65 m au moins de l'allée (NF P 91-100, tab. 3). Au-delà d'un niveau, rampes droites à sens unique, montée à un bout, descente à l'autre : en rangée, le long des allées dans les rangées de façade (deux modules au moins) ; en pignon, en travers des allées (trois modules au moins) ; demi-niveaux, deux demi-plateaux d'un module décalés d'un demi-étage et reliés à chaque bout par une demi-rampe en U à double sens (voie intérieure de 3,50 m pour monter, extérieure de 3,00 m pour descendre, allées à double sens) ; Auto garde celle qui laisse le plus de places. Épures de giration vérifiées à l'entrée et à la sortie (voie de 4,00 m en courbe, rayon extérieur 8,50 m ; pente de 18 % au plus, raccords R 10 et R 15, NF P 91-100 ; voie de rampe de 3,25 m, Neufert). Hypothèses d'esquisse à confirmer par le bureau d'études et le fabricant.</p>
+        <p class="note">Le système fixe le plancher : béton coulé (dalle post-contrainte, poutres et dalle, plancher-dalle), préfabriqué (dalles alvéolées de 1,20 m sur poutres précontraintes, places de 2,40 m), acier-béton (solives IPE et dalle mixte, portée longue). Portée longue : poteaux en façade et en dos à dos ; moyenne : en tête des rangées dos à dos ; courte : en tête de chaque rangée, le nu à 0,65 m au moins de l'allée (NF P 91-100, tab. 3). Au-delà d'un niveau, rampes droites à sens unique, montée à un bout, descente à l'autre : en rangée, le long des allées dans les rangées de façade (deux modules au moins) ; en pignon, en travers des allées (trois modules au moins) ; demi-niveaux, deux demi-plateaux d'un module décalés d'un demi-étage et reliés à chaque bout par une demi-rampe en U à double sens (voie intérieure de 3,50 m pour monter, extérieure de 3,00 m pour descendre, allées à double sens) ; hélice, deux tours hélicoïdales à sens unique (montée à un bout, descente à l'autre, un tour par niveau, voie de 4,00 m entre 5,00 et 9,00 m du centre, Neufert), la porte de chaque niveau sur l'allée transversale (trois modules au moins) ; Auto garde celle qui laisse le plus de places. Épures de giration vérifiées à l'entrée et à la sortie (voie de 4,00 m en courbe, rayon extérieur 8,50 m ; pente de 18 % au plus, raccords R 10 et R 15, NF P 91-100 ; voie de rampe de 3,25 m, Neufert). Hypothèses d'esquisse à confirmer par le bureau d'études et le fabricant.</p>
       </div>
     </div>
     <div class="pgroup">
@@ -1124,7 +1124,7 @@ function draw() {
 function drawRampes(rs) {
   if (!rs.length) return;
   const font = getComputedStyle(document.body).fontFamily;
-  ctx.fillStyle = C.asphalt; ctx.beginPath(); for (const r of rs) pathPoly(r.contour); ctx.fill();
+  ctx.fillStyle = C.asphalt; ctx.beginPath(); for (const r of rs) { pathPoly(r.contour); pathPoly(r.trou || []); } ctx.fill("evenodd");
   ctx.strokeStyle = C.stripe; ctx.lineWidth = 1; ctx.stroke();
   for (const r of rs) {
     const a = r.axe.map(toS), n = a.length;
@@ -1936,7 +1936,7 @@ window.addEventListener("keydown", (ev) => {
 const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "pmr_ratio", "irve_ratio", "irve_equip_ratio", "silo_niveaux", "silo_etage", "silo_pente", "silo_pu", "silo_pv", "silo_retrait", "silo_travee", "silo_facade"];
 // Densité de la trame du silo : libellés du bilan et du tableur.
 const DENSITE = { longue: "Longue", moyenne: "Moyenne", courte: "Courte" };
-const IMPLANTATION = { rangee: "En rangée", pignon: "En pignon", demi: "Demi-niveaux" };
+const IMPLANTATION = { rangee: "En rangée", pignon: "En pignon", demi: "Demi-niveaux", helice: "Hélice" };
 // Systèmes constructifs du silo : libellé, poteau par défaut [le long des allées, en travers], largeur de place,
 // places au plus entre poteaux (acier-béton : solives sur les poteaux, 5,00 m au plus).
 const SYSTEMES = {
@@ -3048,7 +3048,12 @@ function buildXls() {
     if (ov.niveaux > 1) {
       row("Niveaux", ov.niveaux, ov.demi_niveaux ? `niveaux (${2 * ov.niveaux} demi-niveaux)` : "niveaux"); row("Places au rez", ov.places_rdc, "places"); if (ov.niveaux > 2) row("Places par niveau courant", ov.places_niveau, "places"); row("Places au dernier niveau", ov.places_dernier, "places");
       row("Implantation des rampes", ov.rampes.length ? IMPLANTATION[ov.implantation] : "aucune");
-      for (const r of ov.rampes) row(r.double_sens ? "Demi-rampe en U à double sens" : r.montee ? "Rampe de montée" : "Rampe de descente", r.double_sens ? `${(r.pente * 100).toFixed(1).replace(".", ",")} %, ${r.longueur.toFixed(2).replace(".", ",")} m dans l'axe de la voie intérieure, un demi-étage` : `${Math.round(r.pente * 100)} %, ${r.longueur.toFixed(2).replace(".", ",")} m (raccords R 10 et R 15 compris)`);
+      const pc = (r) => `${(r.pente * 100).toFixed(1).replace(".", ",")} %`, m2 = (x) => x.toFixed(2).replace(".", ",");
+      for (const r of ov.rampes) {
+        if (r.forme === "u") row("Demi-rampe en U à double sens", `${pc(r)}, ${m2(r.longueur)} m dans l'axe de la voie intérieure, un demi-étage`);
+        else if (r.forme === "helice") row(r.montee ? "Tour hélicoïdale de montée" : "Tour hélicoïdale de descente", `${pc(r)}, ${m2(r.longueur)} m par tour dans l'axe de la voie, un tour par niveau`);
+        else row(r.montee ? "Rampe de montée" : "Rampe de descente", `${Math.round(r.pente * 100)} %, ${m2(r.longueur)} m (raccords R 10 et R 15 compris)`);
+      }
       for (const g of ov.girations) row(`Giration : ${g.libelle.toLowerCase()}`, g.conflits.length ? `gênée par ${g.conflits.join(", ")}` : "conforme (voie de 4,00 m, rayon extérieur 8,50 m, NF P 91-100 § 3.3)");
     }
     row("Système constructif (silo)", SYSTEMES[params.silo_systeme].nom); row("Portée de la trame (silo)", DENSITE[params.silo_densite]); row("Portée en travers", layout.ouvrage.portee, "m", "N2");

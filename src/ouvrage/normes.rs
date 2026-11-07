@@ -121,6 +121,12 @@ pub mod neufert {
     pub const RAMPE_SENS_UNIQUE: Val = val(3.25, "m", "Neufert p. 274-276 (2,75 + 2 × 0,25)");
     pub const RAMPE_DOUBLE_SENS: Val = val(6.50, "m", "Neufert p. 274-276");
     pub const PLANCHER_INCLINE_MAX: Val = val(0.06, "", "Neufert p. 274-276");
+    /// Rampe courbe à une voie, rayons minimaux depuis le centre : mur plein intérieur, voie de
+    /// 4,00 m (bords intérieur et extérieur), bordure de 0,50 m.
+    pub const HELICE_MUR: Val = val(4.00, "m", "Neufert p. 274-276 (rampe courbe une voie)");
+    pub const HELICE_VOIE_INT: Val = val(5.00, "m", "Neufert p. 274-276 (rampe courbe une voie)");
+    pub const HELICE_VOIE_EXT: Val = val(9.00, "m", "Neufert p. 274-276 (rampe courbe une voie)");
+    pub const HELICE_BORDURE: Val = val(9.50, "m", "Neufert p. 274-276 (rampe courbe une voie)");
     pub const HAUTEUR_SOUS_STRUCTURE: Val = val(2.50, "m", "Neufert p. 274-276 (2,20 + 0,25 + 0,05)");
     pub const CHARGE_PLATEAU: Val = val(3.5, "kN/m²", "Neufert p. 274-276 (à remplacer par NF EN 1991-1-1)");
     pub const CHARGE_RAMPE: Val = val(5.0, "kN/m²", "Neufert p. 274-276 (à remplacer par NF EN 1991-1-1)");

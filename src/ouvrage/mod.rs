@@ -156,6 +156,10 @@ pub struct RampeOut {
     pub a: P2,
     pub montee: bool,
     pub double_sens: bool,
+    /// "droite", "u" (demi-rampe des demi-niveaux) ou "helice".
+    pub forme: String,
+    /// Vide intérieur (noyau d'une tour hélicoïdale).
+    pub trou: Vec<P2>,
     pub pente: f64,
     pub longueur: f64,
     pub cle: String,
@@ -399,7 +403,11 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
     let niv = o.niveaux.max(1) as usize;
     // Pente d'une rampe : celle des réglages pour les rampes droites ; un demi-étage sur l'axe de
     // la voie intérieure pour une demi-rampe en U.
-    let pente = |r: &plateau::RampeLoc| if r.double_sens { o.hauteur_etage / 2.0 / r.longueur } else { o.pente() };
+    let pente = |r: &plateau::RampeLoc| match r.forme {
+        plateau::Forme::Droite => o.pente(),
+        plateau::Forme::DemiU => o.hauteur_etage / 2.0 / r.longueur,
+        plateau::Forme::Helice => o.hauteur_etage / r.longueur,
+    };
     let rives = |v: &[plateau::PlaceLoc]| v.iter().filter(|pl| pl.rive).count();
     let n_niv = out.stalls.len();
     let (n_rdc, n_dernier) = (n_niv + plan.places_rdc.len(), n_niv + plan.places_dernier.len());
@@ -512,12 +520,12 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
                 gi.conflits.join(", ")
             ));
         }
-        if o.pente_rampe > nf::PENTE_RAMPE_MAX.v + 1e-9 && !plan.rampes.iter().any(|r| r.double_sens) {
+        if o.pente_rampe > nf::PENTE_RAMPE_MAX.v + 1e-9 && plan.rampes.iter().any(|r| r.forme == plateau::Forme::Droite) {
             out.warnings.push("Pente des rampes ramenée à 18 % (NF P 91-100, § 3.4)".into());
         }
-        if let Some(r) = plan.rampes.iter().find(|r| r.double_sens && pente(r) > nf::PENTE_RAMPE_MAX.v + 1e-9) {
+        if let Some(r) = plan.rampes.iter().find(|r| r.forme != plateau::Forme::Droite && pente(r) > nf::PENTE_RAMPE_MAX.v + 1e-9) {
             out.warnings.push(format!(
-                "Demi-rampe à {} % dans l'axe de la voie intérieure, plus de 18 % (NF P 91-100, § 3.4)",
+                "Rampe courbe à {} % dans l'axe de la voie (intérieure), plus de 18 % (NF P 91-100, § 3.4)",
                 (pente(r) * 100.0).round()
             ));
         }
@@ -595,6 +603,8 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
                     a: p2(w(a)),
                     montee: r.montee,
                     double_sens: r.double_sens,
+                    forme: r.forme.nom().into(),
+                    trou: r.trou.iter().map(|&q| p2(w(q))).collect(),
                     pente: r3(pente(r)),
                     longueur: r3(r.longueur),
                     cle: r.cle.clone(),

@@ -657,6 +657,9 @@ pub fn export(inp: &ExportIn) -> ExportOut {
     if let Some(o) = &lay.ouvrage {
         for r in &o.rampes {
             w.ring("PRJ_RAMPES", &r.contour);
+            if !r.trou.is_empty() {
+                w.ring("PRJ_RAMPES", &r.trou);
+            }
             let pts = w.map(&r.axe);
             w.lwpoly("PRJ_RAMPES", &pts, false);
             let n = pts.len();

@@ -12,7 +12,7 @@
 //!   1,25 m côté allée pour garder libre la zone des portières (Neufert p. 274).
 
 use super::giration::{self, Trace, Troncon};
-use super::normes::nf;
+use super::normes::{neufert, nf};
 use super::systemes::Sens;
 use crate::geom::{rotate_rings, strip_intervals, v2, V2};
 use serde::Deserialize;
@@ -47,6 +47,9 @@ pub enum Implantation {
     /// demi-étage, reliés à chaque bout par une demi-rampe en U à double sens.
     #[serde(rename = "demi")]
     DemiNiveaux,
+    /// Tours hélicoïdales à sens unique, montée à un bout, descente à l'autre, un tour par niveau,
+    /// porte sur l'allée transversale.
+    Helice,
 }
 
 impl Implantation {
@@ -56,6 +59,26 @@ impl Implantation {
             Implantation::Rangee => "rangee",
             Implantation::Pignon => "pignon",
             Implantation::DemiNiveaux => "demi",
+            Implantation::Helice => "helice",
+        }
+    }
+}
+
+/// Forme d'une rampe : droite, demi-rampe en U (demi-niveaux), hélice.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Forme {
+    #[default]
+    Droite,
+    DemiU,
+    Helice,
+}
+
+impl Forme {
+    pub fn nom(self) -> &'static str {
+        match self {
+            Forme::Droite => "droite",
+            Forme::DemiU => "u",
+            Forme::Helice => "helice",
         }
     }
 }
@@ -97,6 +120,10 @@ impl Gabarit {
     pub fn demi_niveaux(&self) -> bool {
         self.rampe.is_some() && self.implantation == Implantation::DemiNiveaux
     }
+    /// Tours hélicoïdales retenues (plusieurs niveaux).
+    pub fn helice(&self) -> bool {
+        self.rampe.is_some() && self.implantation == Implantation::Helice
+    }
     /// Joint entre les deux demi-plateaux, en demi-niveaux : de quoi loger la voie intérieure de la
     /// demi-rampe en U (trajectoires des voies intérieures des deux allées à 2 × 6,75 m l'une de
     /// l'autre). 0,50 m pour des places de 5,00 m et des allées de 6,00 m.
@@ -118,6 +145,13 @@ impl Gabarit {
         if self.demi_niveaux() {
             let ((_, _), (re, he)) = giration::double_sens();
             return self.pu + re + he;
+        }
+        if self.helice() {
+            // Tour contre la file de façade, voie de la tour alignée sur la voie ouest de l'allée
+            // transversale (au quart de l'allée), puis l'allée transversale : 0,30 + 9,50 + 9,00 −
+            // 1,50 − 1,50 + 6,00 = 21,80 m pour des allées de 6,00 m.
+            let ve = neufert::HELICE_VOIE_EXT.v;
+            return self.pu + neufert::HELICE_BORDURE.v + ve - giration::demi_droite() - self.allee / 4.0 + self.allee;
         }
         if self.rives || (self.rampe.is_some() && self.implantation == Implantation::Pignon) {
             self.d + self.allee
@@ -284,7 +318,7 @@ type Evaluation = Option<(bool, usize, Travers, Long)>;
 /// rampes demandées ne tiennent pas passe après tous ceux où elles tiennent. Avec des rampes, le
 /// plateau ne dépend que des modules et des places par rangée (des deux implantations) : un même
 /// découpage n'est construit qu'une fois.
-type Cle = (u32, bool, [u32; 3], bool);
+type Cle = (u32, bool, [u32; 4], bool);
 
 fn evalue(g: &Gabarit, larg: f64, l: f64, memo: &mut std::collections::HashMap<Cle, Evaluation>) -> Evaluation {
     if g.rampe.is_none() {
@@ -294,7 +328,12 @@ fn evalue(g: &Gabarit, larg: f64, l: f64, memo: &mut std::collections::HashMap<C
     let gi = |i: Implantation| Gabarit { implantation: i, ..*g };
     let n = |i: Implantation| long(&gi(i), l).map_or(0, |lo| lo.par_rangee);
     let demi = travers(&gi(Implantation::DemiNiveaux), larg).is_some();
-    let cle = (t.modules, t.demi, [n(Implantation::Rangee), n(Implantation::Pignon), n(Implantation::DemiNiveaux)], demi);
+    let cle = (
+        t.modules,
+        t.demi,
+        [n(Implantation::Rangee), n(Implantation::Pignon), n(Implantation::DemiNiveaux), n(Implantation::Helice)],
+        demi,
+    );
     *memo
         .entry(cle)
         .or_insert_with(|| construire(g, larg, l).map(|p| (!p.rampes.is_empty(), p.places.len(), p.travers, p.long)))
@@ -323,6 +362,9 @@ pub struct RampeLoc {
     /// Demi-rampe en U à double sens (demi-niveaux) : montée par la voie intérieure, descente par
     /// la voie extérieure, sur un demi-étage.
     pub double_sens: bool,
+    pub forme: Forme,
+    /// Vide intérieur du contour (noyau d'une tour hélicoïdale).
+    pub trou: Vec<V2>,
     pub cle: String,
 }
 
@@ -430,6 +472,7 @@ fn chevauche(a: &[V2; 4], b: &[V2; 4]) -> bool {
 /// plateau tourné d'un demi-tour.
 struct Cadre {
     facade: f64,
+    largeur: f64,
     /// Allée transversale : u de `x0` à `x1` (début des rangées) ; bande de pignon avant `x0`.
     x0: f64,
     x1: f64,
@@ -460,8 +503,8 @@ fn cadres(g: &Gabarit, t: &Travers, lo: &Long) -> [Cadre; 2] {
     let mut rangees2: Vec<(f64, f64, bool)> = rangees.iter().map(|&(v0, v1, h)| (w - v1, w - v0, !h)).collect();
     rangees2.sort_by(|p, q| p.0.total_cmp(&q.0));
     [
-        Cadre { facade: f, x0: lo.debut - a, x1: lo.debut, fin, allees, rangees },
-        Cadre { facade: f, x0: l - fin - a, x1: l - fin, fin: l - lo.debut, allees: allees2, rangees: rangees2 },
+        Cadre { facade: f, largeur: w, x0: lo.debut - a, x1: lo.debut, fin, allees, rangees },
+        Cadre { facade: f, largeur: w, x0: l - fin - a, x1: l - fin, fin: l - lo.debut, allees: allees2, rangees: rangees2 },
     ]
 }
 
@@ -469,8 +512,16 @@ fn cadres(g: &Gabarit, t: &Travers, lo: &Long) -> [Cadre; 2] {
 /// sort), trajectoires d'entrée et de sortie, zone gardée libre de poteaux.
 struct Esquisse {
     q: [V2; 4],
+    /// Contour et vide intérieur ; axe dessiné dans le sens de parcours (vides : rectangle et
+    /// segment bouche → bout).
+    contour: Vec<V2>,
+    trou: Vec<V2>,
+    axe: Vec<V2>,
     bouche: V2,
     bout: V2,
+    /// Longueur de l'axe par niveau et forme ; une rampe droite garde la longueur des réglages.
+    longueur: Option<f64>,
+    forme: Forme,
     entree: Vec<Troncon>,
     sortie: Vec<Troncon>,
     zone: [V2; 4],
@@ -535,8 +586,13 @@ fn en_rangee(c: &Cadre, g: &Gabarit, lr: f64) -> Result<Esquisse, String> {
     let sortie = Trace::depuis(v2(haut, vl), 0.0).tourne(phi).tourne(-phi).droit(AMORCE).troncons;
     Ok(Esquisse {
         q: rect(um, r1 - wr, haut, r1),
+        contour: Vec::new(),
+        trou: Vec::new(),
+        axe: Vec::new(),
         bouche: v2(um, vl),
         bout: v2(haut, vl),
+        longueur: None,
+        forme: Forme::Droite,
         entree,
         sortie,
         zone: rect(c.x1, r1 - wr, haut + s, r1),
@@ -576,11 +632,92 @@ fn en_pignon(c: &Cadre, g: &Gabarit, lr: f64) -> Result<Esquisse, String> {
         .troncons;
     Ok(Esquisse {
         q: rect(c.x0 - wr, vm - lr, c.x0, vm),
+        contour: Vec::new(),
+        trou: Vec::new(),
+        axe: Vec::new(),
         bouche: v2(ul, vm),
         bout: v2(ul, vm - lr),
+        longueur: None,
+        forme: Forme::Droite,
         entree,
         sortie,
         zone: rect(c.x0 - wr, vb - mg, c.x0, va + mg),
+    })
+}
+
+fn cercle(c: V2, r: f64) -> Vec<V2> {
+    (0..96).map(|i| c + v2((i as f64 * PI / 48.0).cos(), (i as f64 * PI / 48.0).sin()) * r).collect()
+}
+
+/// Tour hélicoïdale à sens unique au premier bout, un tour par niveau, tournant dans le sens des
+/// aiguilles d'une montre vue de dessus (Neufert, rampe courbe une voie : mur intérieur R 4,00,
+/// voie de 4,00 m entre R 5,00 et R 9,00, bordure à R 9,50). La tour est dans la bande de pignon,
+/// contre la file de façade ; sa voie est tangente, à l'est, à la voie ouest de l'allée
+/// transversale (descendante en v, circulation à droite) : la porte de chaque niveau. On y arrive
+/// depuis l'allée la plus haute (quart de tour), on la quitte vers la plus basse (quart de tour) ;
+/// entre ces deux trajectoires, deux rayons de giration et la longueur de la porte de part et
+/// d'autre de la tangence (là où la voie de l'allée passe sur la tour).
+fn en_helice(c: &Cadre, g: &Gabarit) -> Result<Esquisse, String> {
+    let pre = "Hélice";
+    let (r, mg, hs) = (giration::rayon(), giration::marge(), giration::demi_droite());
+    let (r_int, r_ext, r_tour) = (neufert::HELICE_VOIE_INT.v, neufert::HELICE_VOIE_EXT.v, neufert::HELICE_BORDURE.v);
+    let (ra, ha) = ((r_int + r_ext) / 2.0, (r_ext - r_int) / 2.0);
+    let xl = c.x0 + g.allee / 4.0;
+    let uc = xl + hs - r_ext;
+    if uc - r_tour < c.facade - 1e-9 {
+        return Err(format!("{pre} : bande de pignon trop courte pour la tour"));
+    }
+    let porte = (r_tour * r_tour - (xl - hs - uc).powi(2)).max(0.0).sqrt();
+    let (Some(ha_), Some(ba_)) = (c.allees.last(), c.allees.first()) else {
+        return Err(format!("{pre} : pas d'allée"));
+    };
+    let (va, vb) = (ha_.1 - mg, ba_.0 + mg);
+    let besoin = 2.0 * (r + porte);
+    if va - vb < besoin - 1e-9 {
+        return Err(format!(
+            "{pre} : {} m nécessaires d'une allée à l'autre (deux girations de {} m et la porte de la tour, {} m de part et d'autre), {} m disponibles",
+            super::fr2(besoin),
+            super::fr2(r),
+            super::fr2(porte),
+            super::fr2((va - vb).max(0.0))
+        ));
+    }
+    let vc = ((va + vb) / 2.0).clamp(c.facade + r_tour, (c.largeur - c.facade - r_tour).max(c.facade + r_tour));
+    if vc + porte + r > va + 1e-9 || vc - porte - r < vb - 1e-9 {
+        return Err(format!("{pre} : la tour ne tient pas entre les façades latérales"));
+    }
+    let centre = v2(uc, vc);
+    let entree = Trace::depuis(v2(xl + r + AMORCE, va), PI)
+        .droit(AMORCE)
+        .tourne(FRAC_PI_2)
+        .droit(va - r - vc)
+        .saute(v2(uc + ra, vc))
+        .gabarit(ra, ha, hs)
+        .tourne(-FRAC_PI_2)
+        .troncons;
+    let sortie = Trace::depuis(v2(uc, vc + ra), 0.0)
+        .gabarit(ra, ha, hs)
+        .tourne(-FRAC_PI_2)
+        .saute(v2(xl, vc))
+        .gabarit(r, mg, hs)
+        .droit(vc - (vb + r))
+        .tourne(FRAC_PI_2)
+        .droit(AMORCE)
+        .troncons;
+    let axe = Trace::depuis(v2(uc + ra, vc), 1.5 * PI).gabarit(ra, ha, hs).tourne(-11.0 * PI / 6.0).troncons;
+    let q = rect(uc - r_tour, vc - r_tour, uc + r_tour, vc + r_tour);
+    Ok(Esquisse {
+        q,
+        contour: cercle(centre, r_tour),
+        trou: cercle(centre, neufert::HELICE_MUR.v),
+        axe: giration::axe(&axe),
+        bouche: v2(uc + ra, vc),
+        bout: v2(uc + ra, vc),
+        longueur: Some(2.0 * PI * ra),
+        forme: Forme::Helice,
+        entree,
+        sortie,
+        zone: q,
     })
 }
 
@@ -633,6 +770,8 @@ fn demi_rampe(g: &Gabarit, lo: &Long) -> (RampeLoc, Vec<Troncon>, Vec<Troncon>) 
         longueur: PI * ri + s,
         montee: true,
         double_sens: true,
+        forme: Forme::DemiU,
+        trou: Vec::new(),
         cle: String::new(),
     };
     (r, montee, descente)
@@ -643,7 +782,7 @@ fn demi_rampe(g: &Gabarit, lo: &Long) -> (RampeLoc, Vec<Troncon>, Vec<Troncon>) 
 pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     if g.rampe.is_some() && g.implantation == Implantation::Auto {
         let (mut best, mut refus): (Option<Plan>, Vec<String>) = (None, Vec::new());
-        for implantation in [Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux] {
+        for implantation in [Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice] {
             let Some(p) = construire(&Gabarit { implantation, ..*g }, larg, l) else { continue };
             refus.extend(p.refus.iter().cloned());
             let cle = |p: &Plan| (!p.rampes.is_empty(), p.places.len());
@@ -752,10 +891,17 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
             }
         }
     } else if let Some(lr) = g.rampe {
-        let imp = if g.implantation == Implantation::Pignon { Implantation::Pignon } else { Implantation::Rangee };
+        let imp = match g.implantation {
+            Implantation::Pignon | Implantation::Helice => g.implantation,
+            _ => Implantation::Rangee,
+        };
         let essai: Result<Vec<Esquisse>, String> = cadres(g, &t, &lo)
             .iter()
-            .map(|c| if imp == Implantation::Pignon { en_pignon(c, g, lr) } else { en_rangee(c, g, lr) })
+            .map(|c| match imp {
+                Implantation::Pignon => en_pignon(c, g, lr),
+                Implantation::Helice => en_helice(c, g),
+                _ => en_rangee(c, g, lr),
+            })
             .collect();
         match essai {
             Ok(es) => {
@@ -769,13 +915,15 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
                     let q = e.q.map(p);
                     rampes.push(RampeLoc {
                         q,
-                        contour: q.to_vec(),
+                        contour: if e.contour.is_empty() { q.to_vec() } else { e.contour.iter().map(|&x| p(x)).collect() },
                         bas: if montee { bouche } else { bout },
                         haut: if montee { bout } else { bouche },
-                        axe: vec![bouche, bout],
-                        longueur: lr,
+                        axe: if e.axe.is_empty() { vec![bouche, bout] } else { e.axe.iter().map(|&x| p(x)).collect() },
+                        longueur: e.longueur.unwrap_or(lr),
                         montee,
                         double_sens: false,
+                        forme: e.forme,
+                        trou: e.trou.iter().map(|&x| p(x)).collect(),
                         cle: cle.clone(),
                     });
                     for (entree, tr) in [(true, &e.entree), (false, &e.sortie)] {
@@ -797,10 +945,12 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
         }
     }
 
-    // Places de rive : fond contre la façade d'extrémité, entre deux files de poteaux.
+    // Places de rive : fond contre la façade d'extrémité, entre deux files de poteaux ; avec les
+    // tours hélicoïdales, avant contre l'allée transversale.
+    let fond_rive = if g.helice() { debut - g.allee - d } else { g.facade };
     if rives {
         let n_win = axes_v.len() - 1;
-        for (b, (fond, sens)) in [(g.facade, 1.0), (lo.longueur - g.facade, -1.0)].into_iter().enumerate() {
+        for (b, (fond, sens)) in [(fond_rive, 1.0), (lo.longueur - fond_rive, -1.0)].into_iter().enumerate() {
             for (s, pair) in axes_v.windows(2).enumerate() {
                 let k = ((pair[1] - pair[0] + 1e-9) / w).floor() as usize;
                 let v0 = debut_rive(pair[0], pair[1], k, w, s == 0, s + 1 == n_win);
@@ -827,7 +977,8 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     let (mut places_rdc, mut places_dernier) = (Vec::new(), Vec::new());
     let toutes = std::mem::take(&mut places);
     for pl in toutes {
-        if rampes.iter().any(|r| chevauche(&pl.q, &r.q)) {
+        let (lo_, hi_) = giration::bornes(&pl.q);
+        if rampes.iter().any(|r| chevauche(&pl.q, &r.q) && giration::touche(&r.contour, lo_, hi_)) {
             continue;
         }
         let (mut bas, mut haut) = (false, false);
@@ -852,8 +1003,14 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     // façade et le début des rangées), début et fin des rangées (poteaux au nu de l'allée
     // transversale), puis des travées réparties également : `travee` places au plus, des tailles
     // qui diffèrent d'une place au plus, chaque file sur une séparation de places.
-    let tete = g.facade + d - g.retrait - g.pu / 2.0;
+    let tete = fond_rive + d - g.retrait - g.pu / 2.0;
+    // Hélice : une file de plus derrière les places de pignon (ou au bord de l'allée transversale)
+    // pour couper la bande d'extrémité.
+    let arriere = if rives { fond_rive - g.pu / 2.0 } else { debut - g.allee - g.pu / 2.0 };
     let mut axes_u = vec![g.facade + g.pu / 2.0];
+    if g.helice() {
+        axes_u.push(arriere);
+    }
     if rives {
         axes_u.push(tete);
     }
@@ -865,6 +1022,9 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     axes_u.push(fin - g.pu / 2.0);
     if rives {
         axes_u.push(lo.longueur - tete);
+    }
+    if g.helice() {
+        axes_u.push(lo.longueur - arriere);
     }
     axes_u.push(lo.longueur - g.facade - g.pu / 2.0);
 
@@ -1174,11 +1334,13 @@ mod tests {
         // largeur et se trouve soit dans le premier 1,10 m du fond (NF P 91-100, fig. 2), soit en
         // tête de place, le nu à 0,65 m au moins de l'allée (tab. 3) et le poteau entier dans les
         // 1,25 m côté allée (Neufert p. 274).
-        // Aussi en demi-niveaux : poteaux du joint à cheval sur les deux fonds de place.
+        // Aussi en demi-niveaux (poteaux du joint à cheval sur les deux fonds de place) et avec les
+        // tours hélicoïdales (places de pignon contre l'allée transversale).
         for densite in [Densite::Longue, Densite::Moyenne, Densite::Courte] {
             let plat = Gabarit { densite, ..gab() };
             let demi = Gabarit { rampe: Some(18.36), implantation: Implantation::DemiNiveaux, ..plat };
-            for (g, larg, l) in [(plat, 32.4, 60.0), (plat, 28.0, 41.3), (plat, 49.0, 77.7), (plat, 12.0, 30.0), (demi, 33.0, 60.0)] {
+            let helice = Gabarit { implantation: Implantation::Helice, ..demi };
+            for (g, larg, l) in [(plat, 32.4, 60.0), (plat, 28.0, 41.3), (plat, 49.0, 77.7), (plat, 12.0, 30.0), (demi, 33.0, 60.0), (helice, 48.4, 80.0)] {
                 let p = construire(&g, larg, l).unwrap();
                 for po in &p.poteaux {
                     let (a, b) = (po.c - v2(g.pu / 2.0, g.pv / 2.0), po.c + v2(g.pu / 2.0, g.pv / 2.0));
@@ -1281,7 +1443,7 @@ mod tests {
         assert!(p.rampes.is_empty() && p.refus.iter().any(|m| m.contains("29,32 m de rangée")), "{:?}", p.refus);
         // Un module : pas d'autre allée pour aborder la rampe, ni de place en pignon.
         let p = construire(&g, 16.4, 60.0).unwrap();
-        assert!(p.rampes.is_empty() && p.refus.len() == 3, "{:?}", p.refus);
+        assert!(p.rampes.is_empty() && p.refus.len() == 4, "{:?}", p.refus);
     }
 
     #[test]
@@ -1361,6 +1523,58 @@ mod tests {
         // rangée) 4 × 31 + 24 − 2 × 12 = 124 ; la rangée l'emporte.
         let a = construire(&Gabarit { implantation: Implantation::Auto, ..g }, 33.0, 100.0).unwrap();
         assert_eq!((a.implantation, a.places.len()), (Some(Implantation::Rangee), 124));
+    }
+
+    #[test]
+    fn helice_a_la_main() {
+        // 48,40 × 80 m, 3 modules. Bande d'extrémité 0,30 + 9,50 + 9,00 − 1,50 − 1,50 + 6,00 =
+        // 21,80 : rangées de 22,00 à 57,00 (14 places), longueur 79,00. Allée transversale 16,00 →
+        // 22,00, voie ouest au quart (17,50) ; tour centrée en u 17,50 + 1,50 − 9,00 = 10,00, contre
+        // la file de façade (10,00 − 9,50 = 0,50). Porte : la voie de l'allée (bord ouest à 16,00,
+        // à 6,00 du centre) passe sur la tour sur √(9,50² − 6,00²) = 7,37 m de part et d'autre.
+        // Trajectoires des allées extrêmes 43,20 − 2,00 = 41,20 et 5,20 + 2,00 = 7,20 : 34,00 m pour
+        // 2 × (6,50 + 7,37) = 27,73 ; tour centrée en v (41,20 + 7,20) / 2 = 24,20.
+        // Pente dans l'axe (R 7,00) : 2,90 / (2π × 7) = 6,6 %.
+        // Places de pignon, avant contre l'allée transversale (u 11,00 → 16,00), 18 par bout : la
+        // tour en prend 8 (13,70 → 16,20, les 6 du milieu, 32,20 → 34,70) ; le quart de tour
+        // d'entrée (centre (24,00 ; 34,70), bord extérieur à 15,50) touche 34,70 → 39,70 (2, rendues
+        // au dernier niveau), celui de sortie 8,70 → 13,70 (2, rendues au rez). Second bout
+        // symétrique. Niveau courant : 84 + 36 − 2 × (8 + 2 + 2) = 96 ; rez et dernier : 100.
+        // Poteaux : 12 files transversales (façade, arrière des places de pignon 10,85, tête 15,20,
+        // début, 4 intermédiaires, fin, et les symétriques des trois premières) × 4 = 48, moins
+        // 2 × 4 dans les tours (files 10,85 et 15,20, en v 16,20 et 32,20).
+        let lr = crate::ouvrage::normes::longueur_rampe(2.9, 0.18, 10.0, 15.0);
+        let g = Gabarit { rampe: Some(lr), implantation: Implantation::Helice, ..gab() };
+        let p = construire(&g, 48.4, 80.0).unwrap();
+        assert_eq!(p.implantation, Some(Implantation::Helice), "{:?}", p.refus);
+        assert!((p.long.debut - 22.0).abs() < 1e-9 && (p.longueur() - 79.0).abs() < 1e-9);
+        let r = &p.rampes[0];
+        assert_eq!(r.forme, Forme::Helice);
+        assert!((r.longueur - 14.0 * PI).abs() < 1e-9 && (2.9 / r.longueur - 0.0659).abs() < 1e-4);
+        let (lo, hi) = giration::bornes(&r.q);
+        assert!((lo - v2(0.5, 14.7)).len() < 1e-9 && (hi - v2(19.5, 33.7)).len() < 1e-9, "{lo:?} {hi:?}");
+        assert!((r.bas - v2(17.0, 24.2)).len() < 1e-9 && r.trou.len() == 96);
+        assert!((p.rampes[1].bas - v2(79.0 - 17.0, 48.4 - 24.2)).len() < 1e-9);
+        assert_eq!((p.places.len(), p.places_rdc.len(), p.places_dernier.len()), (96, 4, 4));
+        let cles = |v: &[PlaceLoc]| {
+            let mut c: Vec<String> = v.iter().map(|pl| pl.cle.clone()).collect();
+            c.sort();
+            c
+        };
+        // Second bout tourné d'un demi-tour : l'entrée de la descente (rendue au rez) touche
+        // 8,70 → 13,70, sa sortie (rendue au dernier) 34,70 → 39,70.
+        assert_eq!(cles(&p.places_rdc), ["R1/A/4", "R1/A/5", "R2/A/4", "R2/A/5"]);
+        assert_eq!(cles(&p.places_dernier), ["R1/C/2", "R1/C/3", "R2/C/2", "R2/C/3"]);
+        assert_eq!(p.axes_u.len(), 12);
+        assert!((p.axes_u[1] - 10.85).abs() < 1e-9 && (p.axes_u[2] - 15.2).abs() < 1e-9);
+        assert_eq!(p.poteaux.len(), 40);
+        assert!(p.girations.iter().all(|gi| gi.conflits.is_empty()), "{:?}", p.girations.iter().map(|gi| &gi.conflits).collect::<Vec<_>>());
+        // L'entrée descend l'allée transversale de 34,70 à 24,20, puis tourne dans la tour (R 7,00).
+        let e = p.girations.iter().find(|gi| gi.montee && gi.entree).unwrap();
+        assert!((*e.axe.last().unwrap() - v2(10.0, 17.2)).len() < 1e-9, "{:?}", e.axe.last());
+        // Deux modules : 18,00 m pour 27,73.
+        let p = construire(&g, 32.4, 80.0).unwrap();
+        assert!(p.rampes.is_empty() && p.refus[0].contains("27,73 m nécessaires") && p.refus[0].contains("18,00 m disponibles"), "{:?}", p.refus);
     }
 
     #[test]

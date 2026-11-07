@@ -270,7 +270,7 @@ fn implantations_sur_les_scenarios() {
     // Trois niveaux : chaque implantation trouve un plateau où ses deux rampes tiennent, épures
     // dégagées. La recherche fait passer les plateaux sans rampe possible après les autres.
     for nom in ["rect", "triangle", "courbe", "ruisseau"] {
-        for imp in [Implantation::Auto, Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux] {
+        for imp in [Implantation::Auto, Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice] {
             let mut s = site(nom);
             let o = s.ouvrage.as_mut().unwrap();
             o.niveaux = 3;
@@ -282,6 +282,10 @@ fn implantations_sur_les_scenarios() {
                 assert_eq!(ov.implantation, imp.nom(), "{nom}");
             }
             assert!(ov.girations.iter().all(|g| g.conflits.is_empty()), "{nom} {imp:?}");
+            if imp == Implantation::Helice {
+                // Deux tours à un tour par niveau : pente = étage / (2π × 7,00).
+                assert!(ov.rampes.iter().all(|r| r.forme == "helice" && (r.pente - 2.9 / (14.0 * std::f64::consts::PI)).abs() < 1e-3 && r.trou.len() > 8));
+            }
             if imp == Implantation::DemiNiveaux {
                 // Deux demi-rampes en U à double sens, pente dans l'axe de la voie intérieure.
                 assert!(ov.demi_niveaux && ov.rampes.iter().all(|r| r.double_sens && (r.pente - 1.45 / r.longueur).abs() < 1e-3));
