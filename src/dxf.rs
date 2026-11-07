@@ -690,6 +690,32 @@ pub fn export(inp: &ExportIn) -> ExportOut {
             let pts = w.map(&gi.axe);
             w.lwpoly("PRJ_GIRATIONS", &pts, false);
         }
+        // Escaliers et ascenseurs : cage ; escalier à deux volées (échiffre au milieu, marches de
+        // 0,28 m entre deux paliers de 1,00 m) ; ascenseur barré d'une croix ; repère au palier du fond.
+        for n in &o.noyaux {
+            let q = n.q;
+            w.ring("PRJ_NOYAUX", &q);
+            let lerp = |a: P2, b: P2, t: f64| -> P2 { [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t] };
+            let prof = (q[3][0] - q[0][0]).hypot(q[3][1] - q[0][1]).max(1e-9);
+            if n.ascenseur {
+                for d in [[q[0], q[2]], [q[1], q[3]]] {
+                    let pts = w.map(&d);
+                    w.lwpoly("PRJ_NOYAUX", &pts, false);
+                }
+            } else {
+                let (t0, pas) = ((1.0 / prof).min(0.45), 0.28 / prof);
+                let pts = w.map(&[lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t0), lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), 1.0 - t0)]);
+                w.lwpoly("PRJ_NOYAUX", &pts, false);
+                let mut t = t0;
+                while t <= 1.0 - t0 + 1e-9 {
+                    let pts = w.map(&[lerp(q[0], q[3], t), lerp(q[1], q[2], t)]);
+                    w.lwpoly("PRJ_NOYAUX", &pts, false);
+                    t += pas;
+                }
+            }
+            let c = w.map(&[lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), 0.1)]);
+            w.text("PRJ_NOYAUX", c[0].0, c[0].1, 0.4, n.cle.trim_start_matches("NY/"), true);
+        }
     }
     // Signalisation horizontale : flèches de sens de circulation.
     for a in &lay.circulation.arrows {

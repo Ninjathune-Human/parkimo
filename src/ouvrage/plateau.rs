@@ -446,6 +446,8 @@ pub struct Plan {
     /// Implantations impossibles et pourquoi (quand aucune rampe n'a pu être placée).
     pub refus: Vec<String>,
     pub poteaux: Vec<PoteauLoc>,
+    /// Escaliers et ascenseur (voir `noyaux::placer`, appelé après la construction).
+    pub noyaux: Vec<super::noyaux::Noyau>,
     /// Files transversales (positions u), numérotées 1, 2, 3…
     pub axes_u: Vec<f64>,
     /// Files longitudinales (positions v), lettrées A, B, C…
@@ -1141,6 +1143,7 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
         girations,
         refus,
         poteaux,
+        noyaux: Vec::new(),
         axes_u,
         axes_v,
     })

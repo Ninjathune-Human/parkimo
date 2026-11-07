@@ -322,3 +322,44 @@ fn implantations_sur_les_scenarios() {
     assert!(lay.ouvrage.as_ref().unwrap().rampes.is_empty());
     assert!(lay.warnings.iter().any(|w| w.starts_with("Rampes le long des allées")), "{:?}", lay.warnings);
 }
+
+#[test]
+fn escaliers_et_ascenseur() {
+    // Trois niveaux : escaliers et ascenseur dans des emprises de places, hors des rampes et des
+    // autres places (un poteau de façade peut entrer dans le mur d'une cage) ; toutes les places à
+    // portée d'un escalier (PS 13). Un seul niveau : aucun noyau.
+    for nom in ["rect", "triangle", "courbe", "ruisseau"] {
+        for imp in [Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines] {
+            for pslv in [false, true] {
+                let mut s = site(nom);
+                let o = s.ouvrage.as_mut().unwrap();
+                o.niveaux = 3;
+                o.implantation = imp;
+                o.largement_ventile = pslv;
+                let lay = trame::solve(&s);
+                let ov = lay.ouvrage.as_ref().unwrap();
+                let cas = format!("{nom} {imp:?} PSLV {pslv}");
+                let ev = ov.evacuation.as_ref().expect("bilan d'évacuation");
+                assert_eq!(ev.limite_deux, if pslv { 50.0 } else { 40.0 });
+                assert_eq!(ev.hors, 0, "{cas} : {:?}", lay.warnings);
+                assert!(!lay.warnings.iter().any(|w| w.starts_with("PS 13")), "{cas}");
+                assert!(ev.escaliers >= 2 && ev.ascenseurs == 1, "{cas}");
+                assert_eq!(ov.noyaux.len(), ev.escaliers + ev.ascenseurs);
+                let obstacles: Vec<Quad> = ov
+                    .rampes
+                    .iter()
+                    .filter(|r| r.forme != "plateau")
+                    .map(|r| quad(&r.q))
+                    .chain(lay.stalls.iter().map(|st| quad(&st.q)))
+                    .collect();
+                for n in &ov.noyaux {
+                    let q = quad(&n.q).shrink(0.01);
+                    assert!(!obstacles.iter().any(|o| o.overlaps(&q)), "{cas} : {} gêné", n.cle);
+                }
+            }
+        }
+    }
+    let lay = trame::solve(&site("rect"));
+    let ov = lay.ouvrage.as_ref().unwrap();
+    assert!(ov.noyaux.is_empty() && ov.evacuation.is_none());
+}

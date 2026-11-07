@@ -8,6 +8,7 @@
 pub mod bim;
 pub mod giration;
 pub mod ifc;
+pub mod noyaux;
 pub mod normes;
 pub mod plateau;
 pub mod systemes;
@@ -17,7 +18,7 @@ use crate::layout::KIND_STD;
 use crate::model::{Layout, Metrics, Site, StallOut, P2};
 use crate::region;
 use geo::{BooleanOps, MultiPolygon};
-use normes::{neufert, nf};
+use normes::{neufert, nf, ps};
 use plateau::{Densite, Emprise, Gabarit, Implantation, Plan};
 use systemes::Systeme;
 use serde::{Deserialize, Serialize};
@@ -54,6 +55,8 @@ pub struct Ouvrage {
     pub implantation: Implantation,
     /// Pente des rampes (fraction) : 18 % au plus (NF P 91-100, § 3.4).
     pub pente_rampe: f64,
+    /// Parc largement ventilé (PS 3) : distances aux escaliers de 50 et 30 m au lieu de 40 et 25.
+    pub largement_ventile: bool,
     /// Altitude NGF du niveau de référence (plancher bas), en mètres.
     pub cote: f64,
     pub nom: String,
@@ -76,6 +79,7 @@ impl Default for Ouvrage {
             niveaux: 1,
             implantation: Implantation::Auto,
             pente_rampe: 0.18,
+            largement_ventile: true,
             cote: 0.0,
             nom: "Parc de stationnement".into(),
         }
@@ -176,6 +180,27 @@ pub struct GirationOut {
     pub conflits: Vec<String>,
 }
 
+/// Escalier ou ascenseur : emprise, porte sur l'axe de l'allée.
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct NoyauOut {
+    pub q: [P2; 4],
+    pub porte: P2,
+    pub ascenseur: bool,
+    pub cle: String,
+}
+
+/// Bilan d'évacuation (PS 13) : distances admises, plus grande distance, places au-delà.
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct EvacuationOut {
+    pub largement_ventile: bool,
+    pub limite_deux: f64,
+    pub limite_un: f64,
+    pub distance_max: f64,
+    pub hors: usize,
+    pub escaliers: usize,
+    pub ascenseurs: usize,
+}
+
 /// File de poteaux (axe de trame), prolongée de 3 m au-delà de la dalle.
 #[derive(Serialize, Clone, Debug, Default)]
 pub struct AxeOut {
@@ -249,6 +274,9 @@ pub struct OuvrageOut {
     /// Rampes droites : emprise de la voie, axe dans le sens de parcours (de → à), pente, longueur.
     pub rampes: Vec<RampeOut>,
     pub girations: Vec<GirationOut>,
+    /// Escaliers et ascenseur (plusieurs niveaux), et le bilan d'évacuation.
+    pub noyaux: Vec<NoyauOut>,
+    pub evacuation: Option<EvacuationOut>,
     pub surface: f64,
     pub m2_place: f64,
     pub hauteur_etage: f64,
@@ -358,11 +386,13 @@ pub fn solve(site: &Site, o: &Ouvrage) -> Layout {
         e
     };
     let e = repere_usuel(e);
-    let Some(plan) = plateau::construire(&g, e.largeur, e.longueur) else {
+    let Some(mut plan) = plateau::construire(&g, e.largeur, e.longueur) else {
         out.warnings.push("Emprise trop petite pour une rangée de places et son allée".into());
         return out;
     };
-    remplir(&mut out, site, o, &g, &e, &plan);
+    // Escaliers et ascenseur au-delà d'un niveau (PS 13).
+    let evac = (o.niveaux > 1).then(|| noyaux::placer(&mut plan, &g, o.largement_ventile));
+    remplir(&mut out, site, o, &g, &e, &plan, evac.as_ref());
     out
 }
 
@@ -386,7 +416,7 @@ fn repere_usuel(e: Emprise) -> Emprise {
     }
 }
 
-fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise, plan: &Plan) {
+fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise, plan: &Plan, evac: Option<&noyaux::Evacuation>) {
     let p = &site.params;
     let w = |q: V2| e.monde(q);
     let quad = |q: &[V2; 4]| [p2(w(q[0])), p2(w(q[1])), p2(w(q[2])), p2(w(q[3]))];
@@ -556,8 +586,21 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
             ));
         }
     }
+    if let Some(ev) = evac {
+        if ev.hors > 0 {
+            out.warnings.push(format!(
+                "PS 13 : {} places au-delà de {} m d'un escalier ({} m hors de deux escaliers opposés), mesurés dans l'axe des circulations",
+                ev.hors,
+                fr2(ev.limites.0),
+                fr2(ev.limites.1)
+            ));
+        }
+        if o.largement_ventile && larg >= ps::PSLV_DISTANCE_FACADES.v && long >= ps::PSLV_DISTANCE_FACADES.v {
+            out.warnings.push("PS 3 : façades opposées à 75 m ou plus, le parc n'est pas largement ventilé".into());
+        }
+    }
     out.warnings.push(if niv > 1 {
-        "Silo : escaliers et ascenseurs à venir ; PMR et IRVE à placer avec les ascenseurs".into()
+        "Silo : cages d'escalier et d'ascenseur dans l'emprise d'une place, à dimensionner ; PMR et IRVE à placer près de l'ascenseur".into()
     } else {
         "Silo, lot 1 : plateau unique, sans rampes ni noyaux ; PMR et IRVE à placer avec les ascenseurs".into()
     });
@@ -639,6 +682,20 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
                 conflits: gi.conflits.clone(),
             })
             .collect(),
+        noyaux: plan
+            .noyaux
+            .iter()
+            .map(|n| NoyauOut { q: quad(&n.q), porte: p2(w(n.porte)), ascenseur: n.ascenseur, cle: n.cle.clone() })
+            .collect(),
+        evacuation: evac.map(|ev| EvacuationOut {
+            largement_ventile: o.largement_ventile,
+            limite_deux: ev.limites.0,
+            limite_un: ev.limites.1,
+            distance_max: r3(ev.distance_max),
+            hors: ev.hors,
+            escaliers: plan.noyaux.iter().filter(|n| !n.ascenseur).count(),
+            ascenseurs: plan.noyaux.iter().filter(|n| n.ascenseur).count(),
+        }),
         surface: r3(surface),
         m2_place: if n > 0 { r3(surface * niv as f64 / n as f64) } else { 0.0 },
         hauteur_etage: o.hauteur_etage,

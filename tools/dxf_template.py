@@ -35,6 +35,7 @@ LAYERS = [
     ("PRJ_SIGNALISATION", 7, "Continuous", 13, "Projet : signalisation horizontale (sens de circulation)"),
     ("PRJ_RAMPES", 7, "Continuous", 25, "Projet : rampes entre niveaux (voie, sens de parcours, pente)"),
     ("PRJ_GIRATIONS", 5, "Continuous", 13, "Projet : epures de giration des rampes (NF P 91-100, 3.3)"),
+    ("PRJ_NOYAUX", 7, "Continuous", 25, "Projet : escaliers et ascenseurs (PS 13)"),
     ("STR_DALLE", 7, "Continuous", 35, "Structure : contour de dalle (parc en ouvrage)"),
     ("STR_POTEAUX", 7, "Continuous", 35, "Structure : poteaux"),
     ("STR_POUTRES", 7, "DASHED", 18, "Structure : poutres et solives (sous la dalle)"),
