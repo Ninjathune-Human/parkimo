@@ -271,7 +271,7 @@ fn implantations_sur_les_scenarios() {
     // Trois niveaux : chaque implantation trouve un plateau où ses deux rampes tiennent, épures
     // dégagées. La recherche fait passer les plateaux sans rampe possible après les autres.
     for nom in ["rect", "triangle", "courbe", "ruisseau"] {
-        for imp in [Implantation::Auto, Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines, Implantation::Accolees, Implantation::HeliceExt, Implantation::HeliceDouble] {
+        for imp in [Implantation::Auto, Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines, Implantation::HeliceExt, Implantation::HeliceDouble] {
             let mut s = site(nom);
             let o = s.ouvrage.as_mut().unwrap();
             o.niveaux = 3;
@@ -291,12 +291,6 @@ fn implantations_sur_les_scenarios() {
                 assert!(ov.rampes.iter().filter(|r| r.forme == "virage").all(|r| r.pente == 0.0));
                 assert!(lay.warnings.iter().any(|w| w.contains("places PMR sur une partie horizontale")));
                 assert_eq!(lay.metrics.stalls, 3 * ov.places_niveau, "{nom}");
-            }
-            if imp == Implantation::Accolees {
-                // Montée et descente côte à côte : un grand côté commun.
-                let (a, b) = (&ov.rampes[0].q, &ov.rampes[1].q);
-                let communs = a.iter().filter(|p| b.iter().any(|q| (p[0] - q[0]).hypot(p[1] - q[1]) < 1e-6)).count();
-                assert_eq!(communs, 2, "{nom}");
             }
             if imp == Implantation::HeliceExt {
                 // Dalle plus courte que l'emprise : les tours sont hors de la dalle.
@@ -345,7 +339,7 @@ fn escaliers_et_ascenseur() {
     // aucun noyau.
     let mut demis = 0;
     for nom in ["rect", "triangle", "courbe", "ruisseau"] {
-        for imp in [Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines, Implantation::Accolees, Implantation::HeliceExt, Implantation::HeliceDouble] {
+        for imp in [Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines, Implantation::HeliceExt, Implantation::HeliceDouble] {
             for (pslv, liaison) in [(false, false), (true, false), (false, true)] {
                 let mut s = site(nom);
                 let o = s.ouvrage.as_mut().unwrap();

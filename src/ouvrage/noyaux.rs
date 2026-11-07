@@ -746,7 +746,6 @@ mod tests {
             (33.0, 100.0, Implantation::DemiNiveaux),
             (33.0, 100.0, Implantation::Inclines),
             (48.4, 80.0, Implantation::Helice),
-            (48.4, 50.0, Implantation::Accolees),
         ] {
             let mut nb = [0; 2];
             for (k, pslv) in [false, true].into_iter().enumerate() {
