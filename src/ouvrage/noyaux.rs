@@ -501,8 +501,17 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool, demi: Ascen
             let autre = |i: usize| !retirees.contains(&i) && libre(&plan.places[i]) && moitie(i).is_some() && moitie(i) != ma;
             let pres = |i: usize, j: usize| (centre(&plan.places[i].q) - ca).len().total_cmp(&(centre(&plan.places[j].q) - ca).len());
             if en_demi && demi == AscenseursDemi::Deux {
-                // Second ascenseur, sur l'autre demi-plateau, au plus près du premier.
-                if let Some(b) = (0..plan.places.len()).filter(|&i| autre(i)).min_by(|&i, &j| pres(i, j)) {
+                // Second ascenseur, sur l'autre demi-plateau : à côté d'un escalier de ce côté, sinon
+                // au plus près du premier.
+                let contre = |c: usize, i: usize| {
+                    let qc = plan.places[cands[c].0].q;
+                    plan.places[i].q.iter().filter(|a| qc.iter().any(|b| (**a - *b).len() < 1e-6)).count() == 2 && moitie(i) == Some(cands[c].1.pos.seg)
+                };
+                let pres_escalier = set
+                    .iter()
+                    .filter(|&&c| Some(cands[c].1.pos.seg) != ma)
+                    .find_map(|&c| (0..plan.places.len()).find(|&i| autre(i) && contre(c, i)));
+                if let Some(b) = pres_escalier.or_else(|| (0..plan.places.len()).filter(|&i| autre(i)).min_by(|&i, &j| pres(i, j))) {
                     let porte = devant(&r, plan, &plan.places[b], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
                     noyaux.push(Noyau { q: plan.places[b].q, porte, ascenseur: true, liaison: false, cle: "NY/A2".into() });
                     retirees.push(b);
@@ -667,6 +676,11 @@ mod tests {
         let asc: Vec<&Noyau> = p.noyaux.iter().filter(|n| n.ascenseur).collect();
         assert_eq!(asc.len(), 2);
         assert!(moitie(&p, asc[0]).is_some() && moitie(&p, asc[0]) != moitie(&p, asc[1]));
+        // Chaque ascenseur contre un escalier de son demi-plateau.
+        for a in &asc {
+            let contre = p.noyaux.iter().filter(|n| !n.ascenseur).any(|e| e.q.iter().filter(|x| a.q.iter().any(|y| (**x - *y).len() < 1e-6)).count() == 2);
+            assert!(contre, "{} seul", a.cle);
+        }
         assert_eq!(p.places.len() + p.noyaux.len(), avant);
         // Un ascenseur et un escalier de liaison : deux places dos à dos et le joint, 5 + 0,50 + 5
         // = 10,50 de l'allée basse (bord à 0,20 + 5 + 6 = 11,20) à l'allée haute (16,70 + 5 = 21,70).
