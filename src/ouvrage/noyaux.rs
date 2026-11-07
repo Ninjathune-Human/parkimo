@@ -465,12 +465,17 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool) -> Evacuati
         .enumerate()
         .map(|(i, &c)| Noyau { q: plan.places[cands[c].0].q, porte: point(&r, cands[c].1.pos), ascenseur: false, cle: format!("NY/E{}", i + 1) })
         .collect();
-    // Ascenseur dans une place voisine du premier escalier (côté commun), présente à tous les niveaux.
+    // Ascenseur dans une place voisine du premier escalier (côté commun), présente à tous les
+    // niveaux : à côté, porte sur la même allée, sinon dos à dos.
     let mut lift = None;
     if let Some(&c0) = set.first() {
         let q0 = plan.places[cands[c0].0].q;
         let communs = |q: &[V2; 4]| q.iter().filter(|a| q0.iter().any(|b| (**a - *b).len() < 1e-6)).count();
-        let voisine = (0..plan.places.len()).find(|&i| !retirees.contains(&i) && communs(&plan.places[i].q) == 2 && libre(&plan.places[i]));
+        let voisines: Vec<usize> = (0..plan.places.len())
+            .filter(|&i| !retirees.contains(&i) && communs(&plan.places[i].q) == 2 && libre(&plan.places[i]))
+            .collect();
+        let a_cote = |i: &usize| devant(&r, plan, &plan.places[*i], g.allee).is_some_and(|p| p.seg == cands[c0].1.pos.seg);
+        let voisine = voisines.iter().copied().find(a_cote).or(voisines.first().copied());
         if let Some(a) = voisine {
             let porte = devant(&r, plan, &plan.places[a], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
             noyaux.push(Noyau { q: plan.places[a].q, porte, ascenseur: true, cle: "NY/A1".into() });
@@ -594,6 +599,9 @@ mod tests {
                 }
                 let communs = asc[0].q.iter().filter(|a| esc[0].q.iter().any(|b| (**a - *b).len() < 1e-6)).count();
                 assert_eq!(communs, 2, "{cas} : ascenseur contre NY/E1");
+                // À côté de l'escalier : même fond, même avant.
+                let cote = |q: &[V2; 4]| (q[3] - q[0]).norm();
+                assert!((cote(&asc[0].q) - cote(&esc[0].q)).len() < 1e-6, "{cas} : ascenseur dos à dos");
                 nb[k] = esc.len();
             }
             assert!(nb[1] <= nb[0], "{larg}×{l} {imp:?} : {nb:?}");
