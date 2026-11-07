@@ -65,15 +65,17 @@ pub enum Nature {
     Liaison,
 }
 
-/// Bout du réseau : position u de la liaison entre allées, allée transversale ou demi-tour
-/// (coût fixe d'une allée à la suivante).
+/// Liaison entre allées : allée transversale (axe u, étendue en u et en v) ou demi-tour au bout
+/// des allées (coût fixe d'une allée à la suivante).
 #[derive(Clone, Copy)]
 struct Bout {
     u: f64,
     demi_tour: Option<f64>,
+    v0: f64,
+    v1: f64,
 }
 
-/// Tronçon du réseau : axe d'une allée le long des rangées (indice), ou liaison d'un bout.
+/// Tronçon du réseau : axe d'une allée le long des rangées (indice), ou liaison (indice).
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Seg {
     Allee(usize),
@@ -97,10 +99,11 @@ struct Cible {
     plus: Voisin,
 }
 
-/// Réseau des circulations : nœuds aux croisements allée × bout.
+/// Réseau des circulations : nœuds aux croisements allée × liaison. Une allée le long des rangées
+/// (v de son axe, u de début et de fin) peut être coupée en tronçons par une tour.
 struct Reseau {
-    allees: Vec<f64>,
-    bouts: [Option<Bout>; 2],
+    allees: Vec<(f64, f64, f64)>,
+    bouts: Vec<Bout>,
     noeuds: Vec<(usize, usize)>,
 }
 
@@ -118,8 +121,8 @@ impl Reseau {
     fn t(&self, n: usize, seg: Seg) -> f64 {
         let (k, e) = self.noeuds[n];
         match seg {
-            Seg::Allee(_) => self.bouts[e].map_or(0.0, |b| b.u),
-            Seg::Bout(_) => self.allees[k],
+            Seg::Allee(_) => self.bouts[e].u,
+            Seg::Bout(_) => self.allees[k].0,
         }
     }
     /// Nœuds d'un tronçon, dans l'ordre des abscisses.
@@ -146,7 +149,7 @@ impl Reseau {
         for (i, row) in d.iter_mut().enumerate() {
             row[i] = 0.0;
         }
-        let segs = (0..self.allees.len()).map(Seg::Allee).chain((0..2).filter(|&e| self.bouts[e].is_some()).map(Seg::Bout));
+        let segs = (0..self.allees.len()).map(Seg::Allee).chain((0..self.bouts.len()).map(Seg::Bout));
         for seg in segs {
             for w in self.sur(seg).windows(2) {
                 let (a, b) = (w[0].0, w[1].0);
@@ -154,7 +157,7 @@ impl Reseau {
                     continue;
                 }
                 let l = match seg {
-                    Seg::Bout(e) => self.bouts[e].and_then(|b| b.demi_tour).unwrap_or(w[1].1 - w[0].1),
+                    Seg::Bout(e) => self.bouts[e].demi_tour.unwrap_or(w[1].1 - w[0].1),
                     Seg::Allee(_) => w[1].1 - w[0].1,
                 };
                 d[a][b] = d[a][b].min(l);
@@ -234,56 +237,70 @@ fn bornes(q: &[V2; 4]) -> (V2, V2) {
     })
 }
 
-/// Réseau des circulations d'un plateau : axes des allées, allées transversales ou demi-tours.
+/// Réseau des circulations d'un plateau : axes des allées, allées transversales ou demi-tours ;
+/// un nœud là où une allée touche une allée transversale.
 fn reseau(plan: &Plan) -> Reseau {
-    let mut allees: Vec<(f64, f64, f64)> = Vec::new();
-    let mut x: [Option<f64>; 2] = [None, None];
+    let mut allees: Vec<(f64, f64, f64, f64, f64)> = Vec::new();
+    let mut xs: Vec<(&str, V2, V2)> = Vec::new();
     for (q, cle) in &plan.allees {
         let (lo, hi) = bornes(q);
-        match cle.as_str() {
-            "AL/X1" => x[0] = Some((lo.x + hi.x) / 2.0),
-            "AL/X2" => x[1] = Some((lo.x + hi.x) / 2.0),
-            // Allée élargie devant une tour en façade : l'allée qu'elle double suffit.
-            c if c.starts_with("AL/E") => {}
-            _ => allees.push(((lo.y + hi.y) / 2.0, lo.x, hi.x)),
+        // Allée élargie devant une tour en façade : l'allée qu'elle double suffit.
+        if cle.starts_with("AL/E") {
+            continue;
+        }
+        if cle.starts_with("AL/X") {
+            xs.push((cle, lo, hi));
+        } else {
+            allees.push(((lo.y + hi.y) / 2.0, lo.x, hi.x, lo.y, hi.y));
         }
     }
-    allees.sort_by(|a, b| a.0.total_cmp(&b.0));
+    allees.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)));
+    xs.sort_by(|a, b| a.0.cmp(b.0));
     let (u0, u1) = allees.iter().fold((f64::MAX, f64::MIN), |(a, b), al| (a.min(al.1), b.max(al.2)));
+    let mut bouts: Vec<(Bout, f64, f64)> = xs.iter().map(|&(_, lo, hi)| (Bout { u: (lo.x + hi.x) / 2.0, demi_tour: None, v0: lo.y, v1: hi.y }, lo.x, hi.x)).collect();
     // Sans allée transversale (demi-niveaux, plateaux inclinés) : demi-tours aux bouts des allées.
-    let demi_tour = plan
-        .rampes
-        .iter()
-        .find(|r| matches!(r.forme, Forme::DemiU | Forme::Virage))
-        .map(|r| r.longueur);
-    let bout = |e: usize| match (x[e], demi_tour) {
-        (Some(u), _) => Some(Bout { u, demi_tour: None }),
-        (None, Some(c)) => Some(Bout { u: if e == 0 { u0 } else { u1 }, demi_tour: Some(c) }),
-        _ => None,
-    };
-    let bouts = [bout(0), bout(1)];
-    let noeuds = (0..2).filter(|&e| bouts[e].is_some()).flat_map(|e| (0..allees.len()).map(move |k| (k, e))).collect();
-    Reseau { allees: allees.iter().map(|a| a.0).collect(), bouts, noeuds }
+    if bouts.is_empty() {
+        if let Some(c) = plan.rampes.iter().find(|r| matches!(r.forme, Forme::DemiU | Forme::Virage)).map(|r| r.longueur) {
+            for u in [u0, u1] {
+                bouts.push((Bout { u, demi_tour: Some(c), v0: f64::MIN, v1: f64::MAX }, u, u));
+            }
+        }
+    }
+    let e = 0.05;
+    let mut noeuds = Vec::new();
+    for (j, (b, bu0, bu1)) in bouts.iter().enumerate() {
+        for (k, a) in allees.iter().enumerate() {
+            if *bu0 <= a.2 + e && *bu1 >= a.1 - e && b.v0 <= a.4 + e && b.v1 >= a.3 - e {
+                noeuds.push((k, j));
+            }
+        }
+    }
+    Reseau { allees: allees.iter().map(|a| (a.0, a.1, a.2)).collect(), bouts: bouts.into_iter().map(|b| b.0).collect(), noeuds }
 }
 
 /// Point du réseau devant une place : sur l'axe de l'allée qu'elle borde, ou sur l'allée
-/// transversale pour une place de rive.
-fn devant(r: &Reseau, plan: &Plan, pl: &PlaceLoc, allee: f64) -> Option<Pos> {
+/// transversale la plus proche pour une place de rive.
+fn devant(r: &Reseau, pl: &PlaceLoc, allee: f64) -> Option<Pos> {
     let (lo, hi) = bornes(&pl.q);
+    let (uc, vc) = ((lo.x + hi.x) / 2.0, (lo.y + hi.y) / 2.0);
     if pl.rive {
-        let e = if (lo.x + hi.x) / 2.0 < plan.longueur() / 2.0 { 0 } else { 1 };
-        return r.bouts[e].filter(|b| b.demi_tour.is_none()).map(|_| Pos { seg: Seg::Bout(e), t: (lo.y + hi.y) / 2.0 });
+        let e = (0..r.bouts.len())
+            .filter(|&e| r.bouts[e].v0 <= vc && r.bouts[e].v1 >= vc)
+            .min_by(|&a, &b| (r.bouts[a].u - uc).abs().total_cmp(&(r.bouts[b].u - uc).abs()))?;
+        return r.bouts[e].demi_tour.is_none().then_some(Pos { seg: Seg::Bout(e), t: vc });
     }
     let av = pl.q[2].y;
-    let k = (0..r.allees.len()).min_by(|&a, &b| (r.allees[a] - av).abs().total_cmp(&(r.allees[b] - av).abs()))?;
-    ((r.allees[k] - av).abs() <= allee / 2.0 + 1e-6).then_some(Pos { seg: Seg::Allee(k), t: (lo.x + hi.x) / 2.0 })
+    let k = (0..r.allees.len())
+        .filter(|&a| uc >= r.allees[a].1 - 1e-6 && uc <= r.allees[a].2 + 1e-6)
+        .min_by(|&a, &b| (r.allees[a].0 - av).abs().total_cmp(&(r.allees[b].0 - av).abs()))?;
+    ((r.allees[k].0 - av).abs() <= allee / 2.0 + 1e-6).then_some(Pos { seg: Seg::Allee(k), t: uc })
 }
 
 /// Coordonnées d'un point du réseau.
 fn point(r: &Reseau, p: Pos) -> V2 {
     match p.seg {
-        Seg::Allee(k) => v2(p.t, r.allees[k]),
-        Seg::Bout(e) => v2(r.bouts[e].map_or(0.0, |b| b.u), p.t),
+        Seg::Allee(k) => v2(p.t, r.allees[k].0),
+        Seg::Bout(e) => v2(r.bouts[e].u, p.t),
     }
 }
 
@@ -353,7 +370,7 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool, demi: Ascen
     };
     // Départs de toutes les places du parc (courantes, rendues au rez ou au dernier niveau).
     let toutes: Vec<&PlaceLoc> = plan.places.iter().chain(&plan.places_rdc).chain(&plan.places_dernier).collect();
-    let departs: Vec<Option<Depart>> = toutes.iter().map(|pl| devant(&r, plan, pl, g.allee).map(|p| r.depart(p))).collect();
+    let departs: Vec<Option<Depart>> = toutes.iter().map(|pl| devant(&r, pl, g.allee).map(|p| r.depart(p))).collect();
     // Candidates : places présentes à tous les niveaux dont la porte ne débouche pas dans l'épure
     // d'une rampe, une par point du réseau (en façade de préférence, deux places dos à dos ayant
     // la même porte).
@@ -363,7 +380,7 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool, demi: Ascen
         if !libre(pl) {
             continue;
         }
-        let Some(p) = devant(&r, plan, pl, g.allee) else { continue };
+        let Some(p) = devant(&r, pl, g.allee) else { continue };
         let f = sur_facade(pl);
         match cands.iter_mut().find(|c| c.1.pos.seg == p.seg && (c.1.pos.t - p.t).abs() < 1e-6) {
             Some(c) => {
@@ -502,7 +519,7 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool, demi: Ascen
     // Ascenseur dans une place voisine d'un escalier (côté commun), présente à tous les niveaux :
     // à côté du premier escalier qui en a une, porte sur la même allée, sinon dos à dos ; à défaut,
     // la place libre la plus proche du premier escalier.
-    let moitie = |i: usize| devant(&r, plan, &plan.places[i], g.allee).map(|p| p.seg);
+    let moitie = |i: usize| devant(&r, &plan.places[i], g.allee).map(|p| p.seg);
     let centre = |q: &[V2; 4]| (q[0] + q[2]) * 0.5;
     let voisine_de = |c: usize| {
         let q0 = plan.places[cands[c].0].q;
@@ -521,7 +538,7 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool, demi: Ascen
             .map(|a| (c, a))
     });
     if let Some((_, a)) = choix {
-        let porte = devant(&r, plan, &plan.places[a], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
+        let porte = devant(&r, &plan.places[a], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
         noyaux.push(Noyau { q: plan.places[a].q, porte, ascenseur: true, liaison: false, cle: "NY/A1".into() });
         retirees.push(a);
         // Demi-niveaux : les deux demi-plateaux d'un niveau sont décalés d'une demi-hauteur.
@@ -541,7 +558,7 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool, demi: Ascen
                 .filter(|&&c| Some(cands[c].1.pos.seg) != ma)
                 .find_map(|&c| (0..plan.places.len()).find(|&i| autre(i) && contre(c, i)));
             if let Some(b) = pres_escalier.or_else(|| (0..plan.places.len()).filter(|&i| autre(i)).min_by(|&i, &j| pres(i, j))) {
-                let porte = devant(&r, plan, &plan.places[b], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
+                let porte = devant(&r, &plan.places[b], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
                 noyaux.push(Noyau { q: plan.places[b].q, porte, ascenseur: true, liaison: false, cle: "NY/A2".into() });
                 retirees.push(b);
             }
@@ -558,7 +575,7 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool, demi: Ascen
             if let Some((i, j)) = paires.min_by(|a, b| pres(a.0, b.0)) {
                 let (yi, yj) = (plan.places[i].q[3].y, plan.places[j].q[3].y);
                 let (x0, x1) = (lo(i).x, hi(i).x);
-                let porte = devant(&r, plan, &plan.places[i], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
+                let porte = devant(&r, &plan.places[i], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
                 let q = [v2(x0, yi), v2(x1, yi), v2(x1, yj), v2(x0, yj)];
                 noyaux.push(Noyau { q, porte, ascenseur: false, liaison: true, cle: "NY/L1".into() });
                 retirees.extend([i, j]);
@@ -583,7 +600,7 @@ pub fn fixer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool, saisis: &[(N
     let lim = limites(largement_ventile);
     let r = reseau(plan);
     let centre = |q: &[V2; 4]| (q[0] + q[2]) * 0.5;
-    let moitie = |i: usize| devant(&r, plan, &plan.places[i], g.allee).map(|p| p.seg);
+    let moitie = |i: usize| devant(&r, &plan.places[i], g.allee).map(|p| p.seg);
     let en_demi = plan.rampes.iter().any(|rp| matches!(rp.forme, Forme::DemiU));
     let mut retirees: Vec<usize> = Vec::new();
     // (nature, cadre, porte sur le réseau, place)
@@ -611,13 +628,13 @@ pub fn fixer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool, saisis: &[(N
                 .min_by(|a, b| (loin(a.0) + loin(a.1)).total_cmp(&(loin(b.0) + loin(b.1))));
             if let Some((i, j)) = paire {
                 let (yi, yj, x0, x1) = (plan.places[i].q[3].y, plan.places[j].q[3].y, lo(i).x, hi(i).x);
-                pris.push((nature, [v2(x0, yi), v2(x1, yi), v2(x1, yj), v2(x0, yj)], devant(&r, plan, &plan.places[i], g.allee)));
+                pris.push((nature, [v2(x0, yi), v2(x1, yi), v2(x1, yj), v2(x0, yj)], devant(&r, &plan.places[i], g.allee)));
                 retirees.extend([i, j]);
             }
             continue;
         }
         if let Some(i) = (0..plan.places.len()).filter(|i| !retirees.contains(i)).min_by(|&a, &b| loin(a).total_cmp(&loin(b))) {
-            pris.push((nature, plan.places[i].q, devant(&r, plan, &plan.places[i], g.allee)));
+            pris.push((nature, plan.places[i].q, devant(&r, &plan.places[i], g.allee)));
             retirees.push(i);
         }
     }
@@ -645,7 +662,7 @@ pub fn fixer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool, saisis: &[(N
         if retirees.contains(&i) {
             continue;
         }
-        let Some(dep) = devant(&r, plan, pl, g.allee).map(|p| r.depart(p)) else { continue };
+        let Some(dep) = devant(&r, pl, g.allee).map(|p| r.depart(p)) else { continue };
         let et = cibles.iter().enumerate().fold(Etat::VIDE, |et, (k, c)| et.ajoute(k, r.vers(&dep, c, false), r.vers(&dep, c, true)));
         dmax = dmax.max(et.d().min(1000.0));
         if et.ecart(lim) > 0.0 {
@@ -697,10 +714,10 @@ mod tests {
         let p = construire(&gab(), 32.4, 60.0).unwrap();
         let r = reseau(&p);
         let pr = |a: f64, b: f64| assert!((a - b).abs() < 1e-9, "{a} ≠ {b}");
-        pr(r.allees[0], 8.2);
-        pr(r.allees[1], 24.2);
-        pr(r.bouts[0].unwrap().u, 8.2);
-        pr(r.bouts[1].unwrap().u, 51.7);
+        pr(r.allees[0].0, 8.2);
+        pr(r.allees[1].0, 24.2);
+        pr(r.bouts[0].u, 8.2);
+        pr(r.bouts[1].u, 51.7);
         let place = r.depart(pos(Seg::Allee(0), 30.0));
         let vers = |dep: &Depart, s: Pos| (r.vers(dep, &r.cible(s), false), r.vers(dep, &r.cible(s), true));
         // Escalier de pignon (allée transversale du bout 1, v = 17,45) : à gauche 21,80 + 9,25 ;
@@ -782,7 +799,7 @@ mod tests {
     #[test]
     fn demi_niveaux_ascenseurs() {
         let g = Gabarit { implantation: Implantation::DemiNiveaux, ..gab() };
-        let moitie = |p: &Plan, n: &Noyau| reseau(p).allees.iter().position(|&v| (v - n.porte.y).abs() < 1e-6);
+        let moitie = |p: &Plan, n: &Noyau| reseau(p).allees.iter().position(|&v| (v.0 - n.porte.y).abs() < 1e-6);
         // Deux ascenseurs, un par demi-plateau.
         let mut p = construire(&g, 33.0, 100.0).unwrap();
         let avant = p.places.len();

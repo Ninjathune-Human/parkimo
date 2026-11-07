@@ -271,7 +271,7 @@ fn implantations_sur_les_scenarios() {
     // Trois niveaux : chaque implantation trouve un plateau où ses deux rampes tiennent, épures
     // dégagées. La recherche fait passer les plateaux sans rampe possible après les autres.
     for nom in ["rect", "triangle", "courbe", "ruisseau"] {
-        for imp in [Implantation::Auto, Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines, Implantation::HeliceExt, Implantation::HeliceDouble] {
+        for imp in [Implantation::Auto, Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines, Implantation::HeliceExt, Implantation::HeliceDouble, Implantation::HeliceCentre, Implantation::HeliceAnneau, Implantation::HeliceFacade] {
             let mut s = site(nom);
             let o = s.ouvrage.as_mut().unwrap();
             o.niveaux = 3;
@@ -283,7 +283,7 @@ fn implantations_sur_les_scenarios() {
             if imp != Implantation::Auto {
                 assert_eq!(ov.implantation, imp.nom(), "{nom}");
             }
-            assert!(ov.girations.iter().all(|g| g.conflits.is_empty()), "{nom} {imp:?}");
+            assert!(ov.girations.iter().all(|g| g.conflits.is_empty()), "{nom} {imp:?} {:?} {} × {}", ov.girations.iter().map(|g| (g.cle.clone(), g.conflits.clone())).collect::<Vec<_>>(), ov.largeur, ov.longueur);
             if imp == Implantation::Inclines {
                 // Deux demi-tours horizontaux et deux modules en pente (6 % au plus ici) ; places
                 // PMR de niveau rappelées.
@@ -339,7 +339,7 @@ fn escaliers_et_ascenseur() {
     // aucun noyau.
     let mut demis = 0;
     for nom in ["rect", "triangle", "courbe", "ruisseau"] {
-        for imp in [Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines, Implantation::HeliceExt, Implantation::HeliceDouble] {
+        for imp in [Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines, Implantation::HeliceExt, Implantation::HeliceDouble, Implantation::HeliceCentre, Implantation::HeliceAnneau, Implantation::HeliceFacade] {
             for (pslv, liaison) in [(false, false), (true, false), (false, true)] {
                 let mut s = site(nom);
                 let o = s.ouvrage.as_mut().unwrap();
