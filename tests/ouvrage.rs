@@ -375,14 +375,32 @@ fn escaliers_et_ascenseur() {
                 let obstacles: Vec<Quad> = ov
                     .rampes
                     .iter()
-                    .filter(|r| r.forme != "plateau")
+                    .filter(|r| r.forme != "plateau" && r.forme != "helice")
                     .map(|r| quad(&r.q))
                     .chain(lay.stalls.iter().map(|st| quad(&st.q)))
                     .collect();
+                // Tours hélicoïdales : le cercle de la bordure, pas sa boîte.
+                let tours: Vec<([f64; 2], f64)> = ov
+                    .rampes
+                    .iter()
+                    .filter(|r| r.forme == "helice")
+                    .map(|r| ([(r.q[0][0] + r.q[2][0]) / 2.0, (r.q[0][1] + r.q[2][1]) / 2.0], (r.q[1][0] - r.q[0][0]).hypot(r.q[1][1] - r.q[0][1]) / 2.0))
+                    .collect();
+                let dans_tour = |q: &[[f64; 2]; 4]| {
+                    tours.iter().any(|&(c, rd)| {
+                        (0..4).any(|i| {
+                            let (a, b) = (q[i], q[(i + 1) % 4]);
+                            let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+                            let t = (((c[0] - a[0]) * dx + (c[1] - a[1]) * dy) / (dx * dx + dy * dy)).clamp(0.0, 1.0);
+                            (a[0] + t * dx - c[0]).hypot(a[1] + t * dy - c[1]) < rd - 0.01
+                        })
+                    })
+                };
                 for n in &ov.noyaux {
                     let q = quad(&n.q).shrink(0.01);
                     let k = obstacles.iter().position(|o| o.overlaps(&q));
                     assert!(k.is_none(), "{cas} : {} gêné par {k:?} sur {} rampes, {:?} {:?}", n.cle, ov.rampes.len(), n.q, k.map(|k| &obstacles[k]));
+                    assert!(!dans_tour(&n.q), "{cas} : {} dans une tour", n.cle);
                     // Porte hors des épures de giration : 1,00 m devant le milieu de l'avant.
                     let (m, f) = ([(n.q[2][0] + n.q[3][0]) / 2.0, (n.q[2][1] + n.q[3][1]) / 2.0], [(n.q[0][0] + n.q[1][0]) / 2.0, (n.q[0][1] + n.q[1][1]) / 2.0]);
                     let l = (m[0] - f[0]).hypot(m[1] - f[1]);

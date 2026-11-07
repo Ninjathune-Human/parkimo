@@ -159,6 +159,17 @@ impl Gabarit {
     pub fn double(&self) -> bool {
         self.rampe.is_some() && self.implantation == Implantation::HeliceDouble
     }
+    /// Largeur de l'allée transversale du premier bout : avec la tour à double sens, ses deux voies
+    /// (au quart de l'allée) sont à l'écartement des axes des deux voies de la tour, 11,05 − 7,00 =
+    /// 4,05 m, d'où 8,10 m.
+    pub fn allee_x1(&self) -> f64 {
+        if self.double() {
+            let (r_int, r_ext) = ((neufert::HELICE_VOIE_INT.v + neufert::HELICE_VOIE_EXT.v) / 2.0, (neufert::HELICE2_EXT_INT.v + neufert::HELICE2_EXT_EXT.v) / 2.0);
+            2.0 * (r_ext - r_int)
+        } else {
+            self.allee
+        }
+    }
     /// Bande du second bout : celle du premier, sauf avec la tour à double sens (bande ordinaire).
     fn bout2(&self) -> f64 {
         if self.double() {
@@ -190,10 +201,11 @@ impl Gabarit {
     /// façade (rayon extérieur de la voie extérieure : 11,50 m).
     fn bout(&self) -> f64 {
         if self.double() {
-            // Tour contre la file de façade, axe de la voie extérieure sur la voie ouest de l'allée
-            // transversale (au quart de l'allée), puis l'allée : 0,30 + 13,10 + 11,05 − 1,50 + 6,00
-            // = 28,95 m pour des allées de 6,00 m.
-            return self.pu + neufert::HELICE2_BORDURE.v + (neufert::HELICE2_EXT_INT.v + neufert::HELICE2_EXT_EXT.v) / 2.0 - self.allee / 4.0 + self.allee;
+            // Tour contre la file de façade, axe de la voie intérieure sur la voie ouest de l'allée
+            // transversale (au quart de l'allée), puis l'allée : 0,30 + 13,10 + 7,00 − 2,025 +
+            // 8,10 = 26,475 m.
+            let a1 = self.allee_x1();
+            return self.pu + neufert::HELICE2_BORDURE.v + (neufert::HELICE_VOIE_INT.v + neufert::HELICE_VOIE_EXT.v) / 2.0 - a1 / 4.0 + a1;
         }
         if self.en_u() {
             let ((_, _), (re, he)) = giration::double_sens();
@@ -571,7 +583,7 @@ fn cadres(g: &Gabarit, t: &Travers, lo: &Long) -> [Cadre; 2] {
     let mut rangees2: Vec<(f64, f64, bool)> = rangees.iter().map(|&(v0, v1, h)| (w - v1, w - v0, !h)).collect();
     rangees2.sort_by(|p, q| p.0.total_cmp(&q.0));
     [
-        Cadre { facade: f, largeur: w, x0: lo.debut - a, x1: lo.debut, fin, allees, rangees },
+        Cadre { facade: f, largeur: w, x0: lo.debut - g.allee_x1(), x1: lo.debut, fin, allees, rangees },
         Cadre { facade: f, largeur: w, x0: l - fin - a, x1: l - fin, fin: l - lo.debut, allees: allees2, rangees: rangees2 },
     ]
 }
@@ -670,12 +682,13 @@ fn en_rangee(c: &Cadre, g: &Gabarit, lr: f64) -> Result<Esquisse, String> {
 /// Tour hélicoïdale à double sens au premier bout (Neufert, rampe courbe à deux voies), un tour par
 /// niveau : voie intérieure pour monter (sens des aiguilles d'une montre vue de dessus), voie
 /// extérieure pour descendre (sens inverse), chacun tenant sa droite. La tour est dans la bande de
-/// pignon, contre la file de façade ; l'axe de sa voie extérieure est sur la voie ouest de
-/// l'allée transversale, à l'est de la tour (la porte). On monte en venant de l'allée la plus haute
-/// (quart de tour, voie ouest de l'allée transversale, S vers la voie intérieure), on sort de la
-/// montée en S vers la voie ouest puis vers l'allée la plus basse ; on descend en venant de l'allée
-/// la plus basse (quart de tour, voie est, S vers la voie extérieure), on sort de la descente en S
-/// vers la voie est puis vers l'allée la plus haute. À la porte, les deux sens se croisent.
+/// pignon, contre la file de façade ; l'allée transversale, à l'est, a ses deux voies dans le
+/// prolongement des deux voies de la tour (la porte) : voie ouest, descendante en v, sur l'axe de
+/// la voie intérieure ; voie est, montante en v, sur l'axe de la voie extérieure. On monte en
+/// venant de l'allée la plus haute (quart de tour vers la voie ouest), on sort de la montée vers
+/// l'allée la plus basse ; on descend en venant de l'allée la plus basse (quart de tour vers la
+/// voie est), on sort de la descente vers l'allée la plus haute. Les deux sens se croisent aux
+/// carrefours de l'allée transversale et des allées.
 fn en_helice_double(c: &Cadre, g: &Gabarit) -> Result<Vec<Esquisse>, String> {
     let pre = "Hélice à double sens";
     let (r, mg, hs) = (giration::rayon(), giration::marge(), giration::demi_droite());
@@ -683,8 +696,9 @@ fn en_helice_double(c: &Cadre, g: &Gabarit) -> Result<Vec<Esquisse>, String> {
     let r_ext = (neufert::HELICE2_EXT_INT.v + neufert::HELICE2_EXT_EXT.v) / 2.0;
     let (h_int, h_ext) = ((neufert::HELICE_VOIE_EXT.v - neufert::HELICE_VOIE_INT.v) / 2.0, (neufert::HELICE2_EXT_EXT.v - neufert::HELICE2_EXT_INT.v) / 2.0);
     let r_tour = neufert::HELICE2_BORDURE.v;
-    let (xw, xe) = (c.x0 + g.allee / 4.0, c.x1 - g.allee / 4.0);
-    let uc = xw - r_ext;
+    let a1 = c.x1 - c.x0;
+    let (xw, xe) = (c.x0 + a1 / 4.0, c.x1 - a1 / 4.0);
+    let uc = xw - r_int;
     if uc - r_tour < c.facade - 1e-9 {
         return Err(format!("{pre} : bande de pignon trop courte pour la tour"));
     }
@@ -696,25 +710,19 @@ fn en_helice_double(c: &Cadre, g: &Gabarit) -> Result<Vec<Esquisse>, String> {
     }
     // Voies des allées : on tient sa droite (vers l'ouest au nord de l'allée, vers l'est au sud).
     let (va, va2, vb, vb2) = (ha.1 - mg, ha.0 + mg, ba.0 + mg, ba.1 - mg);
-    // S entre une voie de l'allée transversale et une voie de la tour, au rayon de giration.
-    let s = |d: f64| {
-        let phi = (1.0 - d / (2.0 * r)).acos();
-        (phi, 2.0 * r * phi.sin())
-    };
-    let ((p_up, s_up), (p_dn, s_dn)) = (s(xw - (uc + r_int)), s(xe - xw));
-    let lo = (vb + r + s_up).max(vb2 + r + s_dn).max(c.facade + r_tour);
-    let hi = (va - r - s_up).min(va2 - r - s_dn).min(c.largeur - c.facade - r_tour);
+    let lo = (vb + r).max(vb2 + r).max(c.facade + r_tour);
+    let hi = (va - r).min(va2 - r).min(c.largeur - c.facade - r_tour);
     if lo > hi + 1e-9 {
         return Err(format!(
-            "{pre} : {} m nécessaires d'une allée à l'autre (deux girations de {} m et les S de la porte, {} m de part et d'autre), {} m disponibles",
-            super::fr2(2.0 * (r + s_up)),
+            "{pre} : {} m nécessaires entre les voies des allées (deux girations de {} m), {} m disponibles",
+            super::fr2(2.0 * r),
             super::fr2(r),
-            super::fr2(s_up),
-            super::fr2((va - vb).max(0.0))
+            super::fr2((va2 - vb2).max(0.0))
         ));
     }
     let vc = (lo + hi) / 2.0;
     let centre = v2(uc, vc);
+    let tour = rect(uc - r_tour, vc - r_tour, uc + r_tour, vc + r_tour);
     let montee = Esquisse {
         q: rect(uc - r_sep, vc - r_sep, uc + r_sep, vc + r_sep),
         contour: cercle(centre, r_sep),
@@ -727,9 +735,7 @@ fn en_helice_double(c: &Cadre, g: &Gabarit) -> Result<Vec<Esquisse>, String> {
         entree: Trace::depuis(v2(xw + r + AMORCE, va), PI)
             .droit(AMORCE)
             .tourne(FRAC_PI_2)
-            .droit(va - r - (vc + s_up))
-            .tourne(-p_up)
-            .tourne(p_up)
+            .droit(va - r - vc)
             .gabarit(r_int, h_int, hs)
             .tourne(-FRAC_PI_2)
             .troncons,
@@ -737,16 +743,14 @@ fn en_helice_double(c: &Cadre, g: &Gabarit) -> Result<Vec<Esquisse>, String> {
             .gabarit(r_int, h_int, hs)
             .tourne(-FRAC_PI_2)
             .gabarit(r, mg, hs)
-            .tourne(p_up)
-            .tourne(-p_up)
-            .droit(vc - s_up - (vb + r))
+            .droit(vc - (vb + r))
             .tourne(FRAC_PI_2)
             .droit(AMORCE)
             .troncons,
-        zone: rect(uc - r_tour, vc - r_tour, uc + r_tour, vc + r_tour),
+        zone: tour,
     };
     let descente = Esquisse {
-        q: rect(uc - r_tour, vc - r_tour, uc + r_tour, vc + r_tour),
+        q: tour,
         contour: cercle(centre, r_tour),
         trou: cercle(centre, r_sep),
         axe: giration::axe(&Trace::depuis(v2(uc + r_ext, vc), 0.5 * PI).gabarit(r_ext, h_ext, hs).tourne(11.0 * PI / 6.0).troncons),
@@ -757,9 +761,7 @@ fn en_helice_double(c: &Cadre, g: &Gabarit) -> Result<Vec<Esquisse>, String> {
         entree: Trace::depuis(v2(xe + r + AMORCE, vb2), PI)
             .droit(AMORCE)
             .tourne(-FRAC_PI_2)
-            .droit(vc - s_dn - (vb2 + r))
-            .tourne(p_dn)
-            .tourne(-p_dn)
+            .droit(vc - (vb2 + r))
             .gabarit(r_ext, h_ext, hs)
             .tourne(FRAC_PI_2)
             .troncons,
@@ -767,14 +769,12 @@ fn en_helice_double(c: &Cadre, g: &Gabarit) -> Result<Vec<Esquisse>, String> {
             .gabarit(r_ext, h_ext, hs)
             .tourne(FRAC_PI_2)
             .gabarit(r, mg, hs)
-            .tourne(-p_dn)
-            .tourne(p_dn)
-            .droit(va2 - r - (vc + s_dn))
+            .droit(va2 - r - vc)
             .tourne(-FRAC_PI_2)
             .droit(AMORCE)
             .troncons,
-        // Les S de la descente frôlent le bord est de l'allée transversale : pas de poteau en tête
-        // des rangées au droit de la tour.
+        // Les quarts de tour de la descente passent en tête des rangées : pas de poteau au droit
+        // de la tour.
         zone: rect(uc - r_tour, vc - r_tour, c.x1 + g.pu, vc + r_tour),
     };
     Ok(vec![montee, descente])
@@ -1088,7 +1088,7 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     // demi-rampes en U en tiennent lieu).
     let (v0, v1) = (g.facade, t.largeur - g.facade);
     if !g.en_u() {
-        allees.push((rect(debut - g.allee, v0, debut, v1), "AL/X1".into()));
+        allees.push((rect(debut - g.allee_x1(), v0, debut, v1), "AL/X1".into()));
         allees.push((rect(fin, v0, fin + g.allee, v1), "AL/X2".into()));
     }
     let rives = g.rives && !g.en_u() && !g.exterieur();
@@ -1251,7 +1251,7 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     // depuis chaque bout ; la bande du second bout commence à la fin des rangées.
     let (tour1, tour2) = (g.helice() || g.double(), g.helice());
     let debut2 = lo.longueur - fin;
-    let fond_rive = if tour1 { debut - g.allee - d } else { g.facade };
+    let fond_rive = if tour1 { debut - g.allee_x1() - d } else { g.facade };
     let fond_rive2 = if tour2 { debut2 - g.allee - d } else { g.facade };
     if rives {
         let n_win = axes_v.len() - 1;
@@ -1321,7 +1321,7 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     let tete2 = fond_rive2 + d - g.retrait - g.pu / 2.0;
     // Hélice : une file de plus derrière les places de pignon (ou au bord de l'allée transversale)
     // pour couper la bande d'extrémité.
-    let arriere = if rives { fond_rive - g.pu / 2.0 } else { debut - g.allee - g.pu / 2.0 };
+    let arriere = if rives { fond_rive - g.pu / 2.0 } else { debut - g.allee_x1() - g.pu / 2.0 };
     let arriere2 = if rives { fond_rive2 - g.pu / 2.0 } else { debut2 - g.allee - g.pu / 2.0 };
     // Tours hors de la dalle : la dalle commence à la file derrière l'allée transversale.
     let mut axes_u = if g.exterieur() { Vec::new() } else { vec![g.facade + g.pu / 2.0] };
@@ -1765,9 +1765,11 @@ mod tests {
             assert!(!p.poteaux.iter().any(|po| chevauche(&q(po.c), &r.q)));
             assert!(!ossature(&p, Sens::Long, 1.1).iter().any(|(o, _)| chevauche(o, &r.q)));
         }
-        // Rangées trop courtes : 40,52 − 11,20 = 29,32 m de rangée nécessaires.
-        let p = construire(&g, 32.4, 50.0).unwrap();
+        // Rangées trop courtes : 40,52 − 11,20 = 29,32 m de rangée nécessaires. En automatique, la
+        // tour à double sens tient (bande de 26,675 m, 4 places par rangée).
+        let p = construire(&Gabarit { implantation: Implantation::Rangee, ..g }, 32.4, 50.0).unwrap();
         assert!(p.rampes.is_empty() && p.refus.iter().any(|m| m.contains("29,32 m de rangée")), "{:?}", p.refus);
+        assert_eq!(construire(&g, 32.4, 50.0).unwrap().implantation, Some(Implantation::HeliceDouble));
         // Un module : pas d'autre allée pour aborder la rampe, ni de place en pignon, ni d'allée
         // centrale entre deux autres.
         let p = construire(&g, 16.4, 60.0).unwrap();
@@ -1845,48 +1847,50 @@ mod tests {
         assert!(p.girations.iter().all(|gi| gi.conflits.is_empty()));
     }
 
-    /// Tour à double sens sur 48,40 × 80 : bande du premier bout 0,30 + 13,10 + 11,05 − 1,50 +
-    /// 6,00 = 28,95 m (début des rangées à 29,15), bande ordinaire au second (5,00 + 6,00) :
-    /// 15 places par rangée, 29,15 + 37,50 + 11,20 = 77,85 m. Allée transversale de 23,15 à 29,15,
-    /// voies à 24,65 (ouest) et 27,65 (est) ; axe de la voie extérieure sur la voie ouest, centre de
-    /// la tour à 24,65 − 11,05 = 13,60, bordure de 0,50 à 26,70. S de la montée : 4,05 m de décalage,
-    /// 13 sin(acos(1 − 4,05/13)) = 9,43 m ; de la descente : 3,00 m, 8,31 m. Allées : la plus basse
-    /// de 5,20 à 11,20 (voies à 7,20 et 9,20), la plus haute de 37,20 à 43,20 (39,20 et 41,20) ;
-    /// centre entre 9,20 + 6,50 + 8,31 = 24,01 et 39,20 − 6,50 − 8,31 = 24,39, soit 24,20. Pentes :
-    /// 2,90 / (2π × 7,00) = 6,6 % sur la voie intérieure, 2,90 / (2π × 11,05) = 4,2 % sur
-    /// l'extérieure. Une tour au lieu de deux : 108 places par niveau courant contre 96.
+    /// Tour à double sens sur deux modules, 32,40 × 80 (comme à Antibes) : allée transversale du
+    /// premier bout de 2 × (11,05 − 7,00) = 8,10 m, ses voies au quart sur les axes des deux voies
+    /// de la tour ; bande de 0,30 + 13,10 + 7,00 − 2,025 + 8,10 = 26,475 m (début des rangées à
+    /// 26,675), bande ordinaire au second (5,00 + 6,00) : 16 places par rangée, 26,675 + 40,00 +
+    /// 11,20 = 77,875 m. Allée transversale de 18,575 à 26,675, voies à 20,60 et 24,65 ; centre de la
+    /// tour à 20,60 − 7,00 = 13,60, bordure de 0,50 à 26,70. Allées de 5,20 à 11,20 (voies à 7,20 et
+    /// 9,20) et de 21,20 à 27,20 (23,20 et 25,20) : la descente arrive par la voie à 9,20 et repart
+    /// par celle à 23,20, d'où 23,20 − 9,20 = 14,00 m pour deux quarts de tour de 6,50 m ; centre de
+    /// la tour entre 9,20 + 6,50 = 15,70 et 23,20 − 6,50 = 16,70, soit 16,20. Pentes : 2,90 /
+    /// (2π × 7,00) = 6,6 % sur la voie intérieure, 2,90 / (2π × 11,05) = 4,2 % sur l'extérieure. Un
+    /// seul module : il faut deux allées.
     #[test]
     fn helice_double_a_la_main() {
         let g = Gabarit { implantation: Implantation::HeliceDouble, rampe: Some(18.36), ..gab() };
-        let p = construire(&g, 48.4, 80.0).unwrap();
+        let p = construire(&g, 32.4, 80.0).unwrap();
         assert_eq!(p.implantation, Some(Implantation::HeliceDouble));
         let pr = |a: f64, b: f64| assert!((a - b).abs() < 1e-6, "{a} ≠ {b}");
-        pr(p.long.debut, 29.15);
-        pr(p.long.fin, 66.65);
-        pr(p.longueur(), 77.85);
+        pr(g.allee_x1(), 8.1);
+        pr(p.long.debut, 26.675);
+        pr(p.long.fin, 66.675);
+        pr(p.longueur(), 77.875);
         let (m, d) = (&p.rampes[0], &p.rampes[1]);
         assert!(m.montee && !d.montee && m.forme == Forme::Helice && d.forme == Forme::Helice);
         let (lo, hi) = giration::bornes(&d.q);
         pr(lo.x, 0.5);
         pr(hi.x, 26.7);
-        pr((lo.y + hi.y) / 2.0, 24.2);
-        pr(m.bas.x, 13.6 + 7.0);
+        pr((lo.y + hi.y) / 2.0, 16.2);
+        pr(m.bas.x, 20.6);
         pr(d.haut.x, 24.65);
         pr(m.longueur, 2.0 * PI * 7.0);
         pr(d.longueur, 2.0 * PI * 11.05);
-        let s = |dd: f64| 13.0 * (1.0 - dd / 13.0).acos().sin();
-        assert!((s(4.05) - 9.4285).abs() < 1e-3 && (s(3.0) - 8.3066).abs() < 1e-3);
         assert_eq!(p.girations.len(), 4);
         assert!(p.girations.iter().all(|gi| gi.conflits.is_empty()), "{:?}", p.girations.iter().map(|gi| &gi.conflits).collect::<Vec<_>>());
         // Rien dans la tour, ni place ni poteau.
-        let c = v2(13.6, 24.2);
+        let c = v2(13.6, 16.2);
         assert!(!p.places.iter().chain(&p.places_rdc).chain(&p.places_dernier).any(|pl| pl.q.iter().any(|q| (*q - c).len() < 13.1 - 1e-6)));
         assert!(!p.poteaux.iter().any(|po| (po.c - c).len() < 13.1));
-        let deux = construire(&Gabarit { implantation: Implantation::Helice, ..g }, 48.4, 80.0).unwrap();
-        assert_eq!((p.places.len(), deux.places.len()), (108, 96));
-        // Deux modules : 18,00 m entre les voies des allées, il en faut 2 × (6,50 + 9,43).
-        let p = construire(&g, 32.4, 80.0).unwrap();
-        assert!(p.rampes.is_empty() && p.refus.iter().any(|m| m.contains("31,86 m")), "{:?}", p.refus);
+        // Deux tours séparées ne tiennent pas sur deux modules ; sur trois, une tour à double sens
+        // garde plus de places que deux tours.
+        assert!(construire(&Gabarit { implantation: Implantation::Helice, ..g }, 32.4, 80.0).unwrap().rampes.is_empty());
+        let (un, deux) = (construire(&g, 48.4, 80.0).unwrap(), construire(&Gabarit { implantation: Implantation::Helice, ..g }, 48.4, 80.0).unwrap());
+        assert!(un.places.len() > deux.places.len(), "{} {}", un.places.len(), deux.places.len());
+        let p = construire(&g, 16.4, 80.0).unwrap();
+        assert!(p.rampes.is_empty() && p.refus.iter().any(|m| m.contains("deux allées")), "{:?}", p.refus);
     }
 
     #[test]
