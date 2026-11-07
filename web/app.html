@@ -371,6 +371,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
         <div class="row" id="r-dalle" hidden><span class="k">Dalle</span><span class="v" id="s-dalle"></span></div>
         <div class="row" id="r-trame" hidden><span class="k">Trame</span><span class="v" id="s-trame"></span></div>
         <div class="row" id="r-niveaux" hidden><span class="k">Niveaux</span><span class="v" id="s-niveaux"></span></div>
+        <div class="row" id="r-rampes" hidden><span class="k">Rampes</span><span class="v" id="s-rampes"></span></div>
         <div class="row" id="r-plancher" hidden><span class="k">Plancher</span><span class="v" id="s-plancher"></span></div>
         <div class="row"><span class="k" id="k-eff">Enrobé par place</span><span class="v" id="s-eff"></span></div>
         <div class="row"><span class="k">Parcelle</span><span class="v" id="s-parcel"></span></div>
@@ -387,6 +388,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
           <div class="eyebrow">Projet</div>
           <label class="lrow"><span><span class="sws"><i class="sw" style="background:var(--asphalt)"></i><i class="sw" style="background:var(--pmr)"></i><i class="sw" style="background:var(--irve)"></i></span>Places</span><input type="checkbox" class="switch" role="switch" data-lay="places"></label>
           <label class="lrow"><span><i class="sw" style="background:var(--asphalt)"></i>Voirie</span><input type="checkbox" class="switch" role="switch" data-lay="pvoirie"></label>
+          <label class="lrow" id="lay-girations" hidden><span><i class="sw" style="background:color-mix(in srgb, var(--accent) 22%, transparent);box-shadow:inset 0 0 0 1.5px var(--accent)"></i>Girations des rampes</span><input type="checkbox" class="switch" role="switch" data-lay="girations"></label>
           <label class="lrow" id="lay-structure" hidden><span><i class="sw" style="background:var(--slab);box-shadow:inset 0 0 0 2px var(--building)"></i>Structure (dalle, poutres, poteaux, trame)</span><input type="checkbox" class="switch" role="switch" data-lay="structure"></label>
           <label class="lrow"><span><svg class="sw-ico" width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><path d="M1 3h8.5M8 1l2.5 2L8 5M13 7H4.5M6 5 3.5 7 6 9" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Sens de circulation</span><input type="checkbox" class="switch" role="switch" data-lay="sens"></label>
           <label class="lrow"><span><i class="sw" style="background:var(--island)"></i>Îlots plantés</span><input type="checkbox" class="switch" role="switch" data-lay="ilots"></label>
@@ -485,13 +487,14 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
         <div class="field"><label for="p-silo_niveaux">Niveaux</label><span class="unit"><input id="p-silo_niveaux" type="text" inputmode="numeric" autocomplete="off">niv.</span></div>
         <div class="field"><label for="p-silo_etage">Hauteur d'étage</label><span class="unit"><input id="p-silo_etage" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_pente">Pente des rampes</label><span class="unit"><input id="p-silo_pente" type="text" inputmode="decimal" autocomplete="off">%</span></div>
+        <div class="field" id="ra-field"><label id="ra-lab">Rampes</label><span class="seg" role="group" aria-labelledby="ra-lab" id="ra-seg"><button data-ra="auto" aria-pressed="true">Auto</button><button data-ra="rangee" aria-pressed="false">En rangée</button><button data-ra="pignon" aria-pressed="false">En pignon</button></span></div>
         <div class="field"><label for="p-silo_pu">Poteau le long des allées</label><span class="unit"><input id="p-silo_pu" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_pv">Poteau en travers</label><span class="unit"><input id="p-silo_pv" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_retrait">Retrait en tête de place</label><span class="unit"><input id="p-silo_retrait" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_travee">Places entre poteaux, au plus</label><span class="unit"><input id="p-silo_travee" type="text" inputmode="decimal" autocomplete="off">pl</span></div>
         <div class="field"><label for="p-silo_facade">Rive de façade</label><span class="unit"><input id="p-silo_facade" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_rives">Places le long des pignons</label><input id="p-silo_rives" type="checkbox" class="switch" role="switch"></div>
-        <p class="note">Le système fixe le plancher : béton coulé (dalle post-contrainte, poutres et dalle, plancher-dalle), préfabriqué (dalles alvéolées de 1,20 m sur poutres précontraintes, places de 2,40 m), acier-béton (solives IPE et dalle mixte, portée longue). Portée longue : poteaux en façade et en dos à dos ; moyenne : en tête des rangées dos à dos ; courte : en tête de chaque rangée, le nu à 0,65 m au moins de l'allée (NF P 91-100, tab. 3). Au-delà d'un niveau, rampes droites à sens unique dans les pignons, montée à un bout, descente à l'autre (18 % au plus, raccords R 10 et R 15, NF P 91-100 ; voie de 3,25 m, Neufert). Hypothèses d'esquisse à confirmer par le bureau d'études et le fabricant.</p>
+        <p class="note">Le système fixe le plancher : béton coulé (dalle post-contrainte, poutres et dalle, plancher-dalle), préfabriqué (dalles alvéolées de 1,20 m sur poutres précontraintes, places de 2,40 m), acier-béton (solives IPE et dalle mixte, portée longue). Portée longue : poteaux en façade et en dos à dos ; moyenne : en tête des rangées dos à dos ; courte : en tête de chaque rangée, le nu à 0,65 m au moins de l'allée (NF P 91-100, tab. 3). Au-delà d'un niveau, rampes droites à sens unique, montée à un bout, descente à l'autre : en rangée, le long des allées dans les rangées de façade (deux modules au moins) ; en pignon, en travers des allées (trois modules au moins) ; Auto garde celle qui laisse le plus de places. Épures de giration vérifiées à l'entrée et à la sortie (voie de 4,00 m en courbe, rayon extérieur 8,50 m ; pente de 18 % au plus, raccords R 10 et R 15, NF P 91-100 ; voie de rampe de 3,25 m, Neufert). Hypothèses d'esquisse à confirmer par le bureau d'études et le fabricant.</p>
       </div>
     </div>
     <div class="pgroup">
@@ -674,7 +677,7 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((res) => setTimeout(
 // Données : sites d'exemple (mètres, repère local, y vers le haut).
 // ============================================================================
 const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, basin_margin: 2, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null, slant: 90,
-  silo: false, silo_etage: 2.9, silo_niveaux: 1, silo_pente: 18, silo_systeme: "coule", silo_pu: 0.3, silo_pv: 0.6, silo_travee: 3, silo_facade: 0.2, silo_rives: true, silo_densite: "longue", silo_retrait: 0.65 };
+  silo: false, silo_etage: 2.9, silo_niveaux: 1, silo_pente: 18, silo_systeme: "coule", silo_pu: 0.3, silo_pv: 0.6, silo_travee: 3, silo_facade: 0.2, silo_rives: true, silo_densite: "longue", silo_retrait: 0.65, silo_rampes: "auto" };
 
 function arc(cx, cy, r, a0, a1, n) {
   const pts = [];
@@ -754,7 +757,7 @@ function engineInput(quick) {
       pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100, irve_equip_ratio: p.irve_equip_ratio / 100,
       angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle,
     },
-    ouvrage: p.silo ? { actif: true, facade: p.silo_facade, poteau: [p.silo_pu, p.silo_pv], travee: Math.max(1, Math.round(p.silo_travee)), rives: !!p.silo_rives, densite: p.silo_densite, retrait: p.silo_retrait, systeme: p.silo_systeme, angle: p.angle, hauteur_etage: p.silo_etage, niveaux: Math.max(1, Math.round(p.silo_niveaux)), pente_rampe: p.silo_pente / 100, emprise: site.slab ? { cx: site.slab.cx, cy: site.slab.cy, w: site.slab.w, h: site.slab.h, rot: site.slab.rot, fixe: site.slab.fixe || [0, 0] } : null } : null,
+    ouvrage: p.silo ? { actif: true, facade: p.silo_facade, poteau: [p.silo_pu, p.silo_pv], travee: Math.max(1, Math.round(p.silo_travee)), rives: !!p.silo_rives, densite: p.silo_densite, retrait: p.silo_retrait, systeme: p.silo_systeme, angle: p.angle, hauteur_etage: p.silo_etage, niveaux: Math.max(1, Math.round(p.silo_niveaux)), implantation: p.silo_rampes, pente_rampe: p.silo_pente / 100, emprise: site.slab ? { cx: site.slab.cx, cy: site.slab.cy, w: site.slab.w, h: site.slab.h, rot: site.slab.rot, fixe: site.slab.fixe || [0, 0] } : null } : null,
   };
 }
 
@@ -866,7 +869,7 @@ function fit(animate) {
 let C = {};
 function readColors() {
   const cs = getComputedStyle(document.documentElement);
-  for (const k of ["glass-solid", "sep", "ground", "grid", "grid-strong", "parcel", "parcel-edge", "asphalt", "stripe", "island", "tree", "tree-edge", "building", "building-edge", "building-label", "slab", "excl", "setback", "pmr", "irve", "pmr-irve", "accent", "label", "label-2", "cad", "cad-halo", "cad-label", "cad-bati", "cad-bati-edge", "cad-sheet", "cad-commune", "veg", "veg-tint", "occ-voirie"]) C[k] = cs.getPropertyValue("--" + k).trim();
+  for (const k of ["glass-solid", "sep", "ground", "grid", "grid-strong", "parcel", "parcel-edge", "asphalt", "stripe", "island", "tree", "tree-edge", "building", "building-edge", "building-label", "slab", "excl", "setback", "pmr", "irve", "pmr-irve", "accent", "label", "label-2", "cad", "cad-halo", "cad-label", "cad-bati", "cad-bati-edge", "cad-sheet", "cad-commune", "veg", "veg-tint", "occ-voirie", "bad"]) C[k] = cs.getPropertyValue("--" + k).trim();
   hatch = null; vegPat = null;
 }
 let hatch = null;
@@ -1052,6 +1055,7 @@ function draw() {
       ctx.stroke();
     }
     if (layout.ouvrage && VIS.structure) drawStructure(layout.ouvrage);
+    if (layout.ouvrage && VIS.girations) drawGirations(layout.ouvrage.girations);
     // Calque Sens de circulation : flèches peintes sur la chaussée
     if (VIS.sens && view.s > 1.0 && layout.circulation && layout.circulation.arrows.length) {
       planTransform(ctx, DPR, view.s, view.ox, view.oy); ctx.fillStyle = C.stripe; ctx.fill(arrowsPath(layout)); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -1129,6 +1133,22 @@ function drawRampes(rs) {
       ctx.font = `600 11px ${font}`; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.fillStyle = C.stripe;
       ctx.fillText(`${r.montee ? "Montée" : "Descente"} ${Math.round(r.pente * 100)} %`, 0, -4); ctx.restore();
     }
+  }
+}
+
+// Épures de giration des rampes (NF P 91-100, § 3.3) : bande balayée, trajectoire en tirets
+// terminée d'une pointe ; en rouge quand un obstacle s'y trouve.
+function drawGirations(gs) {
+  for (const g of gs) {
+    const col = g.conflits.length ? C.bad : C.accent;
+    ctx.beginPath(); pathPoly(g.contour); ctx.fillStyle = col; ctx.globalAlpha = 0.14; ctx.fill();
+    ctx.globalAlpha = 0.85; ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.stroke();
+    const a = g.axe.map(toS), n = a.length;
+    ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); for (let i = 1; i < n; i++) ctx.lineTo(a[i][0], a[i][1]);
+    ctx.setLineDash([6, 4]); ctx.lineWidth = 1.3; ctx.stroke(); ctx.setLineDash([]);
+    const B = a[n - 1], P = a[n - 2], L = Math.hypot(B[0] - P[0], B[1] - P[1]) || 1, ux = (B[0] - P[0]) / L, uy = (B[1] - P[1]) / L;
+    ctx.beginPath(); ctx.moveTo(B[0] - ux * 7 - uy * 4, B[1] - uy * 7 + ux * 4); ctx.lineTo(B[0], B[1]); ctx.lineTo(B[0] - ux * 7 + uy * 4, B[1] - uy * 7 - ux * 4); ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 }
 
@@ -1499,7 +1519,9 @@ function updateStats(quick) {
   $("#r-dalle").hidden = !ov; $("#lay-structure").hidden = !ov; $("#k-eff").textContent = ov ? "Dalle par place" : "Enrobé par place";
   if (ov) $("#s-dalle").textContent = `${fmt1(ov.largeur)} × ${fmt1(ov.longueur)} m · ${ov.modules}${ov.demi_module ? ",5" : ""} module${ov.modules + (ov.demi_module ? 0.5 : 0) >= 2 ? "s" : ""}`;
   $("#r-trame").hidden = !ov; if (ov) $("#s-trame").textContent = `${DENSITE[params.silo_densite]} · portée ${fmt1(ov.portee)} m`;
-  $("#r-niveaux").hidden = !ov || ov.niveaux < 2; if (ov && ov.niveaux > 1) $("#s-niveaux").textContent = `${ov.niveaux} · ${fmtInt(ov.places_niveau)} places par niveau, ${fmtInt(ov.places_dernier)} au dernier`;
+  $("#r-niveaux").hidden = !ov || ov.niveaux < 2; if (ov && ov.niveaux > 1) $("#s-niveaux").textContent = `${ov.niveaux} · ${fmtInt(ov.places_rdc)} places au rez, ${ov.niveaux > 2 ? fmtInt(ov.places_niveau) + " par niveau courant, " : ""}${fmtInt(ov.places_dernier)} au dernier`;
+  $("#r-rampes").hidden = !ov || ov.niveaux < 2; $("#lay-girations").hidden = !ov || !ov.girations.length;
+  if (ov && ov.niveaux > 1) { const k = ov.girations.filter((g) => g.conflits.length).length; $("#s-rampes").innerHTML = ov.rampes.length ? `${IMPLANTATION[ov.implantation]}<span class="chip ${k ? "bad" : "ok"}">${k ? (k > 1 ? k + " girations gênées" : "giration gênée") : "girations conformes"}</span>` : `aucune<span class="chip bad">impossible</span>`; }
   $("#r-plancher").hidden = !ov; if (ov) { $("#s-plancher").textContent = `${ov.plancher.court} · étage ≥ ${ov.plancher.hauteur_min.toFixed(2).replace(".", ",")} m`; $("#r-plancher").title = ov.plancher.libelle + " (" + ov.plancher.source + ")"; }
   $("#s-pmr").innerHTML = `${m.pmr} / ${m.pmr_required}${chip(m.pmr >= m.pmr_required)}`;
   $("#s-irve").innerHTML = `${m.irve} / ${m.irve_required}${chip(m.irve >= m.irve_required)}`;
@@ -1909,6 +1931,7 @@ window.addEventListener("keydown", (ev) => {
 const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "pmr_ratio", "irve_ratio", "irve_equip_ratio", "silo_niveaux", "silo_etage", "silo_pente", "silo_pu", "silo_pv", "silo_retrait", "silo_travee", "silo_facade"];
 // Densité de la trame du silo : libellés du bilan et du tableur.
 const DENSITE = { longue: "Longue", moyenne: "Moyenne", courte: "Courte" };
+const IMPLANTATION = { rangee: "En rangée", pignon: "En pignon" };
 // Systèmes constructifs du silo : libellé, poteau par défaut [le long des allées, en travers], largeur de place,
 // places au plus entre poteaux (acier-béton : solives sur les poteaux, 5,00 m au plus).
 const SYSTEMES = {
@@ -1966,6 +1989,8 @@ function syncParamsUI() {
   $("#silo-fields").hidden = !params.silo; $("#p-silo_rives").checked = !!params.silo_rives;
   for (const b of $("#sy-seg").children) b.setAttribute("aria-pressed", String(b.dataset.s === params.silo_systeme));
   for (const b of $("#d-seg").children) { b.setAttribute("aria-pressed", String(b.dataset.d === params.silo_densite)); b.disabled = !!SYSTEMES[params.silo_systeme].densite && b.dataset.d !== SYSTEMES[params.silo_systeme].densite; }
+  for (const b of $("#ra-seg").children) b.setAttribute("aria-pressed", String(b.dataset.ra === params.silo_rampes));
+  $("#ra-field").hidden = Math.round(params.silo_niveaux) < 2;
   for (const b of $("#sl-seg").children) b.setAttribute("aria-pressed", String(+b.dataset.sl === params.slant));
   updateSlantNote();
   const auto = params.angle === null;
@@ -1976,7 +2001,7 @@ function syncParamsUI() {
 let paramTimer = null;
 for (const k of PKEYS) $("#p-" + k).addEventListener("input", (ev) => {
   const v = parseFloat(ev.target.value.replace(",", ".")); if (!isFinite(v)) return;
-  params[k] = v; clearTimeout(paramTimer); paramTimer = setTimeout(() => { lastAngle = null; solve(false); commit(); }, 120);
+  params[k] = v; if (k === "silo_niveaux") $("#ra-field").hidden = Math.round(v) < 2; clearTimeout(paramTimer); paramTimer = setTimeout(() => { lastAngle = null; solve(false); commit(); }, 120);
 });
 $("#t-seg").addEventListener("click", (ev) => {
   const b = ev.target.closest("button[data-t]"); if (!b || (b.dataset.t === "silo") === !!params.silo) return;
@@ -1991,6 +2016,10 @@ $("#sy-seg").addEventListener("click", (ev) => {
   params.silo_systeme = b.dataset.s; params.silo_pu = S.pu; params.silo_pv = S.pv; params.stall_w = S.w; params.silo_travee = S.travee;
   if (S.densite) params.silo_densite = S.densite;
   syncParamsUI(); lastAngle = null; solve(false); commit();
+});
+$("#ra-seg").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-ra]"); if (!b || b.dataset.ra === params.silo_rampes) return;
+  params.silo_rampes = b.dataset.ra; syncParamsUI(); lastAngle = null; solve(false); commit();
 });
 $("#d-seg").addEventListener("click", (ev) => {
   const b = ev.target.closest("button[data-d]"); if (!b || b.dataset.d === params.silo_densite) return;
@@ -2327,7 +2356,7 @@ const CADR = { layer: "CADASTRALPARCELS.PARCELLAIRE_EXPRESS", style: "PCI vecteu
 const CAD_TYPES = { parcelles: "parcelle", bati: "batiment", feuilles: "feuille", communes: "commune" };
 // Calques : ce que l'on affiche ou masque. Chacun devient un calque AutoCAD à l'export.
 const LAYER_DEFAULTS = {
-  places: true, pvoirie: true, structure: true, sens: true, ilots: true, pbati: true, servitudes: true, recul: true, vehicules: true, arbres: true,
+  places: true, pvoirie: true, girations: true, structure: true, sens: true, ilots: true, pbati: true, servitudes: true, recul: true, vehicules: true, arbres: true,
   ovoirie: true, bati: true, vegetation: true,
   photo: true, parcelles: true, numeros: true, feuilles: false, communes: true,
 };
@@ -2883,7 +2912,7 @@ $("#m-ok").addEventListener("click", importArea);
 // ============================================================================
 // Calque de l'interface → calques AutoCAD correspondants.
 const DXF_LAYERS = {
-  places: ["PRJ_PLACES", "PRJ_PLACES_PMR", "PRJ_PLACES_IRVE", "PRJ_PLACES_IRVE_EQ"], pvoirie: ["PRJ_VOIRIE", "PRJ_RAMPES"], structure: ["STR_DALLE", "STR_POUTRES", "STR_POTEAUX", "STR_AXES", "STR_REPERES"], sens: ["PRJ_SIGNALISATION"], ilots: ["PRJ_ILOTS", "PRJ_NOUES"],
+  places: ["PRJ_PLACES", "PRJ_PLACES_PMR", "PRJ_PLACES_IRVE", "PRJ_PLACES_IRVE_EQ"], pvoirie: ["PRJ_VOIRIE", "PRJ_RAMPES"], girations: ["PRJ_GIRATIONS"], structure: ["STR_DALLE", "STR_POUTRES", "STR_POTEAUX", "STR_AXES", "STR_REPERES"], sens: ["PRJ_SIGNALISATION"], ilots: ["PRJ_ILOTS", "PRJ_NOUES"],
   vehicules: ["HAB_VEHICULES"], arbres: ["HAB_ARBRES"],
   pbati: ["PRJ_BATIMENTS", "PRJ_ESPACES_VERTS", "PRJ_BASSIN_TALUS_HAUT", "PRJ_BASSIN_TALUS_BAS"], servitudes: ["PRJ_SERVITUDES"], recul: ["PRJ_RECUL"],
   ovoirie: ["OCC_VOIRIE"], bati: ["OCC_BATI"], vegetation: ["OCC_VEGETATION"],
@@ -3011,7 +3040,12 @@ function buildXls() {
   if (layout.ouvrage) {
     const pl = layout.ouvrage.plancher;
     const ov = layout.ouvrage;
-    if (ov.niveaux > 1) { row("Niveaux", ov.niveaux, "niveaux"); row("Places par niveau courant", ov.places_niveau, "places"); row("Places au dernier niveau", ov.places_dernier, "places"); for (const r of ov.rampes) row(r.montee ? "Rampe de montée" : "Rampe de descente", `${Math.round(r.pente * 100)} %, ${r.longueur.toFixed(2).replace(".", ",")} m (raccords R 10 et R 15 compris)`); }
+    if (ov.niveaux > 1) {
+      row("Niveaux", ov.niveaux, "niveaux"); row("Places au rez", ov.places_rdc, "places"); if (ov.niveaux > 2) row("Places par niveau courant", ov.places_niveau, "places"); row("Places au dernier niveau", ov.places_dernier, "places");
+      row("Implantation des rampes", ov.rampes.length ? IMPLANTATION[ov.implantation] : "aucune");
+      for (const r of ov.rampes) row(r.montee ? "Rampe de montée" : "Rampe de descente", `${Math.round(r.pente * 100)} %, ${r.longueur.toFixed(2).replace(".", ",")} m (raccords R 10 et R 15 compris)`);
+      for (const g of ov.girations) row(`Giration : ${g.libelle.toLowerCase()}`, g.conflits.length ? `gênée par ${g.conflits.join(", ")}` : "conforme (voie de 4,00 m, rayon extérieur 8,50 m, NF P 91-100 § 3.3)");
+    }
     row("Système constructif (silo)", SYSTEMES[params.silo_systeme].nom); row("Portée de la trame (silo)", DENSITE[params.silo_densite]); row("Portée en travers", layout.ouvrage.portee, "m", "N2");
     row("Plancher", pl.libelle); if (pl.ossature) row(pl.ossature.solive ? "Solives" : "Poutres", `${pl.ossature.profil.replace("_", " ")} : ${layout.ouvrage.poutres.length}`); row("Épaisseur du plancher", pl.epaisseur, "m", "N2"); row("Retombée", pl.retombee, "m", "N2"); row("Hauteur d'étage minimale", pl.hauteur_min, "m (NF P 91-100, § 3.2)", "N2"); row("Source du plancher", pl.source);
   }

@@ -668,6 +668,12 @@ pub fn export(inp: &ExportIn) -> ExportOut {
             let txt = format!("{quoi} {} %", (r.pente * 100.0).round());
             w.text("PRJ_RAMPES", (ax + bx) / 2.0, (ay + by) / 2.0, 0.5, &txt, true);
         }
+        // Épures de giration : contour de la bande balayée, trajectoire.
+        for gi in &o.girations {
+            w.ring("PRJ_GIRATIONS", &gi.contour);
+            let pts = w.map(&gi.axe);
+            w.lwpoly("PRJ_GIRATIONS", &pts, false);
+        }
     }
     // Signalisation horizontale : flèches de sens de circulation.
     for a in &lay.circulation.arrows {

@@ -6,6 +6,7 @@
 //! courte (poteaux en tête de place), plancher du système constructif retenu (`systemes`).
 
 pub mod bim;
+pub mod giration;
 pub mod ifc;
 pub mod normes;
 pub mod plateau;
@@ -17,7 +18,7 @@ use crate::model::{Layout, Metrics, Site, StallOut, P2};
 use crate::region;
 use geo::{BooleanOps, MultiPolygon};
 use normes::{neufert, nf};
-use plateau::{Densite, Emprise, Gabarit, Plan};
+use plateau::{Densite, Emprise, Gabarit, Implantation, Plan};
 use systemes::Systeme;
 use serde::{Deserialize, Serialize};
 
@@ -47,8 +48,10 @@ pub struct Ouvrage {
     pub emprise: Option<EmpriseIn>,
     /// Hauteur d'étage (plancher à plancher), en mètres.
     pub hauteur_etage: f64,
-    /// Nombre de niveaux (rez-de-chaussée compris). Au-delà d'un, rampes droites en pignon.
+    /// Nombre de niveaux (rez-de-chaussée compris). Au-delà d'un, rampes droites.
     pub niveaux: u32,
+    /// Implantation des rampes : "auto", "rangee" (le long des allées) ou "pignon".
+    pub implantation: Implantation,
     /// Pente des rampes (fraction) : 18 % au plus (NF P 91-100, § 3.4).
     pub pente_rampe: f64,
     /// Altitude NGF du niveau de référence (plancher bas), en mètres.
@@ -71,6 +74,7 @@ impl Default for Ouvrage {
             emprise: None,
             hauteur_etage: 2.90,
             niveaux: 1,
+            implantation: Implantation::Auto,
             pente_rampe: 0.18,
             cote: 0.0,
             nom: "Parc de stationnement".into(),
@@ -135,6 +139,7 @@ impl Ouvrage {
             retrait: self.retrait.max(0.0),
             rampe: (self.niveaux > 1).then(|| self.longueur_rampe()),
             rampe_largeur: neufert::RAMPE_SENS_UNIQUE.v,
+            implantation: self.implantation,
         }
     }
 }
@@ -148,6 +153,16 @@ pub struct RampeOut {
     pub pente: f64,
     pub longueur: f64,
     pub cle: String,
+}
+
+/// Épure de giration (NF P 91-100, § 3.3) : trajectoire, contour de la bande balayée, obstacles.
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct GirationOut {
+    pub cle: String,
+    pub libelle: String,
+    pub axe: Vec<P2>,
+    pub contour: Vec<P2>,
+    pub conflits: Vec<String>,
 }
 
 /// File de poteaux (axe de trame), prolongée de 3 m au-delà de la dalle.
@@ -210,11 +225,15 @@ pub struct OuvrageOut {
     pub places_rive: usize,
     pub places_modules: usize,
     pub niveaux: u32,
-    /// Places d'un niveau courant et du dernier niveau.
+    /// Places d'un niveau courant, du rez et du dernier niveau.
     pub places_niveau: usize,
+    pub places_rdc: usize,
     pub places_dernier: usize,
+    /// Implantation des rampes retenue : "rangee", "pignon", ou vide sans rampe.
+    pub implantation: String,
     /// Rampes droites : emprise de la voie, axe dans le sens de parcours (de → à), pente, longueur.
     pub rampes: Vec<RampeOut>,
+    pub girations: Vec<GirationOut>,
     pub surface: f64,
     pub m2_place: f64,
     pub hauteur_etage: f64,
@@ -224,7 +243,7 @@ pub struct OuvrageOut {
 }
 
 /// Longueur en mètres, deux décimales, virgule.
-fn fr2(x: f64) -> String {
+pub(crate) fn fr2(x: f64) -> String {
     format!("{x:.2}").replace('.', ",")
 }
 
@@ -367,13 +386,21 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
             e: false,
         })
         .collect();
-    // Places : niveau courant (le plan affiché) ; au dernier niveau, le pignon de la montée en plus.
+    // Places : niveau courant (le plan affiché) ; au rez et au dernier niveau, les places des
+    // épures de giration inutiles à ces niveaux en plus.
     let niv = o.niveaux.max(1) as usize;
+    let rives = |v: &[plateau::PlaceLoc]| v.iter().filter(|pl| pl.rive).count();
     let n_niv = out.stalls.len();
-    let n_dernier = n_niv + plan.places_dernier.len();
-    let n = if niv > 1 { (niv - 1) * n_niv + n_dernier } else { n_niv };
-    let rive_niv = plan.places.iter().filter(|pl| pl.rive).count();
-    let rive = if niv > 1 { (niv - 1) * rive_niv + rive_niv + plan.places_dernier.len() } else { rive_niv };
+    let (n_rdc, n_dernier) = (n_niv + plan.places_rdc.len(), n_niv + plan.places_dernier.len());
+    let rive_niv = rives(&plan.places);
+    let (n, rive) = if niv > 1 {
+        (
+            n_rdc + (niv - 2) * n_niv + n_dernier,
+            niv * rive_niv + rives(&plan.places_rdc) + rives(&plan.places_dernier),
+        )
+    } else {
+        (n_niv, rive_niv)
+    };
 
     // Chaussée : réunion des allées.
     let aq: Vec<Quad> = plan
@@ -460,15 +487,18 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         ));
     }
 
-    // Rampes : longueur disponible entre façades, hauteur libre perpendiculaire à la rampe (2,00 m,
-    // majorée de la flèche du raccord de sommet, NF P 91-100, § 3.2) sous le plancher du dessus.
+    // Rampes : implantation possible, épures de giration dégagées, hauteur libre perpendiculaire
+    // à la rampe (2,00 m, majorée de la flèche du raccord de sommet, NF P 91-100, § 3.2) sous le
+    // plancher du dessus.
     if niv > 1 {
-        let lr = o.longueur_rampe();
         if plan.rampes.is_empty() {
+            out.warnings.extend(plan.refus.iter().cloned());
+        }
+        for gi in plan.girations.iter().filter(|gi| !gi.conflits.is_empty()) {
             out.warnings.push(format!(
-                "Rampes droites en pignon : {} m nécessaires, {} m entre façades (dalle trop étroite)",
-                fr2(lr),
-                fr2(larg - 2.0 * g.facade)
+                "Giration : {} gênée par {} (NF P 91-100, § 3.3 : voie de 4,00 m en courbe, rayon extérieur de 8,50 m)",
+                gi.libelle().to_lowercase(),
+                gi.conflits.join(", ")
             ));
         }
         if o.pente_rampe > nf::PENTE_RAMPE_MAX.v + 1e-9 {
@@ -530,7 +560,9 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         places_modules: n_niv - rive_niv,
         niveaux: niv as u32,
         places_niveau: n_niv,
+        places_rdc: n_rdc,
         places_dernier: n_dernier,
+        implantation: plan.implantation.map_or(String::new(), |i| i.nom().into()),
         rampes: plan
             .rampes
             .iter()
@@ -545,6 +577,17 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
                     longueur: r3(o.longueur_rampe()),
                     cle: r.cle.clone(),
                 }
+            })
+            .collect(),
+        girations: plan
+            .girations
+            .iter()
+            .map(|gi| GirationOut {
+                cle: gi.cle.clone(),
+                libelle: gi.libelle().into(),
+                axe: gi.axe.iter().map(|&q| p2(w(q))).collect(),
+                contour: gi.contour.iter().map(|&q| p2(w(q))).collect(),
+                conflits: gi.conflits.clone(),
             })
             .collect(),
         surface: r3(surface),
