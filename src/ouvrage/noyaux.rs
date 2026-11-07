@@ -176,6 +176,24 @@ impl Reseau {
     }
 }
 
+fn dans(anneau: &[V2], p: V2) -> bool {
+    let n = anneau.len();
+    (0..n).fold(false, |dedans, i| {
+        let (a, b) = (anneau[i], anneau[(i + 1) % n]);
+        if (a.y > p.y) != (b.y > p.y) && a.x + (p.y - a.y) * (b.x - a.x) / (b.y - a.y) > p.x {
+            !dedans
+        } else {
+            dedans
+        }
+    })
+}
+
+/// Seuil d'une cage : 0,50 m devant le milieu de l'avant de la place, dans l'allée.
+fn seuil(q: &[V2; 4]) -> V2 {
+    let (m, f) = ((q[2] + q[3]) * 0.5, (q[0] + q[1]) * 0.5);
+    m + (m - f).norm() * 0.5
+}
+
 fn bornes(q: &[V2; 4]) -> (V2, V2) {
     q.iter().fold((v2(f64::MAX, f64::MAX), v2(f64::MIN, f64::MIN)), |(lo, hi), p| {
         (v2(lo.x.min(p.x), lo.y.min(p.y)), v2(hi.x.max(p.x), hi.y.max(p.y)))
@@ -300,10 +318,15 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool) -> Evacuati
     // Départs de toutes les places du parc (courantes, rendues au rez ou au dernier niveau).
     let toutes: Vec<&PlaceLoc> = plan.places.iter().chain(&plan.places_rdc).chain(&plan.places_dernier).collect();
     let departs: Vec<Option<Depart>> = toutes.iter().map(|pl| devant(&r, plan, pl, g.allee).map(|p| r.depart(p))).collect();
-    // Candidates : places présentes à tous les niveaux, une par point du réseau (en façade de
-    // préférence, deux places dos à dos ayant la même porte).
+    // Candidates : places présentes à tous les niveaux dont la porte ne débouche pas dans l'épure
+    // d'une rampe, une par point du réseau (en façade de préférence, deux places dos à dos ayant
+    // la même porte).
+    let libre = |pl: &PlaceLoc| !plan.girations.iter().any(|gi| dans(&gi.contour, seuil(&pl.q)));
     let mut cands: Vec<(usize, Cible, bool)> = Vec::new();
     for (i, pl) in plan.places.iter().enumerate() {
+        if !libre(pl) {
+            continue;
+        }
         let Some(p) = devant(&r, plan, pl, g.allee) else { continue };
         let f = sur_facade(pl);
         match cands.iter_mut().find(|c| c.1.pos.seg == p.seg && (c.1.pos.t - p.t).abs() < 1e-6) {
@@ -445,7 +468,7 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool) -> Evacuati
     if let Some(&c0) = set.first() {
         let q0 = plan.places[cands[c0].0].q;
         let communs = |q: &[V2; 4]| q.iter().filter(|a| q0.iter().any(|b| (**a - *b).len() < 1e-6)).count();
-        let voisine = (0..plan.places.len()).find(|&i| !retirees.contains(&i) && communs(&plan.places[i].q) == 2);
+        let voisine = (0..plan.places.len()).find(|&i| !retirees.contains(&i) && communs(&plan.places[i].q) == 2 && libre(&plan.places[i]));
         if let Some(a) = voisine {
             let porte = devant(&r, plan, &plan.places[a], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
             noyaux.push(Noyau { q: plan.places[a].q, porte, ascenseur: true, cle: "NY/A1".into() });

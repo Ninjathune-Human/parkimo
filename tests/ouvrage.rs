@@ -326,8 +326,9 @@ fn implantations_sur_les_scenarios() {
 #[test]
 fn escaliers_et_ascenseur() {
     // Trois niveaux : escaliers et ascenseur dans des emprises de places, hors des rampes et des
-    // autres places (un poteau de façade peut entrer dans le mur d'une cage) ; toutes les places à
-    // portée d'un escalier (PS 13). Un seul niveau : aucun noyau.
+    // autres places (un poteau de façade peut entrer dans le mur d'une cage), porte hors des
+    // épures de giration ; toutes les places à portée d'un escalier (PS 13). Un seul niveau :
+    // aucun noyau.
     for nom in ["rect", "triangle", "courbe", "ruisseau"] {
         for imp in [Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines] {
             for pslv in [false, true] {
@@ -355,6 +356,18 @@ fn escaliers_et_ascenseur() {
                 for n in &ov.noyaux {
                     let q = quad(&n.q).shrink(0.01);
                     assert!(!obstacles.iter().any(|o| o.overlaps(&q)), "{cas} : {} gêné", n.cle);
+                    // Porte hors des épures de giration : 0,50 m devant le milieu de l'avant.
+                    let (m, f) = ([(n.q[2][0] + n.q[3][0]) / 2.0, (n.q[2][1] + n.q[3][1]) / 2.0], [(n.q[0][0] + n.q[1][0]) / 2.0, (n.q[0][1] + n.q[1][1]) / 2.0]);
+                    let l = (m[0] - f[0]).hypot(m[1] - f[1]);
+                    let p = [m[0] + (m[0] - f[0]) / l * 0.5, m[1] + (m[1] - f[1]) / l * 0.5];
+                    for gi in &ov.girations {
+                        let c = &gi.contour;
+                        let dedans = (0..c.len()).fold(false, |d, i| {
+                            let (a, b) = (c[i], c[(i + 1) % c.len()]);
+                            d ^ ((a[1] > p[1]) != (b[1] > p[1]) && a[0] + (p[1] - a[1]) * (b[0] - a[0]) / (b[1] - a[1]) > p[0])
+                        });
+                        assert!(!dedans, "{cas} : porte de {} dans l'épure {}", n.cle, gi.cle);
+                    }
                 }
             }
         }

@@ -122,13 +122,13 @@ body {
 .chev { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--field); flex: none; }
 .chev svg { transition: transform var(--fast) var(--ease); }
 [aria-expanded="false"] .chev svg { transform: rotate(180deg); }
-#stats-body { padding: 0 16px 14px; display: grid; gap: 2px; }
+#stats-body { padding: 0 16px 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 30px; border-top: .5px solid var(--sep); font-size: 14px; }
 .row:first-child { border-top: 0; }
-.row .k { color: var(--label-2); display: flex; align-items: center; gap: 7px; min-width: 0; }
-.row .v { font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
+.row .k { color: var(--label-2); display: flex; align-items: center; gap: 7px; flex: none; }
+.row .v { font-variant-numeric: tabular-nums; font-weight: 500; text-align: right; min-width: 0; }
 .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
-.chip { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 99px; margin-left: 6px; }
+.chip { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 99px; margin-left: 6px; white-space: nowrap; display: inline-block; }
 .chip.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
 .chip.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
 #warn { font-size: 12px; color: var(--warn); padding-top: 6px; }
@@ -1567,7 +1567,7 @@ function updateStats(quick) {
   const ev = ov && ov.evacuation;
   $("#r-noyaux").hidden = !ev; $("#lay-noyaux").hidden = !ov || !ov.noyaux.length;
   if (ev) {
-    $("#s-noyaux").innerHTML = `${ev.escaliers}${ev.ascenseurs ? `, ${ev.ascenseurs} ascenseur${ev.ascenseurs > 1 ? "s" : ""}` : ""}<span class="chip ${ev.hors ? "bad" : "ok"}">${ev.hors ? `${ev.hors} place${ev.hors > 1 ? "s" : ""} trop loin` : `${fmt1(ev.distance_max)} m au plus`}</span>`;
+    $("#s-noyaux").innerHTML = `${ev.escaliers}${ev.ascenseurs ? ` · ${ev.ascenseurs} ascenseur${ev.ascenseurs > 1 ? "s" : ""}` : ""}<span class="chip ${ev.hors ? "bad" : "ok"}">${ev.hors ? `${ev.hors} place${ev.hors > 1 ? "s" : ""} trop loin` : `${fmt1(ev.distance_max)} m au plus`}</span>`;
     $("#r-noyaux").title = `PS 13 : ${ev.limite_deux} m entre deux escaliers opposés, ${ev.limite_un} m sinon${ev.largement_ventile ? " (parc largement ventilé)" : ""}, dans l'axe des circulations`;
   }
   $("#r-plancher").hidden = !ov; if (ov) { $("#s-plancher").textContent = `${ov.plancher.court} · étage ≥ ${ov.plancher.hauteur_min.toFixed(2).replace(".", ",")} m`; $("#r-plancher").title = ov.plancher.libelle + " (" + ov.plancher.source + ")"; }
