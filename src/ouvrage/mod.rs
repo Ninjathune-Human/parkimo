@@ -496,7 +496,9 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         .map(|r| r.iter().map(|q| p2(*q)).collect())
         .collect();
 
-    let corners = [v2(0.0, 0.0), v2(long, 0.0), v2(long, larg), v2(0.0, larg)];
+    // Dalle : l'emprise, moins les bouts occupés par les tours quand elles sont hors de la dalle.
+    let rt = plan.retrait;
+    let corners = [v2(rt, 0.0), v2(long - rt, 0.0), v2(long - rt, larg), v2(rt, larg)];
     let ext = 3.0;
     let mut axes: Vec<AxeOut> = Vec::new();
     for (i, &u) in plan.axes_u.iter().enumerate() {
@@ -509,12 +511,12 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
     for (k, &v) in plan.axes_v.iter().enumerate() {
         axes.push(AxeOut {
             nom: plateau::lettre(k),
-            a: p2(w(v2(-ext, v))),
-            b: p2(w(v2(long + ext, v))),
+            a: p2(w(v2(rt - ext, v))),
+            b: p2(w(v2(long - rt + ext, v))),
         });
     }
     let (hu, hv) = (g.pu / 2.0, g.pv / 2.0);
-    let surface = larg * long;
+    let surface = larg * (long - 2.0 * rt);
     let angle = e.u.y.atan2(e.u.x).to_degrees().rem_euclid(180.0);
     let need = |ratio: f64| -> usize {
         if ratio <= 0.0 || n == 0 {

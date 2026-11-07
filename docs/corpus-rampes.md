@@ -56,6 +56,8 @@ Hélice simple à double sens, ou double hélice : une pour monter, une pour des
 - Lyon, parking des Célestins (Targe, Wilmotte, Buren) : 439 places sur 6,5 niveaux, rampe hélicoïdale autour d'un puits central.
 - Gif-sur-Yvette, silo du campus Paris-Saclay (GaP Architectes, Un1on) : 317 places sur 5 niveaux, plateaux horizontaux, rampe circulaire à l'angle nord-est.
 
+Hors de la dalle (implanté, « Hélices hors dalle ») : les mêmes tours, à la même place, mais la dalle s'arrête à la file de poteaux derrière l'allée transversale (retrait de 0,20 + 21,80 − 6,00 − 0,30 − 0,20 = 15,50 m à chaque bout pour des allées de 6,00 m) ; la tour, adossée au pignon, n'entre dans la dalle que par sa porte, sur 4,00 m. Plateaux rectangulaires, libres et réversibles, sans places de pignon : sur 48,40 × 80 m, 84 places par niveau courant contre 96 avec les tours dans la dalle, pour la même emprise. Choix de fonctionnement, que le mode Auto ne retient pas.
+
 Dans Parkimo : deux tours hélicoïdales à sens unique sur plateaux horizontaux, montée à un bout et descente à l'autre (le principe de Bron, une voie par sens, mais dans deux tours), au gabarit Neufert de la rampe courbe à une voie. Analyse Parkimo, pour des plateaux horizontaux : dans une hélice à double sens, l'un des sens coupe l'autre à chaque porte ; avec deux hélices concentriques, il faut traverser la voie extérieure pour atteindre l'intérieure ; deux hélices imbriquées (Chambord) font alterner les portes d'un côté à l'autre de la tour d'un niveau au suivant. Deux tours séparées gardent une porte au même endroit à chaque niveau, dans le sens de la circulation.
 
 ### 2.6 Rampes centrales de distribution, accolées (implanté)
@@ -84,7 +86,7 @@ Dans Parkimo : montée et descente droites, côte à côte, chacune dans une moi
 
 ## 4. Pistes
 
-1. Tour hélicoïdale adossée hors de la dalle, plateaux libres et réversibles ; bande arrière des tours pour les noyaux (escaliers, ascenseurs).
+1. Tour hélicoïdale hors de la dalle : bande arrière des tours pour les noyaux (escaliers, ascenseurs) ; rampes droites accolées hors de la dalle, le long d'une façade.
 2. Sortie rapide : descente courte au centre ou rampe de retour ; demi-niveaux à plus de deux demi-plateaux.
 3. Accès depuis la voirie : palier à 5 % au plus sur 4,00 m (NF P 91-100 § 3.4), giration d'entrée sur le site.
 

@@ -498,7 +498,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
         <div class="field"><label for="p-silo_niveaux">Niveaux</label><span class="unit"><input id="p-silo_niveaux" type="text" inputmode="numeric" autocomplete="off">niv.</span></div>
         <div class="field"><label for="p-silo_etage">Hauteur d'étage</label><span class="unit"><input id="p-silo_etage" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_pente">Pente des rampes</label><span class="unit"><input id="p-silo_pente" type="text" inputmode="decimal" autocomplete="off">%</span></div>
-        <div class="field" id="ra-field"><label for="ra-sel">Rampes</label><span class="pop"><select id="ra-sel"><option value="auto">Auto</option><option value="rangee">En rangée</option><option value="pignon">En pignon</option><option value="demi">Demi-niveaux</option><option value="helice">Hélice</option><option value="inclines">Plateaux inclinés</option><option value="accolees">Accolées au centre</option></select></span></div>
+        <div class="field" id="ra-field"><label for="ra-sel">Rampes</label><span class="pop"><select id="ra-sel"><option value="auto">Auto</option><option value="rangee">En rangée</option><option value="pignon">En pignon</option><option value="demi">Demi-niveaux</option><option value="helice">Hélice</option><option value="helice_ext">Hélices hors dalle</option><option value="inclines">Plateaux inclinés</option><option value="accolees">Accolées au centre</option></select></span></div>
         <div class="field" id="asc-field" hidden><label for="asc-sel">Ascenseurs</label><span class="pop"><select id="asc-sel"><option value="deux">Un par demi-niveau</option><option value="liaison">Un, escalier de liaison</option></select></span></div>
         <div class="field" id="pslv-field"><label for="p-silo_ventile">Largement ventilé (PS 3)</label><input id="p-silo_ventile" type="checkbox" class="switch" role="switch"></div>
         <div class="field"><label for="p-silo_pu">Poteau le long des allées</label><span class="unit"><input id="p-silo_pu" type="text" inputmode="decimal" autocomplete="off">m</span></div>
@@ -1654,7 +1654,8 @@ function updateStats(quick) {
   $("#s-total").textContent = fmtInt(m.stalls); updateCost();
   const ov = layout.ouvrage;
   $("#r-dalle").hidden = !ov; $("#lay-structure").hidden = !ov; $("#k-eff").textContent = ov ? "Dalle par place" : "Enrobé par place";
-  if (ov) $("#s-dalle").textContent = `${fmt1(ov.largeur)} × ${fmt1(ov.longueur)} m · ${ov.modules}${ov.demi_module ? ",5" : ""} module${ov.modules + (ov.demi_module ? 0.5 : 0) >= 2 ? "s" : ""}`;
+  // Tours hors de la dalle : longueur de la dalle seule (l'emprise les comprend).
+  if (ov) $("#s-dalle").textContent = `${fmt1(ov.largeur)} × ${fmt1(Math.hypot(ov.dalle[1][0] - ov.dalle[0][0], ov.dalle[1][1] - ov.dalle[0][1]))} m · ${ov.modules}${ov.demi_module ? ",5" : ""} module${ov.modules + (ov.demi_module ? 0.5 : 0) >= 2 ? "s" : ""}`;
   $("#r-trame").hidden = !ov; if (ov) $("#s-trame").textContent = `${DENSITE[params.silo_densite]} · portée ${fmt1(ov.portee)} m`;
   $("#r-niveaux").hidden = !ov || ov.niveaux < 2; if (ov && ov.niveaux > 1) $("#s-niveaux").textContent = ov.demi_niveaux ? `${ov.niveaux} en ${2 * ov.niveaux} demi-niveaux · ${fmtInt(ov.places_niveau)} places par niveau` : ov.plateaux_inclines ? `${ov.niveaux} · ${fmtInt(ov.places_niveau)} places par niveau, plateaux inclinés` : `${ov.niveaux} · ${fmtInt(ov.places_rdc)} places au rez, ${ov.niveaux > 2 ? fmtInt(ov.places_niveau) + " par niveau courant, " : ""}${fmtInt(ov.places_dernier)} au dernier`;
   $("#r-rampes").hidden = !ov || ov.niveaux < 2; $("#lay-girations").hidden = !ov || !ov.girations.length;
@@ -2113,7 +2114,7 @@ window.addEventListener("keydown", (ev) => {
 const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "pmr_ratio", "irve_ratio", "irve_equip_ratio", "silo_niveaux", "silo_etage", "silo_pente", "silo_pu", "silo_pv", "silo_retrait", "silo_travee", "silo_facade"];
 // Densité de la trame du silo : libellés du bilan et du tableur.
 const DENSITE = { longue: "Longue", moyenne: "Moyenne", courte: "Courte" };
-const IMPLANTATION = { rangee: "En rangée", pignon: "En pignon", demi: "Demi-niveaux", helice: "Hélice", inclines: "Plateaux inclinés", accolees: "Accolées au centre" };
+const IMPLANTATION = { rangee: "En rangée", pignon: "En pignon", demi: "Demi-niveaux", helice: "Hélice", helice_ext: "Hélices hors dalle", inclines: "Plateaux inclinés", accolees: "Accolées au centre" };
 // Systèmes constructifs du silo : libellé, poteau par défaut [le long des allées, en travers], largeur de place,
 // places au plus entre poteaux (acier-béton : solives sur les poteaux, 5,00 m au plus).
 const SYSTEMES = {

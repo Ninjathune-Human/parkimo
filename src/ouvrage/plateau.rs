@@ -53,6 +53,11 @@ pub enum Implantation {
     /// Plateaux inclinés : deux modules en pente de sens opposés, chacun d'un demi-étage sur la
     /// longueur des rangées, reliés à chaque bout par un demi-tour horizontal à double sens.
     Inclines,
+    /// Tours hélicoïdales hors de la dalle : mêmes tours, à la même place, mais la dalle s'arrête à
+    /// la file de poteaux derrière l'allée transversale ; la tour, adossée au pignon, n'entre dans
+    /// la dalle que par sa porte. Plateaux rectangulaires et libres, sans places de pignon.
+    #[serde(rename = "helice_ext")]
+    HeliceExt,
     /// Rampes accolées dans l'allée centrale (plan carré) : montée et descente côte à côte, sur la
     /// même longueur, au milieu des rangées ; chacune abordée par l'allée transversale depuis une
     /// allée éloignée de deux rayons de giration au moins, et quittée dans le prolongement de sa
@@ -70,6 +75,7 @@ impl Implantation {
             Implantation::Helice => "helice",
             Implantation::Inclines => "inclines",
             Implantation::Accolees => "accolees",
+            Implantation::HeliceExt => "helice_ext",
         }
     }
 }
@@ -140,7 +146,11 @@ impl Gabarit {
     }
     /// Tours hélicoïdales retenues (plusieurs niveaux).
     pub fn helice(&self) -> bool {
-        self.rampe.is_some() && self.implantation == Implantation::Helice
+        self.rampe.is_some() && matches!(self.implantation, Implantation::Helice | Implantation::HeliceExt)
+    }
+    /// Tours hélicoïdales hors de la dalle.
+    pub fn exterieur(&self) -> bool {
+        self.rampe.is_some() && self.implantation == Implantation::HeliceExt
     }
     /// Joint entre les deux demi-plateaux (demi-niveaux, plateaux inclinés) : de quoi loger la voie
     /// intérieure du U (trajectoires des voies intérieures des deux allées à 2 × 6,75 m l'une de
@@ -458,6 +468,9 @@ pub struct Plan {
     pub axes_u: Vec<f64>,
     /// Files longitudinales (positions v), lettrées A, B, C…
     pub axes_v: Vec<f64>,
+    /// Retrait de la dalle à chaque bout (tours hors de la dalle) : la dalle va de `retrait` à
+    /// `longueur() - retrait` ; l'emprise, tours comprises, de 0 à `longueur()`.
+    pub retrait: f64,
 }
 
 impl Plan {
@@ -936,7 +949,7 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
         allees.push((rect(debut - g.allee, v0, debut, v1), "AL/X1".into()));
         allees.push((rect(fin, v0, fin + g.allee, v1), "AL/X2".into()));
     }
-    let rives = g.rives && !g.en_u();
+    let rives = g.rives && !g.en_u() && !g.exterieur();
 
     // Files longitudinales.
     let axes_v = lignes_v(g, &t);
@@ -1023,7 +1036,7 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
         }
     } else if let Some(lr) = g.rampe {
         let imp = match g.implantation {
-            Implantation::Pignon | Implantation::Helice | Implantation::Accolees => g.implantation,
+            Implantation::Pignon | Implantation::Helice | Implantation::HeliceExt | Implantation::Accolees => g.implantation,
             _ => Implantation::Rangee,
         };
         // Rampes accolées : allée dont l'axe est le plus près du milieu de la largeur ; la descente
@@ -1037,7 +1050,7 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
             .enumerate()
             .map(|(i, c)| match imp {
                 Implantation::Pignon => en_pignon(c, g, lr),
-                Implantation::Helice => en_helice(c, g),
+                Implantation::Helice | Implantation::HeliceExt => en_helice(c, g),
                 Implantation::Accolees => en_axe(c, g, lr, if i == 0 { axe_central } else { t.largeur - axe_central }),
                 _ => en_rangee(c, g, lr),
             })
@@ -1155,7 +1168,8 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     // Hélice : une file de plus derrière les places de pignon (ou au bord de l'allée transversale)
     // pour couper la bande d'extrémité.
     let arriere = if rives { fond_rive - g.pu / 2.0 } else { debut - g.allee - g.pu / 2.0 };
-    let mut axes_u = vec![g.facade + g.pu / 2.0];
+    // Tours hors de la dalle : la dalle commence à la file derrière l'allée transversale.
+    let mut axes_u = if g.exterieur() { Vec::new() } else { vec![g.facade + g.pu / 2.0] };
     if g.helice() {
         axes_u.push(arriere);
     }
@@ -1174,7 +1188,9 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     if g.helice() {
         axes_u.push(lo.longueur - arriere);
     }
-    axes_u.push(lo.longueur - g.facade - g.pu / 2.0);
+    if !g.exterieur() {
+        axes_u.push(lo.longueur - g.facade - g.pu / 2.0);
+    }
 
     let mut poteaux = Vec::new();
     for (i, &u) in axes_u.iter().enumerate() {
@@ -1228,6 +1244,7 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
         noyaux: Vec::new(),
         axes_u,
         axes_v,
+        retrait: if g.exterieur() { arriere - g.pu / 2.0 - g.facade } else { 0.0 },
     })
 }
 
@@ -1638,6 +1655,34 @@ mod tests {
         // Deux modules : pas d'allée centrale entre deux autres.
         let p = construire(&g, 32.4, 60.0).unwrap();
         assert!(p.rampes.is_empty() && p.refus.iter().any(|m| m.contains("trois modules")), "{:?}", p.refus);
+    }
+
+    /// Tours hors de la dalle sur 48,40 × 80 (emprise de 79 m, tours comprises) : mêmes tours que
+    /// les hélices intérieures (de 0,50 à 19,50 et de 59,50 à 78,50), mais la dalle s'arrête à la
+    /// file derrière l'allée transversale : 0,20 + 21,80 - 6,00 = 16,00 (début de l'allée), moins
+    /// la file de 0,30 et la façade de 0,20, soit 15,50 m de retrait à chaque bout. La tour n'entre
+    /// dans la dalle que sur 19,50 - 15,50 = 4,00 m, par sa porte sur l'allée transversale. Plus de
+    /// places de pignon : 96 - 12 = 84 places par niveau courant, et aucune dans les épures (les
+    /// 4 + 4 rendues au rez et au dernier étaient des places de pignon). Files de poteaux de 15,85
+    /// (15,50 + 0,20 + 0,15) à 63,15 : rien hors de la dalle.
+    #[test]
+    fn helice_hors_dalle_a_la_main() {
+        let g = Gabarit { implantation: Implantation::HeliceExt, rampe: Some(18.36), ..gab() };
+        let p = construire(&g, 48.4, 80.0).unwrap();
+        let int = construire(&Gabarit { implantation: Implantation::Helice, ..g }, 48.4, 80.0).unwrap();
+        assert_eq!(p.implantation, Some(Implantation::HeliceExt));
+        assert!((p.longueur() - 79.0).abs() < 1e-9 && (p.retrait - 15.5).abs() < 1e-9 && int.retrait == 0.0);
+        for (a, b) in p.rampes.iter().zip(&int.rampes) {
+            assert_eq!(giration::bornes(&a.q), giration::bornes(&b.q));
+        }
+        let (lo, hi) = giration::bornes(&p.rampes[0].q);
+        assert!((lo.x - 0.5).abs() < 1e-9 && (hi.x - 19.5).abs() < 1e-9);
+        assert_eq!((int.places.len(), int.places.iter().filter(|x| x.rive).count()), (96, 12));
+        assert_eq!((p.places.len(), p.places_rdc.len(), p.places_dernier.len()), (84, 0, 0));
+        assert!(!p.places.iter().any(|x| x.rive));
+        assert!((p.axes_u[0] - 15.85).abs() < 1e-9 && (p.axes_u.last().unwrap() - 63.15).abs() < 1e-9);
+        assert!(p.poteaux.iter().all(|po| po.c.x > p.retrait && po.c.x < p.longueur() - p.retrait));
+        assert!(p.girations.iter().all(|gi| gi.conflits.is_empty()));
     }
 
     #[test]
