@@ -239,6 +239,24 @@ pub fn compte(g: &Gabarit, larg: f64, l: f64) -> Option<(usize, Travers, Long)> 
     Some((n, t, lo))
 }
 
+type Evaluation = Option<(bool, usize, Travers, Long)>;
+
+/// Pour la recherche : rampes placées (ou inutiles), places d'un niveau courant. Un plateau où les
+/// rampes demandées ne tiennent pas passe après tous ceux où elles tiennent. Avec des rampes, le
+/// plateau ne dépend que des modules et des places par rangée (des deux implantations) : un même
+/// découpage n'est construit qu'une fois.
+fn evalue(g: &Gabarit, larg: f64, l: f64, memo: &mut std::collections::HashMap<(u32, bool, u32, u32), Evaluation>) -> Evaluation {
+    if g.rampe.is_none() {
+        return compte(g, larg, l).map(|(n, t, lo)| (true, n, t, lo));
+    }
+    let t = travers(g, larg)?;
+    let n = |i: Implantation| long(&Gabarit { implantation: i, ..*g }, l).map_or(0, |lo| lo.par_rangee);
+    let cle = (t.modules, t.demi, n(Implantation::Rangee), n(Implantation::Pignon));
+    *memo
+        .entry(cle)
+        .or_insert_with(|| construire(g, larg, l).map(|p| (!p.rampes.is_empty(), p.places.len(), p.travers, p.long)))
+}
+
 /// Place en repère local : [fond a, fond b, avant b, avant a] et sa clé BIM.
 #[derive(Clone, Debug)]
 pub struct PlaceLoc {
@@ -814,8 +832,9 @@ pub fn chercher(
     pas: f64,
     sens_impose: bool,
 ) -> Option<(Emprise, usize)> {
-    // (places, surface utile, emprise)
-    let mut best: Option<(usize, f64, Emprise)> = None;
+    // (rampes placées, places, surface utile, emprise)
+    let mut best: Option<(bool, usize, f64, Emprise)> = None;
+    let mut memo = std::collections::HashMap::new();
     let densite = 2.0 / (g.w * g.module());
     let mut iv: Vec<(f64, f64)> = Vec::new();
     for &deg in angles {
@@ -860,7 +879,7 @@ pub fn chercher(
                     pile.pop();
                     let (wx, hy) = ((i - s0) as f64 * pas, h0 as f64 * pas);
                     let borne = (wx * hy * densite) as usize + 1;
-                    if best.map_or(true, |b| borne >= b.0) {
+                    if best.map_or(true, |b| !b.0 || borne >= b.1) {
                         let cx = lo.x + (s0 as f64 + (i - s0) as f64 / 2.0) * pas;
                         let cy = lo.y + (j as f64 + 1.0 - h0 as f64 / 2.0) * pas;
                         let opts: &[(f64, f64, bool)] = if sens_impose {
@@ -869,9 +888,9 @@ pub fn chercher(
                             &[(hy, wx, true), (wx, hy, false)]
                         };
                         for &(larg, l, le_long_de_x) in opts {
-                            let Some((n, t, lg)) = compte(g, larg, l) else { continue };
+                            let Some((ok, n, t, lg)) = evalue(g, larg, l, &mut memo) else { continue };
                             let aire = t.largeur * lg.longueur;
-                            if best.map_or(true, |b| n > b.0 || (n == b.0 && aire < b.1 - 1e-6)) {
+                            if best.map_or(true, |b| (ok, n) > (b.0, b.1) || (ok == b.0 && n == b.1 && aire < b.2 - 1e-6)) {
                                 // Repère : u le long des allées, v à sa gauche ; rotation inverse vers le plan.
                                 let (ul, vl) = if le_long_de_x {
                                     (v2(1.0, 0.0), v2(0.0, 1.0))
@@ -882,6 +901,7 @@ pub fn chercher(
                                 let centre = v2(cx, cy).rot(c, s);
                                 let o = centre - u * (lg.longueur / 2.0) - v * (t.largeur / 2.0);
                                 best = Some((
+                                    ok,
                                     n,
                                     aire,
                                     Emprise {
@@ -903,7 +923,7 @@ pub fn chercher(
             }
         }
     }
-    best.map(|(n, _, e)| (e, n))
+    best.map(|(_, n, _, e)| (e, n))
 }
 
 #[cfg(test)]

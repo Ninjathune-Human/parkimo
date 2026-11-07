@@ -5,7 +5,7 @@
 
 use trame::geom::{v2, Quad, QuadHash, Region};
 use trame::model::Site;
-use trame::ouvrage::plateau::Densite;
+use trame::ouvrage::plateau::{Densite, Implantation};
 use trame::ouvrage::systemes::Systeme;
 use trame::ouvrage::{bim, ifc, EmpriseIn, Ouvrage};
 use trame::region;
@@ -263,4 +263,33 @@ fn niveaux_et_rampes() {
     let lay = trame::solve(&s);
     assert!(lay.ouvrage.as_ref().unwrap().rampes.is_empty(), "{:?}", lay.warnings);
     assert!(!pas(&lay, "Rampes le long des allées") && !pas(&lay, "Rampes en pignon"), "{:?}", lay.warnings);
+}
+
+#[test]
+fn implantations_sur_les_scenarios() {
+    // Trois niveaux : chaque implantation trouve un plateau où ses deux rampes tiennent, épures
+    // dégagées. La recherche fait passer les plateaux sans rampe possible après les autres.
+    for nom in ["rect", "triangle", "courbe", "ruisseau"] {
+        for imp in [Implantation::Auto, Implantation::Rangee, Implantation::Pignon] {
+            let mut s = site(nom);
+            let o = s.ouvrage.as_mut().unwrap();
+            o.niveaux = 3;
+            o.implantation = imp;
+            let lay = trame::solve(&s);
+            let ov = lay.ouvrage.as_ref().unwrap();
+            assert_eq!(ov.rampes.len(), 2, "{nom} {imp:?} : {:?}", lay.warnings);
+            if imp != Implantation::Auto {
+                assert_eq!(ov.implantation, imp.nom(), "{nom}");
+            }
+            assert!(ov.girations.iter().all(|g| g.conflits.is_empty()), "{nom} {imp:?}");
+        }
+    }
+    // Site étroit : aucune rampe le long des allées possible, le motif est donné.
+    let mut s = site("etroit");
+    let o = s.ouvrage.as_mut().unwrap();
+    o.niveaux = 3;
+    o.implantation = Implantation::Rangee;
+    let lay = trame::solve(&s);
+    assert!(lay.ouvrage.as_ref().unwrap().rampes.is_empty());
+    assert!(lay.warnings.iter().any(|w| w.starts_with("Rampes le long des allées")), "{:?}", lay.warnings);
 }
