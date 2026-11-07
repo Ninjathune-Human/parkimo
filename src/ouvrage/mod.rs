@@ -421,6 +421,14 @@ pub fn solve(site: &Site, o: &Ouvrage) -> Layout {
         None => noyaux::placer(&mut plan, &g, o.largement_ventile, o.ascenseurs_demi),
     });
     remplir(&mut out, site, o, &g, &e, &plan, evac.as_ref());
+    // Tour hors de la dalle en travers (tour en façade) : la recherche ne voit que la dalle.
+    let hors_dalle = |q: &V2| q.y < -1e-6 || q.y > plan.largeur() + 1e-6;
+    if plan.rampes.iter().filter(|r| r.contour.iter().any(hors_dalle)).any(|r| {
+        let tour = MultiPolygon::new(vec![region::to_poly(&r.contour.iter().map(|&q| e.monde(q)).collect::<Vec<_>>())]);
+        region::mp_area(&tour.difference(&z.b)) > 0.5
+    }) {
+        out.warnings.push("La tour hélicoïdale sort de la zone constructible (reculs, bâtiments, servitudes, espaces verts)".into());
+    }
     out
 }
 

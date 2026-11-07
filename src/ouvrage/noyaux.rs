@@ -243,6 +243,8 @@ fn reseau(plan: &Plan) -> Reseau {
         match cle.as_str() {
             "AL/X1" => x[0] = Some((lo.x + hi.x) / 2.0),
             "AL/X2" => x[1] = Some((lo.x + hi.x) / 2.0),
+            // Allée élargie devant une tour en façade : l'allée qu'elle double suffit.
+            c if c.starts_with("AL/E") => {}
             _ => allees.push(((lo.y + hi.y) / 2.0, lo.x, hi.x)),
         }
     }

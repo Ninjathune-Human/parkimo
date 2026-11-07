@@ -498,7 +498,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
         <div class="field"><label for="p-silo_niveaux">Niveaux</label><span class="unit"><input id="p-silo_niveaux" type="text" inputmode="numeric" autocomplete="off">niv.</span></div>
         <div class="field"><label for="p-silo_etage">Hauteur d'étage</label><span class="unit"><input id="p-silo_etage" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_pente">Pente des rampes</label><span class="unit"><input id="p-silo_pente" type="text" inputmode="decimal" autocomplete="off">%</span></div>
-        <div class="field" id="ra-field"><label for="ra-sel">Rampes</label><span class="pop"><select id="ra-sel"><option value="auto">Auto</option><option value="rangee">En rangée</option><option value="pignon">En pignon</option><option value="demi">Demi-niveaux</option><option value="helice">Hélice</option><option value="helice_ext">Hélices hors dalle</option><option value="helice_double">Hélice à double sens</option><option value="inclines">Plateaux inclinés</option></select></span></div>
+        <div class="field" id="ra-field"><label for="ra-sel">Rampes</label><span class="pop"><select id="ra-sel"><option value="auto">Auto</option><option value="rangee">En rangée</option><option value="pignon">En pignon</option><option value="demi">Demi-niveaux</option><option value="helice">Hélice</option><option value="helice_ext">Hélices hors dalle</option><option value="helice_double">Hélice à double sens</option><option value="helice_facade">Double sens en façade</option><option value="inclines">Plateaux inclinés</option></select></span></div>
         <div class="field" id="asc-field" hidden><label for="asc-sel">Ascenseurs</label><span class="pop"><select id="asc-sel"><option value="deux">Un par demi-niveau</option><option value="liaison">Un, escalier de liaison</option></select></span></div>
         <div class="field" id="pslv-field"><label for="p-silo_ventile">Largement ventilé (PS 3)</label><input id="p-silo_ventile" type="checkbox" class="switch" role="switch"></div>
         <div class="field"><label for="p-silo_pu">Poteau le long des allées</label><span class="unit"><input id="p-silo_pu" type="text" inputmode="decimal" autocomplete="off">m</span></div>
@@ -2143,7 +2143,7 @@ window.addEventListener("keydown", (ev) => {
 const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "pmr_ratio", "irve_ratio", "irve_equip_ratio", "silo_niveaux", "silo_etage", "silo_pente", "silo_pu", "silo_pv", "silo_retrait", "silo_travee", "silo_facade"];
 // Densité de la trame du silo : libellés du bilan et du tableur.
 const DENSITE = { longue: "Longue", moyenne: "Moyenne", courte: "Courte" };
-const IMPLANTATION = { rangee: "En rangée", pignon: "En pignon", demi: "Demi-niveaux", helice: "Hélice", helice_ext: "Hélices hors dalle", helice_double: "Hélice à double sens", inclines: "Plateaux inclinés" };
+const IMPLANTATION = { rangee: "En rangée", pignon: "En pignon", demi: "Demi-niveaux", helice: "Hélice", helice_ext: "Hélices hors dalle", helice_double: "Hélice à double sens", helice_facade: "Double sens en façade", inclines: "Plateaux inclinés" };
 // Systèmes constructifs du silo : libellé, poteau par défaut [le long des allées, en travers], largeur de place,
 // places au plus entre poteaux (acier-béton : solives sur les poteaux, 5,00 m au plus).
 const SYSTEMES = {
