@@ -53,6 +53,11 @@ pub enum Implantation {
     /// Plateaux inclinés : deux modules en pente de sens opposés, chacun d'un demi-étage sur la
     /// longueur des rangées, reliés à chaque bout par un demi-tour horizontal à double sens.
     Inclines,
+    /// Rampes accolées dans l'allée centrale (plan carré) : montée et descente côte à côte, sur la
+    /// même longueur, au milieu des rangées ; chacune abordée par l'allée transversale depuis une
+    /// allée éloignée de deux rayons de giration au moins, et quittée dans le prolongement de sa
+    /// voie.
+    Accolees,
 }
 
 impl Implantation {
@@ -64,6 +69,7 @@ impl Implantation {
             Implantation::DemiNiveaux => "demi",
             Implantation::Helice => "helice",
             Implantation::Inclines => "inclines",
+            Implantation::Accolees => "accolees",
         }
     }
 }
@@ -620,6 +626,64 @@ fn en_rangee(c: &Cadre, g: &Gabarit, lr: f64) -> Result<Esquisse, String> {
     })
 }
 
+/// Rampe accolée, dans la moitié haute de l'allée d'axe `vs` (la descente, construite sur le plateau
+/// tourné d'un demi-tour, occupe la moitié basse) et au milieu des rangées, pour que les deux rampes
+/// soient côte à côte sur la même longueur. On l'aborde comme la rampe le long des allées (deux
+/// quarts de tour depuis une allée plus haute par l'allée transversale), puis par la voie de
+/// l'allée jusqu'à son pied ; on la quitte dans le prolongement de sa voie.
+fn en_axe(c: &Cadre, g: &Gabarit, lr: f64, vs: f64) -> Result<Esquisse, String> {
+    let (r, mg, wr) = (giration::rayon(), giration::marge(), g.rampe_largeur);
+    let pre = "Rampes accolées";
+    let vl = vs + wr / 2.0;
+    let Some(va) = c
+        .allees
+        .iter()
+        .filter(|a| a.0 >= vs + wr - 1e-9)
+        .map(|a| a.1 - mg)
+        .find(|va| va - vl >= 2.0 * r - 1e-9)
+    else {
+        return Err(format!(
+            "{pre} : il faut, de part et d'autre de l'allée centrale, une allée à {} m au moins de la voie de rampe pour l'aborder (deux girations de {} m), soit trois modules",
+            super::fr2(2.0 * r),
+            super::fr2(r)
+        ));
+    };
+    let up = c.x0 + mg;
+    let uc = up + r;
+    let um = (c.x1 + c.fin) / 2.0;
+    let (ua, ub) = (um - lr / 2.0, um + lr / 2.0);
+    if ua < uc - 1e-9 {
+        return Err(format!(
+            "{pre} : {} m de rangée nécessaires (rampe de {} m au milieu, sortie de giration de {} m de chaque côté), {} m disponibles",
+            super::fr2(lr + 2.0 * (uc - c.x1)),
+            super::fr2(lr),
+            super::fr2(uc - c.x1),
+            super::fr2(c.fin - c.x1)
+        ));
+    }
+    let entree = Trace::depuis(v2(uc + AMORCE, va), PI)
+        .droit(AMORCE)
+        .tourne(FRAC_PI_2)
+        .droit(va - vl - 2.0 * r)
+        .tourne(FRAC_PI_2)
+        .droit(ua - uc)
+        .troncons;
+    let sortie = Trace::depuis(v2(ub, vl), 0.0).droit(AMORCE).troncons;
+    Ok(Esquisse {
+        q: rect(ua, vs, ub, vs + wr),
+        contour: Vec::new(),
+        trou: Vec::new(),
+        axe: Vec::new(),
+        bouche: v2(ua, vl),
+        bout: v2(ub, vl),
+        longueur: None,
+        forme: Forme::Droite,
+        entree,
+        sortie,
+        zone: rect(ua, vs, ub, vs + wr),
+    })
+}
+
 /// Rampe en pignon, contre l'allée transversale : on y entre depuis la plus haute allée (quart de
 /// tour), on en sort dans la plus basse (quart de tour). Entre les deux trajectoires, la rampe et
 /// deux rayons de giration.
@@ -809,6 +873,7 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
             Implantation::DemiNiveaux,
             Implantation::Helice,
             Implantation::Inclines,
+            Implantation::Accolees,
         ] {
             let Some(p) = construire(&Gabarit { implantation, ..*g }, larg, l) else { continue };
             refus.extend(p.refus.iter().cloned());
@@ -958,14 +1023,22 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
         }
     } else if let Some(lr) = g.rampe {
         let imp = match g.implantation {
-            Implantation::Pignon | Implantation::Helice => g.implantation,
+            Implantation::Pignon | Implantation::Helice | Implantation::Accolees => g.implantation,
             _ => Implantation::Rangee,
         };
+        // Rampes accolées : allée dont l'axe est le plus près du milieu de la largeur ; la descente
+        // la voit, sur le plateau tourné, à la largeur moins cet axe.
+        let axe_central = (0..t.modules + t.demi as u32)
+            .map(|k| g.vb(k) + d + g.allee / 2.0)
+            .min_by(|a, b| (a - t.largeur / 2.0).abs().total_cmp(&(b - t.largeur / 2.0).abs()))
+            .unwrap_or(t.largeur / 2.0);
         let essai: Result<Vec<Esquisse>, String> = cadres(g, &t, &lo)
             .iter()
-            .map(|c| match imp {
+            .enumerate()
+            .map(|(i, c)| match imp {
                 Implantation::Pignon => en_pignon(c, g, lr),
                 Implantation::Helice => en_helice(c, g),
+                Implantation::Accolees => en_axe(c, g, lr, if i == 0 { axe_central } else { t.largeur - axe_central }),
                 _ => en_rangee(c, g, lr),
             })
             .collect();
@@ -1042,9 +1115,18 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     };
     let (mut places_rdc, mut places_dernier) = (Vec::new(), Vec::new());
     let toutes = std::mem::take(&mut places);
+    // Place dont l'avant donne sur une rampe (1,00 m devant le milieu de son avant) : sans accès.
+    let devant = |q: &[V2; 4]| {
+        let (m, f) = ((q[2] + q[3]) * 0.5, (q[0] + q[1]) * 0.5);
+        m + (m - f).norm()
+    };
     for pl in toutes {
         let (lo_, hi_) = giration::bornes(&pl.q);
         if rampes.iter().filter(|r| r.occupe()).any(|r| chevauche(&pl.q, &r.q) && giration::touche(&r.contour, lo_, hi_)) {
+            continue;
+        }
+        let p = devant(&pl.q);
+        if rampes.iter().filter(|r| r.occupe()).any(|r| giration::dans_polygone(p, &r.contour)) {
             continue;
         }
         let (mut bas, mut haut) = (false, false);
@@ -1509,9 +1591,53 @@ mod tests {
         // Rangées trop courtes : 40,52 − 11,20 = 29,32 m de rangée nécessaires.
         let p = construire(&g, 32.4, 50.0).unwrap();
         assert!(p.rampes.is_empty() && p.refus.iter().any(|m| m.contains("29,32 m de rangée")), "{:?}", p.refus);
-        // Un module : pas d'autre allée pour aborder la rampe, ni de place en pignon.
+        // Un module : pas d'autre allée pour aborder la rampe, ni de place en pignon, ni d'allée
+        // centrale entre deux autres.
         let p = construire(&g, 16.4, 60.0).unwrap();
-        assert!(p.rampes.is_empty() && p.refus.len() == 5, "{:?}", p.refus);
+        assert!(p.rampes.is_empty() && p.refus.len() == 6, "{:?}", p.refus);
+        assert!(p.refus.iter().any(|m| m.starts_with("Rampes accolées") && m.contains("trois modules")));
+    }
+
+    /// Plan carré, 48,40 × 50 : trois modules (allées d'axes 8,20, 24,20 et 40,20), rangées de
+    /// 11,20 à 38,70 (11 places), milieu à 24,95. Rampes de 18,36 m centrées, de 15,77 à 34,13,
+    /// de part et d'autre de l'axe de l'allée centrale (24,20) : montée de 24,20 à 27,45, voie à
+    /// 25,825, descente de 20,95 à 24,20, voie à 22,575. On aborde la montée depuis la voie de
+    /// l'allée haute, à 43,20 - 2 = 41,20, soit 15,375 m de la voie de rampe (13 au moins). Les
+    /// places du module central qui donnent sur les rampes (2 à 10) disparaissent ; la première et
+    /// la dernière restent, dans les épures (rendues au dernier niveau et au rez).
+    #[test]
+    fn rampes_accolees_a_la_main() {
+        let g = Gabarit { implantation: Implantation::Accolees, rampe: Some(18.36), ..gab() };
+        let p = construire(&g, 48.4, 50.0).unwrap();
+        assert_eq!(p.implantation, Some(Implantation::Accolees));
+        assert!((p.longueur() - 49.9).abs() < 1e-9);
+        let pr = |a: V2, b: V2| assert!((a - b).len() < 1e-9, "{a:?} ≠ {b:?}");
+        let (m, d) = (&p.rampes[0], &p.rampes[1]);
+        assert!(m.montee && !d.montee);
+        let (lo, hi) = giration::bornes(&m.q);
+        pr(lo, v2(15.77, 24.2));
+        pr(hi, v2(34.13, 27.45));
+        pr(m.bas, v2(15.77, 25.825));
+        pr(m.haut, v2(34.13, 25.825));
+        let (lo, hi) = giration::bornes(&d.q);
+        pr(lo, v2(15.77, 20.95));
+        pr(hi, v2(34.13, 24.2));
+        pr(d.haut, v2(34.13, 22.575));
+        pr(d.bas, v2(15.77, 22.575));
+        assert!(p.girations.iter().all(|gi| gi.conflits.is_empty()));
+        let cles = |v: &[PlaceLoc]| v.iter().map(|pl| pl.cle.clone()).filter(|c| c.starts_with("M2")).collect::<Vec<_>>();
+        assert!(cles(&p.places).is_empty());
+        assert_eq!(cles(&p.places_dernier), ["M2A/1", "M2B/1"]);
+        assert_eq!(cles(&p.places_rdc), ["M2A/11", "M2B/11"]);
+        // Seule possible ici avec les rampes en pignon (la rangée en demande 29,31 m) : la plus
+        // dense, 80 places contre 74.
+        let auto = construire(&Gabarit { implantation: Implantation::Auto, ..g }, 48.4, 50.0).unwrap();
+        assert_eq!((auto.implantation, auto.places.len()), (Some(Implantation::Accolees), 80));
+        let pignon = construire(&Gabarit { implantation: Implantation::Pignon, ..g }, 48.4, 50.0).unwrap();
+        assert_eq!(pignon.places.len(), 74);
+        // Deux modules : pas d'allée centrale entre deux autres.
+        let p = construire(&g, 32.4, 60.0).unwrap();
+        assert!(p.rampes.is_empty() && p.refus.iter().any(|m| m.contains("trois modules")), "{:?}", p.refus);
     }
 
     #[test]

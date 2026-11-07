@@ -160,7 +160,7 @@ pub fn contour(troncons: &[Troncon]) -> Vec<V2> {
     out
 }
 
-fn dans_polygone(p: V2, poly: &[V2]) -> bool {
+pub(crate) fn dans_polygone(p: V2, poly: &[V2]) -> bool {
     let mut dedans = false;
     let n = poly.len();
     for i in 0..n {

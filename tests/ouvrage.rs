@@ -271,7 +271,7 @@ fn implantations_sur_les_scenarios() {
     // Trois niveaux : chaque implantation trouve un plateau où ses deux rampes tiennent, épures
     // dégagées. La recherche fait passer les plateaux sans rampe possible après les autres.
     for nom in ["rect", "triangle", "courbe", "ruisseau"] {
-        for imp in [Implantation::Auto, Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines] {
+        for imp in [Implantation::Auto, Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines, Implantation::Accolees] {
             let mut s = site(nom);
             let o = s.ouvrage.as_mut().unwrap();
             o.niveaux = 3;
@@ -291,6 +291,12 @@ fn implantations_sur_les_scenarios() {
                 assert!(ov.rampes.iter().filter(|r| r.forme == "virage").all(|r| r.pente == 0.0));
                 assert!(lay.warnings.iter().any(|w| w.contains("places PMR sur une partie horizontale")));
                 assert_eq!(lay.metrics.stalls, 3 * ov.places_niveau, "{nom}");
+            }
+            if imp == Implantation::Accolees {
+                // Montée et descente côte à côte : un grand côté commun.
+                let (a, b) = (&ov.rampes[0].q, &ov.rampes[1].q);
+                let communs = a.iter().filter(|p| b.iter().any(|q| (p[0] - q[0]).hypot(p[1] - q[1]) < 1e-6)).count();
+                assert_eq!(communs, 2, "{nom}");
             }
             if imp == Implantation::Helice {
                 // Deux tours à un tour par niveau : pente = étage / (2π × 7,00).
@@ -332,7 +338,7 @@ fn escaliers_et_ascenseur() {
     // aucun noyau.
     let mut demis = 0;
     for nom in ["rect", "triangle", "courbe", "ruisseau"] {
-        for imp in [Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines] {
+        for imp in [Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines, Implantation::Accolees] {
             for (pslv, liaison) in [(false, false), (true, false), (false, true)] {
                 let mut s = site(nom);
                 let o = s.ouvrage.as_mut().unwrap();
@@ -356,7 +362,7 @@ fn escaliers_et_ascenseur() {
                     (true, true) => (1, 1),
                     _ => (1, 0),
                 };
-                assert!(ev.escaliers >= 2 && ev.ascenseurs == asc && ev.liaisons == lia, "{cas}");
+                assert!(ev.escaliers >= 2 && ev.ascenseurs == asc && ev.liaisons == lia, "{cas} : {} escaliers, {} m, {:?}", ev.escaliers, ev.distance_max, ov.dalle);
                 assert_eq!(ov.noyaux.len(), ev.escaliers + ev.ascenseurs + ev.liaisons);
                 assert_eq!(lay.warnings.iter().any(|w| w.starts_with("Demi-niveaux : un seul ascenseur")), lia == 1, "{cas}");
                 let obstacles: Vec<Quad> = ov
@@ -368,7 +374,8 @@ fn escaliers_et_ascenseur() {
                     .collect();
                 for n in &ov.noyaux {
                     let q = quad(&n.q).shrink(0.01);
-                    assert!(!obstacles.iter().any(|o| o.overlaps(&q)), "{cas} : {} gêné", n.cle);
+                    let k = obstacles.iter().position(|o| o.overlaps(&q));
+                    assert!(k.is_none(), "{cas} : {} gêné par {k:?} sur {} rampes, {:?} {:?}", n.cle, ov.rampes.len(), n.q, k.map(|k| &obstacles[k]));
                     // Porte hors des épures de giration : 1,00 m devant le milieu de l'avant.
                     let (m, f) = ([(n.q[2][0] + n.q[3][0]) / 2.0, (n.q[2][1] + n.q[3][1]) / 2.0], [(n.q[0][0] + n.q[1][0]) / 2.0, (n.q[0][1] + n.q[1][1]) / 2.0]);
                     let l = (m[0] - f[0]).hypot(m[1] - f[1]);

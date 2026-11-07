@@ -497,61 +497,69 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool, demi: Ascen
         .enumerate()
         .map(|(i, &c)| Noyau { q: plan.places[cands[c].0].q, porte: point(&r, cands[c].1.pos), ascenseur: false, liaison: false, cle: format!("NY/E{}", i + 1) })
         .collect();
-    // Ascenseur dans une place voisine du premier escalier (côté commun), présente à tous les
-    // niveaux : à côté, porte sur la même allée, sinon dos à dos.
+    // Ascenseur dans une place voisine d'un escalier (côté commun), présente à tous les niveaux :
+    // à côté du premier escalier qui en a une, porte sur la même allée, sinon dos à dos ; à défaut,
+    // la place libre la plus proche du premier escalier.
     let moitie = |i: usize| devant(&r, plan, &plan.places[i], g.allee).map(|p| p.seg);
     let centre = |q: &[V2; 4]| (q[0] + q[2]) * 0.5;
-    if let Some(&c0) = set.first() {
-        let q0 = plan.places[cands[c0].0].q;
+    let voisine_de = |c: usize| {
+        let q0 = plan.places[cands[c].0].q;
         let communs = |q: &[V2; 4]| q.iter().filter(|a| q0.iter().any(|b| (**a - *b).len() < 1e-6)).count();
-        let voisines: Vec<usize> = (0..plan.places.len())
+        let v: Vec<usize> = (0..plan.places.len())
             .filter(|&i| !retirees.contains(&i) && communs(&plan.places[i].q) == 2 && libre(&plan.places[i]))
             .collect();
-        let a_cote = |i: &usize| moitie(*i) == Some(cands[c0].1.pos.seg);
-        let voisine = voisines.iter().copied().find(a_cote).or(voisines.first().copied());
-        if let Some(a) = voisine {
-            let porte = devant(&r, plan, &plan.places[a], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
-            noyaux.push(Noyau { q: plan.places[a].q, porte, ascenseur: true, liaison: false, cle: "NY/A1".into() });
-            retirees.push(a);
-            // Demi-niveaux : les deux demi-plateaux d'un niveau sont décalés d'une demi-hauteur.
-            let en_demi = plan.rampes.iter().any(|rp| matches!(rp.forme, Forme::DemiU));
-            let (ca, ma) = (centre(&plan.places[a].q), moitie(a));
-            let autre = |i: usize| !retirees.contains(&i) && libre(&plan.places[i]) && moitie(i).is_some() && moitie(i) != ma;
-            let pres = |i: usize, j: usize| (centre(&plan.places[i].q) - ca).len().total_cmp(&(centre(&plan.places[j].q) - ca).len());
-            if en_demi && demi == AscenseursDemi::Deux {
-                // Second ascenseur, sur l'autre demi-plateau : à côté d'un escalier de ce côté, sinon
-                // au plus près du premier.
-                let contre = |c: usize, i: usize| {
-                    let qc = plan.places[cands[c].0].q;
-                    plan.places[i].q.iter().filter(|a| qc.iter().any(|b| (**a - *b).len() < 1e-6)).count() == 2 && moitie(i) == Some(cands[c].1.pos.seg)
-                };
-                let pres_escalier = set
-                    .iter()
-                    .filter(|&&c| Some(cands[c].1.pos.seg) != ma)
-                    .find_map(|&c| (0..plan.places.len()).find(|&i| autre(i) && contre(c, i)));
-                if let Some(b) = pres_escalier.or_else(|| (0..plan.places.len()).filter(|&i| autre(i)).min_by(|&i, &j| pres(i, j))) {
-                    let porte = devant(&r, plan, &plan.places[b], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
-                    noyaux.push(Noyau { q: plan.places[b].q, porte, ascenseur: true, liaison: false, cle: "NY/A2".into() });
-                    retirees.push(b);
-                }
-            } else if en_demi {
-                // Escalier de liaison : deux places dos à dos de part et d'autre du joint (même
-                // travée, fonds face à face), au plus près de l'ascenseur.
-                let (lo, hi) = (|i: usize| bornes(&plan.places[i].q).0, |i: usize| bornes(&plan.places[i].q).1);
-                let dos = |i: usize, j: usize| {
-                    (lo(i).x - lo(j).x).abs() < 1e-6 && (hi(i).x - hi(j).x).abs() < 1e-6 && (plan.places[i].q[0].y - plan.places[j].q[0].y).abs() < 2.0
-                };
-                let paires = (0..plan.places.len())
-                    .filter(|&i| !retirees.contains(&i) && libre(&plan.places[i]) && moitie(i) == ma)
-                    .flat_map(|i| (0..plan.places.len()).filter(move |&j| autre(j) && dos(i, j)).map(move |j| (i, j)));
-                if let Some((i, j)) = paires.min_by(|a, b| pres(a.0, b.0)) {
-                    let (yi, yj) = (plan.places[i].q[3].y, plan.places[j].q[3].y);
-                    let (x0, x1) = (lo(i).x, hi(i).x);
-                    let porte = devant(&r, plan, &plan.places[i], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
-                    let q = [v2(x0, yi), v2(x1, yi), v2(x1, yj), v2(x0, yj)];
-                    noyaux.push(Noyau { q, porte, ascenseur: false, liaison: true, cle: "NY/L1".into() });
-                    retirees.extend([i, j]);
-                }
+        v.iter().copied().find(|&i| moitie(i) == Some(cands[c].1.pos.seg)).or(v.first().copied())
+    };
+    let choix = set.iter().find_map(|&c| voisine_de(c).map(|a| (c, a))).or_else(|| {
+        let &c = set.first()?;
+        let c0 = centre(&plan.places[cands[c].0].q);
+        (0..plan.places.len())
+            .filter(|&i| !retirees.contains(&i) && libre(&plan.places[i]) && moitie(i).is_some())
+            .min_by(|&i, &j| (centre(&plan.places[i].q) - c0).len().total_cmp(&(centre(&plan.places[j].q) - c0).len()))
+            .map(|a| (c, a))
+    });
+    if let Some((_, a)) = choix {
+        let porte = devant(&r, plan, &plan.places[a], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
+        noyaux.push(Noyau { q: plan.places[a].q, porte, ascenseur: true, liaison: false, cle: "NY/A1".into() });
+        retirees.push(a);
+        // Demi-niveaux : les deux demi-plateaux d'un niveau sont décalés d'une demi-hauteur.
+        let en_demi = plan.rampes.iter().any(|rp| matches!(rp.forme, Forme::DemiU));
+        let (ca, ma) = (centre(&plan.places[a].q), moitie(a));
+        let autre = |i: usize| !retirees.contains(&i) && libre(&plan.places[i]) && moitie(i).is_some() && moitie(i) != ma;
+        let pres = |i: usize, j: usize| (centre(&plan.places[i].q) - ca).len().total_cmp(&(centre(&plan.places[j].q) - ca).len());
+        if en_demi && demi == AscenseursDemi::Deux {
+            // Second ascenseur, sur l'autre demi-plateau : à côté d'un escalier de ce côté, sinon
+            // au plus près du premier.
+            let contre = |c: usize, i: usize| {
+                let qc = plan.places[cands[c].0].q;
+                plan.places[i].q.iter().filter(|a| qc.iter().any(|b| (**a - *b).len() < 1e-6)).count() == 2 && moitie(i) == Some(cands[c].1.pos.seg)
+            };
+            let pres_escalier = set
+                .iter()
+                .filter(|&&c| Some(cands[c].1.pos.seg) != ma)
+                .find_map(|&c| (0..plan.places.len()).find(|&i| autre(i) && contre(c, i)));
+            if let Some(b) = pres_escalier.or_else(|| (0..plan.places.len()).filter(|&i| autre(i)).min_by(|&i, &j| pres(i, j))) {
+                let porte = devant(&r, plan, &plan.places[b], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
+                noyaux.push(Noyau { q: plan.places[b].q, porte, ascenseur: true, liaison: false, cle: "NY/A2".into() });
+                retirees.push(b);
+            }
+        } else if en_demi {
+            // Escalier de liaison : deux places dos à dos de part et d'autre du joint (même
+            // travée, fonds face à face), au plus près de l'ascenseur.
+            let (lo, hi) = (|i: usize| bornes(&plan.places[i].q).0, |i: usize| bornes(&plan.places[i].q).1);
+            let dos = |i: usize, j: usize| {
+                (lo(i).x - lo(j).x).abs() < 1e-6 && (hi(i).x - hi(j).x).abs() < 1e-6 && (plan.places[i].q[0].y - plan.places[j].q[0].y).abs() < 2.0
+            };
+            let paires = (0..plan.places.len())
+                .filter(|&i| !retirees.contains(&i) && libre(&plan.places[i]) && moitie(i) == ma)
+                .flat_map(|i| (0..plan.places.len()).filter(move |&j| autre(j) && dos(i, j)).map(move |j| (i, j)));
+            if let Some((i, j)) = paires.min_by(|a, b| pres(a.0, b.0)) {
+                let (yi, yj) = (plan.places[i].q[3].y, plan.places[j].q[3].y);
+                let (x0, x1) = (lo(i).x, hi(i).x);
+                let porte = devant(&r, plan, &plan.places[i], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
+                let q = [v2(x0, yi), v2(x1, yi), v2(x1, yj), v2(x0, yj)];
+                noyaux.push(Noyau { q, porte, ascenseur: false, liaison: true, cle: "NY/L1".into() });
+                retirees.extend([i, j]);
             }
         }
     }
@@ -738,6 +746,7 @@ mod tests {
             (33.0, 100.0, Implantation::DemiNiveaux),
             (33.0, 100.0, Implantation::Inclines),
             (48.4, 80.0, Implantation::Helice),
+            (48.4, 50.0, Implantation::Accolees),
         ] {
             let mut nb = [0; 2];
             for (k, pslv) in [false, true].into_iter().enumerate() {
@@ -756,11 +765,11 @@ mod tests {
                 for n in &p.noyaux {
                     assert!(avant.contains(&n.q), "{cas} : {} hors d'une place", n.cle);
                 }
-                let communs = asc[0].q.iter().filter(|a| esc[0].q.iter().any(|b| (**a - *b).len() < 1e-6)).count();
-                assert_eq!(communs, 2, "{cas} : ascenseur contre NY/E1");
+                let communs = |e: &Noyau| asc[0].q.iter().filter(|a| e.q.iter().any(|b| (**a - *b).len() < 1e-6)).count() == 2;
+                let e = esc.iter().find(|e| communs(e)).expect("ascenseur contre un escalier");
                 // À côté de l'escalier : même fond, même avant.
                 let cote = |q: &[V2; 4]| (q[3] - q[0]).norm();
-                assert!((cote(&asc[0].q) - cote(&esc[0].q)).len() < 1e-6, "{cas} : ascenseur dos à dos");
+                assert!((cote(&asc[0].q) - cote(&e.q)).len() < 1e-6, "{cas} : ascenseur dos à dos");
                 nb[k] = esc.len();
             }
             assert!(nb[1] <= nb[0], "{larg}×{l} {imp:?} : {nb:?}");
