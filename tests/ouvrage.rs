@@ -270,18 +270,27 @@ fn implantations_sur_les_scenarios() {
     // Trois niveaux : chaque implantation trouve un plateau où ses deux rampes tiennent, épures
     // dégagées. La recherche fait passer les plateaux sans rampe possible après les autres.
     for nom in ["rect", "triangle", "courbe", "ruisseau"] {
-        for imp in [Implantation::Auto, Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice] {
+        for imp in [Implantation::Auto, Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines] {
             let mut s = site(nom);
             let o = s.ouvrage.as_mut().unwrap();
             o.niveaux = 3;
             o.implantation = imp;
             let lay = trame::solve(&s);
             let ov = lay.ouvrage.as_ref().unwrap();
-            assert_eq!(ov.rampes.len(), 2, "{nom} {imp:?} : {:?}", lay.warnings);
+            let n_rampes = if imp == Implantation::Inclines { 4 } else { 2 };
+            assert_eq!(ov.rampes.len(), n_rampes, "{nom} {imp:?} : {:?}", lay.warnings);
             if imp != Implantation::Auto {
                 assert_eq!(ov.implantation, imp.nom(), "{nom}");
             }
             assert!(ov.girations.iter().all(|g| g.conflits.is_empty()), "{nom} {imp:?}");
+            if imp == Implantation::Inclines {
+                // Deux demi-tours horizontaux et deux modules en pente (6 % au plus ici) ; places
+                // PMR de niveau rappelées.
+                assert!(ov.plateaux_inclines && ov.rampes.iter().filter(|r| r.forme == "plateau").all(|r| r.pente <= 0.075 + 1e-9));
+                assert!(ov.rampes.iter().filter(|r| r.forme == "virage").all(|r| r.pente == 0.0));
+                assert!(lay.warnings.iter().any(|w| w.contains("places PMR sur une partie horizontale")));
+                assert_eq!(lay.metrics.stalls, 3 * ov.places_niveau, "{nom}");
+            }
             if imp == Implantation::Helice {
                 // Deux tours à un tour par niveau : pente = étage / (2π × 7,00).
                 assert!(ov.rampes.iter().all(|r| r.forme == "helice" && (r.pente - 2.9 / (14.0 * std::f64::consts::PI)).abs() < 1e-3 && r.trou.len() > 8));
@@ -293,6 +302,17 @@ fn implantations_sur_les_scenarios() {
             }
         }
     }
+    // Plateaux inclinés sur une dalle dessinée de 33 × 46 m, ramenée à 32,90 × 46,50 (rangées de
+    // round((46 − 24) / 2,50) = 9 places) : 1,45 / 22,50 = 6,44 %, admis par la NF (7,5 %) mais
+    // au-delà des 6 % de Neufert.
+    let mut s = site("rect");
+    let o = s.ouvrage.as_mut().unwrap();
+    o.niveaux = 3;
+    o.implantation = Implantation::Inclines;
+    o.emprise = Some(EmpriseIn { cx: 60.0, cy: 40.0, w: 46.0, h: 33.0, rot: 0.0, fixe: [0.0, 0.0] });
+    let lay = trame::solve(&s);
+    assert_eq!(lay.ouvrage.as_ref().unwrap().rampes.len(), 4, "{:?}", lay.warnings);
+    assert!(lay.warnings.iter().any(|w| w.starts_with("Plateaux inclinés à 6,44 %")), "{:?}", lay.warnings);
     // Site étroit : aucune rampe le long des allées possible, le motif est donné.
     let mut s = site("etroit");
     let o = s.ouvrage.as_mut().unwrap();

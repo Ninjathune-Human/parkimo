@@ -50,6 +50,9 @@ pub enum Implantation {
     /// Tours hélicoïdales à sens unique, montée à un bout, descente à l'autre, un tour par niveau,
     /// porte sur l'allée transversale.
     Helice,
+    /// Plateaux inclinés : deux modules en pente de sens opposés, chacun d'un demi-étage sur la
+    /// longueur des rangées, reliés à chaque bout par un demi-tour horizontal à double sens.
+    Inclines,
 }
 
 impl Implantation {
@@ -60,17 +63,21 @@ impl Implantation {
             Implantation::Pignon => "pignon",
             Implantation::DemiNiveaux => "demi",
             Implantation::Helice => "helice",
+            Implantation::Inclines => "inclines",
         }
     }
 }
 
-/// Forme d'une rampe : droite, demi-rampe en U (demi-niveaux), hélice.
+/// Forme d'une rampe : droite, demi-rampe en U (demi-niveaux), hélice, demi-tour horizontal et
+/// plateau incliné (plateaux inclinés ; un plateau incliné garde ses places).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Forme {
     #[default]
     Droite,
     DemiU,
     Helice,
+    Virage,
+    Plateau,
 }
 
 impl Forme {
@@ -79,6 +86,8 @@ impl Forme {
             Forme::Droite => "droite",
             Forme::DemiU => "u",
             Forme::Helice => "helice",
+            Forme::Virage => "virage",
+            Forme::Plateau => "plateau",
         }
     }
 }
@@ -109,6 +118,8 @@ pub struct Gabarit {
     /// Largeur de la voie de rampe à sens unique.
     pub rampe_largeur: f64,
     pub implantation: Implantation,
+    /// Hauteur d'étage (plancher à plancher).
+    pub hauteur: f64,
 }
 
 impl Gabarit {
@@ -116,19 +127,20 @@ impl Gabarit {
     pub fn module(&self) -> f64 {
         2.0 * self.d + self.allee
     }
-    /// Demi-niveaux décalés retenus (plusieurs niveaux).
-    pub fn demi_niveaux(&self) -> bool {
-        self.rampe.is_some() && self.implantation == Implantation::DemiNiveaux
+    /// Deux demi-plateaux d'un module reliés à chaque bout par un U à double sens : demi-niveaux
+    /// décalés ou plateaux inclinés (plusieurs niveaux).
+    pub fn en_u(&self) -> bool {
+        self.rampe.is_some() && matches!(self.implantation, Implantation::DemiNiveaux | Implantation::Inclines)
     }
     /// Tours hélicoïdales retenues (plusieurs niveaux).
     pub fn helice(&self) -> bool {
         self.rampe.is_some() && self.implantation == Implantation::Helice
     }
-    /// Joint entre les deux demi-plateaux, en demi-niveaux : de quoi loger la voie intérieure de la
-    /// demi-rampe en U (trajectoires des voies intérieures des deux allées à 2 × 6,75 m l'une de
+    /// Joint entre les deux demi-plateaux (demi-niveaux, plateaux inclinés) : de quoi loger la voie
+    /// intérieure du U (trajectoires des voies intérieures des deux allées à 2 × 6,75 m l'une de
     /// l'autre). 0,50 m pour des places de 5,00 m et des allées de 6,00 m.
     pub fn joint(&self) -> f64 {
-        if self.demi_niveaux() {
+        if self.en_u() {
             (2.0 * giration::double_sens().0 .0 - self.allee / 2.0 - 2.0 * self.d).max(0.0)
         } else {
             0.0
@@ -142,7 +154,7 @@ impl Gabarit {
     /// pignon) et allée transversale ; en demi-niveaux, la demi-rampe en U au-delà de la file de
     /// façade (rayon extérieur de la voie extérieure : 11,50 m).
     fn bout(&self) -> f64 {
-        if self.demi_niveaux() {
+        if self.en_u() {
             let ((_, _), (re, he)) = giration::double_sens();
             return self.pu + re + he;
         }
@@ -171,7 +183,7 @@ pub struct Travers {
 
 pub fn travers(g: &Gabarit, larg: f64) -> Option<Travers> {
     let m = g.module();
-    if g.demi_niveaux() {
+    if g.en_u() {
         // Deux demi-plateaux d'un module et leur joint.
         let largeur = 2.0 * g.facade + 2.0 * m + g.joint();
         return (larg + 1e-9 >= largeur).then_some(Travers { modules: 2, demi: false, largeur });
@@ -288,7 +300,7 @@ pub fn dimensions_proches(g: &Gabarit, larg: f64, l: f64) -> (f64, f64) {
             }
         }
     }
-    if g.demi_niveaux() {
+    if g.en_u() {
         best = 2.0 * g.facade + 2.0 * m + g.joint();
     }
     let debut = g.facade + g.bout();
@@ -366,6 +378,13 @@ pub struct RampeLoc {
     /// Vide intérieur du contour (noyau d'une tour hélicoïdale).
     pub trou: Vec<V2>,
     pub cle: String,
+}
+
+impl RampeLoc {
+    /// La rampe prend la place des places et des poteaux (pas un plateau incliné).
+    pub fn occupe(&self) -> bool {
+        self.forme != Forme::Plateau
+    }
 }
 
 /// Épure de giration d'une entrée ou d'une sortie de rampe, en repère local (voir `giration`).
@@ -782,7 +801,13 @@ fn demi_rampe(g: &Gabarit, lo: &Long) -> (RampeLoc, Vec<Troncon>, Vec<Troncon>) 
 pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     if g.rampe.is_some() && g.implantation == Implantation::Auto {
         let (mut best, mut refus): (Option<Plan>, Vec<String>) = (None, Vec::new());
-        for implantation in [Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice] {
+        for implantation in [
+            Implantation::Rangee,
+            Implantation::Pignon,
+            Implantation::DemiNiveaux,
+            Implantation::Helice,
+            Implantation::Inclines,
+        ] {
             let Some(p) = construire(&Gabarit { implantation, ..*g }, larg, l) else { continue };
             refus.extend(p.refus.iter().cloned());
             let cle = |p: &Plan| (!p.rampes.is_empty(), p.places.len());
@@ -796,10 +821,11 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
         });
     }
     // Demi-niveaux sur une emprise trop étroite pour deux modules : plateau sans rampe, refusé.
-    if g.demi_niveaux() && travers(g, larg).is_none() {
+    if g.en_u() && travers(g, larg).is_none() {
         let mut p = construire(&Gabarit { implantation: Implantation::Rangee, rampe: None, ..*g }, larg, l)?;
         p.refus.push(format!(
-            "Demi-niveaux : deux modules et leur joint, {} m de large, la dalle en offre {}",
+            "{} : deux modules et leur joint, {} m de large, la dalle en offre {}",
+            if g.implantation == Implantation::Inclines { "Plateaux inclinés" } else { "Demi-niveaux" },
             super::fr2(2.0 * g.facade + 2.0 * g.module() + g.joint()),
             super::fr2(larg)
         ));
@@ -839,11 +865,11 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     // Allées transversales aux deux bouts, sur toute la largeur intérieure (en demi-niveaux, les
     // demi-rampes en U en tiennent lieu).
     let (v0, v1) = (g.facade, t.largeur - g.facade);
-    if !g.demi_niveaux() {
+    if !g.en_u() {
         allees.push((rect(debut - g.allee, v0, debut, v1), "AL/X1".into()));
         allees.push((rect(fin, v0, fin + g.allee, v1), "AL/X2".into()));
     }
-    let rives = g.rives && !g.demi_niveaux();
+    let rives = g.rives && !g.en_u();
 
     // Files longitudinales.
     let axes_v = lignes_v(g, &t);
@@ -853,16 +879,32 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     // niveau à l'autre ; leurs épures de giration d'entrée et de sortie (NF P 91-100, § 3.3).
     let (mut rampes, mut girations, mut zones, mut refus) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     let mut implantation = None;
-    if g.demi_niveaux() {
+    if g.en_u() {
+        let inclines = g.implantation == Implantation::Inclines;
+        let pre = if inclines { "Plateaux inclinés" } else { "Demi-niveaux" };
+        // Plateaux inclinés : un demi-étage sur la longueur des rangées ; la plus grande pente d'une
+        // place reste sous 7,5 % (NF P 91-100, § 3.4 ; l'axe des places à 90° est horizontal).
+        let p_plateau = g.hauteur / 2.0 / (fin - debut);
         if g.allee < nf::VOIE_DROITE_DOUBLE_SENS.v - 1e-9 {
             refus.push(format!(
-                "Demi-niveaux : allées de {} m, il en faut {} à double sens (NF P 91-100, § 3.3)",
+                "{pre} : allées de {} m, il en faut {} à double sens (NF P 91-100, § 3.3)",
                 super::fr2(g.allee),
                 super::fr2(nf::VOIE_DROITE_DOUBLE_SENS.v)
             ));
+        } else if inclines && p_plateau > nf::PENTE_PLACE_MAX.v + 1e-9 {
+            refus.push(format!(
+                "{pre} : {} % sur {} m de rangées, la plus grande pente d'une place est limitée à 7,5 % (NF P 91-100, § 3.4) ; il faut {} m",
+                super::fr2(p_plateau * 100.0),
+                super::fr2(fin - debut),
+                super::fr2(g.hauteur / 2.0 / nf::PENTE_PLACE_MAX.v)
+            ));
         } else {
-            implantation = Some(Implantation::DemiNiveaux);
-            let (r0, tm, td) = demi_rampe(g, &lo);
+            implantation = Some(g.implantation);
+            let (mut r0, tm, td) = demi_rampe(g, &lo);
+            if inclines {
+                r0.forme = Forme::Virage;
+            }
+            let nom = if inclines { "Demi-tour" } else { "Demi-rampe" };
             for i in 0..2 {
                 let p = |q: V2| if i == 1 { v2(lo.longueur - q.x, t.largeur - q.y) } else { q };
                 let cle = format!("RA/{}", i + 1);
@@ -878,7 +920,7 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
                 for (montee, tr) in [(true, &tm), (false, &td)] {
                     girations.push(Giration {
                         cle: format!("GI/{}/{}", i + 1, if montee { "M" } else { "D" }),
-                        libelle: format!("Demi-rampe {}, {}", i + 1, if montee { "montée" } else { "descente" }),
+                        libelle: format!("{nom} {}, {}", i + 1, if montee { "montée" } else { "descente" }),
                         rampe: cle.clone(),
                         montee,
                         entree: montee,
@@ -888,6 +930,28 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
                     });
                 }
                 zones.push(r0.q.map(p));
+            }
+            if inclines {
+                // Les deux modules, chacun montant vers le bout où il rejoint l'autre au demi-étage :
+                // le premier vers le second bout, le second vers le premier.
+                for k in 0..2u32 {
+                    let (v0, va) = (g.vb(k), g.vb(k) + d + g.allee / 2.0);
+                    let q = rect(debut, v0, fin, v0 + g.module());
+                    let (a, b) = if k == 0 { (v2(debut, va), v2(fin, va)) } else { (v2(fin, va), v2(debut, va)) };
+                    rampes.push(RampeLoc {
+                        q,
+                        contour: q.to_vec(),
+                        bas: a,
+                        haut: b,
+                        axe: vec![a, b],
+                        longueur: fin - debut,
+                        montee: true,
+                        double_sens: true,
+                        forme: Forme::Plateau,
+                        trou: Vec::new(),
+                        cle: format!("PI/{}", k + 1),
+                    });
+                }
             }
         }
     } else if let Some(lr) = g.rampe {
@@ -978,7 +1042,7 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
     let toutes = std::mem::take(&mut places);
     for pl in toutes {
         let (lo_, hi_) = giration::bornes(&pl.q);
-        if rampes.iter().any(|r| chevauche(&pl.q, &r.q) && giration::touche(&r.contour, lo_, hi_)) {
+        if rampes.iter().filter(|r| r.occupe()).any(|r| chevauche(&pl.q, &r.q) && giration::touche(&r.contour, lo_, hi_)) {
             continue;
         }
         let (mut bas, mut haut) = (false, false);
@@ -1034,7 +1098,7 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
             let c = v2(u, v);
             let q = rect(c.x - g.pu / 2.0, c.y - g.pv / 2.0, c.x + g.pu / 2.0, c.y + g.pv / 2.0);
             // Rien dans l'emprise d'une rampe ni à ses abords.
-            if rampes.iter().any(|r| chevauche(&q, &r.q)) || zones.iter().any(|z| chevauche(&q, z)) {
+            if rampes.iter().filter(|r| r.occupe()).any(|r| chevauche(&q, &r.q)) || zones.iter().any(|z| chevauche(&q, z)) {
                 continue;
             }
             poteaux.push(PoteauLoc {
@@ -1054,7 +1118,7 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
                 conflits.push(po.cle.clone());
             }
         }
-        for r in rampes.iter().filter(|r| r.cle != gi.rampe) {
+        for r in rampes.iter().filter(|r| r.occupe() && r.cle != gi.rampe) {
             if dans(gi, b, &r.q) {
                 conflits.push(r.cle.clone());
             }
@@ -1127,7 +1191,7 @@ pub fn ossature(plan: &Plan, sens: Sens, b: f64) -> Vec<([V2; 4], String)> {
     // que les poteaux).
     out.retain(|(q, _)| {
         let (lo, hi) = giration::bornes(q);
-        !plan.rampes.iter().any(|r| chevauche(q, &r.q) && giration::touche(&r.contour, lo + v2(0.02, 0.02), hi - v2(0.02, 0.02)))
+        !plan.rampes.iter().filter(|r| r.occupe()).any(|r| chevauche(q, &r.q) && giration::touche(&r.contour, lo + v2(0.02, 0.02), hi - v2(0.02, 0.02)))
     });
     out
 }
@@ -1273,6 +1337,7 @@ mod tests {
             rampe: None,
             rampe_largeur: 3.25,
             implantation: Implantation::Auto,
+            hauteur: 2.9,
         }
     }
 
@@ -1443,7 +1508,7 @@ mod tests {
         assert!(p.rampes.is_empty() && p.refus.iter().any(|m| m.contains("29,32 m de rangée")), "{:?}", p.refus);
         // Un module : pas d'autre allée pour aborder la rampe, ni de place en pignon.
         let p = construire(&g, 16.4, 60.0).unwrap();
-        assert!(p.rampes.is_empty() && p.refus.len() == 4, "{:?}", p.refus);
+        assert!(p.rampes.is_empty() && p.refus.len() == 5, "{:?}", p.refus);
     }
 
     #[test]
@@ -1575,6 +1640,31 @@ mod tests {
         // Deux modules : 18,00 m pour 27,73.
         let p = construire(&g, 32.4, 80.0).unwrap();
         assert!(p.rampes.is_empty() && p.refus[0].contains("27,73 m nécessaires") && p.refus[0].contains("18,00 m disponibles"), "{:?}", p.refus);
+    }
+
+    #[test]
+    fn plateaux_inclines_a_la_main() {
+        // Même plan que les demi-niveaux (33 × 60 : 32,90 × 59,00, 56 places, demi-tours de 0,50 à
+        // 12,00 en u), mais les demi-tours sont horizontaux et les modules en pente : un
+        // demi-étage sur les 14 × 2,50 = 35,00 m de rangées, 1,45 / 35 = 4,1 % ; l'axe des places
+        // est horizontal. Le premier module monte vers le second bout, le second vers le premier.
+        let lr = crate::ouvrage::normes::longueur_rampe(2.9, 0.18, 10.0, 15.0);
+        let g = Gabarit { rampe: Some(lr), implantation: Implantation::Inclines, ..gab() };
+        let p = construire(&g, 33.0, 60.0).unwrap();
+        assert_eq!(p.implantation, Some(Implantation::Inclines), "{:?}", p.refus);
+        assert_eq!((p.places.len(), p.places_rdc.len(), p.places_dernier.len()), (56, 0, 0));
+        let formes: Vec<Forme> = p.rampes.iter().map(|r| r.forme).collect();
+        assert_eq!(formes, [Forme::Virage, Forme::Virage, Forme::Plateau, Forme::Plateau]);
+        let (a, b) = (&p.rampes[2], &p.rampes[3]);
+        assert!((a.longueur - 35.0).abs() < 1e-9 && (2.9 / 2.0 / a.longueur - 0.0414).abs() < 1e-4);
+        assert!((a.bas - v2(12.0, 8.2)).len() < 1e-9 && (a.haut - v2(47.0, 8.2)).len() < 1e-9);
+        assert!((b.bas - v2(47.0, 24.7)).len() < 1e-9 && (b.haut - v2(12.0, 24.7)).len() < 1e-9);
+        assert_eq!(p.girations.len(), 4);
+        assert!(p.girations.iter().all(|gi| gi.conflits.is_empty() && gi.libelle.starts_with("Demi-tour")));
+        assert_eq!(p.poteaux.len(), 24);
+        // Rangées de 6 places (33 × 40) : 1,45 / 15 = 9,7 % ; il faut 1,45 / 0,075 = 19,33 m.
+        let p = construire(&g, 33.0, 40.0).unwrap();
+        assert!(p.rampes.is_empty() && p.refus[0].contains("9,67 %") && p.refus[0].contains("19,33 m"), "{:?}", p.refus);
     }
 
     #[test]

@@ -656,7 +656,10 @@ pub fn export(inp: &ExportIn) -> ExportOut {
     // Rampes : voie, axe dans le sens de parcours avec sa pointe, pente au milieu.
     if let Some(o) = &lay.ouvrage {
         for r in &o.rampes {
-            w.ring("PRJ_RAMPES", &r.contour);
+            // Un plateau incliné garde ses places : pas de contour, la flèche de pente seulement.
+            if r.forme != "plateau" {
+                w.ring("PRJ_RAMPES", &r.contour);
+            }
             if !r.trou.is_empty() {
                 w.ring("PRJ_RAMPES", &r.trou);
             }
@@ -668,8 +671,15 @@ pub fn export(inp: &ExportIn) -> ExportOut {
             let (ux, uy) = ((bx - ax) / l, (by - ay) / l);
             let pointe = [(bx - ux * 1.2 - uy * 0.6, by - uy * 1.2 + ux * 0.6), (bx, by), (bx - ux * 1.2 + uy * 0.6, by - uy * 1.2 - ux * 0.6)];
             w.lwpoly("PRJ_RAMPES", &pointe, false);
-            let quoi = if r.double_sens { "Demi-rampe" } else if r.montee { "Montée" } else { "Descente" };
-            let txt = format!("{quoi} {} %", (r.pente * 100.0).round());
+            let quoi = match r.forme.as_str() {
+                "u" => "Demi-rampe",
+                "virage" => "Demi-tour",
+                "plateau" => "Pente",
+                _ if r.montee => "Montée",
+                _ => "Descente",
+            };
+            let pc = if r.forme == "droite" { format!("{}", (r.pente * 100.0).round()) } else { format!("{:.1}", r.pente * 100.0).replace('.', ",") };
+            let txt = if r.forme == "virage" { quoi.to_string() } else { format!("{quoi} {pc} %") };
             let k = (n - 1) / 2;
             let (mx, my) = ((pts[k].0 + pts[k + 1].0) / 2.0, (pts[k].1 + pts[k + 1].1) / 2.0);
             w.text("PRJ_RAMPES", mx, my, 0.5, &txt, true);

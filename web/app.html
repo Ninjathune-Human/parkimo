@@ -196,9 +196,12 @@ body {
 .seg button { min-height: 32px; border: 0; background: none; color: var(--label-2); font: inherit; font-size: 13px; font-weight: 550; border-radius: 8px; padding: 0 12px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--glass-solid); color: var(--label); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
 .seg button:disabled { opacity: .35; cursor: default; }
-.field.pile { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px 0; }
-.field.pile .seg { display: flex; }
-.field.pile .seg button { flex: 1 1 auto; white-space: nowrap; padding: 0 8px; }
+.pop { position: relative; display: inline-flex; }
+.pop select {
+  appearance: none; -webkit-appearance: none; min-height: 34px; font: inherit; font-size: 15px; color: var(--label);
+  background: var(--field); border: 0; border-radius: var(--r-sm); padding: 0 32px 0 12px; cursor: pointer;
+}
+.pop::after { content: ""; position: absolute; right: 12px; top: 50%; width: 7px; height: 7px; margin-top: -5px; border: solid var(--label-2); border-width: 0 1.6px 1.6px 0; transform: rotate(45deg); pointer-events: none; }
 input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 32px; }
 .note { font-size: 12px; color: var(--label-2); line-height: 1.4; }
 
@@ -490,14 +493,14 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
         <div class="field"><label for="p-silo_niveaux">Niveaux</label><span class="unit"><input id="p-silo_niveaux" type="text" inputmode="numeric" autocomplete="off">niv.</span></div>
         <div class="field"><label for="p-silo_etage">Hauteur d'étage</label><span class="unit"><input id="p-silo_etage" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_pente">Pente des rampes</label><span class="unit"><input id="p-silo_pente" type="text" inputmode="decimal" autocomplete="off">%</span></div>
-        <div class="field pile" id="ra-field"><label id="ra-lab">Rampes</label><span class="seg" role="group" aria-labelledby="ra-lab" id="ra-seg"><button data-ra="auto" aria-pressed="true">Auto</button><button data-ra="rangee" aria-pressed="false">Rangée</button><button data-ra="pignon" aria-pressed="false">Pignon</button><button data-ra="demi" aria-pressed="false">Demi-niveaux</button><button data-ra="helice" aria-pressed="false">Hélice</button></span></div>
+        <div class="field" id="ra-field"><label for="ra-sel">Rampes</label><span class="pop"><select id="ra-sel"><option value="auto">Auto</option><option value="rangee">En rangée</option><option value="pignon">En pignon</option><option value="demi">Demi-niveaux</option><option value="helice">Hélice</option><option value="inclines">Plateaux inclinés</option></select></span></div>
         <div class="field"><label for="p-silo_pu">Poteau le long des allées</label><span class="unit"><input id="p-silo_pu" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_pv">Poteau en travers</label><span class="unit"><input id="p-silo_pv" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_retrait">Retrait en tête de place</label><span class="unit"><input id="p-silo_retrait" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_travee">Places entre poteaux, au plus</label><span class="unit"><input id="p-silo_travee" type="text" inputmode="decimal" autocomplete="off">pl</span></div>
         <div class="field"><label for="p-silo_facade">Rive de façade</label><span class="unit"><input id="p-silo_facade" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_rives">Places le long des pignons</label><input id="p-silo_rives" type="checkbox" class="switch" role="switch"></div>
-        <p class="note">Le système fixe le plancher : béton coulé (dalle post-contrainte, poutres et dalle, plancher-dalle), préfabriqué (dalles alvéolées de 1,20 m sur poutres précontraintes, places de 2,40 m), acier-béton (solives IPE et dalle mixte, portée longue). Portée longue : poteaux en façade et en dos à dos ; moyenne : en tête des rangées dos à dos ; courte : en tête de chaque rangée, le nu à 0,65 m au moins de l'allée (NF P 91-100, tab. 3). Au-delà d'un niveau, rampes droites à sens unique, montée à un bout, descente à l'autre : en rangée, le long des allées dans les rangées de façade (deux modules au moins) ; en pignon, en travers des allées (trois modules au moins) ; demi-niveaux, deux demi-plateaux d'un module décalés d'un demi-étage et reliés à chaque bout par une demi-rampe en U à double sens (voie intérieure de 3,50 m pour monter, extérieure de 3,00 m pour descendre, allées à double sens) ; hélice, deux tours hélicoïdales à sens unique (montée à un bout, descente à l'autre, un tour par niveau, voie de 4,00 m entre 5,00 et 9,00 m du centre, Neufert), la porte de chaque niveau sur l'allée transversale (trois modules au moins) ; Auto garde celle qui laisse le plus de places. Épures de giration vérifiées à l'entrée et à la sortie (voie de 4,00 m en courbe, rayon extérieur 8,50 m ; pente de 18 % au plus, raccords R 10 et R 15, NF P 91-100 ; voie de rampe de 3,25 m, Neufert). Hypothèses d'esquisse à confirmer par le bureau d'études et le fabricant.</p>
+        <p class="note">Le système fixe le plancher : béton coulé (dalle post-contrainte, poutres et dalle, plancher-dalle), préfabriqué (dalles alvéolées de 1,20 m sur poutres précontraintes, places de 2,40 m), acier-béton (solives IPE et dalle mixte, portée longue). Portée longue : poteaux en façade et en dos à dos ; moyenne : en tête des rangées dos à dos ; courte : en tête de chaque rangée, le nu à 0,65 m au moins de l'allée (NF P 91-100, tab. 3). Au-delà d'un niveau, rampes droites à sens unique, montée à un bout, descente à l'autre : en rangée, le long des allées dans les rangées de façade (deux modules au moins) ; en pignon, en travers des allées (trois modules au moins) ; demi-niveaux, deux demi-plateaux d'un module décalés d'un demi-étage et reliés à chaque bout par une demi-rampe en U à double sens (voie intérieure de 3,50 m pour monter, extérieure de 3,00 m pour descendre, allées à double sens) ; hélice, deux tours hélicoïdales à sens unique (montée à un bout, descente à l'autre, un tour par niveau, voie de 4,00 m entre 5,00 et 9,00 m du centre, Neufert), la porte de chaque niveau sur l'allée transversale (trois modules au moins) ; plateaux inclinés, les deux modules eux-mêmes en pente de sens opposés, un demi-étage chacun sur la longueur des rangées (7,5 % au plus pour les places, NF P 91-100 ; 6 % conseillés, Neufert), reliés par des demi-tours horizontaux à double sens ; Auto garde celle qui laisse le plus de places. Épures de giration vérifiées à l'entrée et à la sortie (voie de 4,00 m en courbe, rayon extérieur 8,50 m ; pente de 18 % au plus, raccords R 10 et R 15, NF P 91-100 ; voie de rampe de 3,25 m, Neufert). Hypothèses d'esquisse à confirmer par le bureau d'études et le fabricant.</p>
       </div>
     </div>
     <div class="pgroup">
@@ -1124,7 +1127,8 @@ function draw() {
 function drawRampes(rs) {
   if (!rs.length) return;
   const font = getComputedStyle(document.body).fontFamily;
-  ctx.fillStyle = C.asphalt; ctx.beginPath(); for (const r of rs) { pathPoly(r.contour); pathPoly(r.trou || []); } ctx.fill("evenodd");
+  // Un plateau incliné n'est pas une emprise de rampe : seulement sa flèche de pente.
+  ctx.fillStyle = C.asphalt; ctx.beginPath(); for (const r of rs) if (r.forme !== "plateau") { pathPoly(r.contour); pathPoly(r.trou || []); } ctx.fill("evenodd");
   ctx.strokeStyle = C.stripe; ctx.lineWidth = 1; ctx.stroke();
   for (const r of rs) {
     const a = r.axe.map(toS), n = a.length;
@@ -1136,7 +1140,8 @@ function drawRampes(rs) {
       let t = Math.atan2(a[k + 1][1] - a[k][1], a[k + 1][0] - a[k][0]); if (t > Math.PI / 2 || t < -Math.PI / 2) t += Math.PI;
       ctx.save(); ctx.translate(M[0], M[1]); ctx.rotate(t);
       ctx.font = `600 11px ${font}`; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.fillStyle = C.stripe;
-      ctx.fillText(`${r.double_sens ? "Demi-rampe" : r.montee ? "Montée" : "Descente"} ${Math.round(r.pente * 100)} %`, 0, -4); ctx.restore();
+      const nom = { u: "Demi-rampe", virage: "Demi-tour", plateau: "Pente" }[r.forme] || (r.montee ? "Montée" : "Descente");
+      ctx.fillText(r.forme === "virage" ? nom : `${nom} ${(r.pente * 100).toFixed(r.forme === "droite" ? 0 : 1).replace(".", ",")} %`, 0, -4); ctx.restore();
     }
   }
 }
@@ -1524,7 +1529,7 @@ function updateStats(quick) {
   $("#r-dalle").hidden = !ov; $("#lay-structure").hidden = !ov; $("#k-eff").textContent = ov ? "Dalle par place" : "Enrobé par place";
   if (ov) $("#s-dalle").textContent = `${fmt1(ov.largeur)} × ${fmt1(ov.longueur)} m · ${ov.modules}${ov.demi_module ? ",5" : ""} module${ov.modules + (ov.demi_module ? 0.5 : 0) >= 2 ? "s" : ""}`;
   $("#r-trame").hidden = !ov; if (ov) $("#s-trame").textContent = `${DENSITE[params.silo_densite]} · portée ${fmt1(ov.portee)} m`;
-  $("#r-niveaux").hidden = !ov || ov.niveaux < 2; if (ov && ov.niveaux > 1) $("#s-niveaux").textContent = ov.demi_niveaux ? `${ov.niveaux} en ${2 * ov.niveaux} demi-niveaux · ${fmtInt(ov.places_niveau)} places par niveau` : `${ov.niveaux} · ${fmtInt(ov.places_rdc)} places au rez, ${ov.niveaux > 2 ? fmtInt(ov.places_niveau) + " par niveau courant, " : ""}${fmtInt(ov.places_dernier)} au dernier`;
+  $("#r-niveaux").hidden = !ov || ov.niveaux < 2; if (ov && ov.niveaux > 1) $("#s-niveaux").textContent = ov.demi_niveaux ? `${ov.niveaux} en ${2 * ov.niveaux} demi-niveaux · ${fmtInt(ov.places_niveau)} places par niveau` : ov.plateaux_inclines ? `${ov.niveaux} · ${fmtInt(ov.places_niveau)} places par niveau, plateaux inclinés` : `${ov.niveaux} · ${fmtInt(ov.places_rdc)} places au rez, ${ov.niveaux > 2 ? fmtInt(ov.places_niveau) + " par niveau courant, " : ""}${fmtInt(ov.places_dernier)} au dernier`;
   $("#r-rampes").hidden = !ov || ov.niveaux < 2; $("#lay-girations").hidden = !ov || !ov.girations.length;
   if (ov && ov.niveaux > 1) { const k = ov.girations.filter((g) => g.conflits.length).length; $("#s-rampes").innerHTML = ov.rampes.length ? `${IMPLANTATION[ov.implantation]}<span class="chip ${k ? "bad" : "ok"}">${k ? (k > 1 ? k + " girations gênées" : "giration gênée") : "girations conformes"}</span>` : `aucune<span class="chip bad">impossible</span>`; }
   $("#r-plancher").hidden = !ov; if (ov) { $("#s-plancher").textContent = `${ov.plancher.court} · étage ≥ ${ov.plancher.hauteur_min.toFixed(2).replace(".", ",")} m`; $("#r-plancher").title = ov.plancher.libelle + " (" + ov.plancher.source + ")"; }
@@ -1936,7 +1941,7 @@ window.addEventListener("keydown", (ev) => {
 const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "pmr_ratio", "irve_ratio", "irve_equip_ratio", "silo_niveaux", "silo_etage", "silo_pente", "silo_pu", "silo_pv", "silo_retrait", "silo_travee", "silo_facade"];
 // Densité de la trame du silo : libellés du bilan et du tableur.
 const DENSITE = { longue: "Longue", moyenne: "Moyenne", courte: "Courte" };
-const IMPLANTATION = { rangee: "En rangée", pignon: "En pignon", demi: "Demi-niveaux", helice: "Hélice" };
+const IMPLANTATION = { rangee: "En rangée", pignon: "En pignon", demi: "Demi-niveaux", helice: "Hélice", inclines: "Plateaux inclinés" };
 // Systèmes constructifs du silo : libellé, poteau par défaut [le long des allées, en travers], largeur de place,
 // places au plus entre poteaux (acier-béton : solives sur les poteaux, 5,00 m au plus).
 const SYSTEMES = {
@@ -1994,7 +1999,7 @@ function syncParamsUI() {
   $("#silo-fields").hidden = !params.silo; $("#p-silo_rives").checked = !!params.silo_rives;
   for (const b of $("#sy-seg").children) b.setAttribute("aria-pressed", String(b.dataset.s === params.silo_systeme));
   for (const b of $("#d-seg").children) { b.setAttribute("aria-pressed", String(b.dataset.d === params.silo_densite)); b.disabled = !!SYSTEMES[params.silo_systeme].densite && b.dataset.d !== SYSTEMES[params.silo_systeme].densite; }
-  for (const b of $("#ra-seg").children) b.setAttribute("aria-pressed", String(b.dataset.ra === params.silo_rampes));
+  $("#ra-sel").value = params.silo_rampes;
   $("#ra-field").hidden = Math.round(params.silo_niveaux) < 2;
   for (const b of $("#sl-seg").children) b.setAttribute("aria-pressed", String(+b.dataset.sl === params.slant));
   updateSlantNote();
@@ -2022,9 +2027,8 @@ $("#sy-seg").addEventListener("click", (ev) => {
   if (S.densite) params.silo_densite = S.densite;
   syncParamsUI(); lastAngle = null; solve(false); commit();
 });
-$("#ra-seg").addEventListener("click", (ev) => {
-  const b = ev.target.closest("button[data-ra]"); if (!b || b.dataset.ra === params.silo_rampes) return;
-  params.silo_rampes = b.dataset.ra; syncParamsUI(); lastAngle = null; solve(false); commit();
+$("#ra-sel").addEventListener("change", (ev) => {
+  params.silo_rampes = ev.target.value; lastAngle = null; solve(false); commit();
 });
 $("#d-seg").addEventListener("click", (ev) => {
   const b = ev.target.closest("button[data-d]"); if (!b || b.dataset.d === params.silo_densite) return;
@@ -3052,6 +3056,8 @@ function buildXls() {
       for (const r of ov.rampes) {
         if (r.forme === "u") row("Demi-rampe en U à double sens", `${pc(r)}, ${m2(r.longueur)} m dans l'axe de la voie intérieure, un demi-étage`);
         else if (r.forme === "helice") row(r.montee ? "Tour hélicoïdale de montée" : "Tour hélicoïdale de descente", `${pc(r)}, ${m2(r.longueur)} m par tour dans l'axe de la voie, un tour par niveau`);
+        else if (r.forme === "virage") row("Demi-tour horizontal à double sens", `${m2(r.longueur)} m dans l'axe de la voie intérieure`);
+        else if (r.forme === "plateau") row("Plateau incliné", `${pc(r)} sur ${m2(r.longueur)} m, un demi-étage`);
         else row(r.montee ? "Rampe de montée" : "Rampe de descente", `${Math.round(r.pente * 100)} %, ${m2(r.longueur)} m (raccords R 10 et R 15 compris)`);
       }
       for (const g of ov.girations) row(`Giration : ${g.libelle.toLowerCase()}`, g.conflits.length ? `gênée par ${g.conflits.join(", ")}` : "conforme (voie de 4,00 m, rayon extérieur 8,50 m, NF P 91-100 § 3.3)");

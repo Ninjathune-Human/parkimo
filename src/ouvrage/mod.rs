@@ -140,6 +140,7 @@ impl Ouvrage {
             rampe: (self.niveaux > 1).then(|| self.longueur_rampe()),
             rampe_largeur: neufert::RAMPE_SENS_UNIQUE.v,
             implantation: self.implantation,
+            hauteur: self.hauteur_etage,
         }
     }
 }
@@ -243,6 +244,8 @@ pub struct OuvrageOut {
     pub implantation: String,
     /// Demi-niveaux décalés : chaque niveau compte deux demi-plateaux.
     pub demi_niveaux: bool,
+    /// Plateaux inclinés : les deux modules montent d'un demi-étage chacun.
+    pub plateaux_inclines: bool,
     /// Rampes droites : emprise de la voie, axe dans le sens de parcours (de → à), pente, longueur.
     pub rampes: Vec<RampeOut>,
     pub girations: Vec<GirationOut>,
@@ -407,6 +410,8 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         plateau::Forme::Droite => o.pente(),
         plateau::Forme::DemiU => o.hauteur_etage / 2.0 / r.longueur,
         plateau::Forme::Helice => o.hauteur_etage / r.longueur,
+        plateau::Forme::Virage => 0.0,
+        plateau::Forme::Plateau => o.hauteur_etage / 2.0 / r.longueur,
     };
     let rives = |v: &[plateau::PlaceLoc]| v.iter().filter(|pl| pl.rive).count();
     let n_niv = out.stalls.len();
@@ -523,7 +528,18 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         if o.pente_rampe > nf::PENTE_RAMPE_MAX.v + 1e-9 && plan.rampes.iter().any(|r| r.forme == plateau::Forme::Droite) {
             out.warnings.push("Pente des rampes ramenée à 18 % (NF P 91-100, § 3.4)".into());
         }
-        if let Some(r) = plan.rampes.iter().find(|r| r.forme != plateau::Forme::Droite && pente(r) > nf::PENTE_RAMPE_MAX.v + 1e-9) {
+        if let Some(r) = plan.rampes.iter().find(|r| r.forme == plateau::Forme::Plateau) {
+            if pente(r) > neufert::PLANCHER_INCLINE_MAX.v + 1e-9 {
+                out.warnings.push(format!(
+                    "Plateaux inclinés à {} % : Neufert conseille 6 % au plus (rangées plus longues)",
+                    fr2(pente(r) * 100.0)
+                ));
+            }
+            out.warnings.push(
+                "Plateaux inclinés : places PMR sur une partie horizontale, dévers de 2 % au plus (arrêté du 20 avril 2017, art. 3)".into(),
+            );
+        }
+        if let Some(r) = plan.rampes.iter().find(|r| matches!(r.forme, plateau::Forme::DemiU | plateau::Forme::Helice) && pente(r) > nf::PENTE_RAMPE_MAX.v + 1e-9) {
             out.warnings.push(format!(
                 "Rampe courbe à {} % dans l'axe de la voie (intérieure), plus de 18 % (NF P 91-100, § 3.4)",
                 (pente(r) * 100.0).round()
@@ -590,6 +606,7 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         places_dernier: n_dernier,
         implantation: plan.implantation.map_or(String::new(), |i| i.nom().into()),
         demi_niveaux: plan.implantation == Some(Implantation::DemiNiveaux),
+        plateaux_inclines: plan.implantation == Some(Implantation::Inclines),
         rampes: plan
             .rampes
             .iter()
