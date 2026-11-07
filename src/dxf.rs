@@ -691,7 +691,8 @@ pub fn export(inp: &ExportIn) -> ExportOut {
             w.lwpoly("PRJ_GIRATIONS", &pts, false);
         }
         // Escaliers et ascenseurs : cage ; escalier à deux volées (échiffre au milieu, marches de
-        // 0,28 m entre deux paliers de 1,00 m) ; ascenseur barré d'une croix ; repère au palier du fond.
+        // 0,28 m entre deux paliers de 1,00 m) ; ascenseur barré d'une croix ; escalier de liaison
+        // des demi-niveaux ; repère au palier du fond.
         for n in &o.noyaux {
             let q = n.q;
             w.ring("PRJ_NOYAUX", &q);
@@ -703,7 +704,8 @@ pub fn export(inp: &ExportIn) -> ExportOut {
                     w.lwpoly("PRJ_NOYAUX", &pts, false);
                 }
             } else {
-                let (t0, pas) = ((1.0 / prof).min(0.45), 0.28 / prof);
+                // Liaison : demi-volées au droit du joint (2,50 m de part et d'autre du milieu).
+                let (t0, pas) = if n.liaison { (0.5 - 1.25 / prof, 0.28 / prof) } else { ((1.0 / prof).min(0.45), 0.28 / prof) };
                 let pts = w.map(&[lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t0), lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), 1.0 - t0)]);
                 w.lwpoly("PRJ_NOYAUX", &pts, false);
                 let mut t = t0;

@@ -496,6 +496,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
         <div class="field"><label for="p-silo_etage">Hauteur d'étage</label><span class="unit"><input id="p-silo_etage" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_pente">Pente des rampes</label><span class="unit"><input id="p-silo_pente" type="text" inputmode="decimal" autocomplete="off">%</span></div>
         <div class="field" id="ra-field"><label for="ra-sel">Rampes</label><span class="pop"><select id="ra-sel"><option value="auto">Auto</option><option value="rangee">En rangée</option><option value="pignon">En pignon</option><option value="demi">Demi-niveaux</option><option value="helice">Hélice</option><option value="inclines">Plateaux inclinés</option></select></span></div>
+        <div class="field" id="asc-field" hidden><label for="asc-sel">Ascenseurs</label><span class="pop"><select id="asc-sel"><option value="deux">Un par demi-niveau</option><option value="liaison">Un, escalier de liaison</option></select></span></div>
         <div class="field" id="pslv-field"><label for="p-silo_ventile">Largement ventilé (PS 3)</label><input id="p-silo_ventile" type="checkbox" class="switch" role="switch"></div>
         <div class="field"><label for="p-silo_pu">Poteau le long des allées</label><span class="unit"><input id="p-silo_pu" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_pv">Poteau en travers</label><span class="unit"><input id="p-silo_pv" type="text" inputmode="decimal" autocomplete="off">m</span></div>
@@ -503,7 +504,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
         <div class="field"><label for="p-silo_travee">Places entre poteaux, au plus</label><span class="unit"><input id="p-silo_travee" type="text" inputmode="decimal" autocomplete="off">pl</span></div>
         <div class="field"><label for="p-silo_facade">Rive de façade</label><span class="unit"><input id="p-silo_facade" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_rives">Places le long des pignons</label><input id="p-silo_rives" type="checkbox" class="switch" role="switch"></div>
-        <p class="note">Le système fixe le plancher : béton coulé (dalle post-contrainte, poutres et dalle, plancher-dalle), préfabriqué (dalles alvéolées de 1,20 m sur poutres précontraintes, places de 2,40 m), acier-béton (solives IPE et dalle mixte, portée longue). Portée longue : poteaux en façade et en dos à dos ; moyenne : en tête des rangées dos à dos ; courte : en tête de chaque rangée, le nu à 0,65 m au moins de l'allée (NF P 91-100, tab. 3). Au-delà d'un niveau, rampes droites à sens unique, montée à un bout, descente à l'autre : en rangée, le long des allées dans les rangées de façade (deux modules au moins) ; en pignon, en travers des allées (trois modules au moins) ; demi-niveaux, deux demi-plateaux d'un module décalés d'un demi-étage et reliés à chaque bout par une demi-rampe en U à double sens (voie intérieure de 3,50 m pour monter, extérieure de 3,00 m pour descendre, allées à double sens) ; hélice, deux tours hélicoïdales à sens unique (montée à un bout, descente à l'autre, un tour par niveau, voie de 4,00 m entre 5,00 et 9,00 m du centre, Neufert), la porte de chaque niveau sur l'allée transversale (trois modules au moins) ; plateaux inclinés, les deux modules eux-mêmes en pente de sens opposés, un demi-étage chacun sur la longueur des rangées (7,5 % au plus pour les places, NF P 91-100 ; 6 % conseillés, Neufert), reliés par des demi-tours horizontaux à double sens ; Auto garde celle qui laisse le plus de places. Épures de giration vérifiées à l'entrée et à la sortie (voie de 4,00 m en courbe, rayon extérieur 8,50 m ; pente de 18 % au plus, raccords R 10 et R 15, NF P 91-100 ; voie de rampe de 3,25 m, Neufert). Escaliers et ascenseur placés dans l'emprise d'une place, en façade de préférence, au même endroit à chaque niveau : toute place à 40 m au plus d'un escalier quand elle est entre deux escaliers opposés, 25 m sinon, dans l'axe des circulations (ERP, PS 13) ; 50 et 30 m dans un parc largement ventilé (PS 3 : deux façades opposées ouvertes à 50 % au moins, à moins de 75 m l'une de l'autre) ; un ascenseur contre le premier escalier. Hypothèses d'esquisse à confirmer par le bureau d'études et le fabricant.</p>
+        <p class="note">Le système fixe le plancher : béton coulé (dalle post-contrainte, poutres et dalle, plancher-dalle), préfabriqué (dalles alvéolées de 1,20 m sur poutres précontraintes, places de 2,40 m), acier-béton (solives IPE et dalle mixte, portée longue). Portée longue : poteaux en façade et en dos à dos ; moyenne : en tête des rangées dos à dos ; courte : en tête de chaque rangée, le nu à 0,65 m au moins de l'allée (NF P 91-100, tab. 3). Au-delà d'un niveau, rampes droites à sens unique, montée à un bout, descente à l'autre : en rangée, le long des allées dans les rangées de façade (deux modules au moins) ; en pignon, en travers des allées (trois modules au moins) ; demi-niveaux, deux demi-plateaux d'un module décalés d'un demi-étage et reliés à chaque bout par une demi-rampe en U à double sens (voie intérieure de 3,50 m pour monter, extérieure de 3,00 m pour descendre, allées à double sens) ; hélice, deux tours hélicoïdales à sens unique (montée à un bout, descente à l'autre, un tour par niveau, voie de 4,00 m entre 5,00 et 9,00 m du centre, Neufert), la porte de chaque niveau sur l'allée transversale (trois modules au moins) ; plateaux inclinés, les deux modules eux-mêmes en pente de sens opposés, un demi-étage chacun sur la longueur des rangées (7,5 % au plus pour les places, NF P 91-100 ; 6 % conseillés, Neufert), reliés par des demi-tours horizontaux à double sens ; Auto garde celle qui laisse le plus de places. Épures de giration vérifiées à l'entrée et à la sortie (voie de 4,00 m en courbe, rayon extérieur 8,50 m ; pente de 18 % au plus, raccords R 10 et R 15, NF P 91-100 ; voie de rampe de 3,25 m, Neufert). Escaliers et ascenseur placés dans l'emprise d'une place, en façade de préférence, au même endroit à chaque niveau : toute place à 40 m au plus d'un escalier quand elle est entre deux escaliers opposés, 25 m sinon, dans l'axe des circulations (ERP, PS 13) ; 50 et 30 m dans un parc largement ventilé (PS 3 : deux façades opposées ouvertes à 50 % au moins, à moins de 75 m l'une de l'autre) ; un ascenseur contre le premier escalier ; en demi-niveaux, un second ascenseur sur l'autre demi-plateau (chacun dessert un demi-niveau sur deux), ou un escalier de liaison entre les deux. Hypothèses d'esquisse à confirmer par le bureau d'études et le fabricant.</p>
       </div>
     </div>
     <div class="pgroup">
@@ -686,7 +687,7 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((res) => setTimeout(
 // Données : sites d'exemple (mètres, repère local, y vers le haut).
 // ============================================================================
 const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, basin_margin: 2, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null, slant: 90,
-  silo: false, silo_etage: 2.9, silo_niveaux: 1, silo_pente: 18, silo_systeme: "coule", silo_pu: 0.3, silo_pv: 0.6, silo_travee: 3, silo_facade: 0.2, silo_rives: true, silo_densite: "longue", silo_retrait: 0.65, silo_rampes: "auto", silo_ventile: true };
+  silo: false, silo_etage: 2.9, silo_niveaux: 1, silo_pente: 18, silo_systeme: "coule", silo_pu: 0.3, silo_pv: 0.6, silo_travee: 3, silo_facade: 0.2, silo_rives: true, silo_densite: "longue", silo_retrait: 0.65, silo_rampes: "auto", silo_ventile: true, silo_asc: "deux" };
 
 function arc(cx, cy, r, a0, a1, n) {
   const pts = [];
@@ -766,7 +767,7 @@ function engineInput(quick) {
       pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100, irve_equip_ratio: p.irve_equip_ratio / 100,
       angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle,
     },
-    ouvrage: p.silo ? { actif: true, facade: p.silo_facade, poteau: [p.silo_pu, p.silo_pv], travee: Math.max(1, Math.round(p.silo_travee)), rives: !!p.silo_rives, densite: p.silo_densite, retrait: p.silo_retrait, systeme: p.silo_systeme, angle: p.angle, hauteur_etage: p.silo_etage, niveaux: Math.max(1, Math.round(p.silo_niveaux)), implantation: p.silo_rampes, largement_ventile: p.silo_ventile !== false, pente_rampe: p.silo_pente / 100, emprise: site.slab ? { cx: site.slab.cx, cy: site.slab.cy, w: site.slab.w, h: site.slab.h, rot: site.slab.rot, fixe: site.slab.fixe || [0, 0] } : null } : null,
+    ouvrage: p.silo ? { actif: true, facade: p.silo_facade, poteau: [p.silo_pu, p.silo_pv], travee: Math.max(1, Math.round(p.silo_travee)), rives: !!p.silo_rives, densite: p.silo_densite, retrait: p.silo_retrait, systeme: p.silo_systeme, angle: p.angle, hauteur_etage: p.silo_etage, niveaux: Math.max(1, Math.round(p.silo_niveaux)), implantation: p.silo_rampes, largement_ventile: p.silo_ventile !== false, ascenseurs_demi: p.silo_asc || "deux", pente_rampe: p.silo_pente / 100, emprise: site.slab ? { cx: site.slab.cx, cy: site.slab.cy, w: site.slab.w, h: site.slab.h, rot: site.slab.rot, fixe: site.slab.fixe || [0, 0] } : null } : null,
   };
 }
 
@@ -1180,7 +1181,13 @@ function drawNoyaux(ns) {
     ctx.beginPath(); ctx.lineWidth = 0.8;
     const seg = (a, b) => { const A = toS(a), B = toS(b); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); };
     if (n.ascenseur) { seg(q[0], q[2]); seg(q[1], q[3]); }
-    else {
+    else if (n.liaison) {
+      // Liaison : deux demi-volées côte à côte (montée et descente d'une demi-hauteur) au droit du
+      // joint, paliers de part et d'autre.
+      const t0 = 0.5 - 1.25 / prof, t1 = 0.5 + 1.25 / prof, pas = 0.28 / prof;
+      seg(lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t0), lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t1));
+      for (let t = t0; t <= t1 + 1e-9; t += view.s * 0.28 > 2.5 ? pas : t1 - t0) seg(lerp(fond[0], av[0], t), lerp(fond[1], av[1], t));
+    } else {
       // Paliers de 1,00 m à chaque bout, volées entre les deux, échiffre au milieu de la largeur.
       const t0 = Math.min(0.45, 1 / prof), t1 = 1 - t0, pas = 0.28 / prof;
       seg(lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t0), lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t1));
@@ -1189,7 +1196,9 @@ function drawNoyaux(ns) {
     }
     ctx.stroke();
     const d = Math.min(0.45, 0.9 / 2 / larg);
-    ctx.beginPath(); seg(lerp(av[0], av[1], 0.5 - d), lerp(av[0], av[1], 0.5 + d)); ctx.lineWidth = 3; ctx.strokeStyle = C.accent; ctx.stroke();
+    ctx.beginPath(); seg(lerp(av[0], av[1], 0.5 - d), lerp(av[0], av[1], 0.5 + d));
+    if (n.liaison) seg(lerp(fond[0], fond[1], 0.5 - d), lerp(fond[0], fond[1], 0.5 + d));
+    ctx.lineWidth = 3; ctx.strokeStyle = C.accent; ctx.stroke();
   }
   ctx.restore();
 }
@@ -1566,8 +1575,9 @@ function updateStats(quick) {
   if (ov && ov.niveaux > 1) { const k = ov.girations.filter((g) => g.conflits.length).length; $("#s-rampes").innerHTML = ov.rampes.length ? `${IMPLANTATION[ov.implantation]}<span class="chip ${k ? "bad" : "ok"}">${k ? (k > 1 ? k + " girations gênées" : "giration gênée") : "girations conformes"}</span>` : `aucune<span class="chip bad">impossible</span>`; }
   const ev = ov && ov.evacuation;
   $("#r-noyaux").hidden = !ev; $("#lay-noyaux").hidden = !ov || !ov.noyaux.length;
+  $("#asc-field").hidden = !(ev && ov.demi_niveaux);
   if (ev) {
-    $("#s-noyaux").innerHTML = `${ev.escaliers}${ev.ascenseurs ? ` · ${ev.ascenseurs} ascenseur${ev.ascenseurs > 1 ? "s" : ""}` : ""}<span class="chip ${ev.hors ? "bad" : "ok"}">${ev.hors ? `${ev.hors} place${ev.hors > 1 ? "s" : ""} trop loin` : `${fmt1(ev.distance_max)} m au plus`}</span>`;
+    $("#s-noyaux").innerHTML = `${ev.escaliers}${ev.ascenseurs ? ` · ${ev.ascenseurs} ascenseur${ev.ascenseurs > 1 ? "s" : ""}` : ""}${ev.liaisons ? " · liaison" : ""}<span class="chip ${ev.hors ? "bad" : "ok"}">${ev.hors ? `${ev.hors} place${ev.hors > 1 ? "s" : ""} trop loin` : `${fmt1(ev.distance_max)} m au plus`}</span>`;
     $("#r-noyaux").title = `PS 13 : ${ev.limite_deux} m entre deux escaliers opposés, ${ev.limite_un} m sinon${ev.largement_ventile ? " (parc largement ventilé)" : ""}, dans l'axe des circulations`;
   }
   $("#r-plancher").hidden = !ov; if (ov) { $("#s-plancher").textContent = `${ov.plancher.court} · étage ≥ ${ov.plancher.hauteur_min.toFixed(2).replace(".", ",")} m`; $("#r-plancher").title = ov.plancher.libelle + " (" + ov.plancher.source + ")"; }
@@ -2037,7 +2047,7 @@ function syncParamsUI() {
   $("#silo-fields").hidden = !params.silo; $("#p-silo_rives").checked = !!params.silo_rives;
   for (const b of $("#sy-seg").children) b.setAttribute("aria-pressed", String(b.dataset.s === params.silo_systeme));
   for (const b of $("#d-seg").children) { b.setAttribute("aria-pressed", String(b.dataset.d === params.silo_densite)); b.disabled = !!SYSTEMES[params.silo_systeme].densite && b.dataset.d !== SYSTEMES[params.silo_systeme].densite; }
-  $("#ra-sel").value = params.silo_rampes; $("#p-silo_ventile").checked = params.silo_ventile !== false;
+  $("#ra-sel").value = params.silo_rampes; $("#asc-sel").value = params.silo_asc || "deux"; $("#p-silo_ventile").checked = params.silo_ventile !== false;
   $("#ra-field").hidden = $("#pslv-field").hidden = Math.round(params.silo_niveaux) < 2;
   for (const b of $("#sl-seg").children) b.setAttribute("aria-pressed", String(+b.dataset.sl === params.slant));
   updateSlantNote();
@@ -2068,6 +2078,9 @@ $("#sy-seg").addEventListener("click", (ev) => {
 });
 $("#ra-sel").addEventListener("change", (ev) => {
   params.silo_rampes = ev.target.value; lastAngle = null; solve(false); commit();
+});
+$("#asc-sel").addEventListener("change", (ev) => {
+  params.silo_asc = ev.target.value; solve(false); commit();
 });
 $("#d-seg").addEventListener("click", (ev) => {
   const b = ev.target.closest("button[data-d]"); if (!b || b.dataset.d === params.silo_densite) return;
@@ -3102,7 +3115,8 @@ function buildXls() {
       for (const g of ov.girations) row(`Giration : ${g.libelle.toLowerCase()}`, g.conflits.length ? `gênée par ${g.conflits.join(", ")}` : "conforme (voie de 4,00 m, rayon extérieur 8,50 m, NF P 91-100 § 3.3)");
       const ev = ov.evacuation;
       if (ev) {
-        row("Escaliers", ev.escaliers, "cages, dans l'emprise d'une place"); row("Ascenseurs", ev.ascenseurs, "gaines, contre le premier escalier");
+        row("Escaliers", ev.escaliers, "cages, dans l'emprise d'une place"); row("Ascenseurs", ev.ascenseurs, ov.demi_niveaux && ev.ascenseurs > 1 ? "gaines, une par demi-plateau" : "gaines, contre le premier escalier");
+        if (ev.liaisons) row("Escaliers de liaison", ev.liaisons, "entre les deux demi-plateaux, places PMR du côté de l'ascenseur");
         row("Parc largement ventilé (PS 3)", ev.largement_ventile ? "oui" : "non");
         row("Distance admise à un escalier", `${ev.limite_deux} m entre deux escaliers opposés, ${ev.limite_un} m sinon (PS 13, dans l'axe des circulations)`);
         row("Plus grande distance à un escalier", ev.distance_max, "m", "N1"); row("Places au-delà", ev.hors, "places");

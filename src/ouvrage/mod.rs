@@ -57,6 +57,8 @@ pub struct Ouvrage {
     pub pente_rampe: f64,
     /// Parc largement ventilé (PS 3) : distances aux escaliers de 50 et 30 m au lieu de 40 et 25.
     pub largement_ventile: bool,
+    /// Demi-niveaux : "deux" ascenseurs (un par demi-plateau) ou un seul et un escalier de "liaison".
+    pub ascenseurs_demi: noyaux::AscenseursDemi,
     /// Altitude NGF du niveau de référence (plancher bas), en mètres.
     pub cote: f64,
     pub nom: String,
@@ -80,6 +82,7 @@ impl Default for Ouvrage {
             implantation: Implantation::Auto,
             pente_rampe: 0.18,
             largement_ventile: true,
+            ascenseurs_demi: noyaux::AscenseursDemi::Deux,
             cote: 0.0,
             nom: "Parc de stationnement".into(),
         }
@@ -186,6 +189,7 @@ pub struct NoyauOut {
     pub q: [P2; 4],
     pub porte: P2,
     pub ascenseur: bool,
+    pub liaison: bool,
     pub cle: String,
 }
 
@@ -199,6 +203,7 @@ pub struct EvacuationOut {
     pub hors: usize,
     pub escaliers: usize,
     pub ascenseurs: usize,
+    pub liaisons: usize,
 }
 
 /// File de poteaux (axe de trame), prolongée de 3 m au-delà de la dalle.
@@ -391,7 +396,7 @@ pub fn solve(site: &Site, o: &Ouvrage) -> Layout {
         return out;
     };
     // Escaliers et ascenseur au-delà d'un niveau (PS 13).
-    let evac = (o.niveaux > 1).then(|| noyaux::placer(&mut plan, &g, o.largement_ventile));
+    let evac = (o.niveaux > 1).then(|| noyaux::placer(&mut plan, &g, o.largement_ventile, o.ascenseurs_demi));
     remplir(&mut out, site, o, &g, &e, &plan, evac.as_ref());
     out
 }
@@ -598,6 +603,9 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         if o.largement_ventile && larg >= ps::PSLV_DISTANCE_FACADES.v && long >= ps::PSLV_DISTANCE_FACADES.v {
             out.warnings.push("PS 3 : façades opposées à 75 m ou plus, le parc n'est pas largement ventilé".into());
         }
+        if plan.noyaux.iter().any(|n| n.liaison) {
+            out.warnings.push("Demi-niveaux : un seul ascenseur, places PMR sur son demi-plateau ; escalier de liaison vers l'autre".into());
+        }
     }
     out.warnings.push(if niv > 1 {
         "Silo : cages d'escalier et d'ascenseur dans l'emprise d'une place, à dimensionner ; PMR et IRVE à placer près de l'ascenseur".into()
@@ -685,7 +693,7 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         noyaux: plan
             .noyaux
             .iter()
-            .map(|n| NoyauOut { q: quad(&n.q), porte: p2(w(n.porte)), ascenseur: n.ascenseur, cle: n.cle.clone() })
+            .map(|n| NoyauOut { q: quad(&n.q), porte: p2(w(n.porte)), ascenseur: n.ascenseur, liaison: n.liaison, cle: n.cle.clone() })
             .collect(),
         evacuation: evac.map(|ev| EvacuationOut {
             largement_ventile: o.largement_ventile,
@@ -693,8 +701,9 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
             limite_un: ev.limites.1,
             distance_max: r3(ev.distance_max),
             hors: ev.hors,
-            escaliers: plan.noyaux.iter().filter(|n| !n.ascenseur).count(),
+            escaliers: plan.noyaux.iter().filter(|n| !n.ascenseur && !n.liaison).count(),
             ascenseurs: plan.noyaux.iter().filter(|n| n.ascenseur).count(),
+            liaisons: plan.noyaux.iter().filter(|n| n.liaison).count(),
         }),
         surface: r3(surface),
         m2_place: if n > 0 { r3(surface * niv as f64 / n as f64) } else { 0.0 },

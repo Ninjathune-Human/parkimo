@@ -17,6 +17,7 @@
 use super::normes::ps;
 use super::plateau::{Forme, Gabarit, Plan, PlaceLoc};
 use crate::geom::{v2, V2};
+use serde::Deserialize;
 
 /// Escalier ou ascenseur : emprise (celle de la place remplacée), porte sur l'axe de l'allée.
 #[derive(Clone, Debug)]
@@ -24,7 +25,20 @@ pub struct Noyau {
     pub q: [V2; 4],
     pub porte: V2,
     pub ascenseur: bool,
+    /// Escalier de liaison entre les deux demi-plateaux d'un niveau (demi-niveaux) : deux places
+    /// dos à dos et le joint qui les sépare, une porte sur chaque allée.
+    pub liaison: bool,
     pub cle: String,
+}
+
+/// Ascenseurs en demi-niveaux : un par demi-plateau (chacun dessert un demi-niveau sur deux), ou
+/// un seul et un escalier de liaison vers l'autre demi-plateau.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AscenseursDemi {
+    #[default]
+    Deux,
+    Liaison,
 }
 
 /// Bilan d'évacuation (PS 13).
@@ -309,7 +323,7 @@ pub fn limites(largement_ventile: bool) -> (f64, f64) {
 
 /// Place les escaliers et l'ascenseur dans les rangées du plateau (de préférence en façade), retire
 /// les places qu'ils occupent et rend le bilan d'évacuation.
-pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool) -> Evacuation {
+pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool, demi: AscenseursDemi) -> Evacuation {
     let lim = limites(largement_ventile);
     let r = reseau(plan);
     let (w, l) = (plan.largeur(), plan.longueur());
@@ -352,10 +366,10 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool) -> Evacuati
         .collect();
     // Places hors de portée, somme des écarts, plus grande distance, somme des distances (places
     // devenues cages exclues).
-    let bilan = |set: &[usize], sauf: Option<usize>| -> (usize, f64, f64, f64) {
+    let bilan = |set: &[usize], sauf: &[usize]| -> (usize, f64, f64, f64) {
         let (mut hors, mut ecart, mut dmax, mut somme) = (0, 0.0, 0.0f64, 0.0);
         for (pi, dep) in departs.iter().enumerate() {
-            if dep.is_none() || sauf == Some(pi) || set.iter().any(|&c| cands[c].0 == pi) {
+            if dep.is_none() || sauf.contains(&pi) || set.iter().any(|&c| cands[c].0 == pi) {
                 continue;
             }
             let et = set.iter().fold(Etat::VIDE, |et, &c| et.ajoute(c, m[c][pi].0, m[c][pi].1));
@@ -373,7 +387,7 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool) -> Evacuati
     // Ajout glouton : à chaque fois l'escalier qui laisse le moins de places hors de portée (puis
     // le plus petit écart, puis en façade).
     let mut set: Vec<usize> = Vec::new();
-    let mut cur = bilan(&set, None);
+    let mut cur = bilan(&set, &[]);
     while set.len() < 16 && cur.0 > 0 {
         let mut best: Option<(usize, (usize, f64, f64, f64))> = None;
         for c in 0..cands.len() {
@@ -381,7 +395,7 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool) -> Evacuati
                 continue;
             }
             set.push(c);
-            let b = bilan(&set, None);
+            let b = bilan(&set, &[]);
             set.pop();
             if best.is_none_or(|(bc, bb)| mieux(b, bb) || (b.0 == bb.0 && (b.1 - bb.1).abs() <= 1e-6 && cands[c].2 && !cands[bc].2)) {
                 best = Some((c, b));
@@ -400,7 +414,7 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool) -> Evacuati
     while i < set.len() {
         let mut sans = set.clone();
         sans.remove(i);
-        let b = bilan(&sans, None);
+        let b = bilan(&sans, &[]);
         if b.0 <= cur.0 {
             (set, cur) = (sans, b);
         } else {
@@ -417,7 +431,7 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool) -> Evacuati
                     }
                     let mut s2 = base.clone();
                     s2.push(c);
-                    let b = bilan(&s2, None);
+                    let b = bilan(&s2, &[]);
                     if b.0 <= cur.0 {
                         (set, cur) = (s2, b);
                         continue 'reduit;
@@ -443,7 +457,7 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool) -> Evacuati
                 if nf2 > nf {
                     continue;
                 }
-                let b = bilan(&s2, None);
+                let b = bilan(&s2, &[]);
                 if b.0 <= cur.0 && (nf2 < nf || b.3 < cur.3 - 1.0) {
                     (set, cur) = (s2, b);
                     change = true;
@@ -463,27 +477,58 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool) -> Evacuati
     let mut noyaux: Vec<Noyau> = set
         .iter()
         .enumerate()
-        .map(|(i, &c)| Noyau { q: plan.places[cands[c].0].q, porte: point(&r, cands[c].1.pos), ascenseur: false, cle: format!("NY/E{}", i + 1) })
+        .map(|(i, &c)| Noyau { q: plan.places[cands[c].0].q, porte: point(&r, cands[c].1.pos), ascenseur: false, liaison: false, cle: format!("NY/E{}", i + 1) })
         .collect();
     // Ascenseur dans une place voisine du premier escalier (côté commun), présente à tous les
     // niveaux : à côté, porte sur la même allée, sinon dos à dos.
-    let mut lift = None;
+    let moitie = |i: usize| devant(&r, plan, &plan.places[i], g.allee).map(|p| p.seg);
+    let centre = |q: &[V2; 4]| (q[0] + q[2]) * 0.5;
     if let Some(&c0) = set.first() {
         let q0 = plan.places[cands[c0].0].q;
         let communs = |q: &[V2; 4]| q.iter().filter(|a| q0.iter().any(|b| (**a - *b).len() < 1e-6)).count();
         let voisines: Vec<usize> = (0..plan.places.len())
             .filter(|&i| !retirees.contains(&i) && communs(&plan.places[i].q) == 2 && libre(&plan.places[i]))
             .collect();
-        let a_cote = |i: &usize| devant(&r, plan, &plan.places[*i], g.allee).is_some_and(|p| p.seg == cands[c0].1.pos.seg);
+        let a_cote = |i: &usize| moitie(*i) == Some(cands[c0].1.pos.seg);
         let voisine = voisines.iter().copied().find(a_cote).or(voisines.first().copied());
         if let Some(a) = voisine {
             let porte = devant(&r, plan, &plan.places[a], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
-            noyaux.push(Noyau { q: plan.places[a].q, porte, ascenseur: true, cle: "NY/A1".into() });
+            noyaux.push(Noyau { q: plan.places[a].q, porte, ascenseur: true, liaison: false, cle: "NY/A1".into() });
             retirees.push(a);
-            lift = Some(a);
+            // Demi-niveaux : les deux demi-plateaux d'un niveau sont décalés d'une demi-hauteur.
+            let en_demi = plan.rampes.iter().any(|rp| matches!(rp.forme, Forme::DemiU));
+            let (ca, ma) = (centre(&plan.places[a].q), moitie(a));
+            let autre = |i: usize| !retirees.contains(&i) && libre(&plan.places[i]) && moitie(i).is_some() && moitie(i) != ma;
+            let pres = |i: usize, j: usize| (centre(&plan.places[i].q) - ca).len().total_cmp(&(centre(&plan.places[j].q) - ca).len());
+            if en_demi && demi == AscenseursDemi::Deux {
+                // Second ascenseur, sur l'autre demi-plateau, au plus près du premier.
+                if let Some(b) = (0..plan.places.len()).filter(|&i| autre(i)).min_by(|&i, &j| pres(i, j)) {
+                    let porte = devant(&r, plan, &plan.places[b], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
+                    noyaux.push(Noyau { q: plan.places[b].q, porte, ascenseur: true, liaison: false, cle: "NY/A2".into() });
+                    retirees.push(b);
+                }
+            } else if en_demi {
+                // Escalier de liaison : deux places dos à dos de part et d'autre du joint (même
+                // travée, fonds face à face), au plus près de l'ascenseur.
+                let (lo, hi) = (|i: usize| bornes(&plan.places[i].q).0, |i: usize| bornes(&plan.places[i].q).1);
+                let dos = |i: usize, j: usize| {
+                    (lo(i).x - lo(j).x).abs() < 1e-6 && (hi(i).x - hi(j).x).abs() < 1e-6 && (plan.places[i].q[0].y - plan.places[j].q[0].y).abs() < 2.0
+                };
+                let paires = (0..plan.places.len())
+                    .filter(|&i| !retirees.contains(&i) && libre(&plan.places[i]) && moitie(i) == ma)
+                    .flat_map(|i| (0..plan.places.len()).filter(move |&j| autre(j) && dos(i, j)).map(move |j| (i, j)));
+                if let Some((i, j)) = paires.min_by(|a, b| pres(a.0, b.0)) {
+                    let (yi, yj) = (plan.places[i].q[3].y, plan.places[j].q[3].y);
+                    let (x0, x1) = (lo(i).x, hi(i).x);
+                    let porte = devant(&r, plan, &plan.places[i], g.allee).map_or(noyaux[0].porte, |p| point(&r, p));
+                    let q = [v2(x0, yi), v2(x1, yi), v2(x1, yj), v2(x0, yj)];
+                    noyaux.push(Noyau { q, porte, ascenseur: false, liaison: true, cle: "NY/L1".into() });
+                    retirees.extend([i, j]);
+                }
+            }
         }
     }
-    let (hors, _, dmax, _) = bilan(&set, lift);
+    let (hors, _, dmax, _) = bilan(&set, &retirees);
     let mut i = 0;
     plan.places.retain(|_| {
         i += 1;
@@ -586,13 +631,14 @@ mod tests {
                 let g = Gabarit { implantation: imp, ..gab() };
                 let mut p = construire(&g, larg, l).unwrap();
                 let avant: Vec<[V2; 4]> = p.places.iter().map(|pl| pl.q).collect();
-                let ev = placer(&mut p, &g, pslv);
+                let ev = placer(&mut p, &g, pslv, AscenseursDemi::Deux);
                 let cas = format!("{larg}×{l} {imp:?} PSLV {pslv}");
                 assert_eq!(ev.hors, 0, "{cas}");
                 assert!(ev.distance_max <= ev.limites.0 + 1e-9, "{cas}");
-                let esc: Vec<&Noyau> = p.noyaux.iter().filter(|n| !n.ascenseur).collect();
+                let esc: Vec<&Noyau> = p.noyaux.iter().filter(|n| !n.ascenseur && !n.liaison).collect();
                 let asc: Vec<&Noyau> = p.noyaux.iter().filter(|n| n.ascenseur).collect();
-                assert!(esc.len() >= 2 && asc.len() == 1, "{cas} : {} escaliers", esc.len());
+                let demi = imp == Implantation::DemiNiveaux;
+                assert!(esc.len() >= 2 && asc.len() == if demi { 2 } else { 1 }, "{cas} : {} escaliers, {} ascenseurs", esc.len(), asc.len());
                 assert_eq!(p.places.len() + p.noyaux.len(), avant.len(), "{cas}");
                 for n in &p.noyaux {
                     assert!(avant.contains(&n.q), "{cas} : {} hors d'une place", n.cle);
@@ -606,5 +652,40 @@ mod tests {
             }
             assert!(nb[1] <= nb[0], "{larg}×{l} {imp:?} : {nb:?}");
         }
+    }
+
+    /// Demi-niveaux sur 33 × 100 : façade 0,20, rangée de 5, allée de 6, rangée de 5 (fond à 16,20),
+    /// joint de 13,50 - 3 - 10 = 0,50, rangée de 5 (fond à 16,70), allée, rangée.
+    #[test]
+    fn demi_niveaux_ascenseurs() {
+        let g = Gabarit { implantation: Implantation::DemiNiveaux, ..gab() };
+        let moitie = |p: &Plan, n: &Noyau| reseau(p).allees.iter().position(|&v| (v - n.porte.y).abs() < 1e-6);
+        // Deux ascenseurs, un par demi-plateau.
+        let mut p = construire(&g, 33.0, 100.0).unwrap();
+        let avant = p.places.len();
+        assert_eq!(placer(&mut p, &g, false, AscenseursDemi::Deux).hors, 0);
+        let asc: Vec<&Noyau> = p.noyaux.iter().filter(|n| n.ascenseur).collect();
+        assert_eq!(asc.len(), 2);
+        assert!(moitie(&p, asc[0]).is_some() && moitie(&p, asc[0]) != moitie(&p, asc[1]));
+        assert_eq!(p.places.len() + p.noyaux.len(), avant);
+        // Un ascenseur et un escalier de liaison : deux places dos à dos et le joint, 5 + 0,50 + 5
+        // = 10,50 de l'allée basse (bord à 0,20 + 5 + 6 = 11,20) à l'allée haute (16,70 + 5 = 21,70).
+        let mut p = construire(&g, 33.0, 100.0).unwrap();
+        assert_eq!(placer(&mut p, &g, false, AscenseursDemi::Liaison).hors, 0);
+        assert_eq!(p.noyaux.iter().filter(|n| n.ascenseur).count(), 1);
+        let l: Vec<&Noyau> = p.noyaux.iter().filter(|n| n.liaison).collect();
+        assert_eq!(l.len(), 1);
+        let (mut a, mut b) = (l[0].q[0].y, l[0].q[3].y);
+        if a > b {
+            (a, b) = (b, a);
+        }
+        assert!((a - 11.2).abs() < 1e-9 && (b - 21.7).abs() < 1e-9, "{a} {b}");
+        assert!(((l[0].q[1] - l[0].q[0]).len() - 2.5).abs() < 1e-9);
+        assert_eq!(p.places.len() + p.noyaux.len() + 1, avant);
+        // Hors demi-niveaux, le choix est sans effet.
+        let g = gab();
+        let mut p = construire(&g, 32.4, 60.0).unwrap();
+        placer(&mut p, &g, false, AscenseursDemi::Liaison);
+        assert!(p.noyaux.iter().filter(|n| n.ascenseur).count() == 1 && !p.noyaux.iter().any(|n| n.liaison));
     }
 }

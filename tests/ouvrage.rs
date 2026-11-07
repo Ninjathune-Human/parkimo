@@ -7,6 +7,7 @@ use trame::geom::{v2, Quad, QuadHash, Region};
 use trame::model::Site;
 use trame::ouvrage::plateau::{Densite, Implantation};
 use trame::ouvrage::systemes::Systeme;
+use trame::ouvrage::noyaux::AscenseursDemi;
 use trame::ouvrage::{bim, ifc, EmpriseIn, Ouvrage};
 use trame::region;
 
@@ -329,23 +330,35 @@ fn escaliers_et_ascenseur() {
     // autres places (un poteau de façade peut entrer dans le mur d'une cage), porte hors des
     // épures de giration ; toutes les places à portée d'un escalier (PS 13). Un seul niveau :
     // aucun noyau.
+    let mut demis = 0;
     for nom in ["rect", "triangle", "courbe", "ruisseau"] {
         for imp in [Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines] {
-            for pslv in [false, true] {
+            for (pslv, liaison) in [(false, false), (true, false), (false, true)] {
                 let mut s = site(nom);
                 let o = s.ouvrage.as_mut().unwrap();
                 o.niveaux = 3;
                 o.implantation = imp;
                 o.largement_ventile = pslv;
+                if liaison {
+                    o.ascenseurs_demi = AscenseursDemi::Liaison;
+                }
                 let lay = trame::solve(&s);
                 let ov = lay.ouvrage.as_ref().unwrap();
-                let cas = format!("{nom} {imp:?} PSLV {pslv}");
+                let cas = format!("{nom} {imp:?} PSLV {pslv} liaison {liaison}");
                 let ev = ov.evacuation.as_ref().expect("bilan d'évacuation");
                 assert_eq!(ev.limite_deux, if pslv { 50.0 } else { 40.0 });
                 assert_eq!(ev.hors, 0, "{cas} : {:?}", lay.warnings);
                 assert!(!lay.warnings.iter().any(|w| w.starts_with("PS 13")), "{cas}");
-                assert!(ev.escaliers >= 2 && ev.ascenseurs == 1, "{cas}");
-                assert_eq!(ov.noyaux.len(), ev.escaliers + ev.ascenseurs);
+                // Demi-niveaux : un ascenseur par demi-plateau, ou un seul et un escalier de liaison.
+                demis += ov.demi_niveaux as usize;
+                let (asc, lia) = match (ov.demi_niveaux, liaison) {
+                    (true, false) => (2, 0),
+                    (true, true) => (1, 1),
+                    _ => (1, 0),
+                };
+                assert!(ev.escaliers >= 2 && ev.ascenseurs == asc && ev.liaisons == lia, "{cas}");
+                assert_eq!(ov.noyaux.len(), ev.escaliers + ev.ascenseurs + ev.liaisons);
+                assert_eq!(lay.warnings.iter().any(|w| w.starts_with("Demi-niveaux : un seul ascenseur")), lia == 1, "{cas}");
                 let obstacles: Vec<Quad> = ov
                     .rampes
                     .iter()
@@ -372,6 +385,7 @@ fn escaliers_et_ascenseur() {
             }
         }
     }
+    assert!(demis >= 6, "{demis} cas en demi-niveaux");
     let lay = trame::solve(&site("rect"));
     let ov = lay.ouvrage.as_ref().unwrap();
     assert!(ov.noyaux.is_empty() && ov.evacuation.is_none());
