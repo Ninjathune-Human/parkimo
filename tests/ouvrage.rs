@@ -271,7 +271,7 @@ fn implantations_sur_les_scenarios() {
     // Trois niveaux : chaque implantation trouve un plateau où ses deux rampes tiennent, épures
     // dégagées. La recherche fait passer les plateaux sans rampe possible après les autres.
     for nom in ["rect", "triangle", "courbe", "ruisseau"] {
-        for imp in [Implantation::Auto, Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines, Implantation::Accolees, Implantation::HeliceExt] {
+        for imp in [Implantation::Auto, Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines, Implantation::Accolees, Implantation::HeliceExt, Implantation::HeliceDouble] {
             let mut s = site(nom);
             let o = s.ouvrage.as_mut().unwrap();
             o.niveaux = 3;
@@ -345,7 +345,7 @@ fn escaliers_et_ascenseur() {
     // aucun noyau.
     let mut demis = 0;
     for nom in ["rect", "triangle", "courbe", "ruisseau"] {
-        for imp in [Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines, Implantation::Accolees, Implantation::HeliceExt] {
+        for imp in [Implantation::Rangee, Implantation::Pignon, Implantation::DemiNiveaux, Implantation::Helice, Implantation::Inclines, Implantation::Accolees, Implantation::HeliceExt, Implantation::HeliceDouble] {
             for (pslv, liaison) in [(false, false), (true, false), (false, true)] {
                 let mut s = site(nom);
                 let o = s.ouvrage.as_mut().unwrap();

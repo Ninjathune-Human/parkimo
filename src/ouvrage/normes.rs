@@ -127,6 +127,13 @@ pub mod neufert {
     pub const HELICE_VOIE_INT: Val = val(5.00, "m", "Neufert p. 274-276 (rampe courbe une voie)");
     pub const HELICE_VOIE_EXT: Val = val(9.00, "m", "Neufert p. 274-276 (rampe courbe une voie)");
     pub const HELICE_BORDURE: Val = val(9.50, "m", "Neufert p. 274-276 (rampe courbe une voie)");
+    // Rampe courbe à deux voies (rayon mini) : parapet intérieur R 4,50 ; voie intérieure de 4,00
+    // entre R 5,00 et R 9,00 ; 0,50 ; voie extérieure de 3,10 entre R 9,50 et R 12,60 (axe 11,05) ;
+    // 0,50 jusqu'à R 13,10 ; 8,60 m en tout.
+    pub const HELICE2_PARAPET: Val = val(4.50, "m", "Neufert p. 274-276 (rampe courbe deux voies)");
+    pub const HELICE2_EXT_INT: Val = val(9.50, "m", "Neufert p. 274-276 (rampe courbe deux voies)");
+    pub const HELICE2_EXT_EXT: Val = val(12.60, "m", "Neufert p. 274-276 (rampe courbe deux voies)");
+    pub const HELICE2_BORDURE: Val = val(13.10, "m", "Neufert p. 274-276 (rampe courbe deux voies)");
     pub const HAUTEUR_SOUS_STRUCTURE: Val = val(2.50, "m", "Neufert p. 274-276 (2,20 + 0,25 + 0,05)");
     pub const CHARGE_PLATEAU: Val = val(3.5, "kN/m²", "Neufert p. 274-276 (à remplacer par NF EN 1991-1-1)");
     pub const CHARGE_RAMPE: Val = val(5.0, "kN/m²", "Neufert p. 274-276 (à remplacer par NF EN 1991-1-1)");
