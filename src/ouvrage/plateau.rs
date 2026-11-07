@@ -906,23 +906,23 @@ fn en_helice(c: &Cadre, g: &Gabarit) -> Result<Esquisse, String> {
     if uc - r_tour < c.facade - 1e-9 {
         return Err(format!("{pre} : bande de pignon trop courte pour la tour"));
     }
-    let porte = (r_tour * r_tour - (xl - hs - uc).powi(2)).max(0.0).sqrt();
     let (Some(ha_), Some(ba_)) = (c.allees.last(), c.allees.first()) else {
         return Err(format!("{pre} : pas d'allée"));
     };
+    // La voie de l'allée transversale entre dans la tour à la porte, comme pour la tour à double
+    // sens : les quarts de tour des allées peuvent aller jusqu'à la porte.
     let (va, vb) = (ha_.1 - mg, ba_.0 + mg);
-    let besoin = 2.0 * (r + porte);
+    let besoin = 2.0 * r;
     if va - vb < besoin - 1e-9 {
         return Err(format!(
-            "{pre} : {} m nécessaires d'une allée à l'autre (deux girations de {} m et la porte de la tour, {} m de part et d'autre), {} m disponibles",
+            "{pre} : {} m nécessaires d'une allée à l'autre (deux girations de {} m), {} m disponibles",
             super::fr2(besoin),
             super::fr2(r),
-            super::fr2(porte),
             super::fr2((va - vb).max(0.0))
         ));
     }
     let vc = ((va + vb) / 2.0).clamp(c.facade + r_tour, (c.largeur - c.facade - r_tour).max(c.facade + r_tour));
-    if vc + porte + r > va + 1e-9 || vc - porte - r < vb - 1e-9 {
+    if vc + r > va + 1e-9 || vc - r < vb - 1e-9 {
         return Err(format!("{pre} : la tour ne tient pas entre les façades latérales"));
     }
     let centre = v2(uc, vc);
@@ -1845,6 +1845,12 @@ mod tests {
         assert!((p.axes_u[0] - 15.85).abs() < 1e-9 && (p.axes_u.last().unwrap() - 63.15).abs() < 1e-9);
         assert!(p.poteaux.iter().all(|po| po.c.x > p.retrait && po.c.x < p.longueur() - p.retrait));
         assert!(p.girations.iter().all(|gi| gi.conflits.is_empty()));
+        // Deux modules : mêmes tours, au milieu de la largeur (16,20), même retrait.
+        let p = construire(&g, 32.4, 80.0).unwrap();
+        assert_eq!(p.implantation, Some(Implantation::HeliceExt), "{:?}", p.refus);
+        assert!((p.retrait - 15.5).abs() < 1e-9 && p.girations.iter().all(|gi| gi.conflits.is_empty()));
+        let (lo, hi) = giration::bornes(&p.rampes[0].q);
+        assert!((lo - v2(0.5, 6.7)).len() < 1e-9 && (hi - v2(19.5, 25.7)).len() < 1e-9);
     }
 
     /// Tour à double sens sur deux modules, 32,40 × 80 (comme à Antibes) : allée transversale du
@@ -1884,9 +1890,10 @@ mod tests {
         let c = v2(13.6, 16.2);
         assert!(!p.places.iter().chain(&p.places_rdc).chain(&p.places_dernier).any(|pl| pl.q.iter().any(|q| (*q - c).len() < 13.1 - 1e-6)));
         assert!(!p.poteaux.iter().any(|po| (po.c - c).len() < 13.1));
-        // Deux tours séparées ne tiennent pas sur deux modules ; sur trois, une tour à double sens
-        // garde plus de places que deux tours.
-        assert!(construire(&Gabarit { implantation: Implantation::Helice, ..g }, 32.4, 80.0).unwrap().rampes.is_empty());
+        // Une tour à double sens garde plus de places que deux tours, dans la dalle (64) ou hors de
+        // la dalle (56), sur deux modules comme sur trois.
+        let n = |imp: Implantation, w: f64| construire(&Gabarit { implantation: imp, ..g }, w, 80.0).unwrap().places.len();
+        assert_eq!((p.places.len(), n(Implantation::Helice, 32.4), n(Implantation::HeliceExt, 32.4)), (72, 64, 56));
         let (un, deux) = (construire(&g, 48.4, 80.0).unwrap(), construire(&Gabarit { implantation: Implantation::Helice, ..g }, 48.4, 80.0).unwrap());
         assert!(un.places.len() > deux.places.len(), "{} {}", un.places.len(), deux.places.len());
         let p = construire(&g, 16.4, 80.0).unwrap();
@@ -1980,7 +1987,7 @@ mod tests {
         // la file de façade (10,00 − 9,50 = 0,50). Porte : la voie de l'allée (bord ouest à 16,00,
         // à 6,00 du centre) passe sur la tour sur √(9,50² − 6,00²) = 7,37 m de part et d'autre.
         // Trajectoires des allées extrêmes 43,20 − 2,00 = 41,20 et 5,20 + 2,00 = 7,20 : 34,00 m pour
-        // 2 × (6,50 + 7,37) = 27,73 ; tour centrée en v (41,20 + 7,20) / 2 = 24,20.
+        // 2 × 6,50 = 13,00 (quarts de tour jusqu'à la porte) ; tour centrée en v (41,20 + 7,20) / 2 = 24,20.
         // Pente dans l'axe (R 7,00) : 2,90 / (2π × 7) = 6,6 %.
         // Places de pignon, avant contre l'allée transversale (u 11,00 → 16,00), 18 par bout : la
         // tour en prend 8 (13,70 → 16,20, les 6 du milieu, 32,20 → 34,70) ; le quart de tour
@@ -2019,9 +2026,18 @@ mod tests {
         // L'entrée descend l'allée transversale de 34,70 à 24,20, puis tourne dans la tour (R 7,00).
         let e = p.girations.iter().find(|gi| gi.montee && gi.entree).unwrap();
         assert!((*e.axe.last().unwrap() - v2(10.0, 17.2)).len() < 1e-9, "{:?}", e.axe.last());
-        // Deux modules : 18,00 m pour 27,73.
+        // Deux modules (32,40) : voies des allées à 25,20 et 7,20, 18,00 m pour deux quarts de tour
+        // de 6,50 m ; tour au milieu, 16,20, de 6,70 à 25,70 ; même bande, même longueur.
         let p = construire(&g, 32.4, 80.0).unwrap();
-        assert!(p.rampes.is_empty() && p.refus[0].contains("27,73 m nécessaires") && p.refus[0].contains("18,00 m disponibles"), "{:?}", p.refus);
+        assert_eq!(p.implantation, Some(Implantation::Helice), "{:?}", p.refus);
+        assert!((p.longueur() - 79.0).abs() < 1e-9);
+        let (lo, hi) = giration::bornes(&p.rampes[0].q);
+        assert!((lo - v2(0.5, 6.7)).len() < 1e-9 && (hi - v2(19.5, 25.7)).len() < 1e-9, "{lo:?} {hi:?}");
+        assert!((p.rampes[1].bas - v2(79.0 - 17.0, 32.4 - 16.2)).len() < 1e-9);
+        assert!(p.girations.iter().all(|gi| gi.conflits.is_empty()), "{:?}", p.girations.iter().map(|gi| &gi.conflits).collect::<Vec<_>>());
+        // Un module : 2,00 m entre les voies de l'unique allée.
+        let p = construire(&g, 16.4, 80.0).unwrap();
+        assert!(p.rampes.is_empty() && p.refus[0].contains("13,00 m nécessaires") && p.refus[0].contains("2,00 m disponibles"), "{:?}", p.refus);
     }
 
     #[test]
