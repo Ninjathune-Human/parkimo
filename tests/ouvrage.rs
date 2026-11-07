@@ -390,3 +390,46 @@ fn escaliers_et_ascenseur() {
     let ov = lay.ouvrage.as_ref().unwrap();
     assert!(ov.noyaux.is_empty() && ov.evacuation.is_none());
 }
+
+#[test]
+fn noyaux_deplaces_a_la_main() {
+    // Les centres des noyaux automatiques, renvoyés comme saisie, redonnent les mêmes cages ; un
+    // escalier lâché sur le centre d'une place la prend.
+    use trame::ouvrage::noyaux::Nature;
+    use trame::ouvrage::NoyauIn;
+    for imp in [Implantation::Rangee, Implantation::DemiNiveaux] {
+        let mut s = site("ruisseau");
+        let o = s.ouvrage.as_mut().unwrap();
+        o.niveaux = 3;
+        o.implantation = imp;
+        o.ascenseurs_demi = AscenseursDemi::Liaison;
+        let lay = trame::solve(&s);
+        let ov = lay.ouvrage.as_ref().unwrap();
+        let centre = |q: &[[f64; 2]; 4]| [(q[0][0] + q[2][0]) / 2.0, (q[0][1] + q[2][1]) / 2.0];
+        let nature = |n: &trame::ouvrage::NoyauOut| if n.ascenseur { Nature::Ascenseur } else if n.liaison { Nature::Liaison } else { Nature::Escalier };
+        let mut saisis: Vec<NoyauIn> = ov.noyaux.iter().map(|n| NoyauIn { nature: nature(n), p: centre(&n.q) }).collect();
+        s.ouvrage.as_mut().unwrap().noyaux = Some(saisis.clone());
+        let lay2 = trame::solve(&s);
+        let ov2 = lay2.ouvrage.as_ref().unwrap();
+        let ev2 = ov2.evacuation.as_ref().unwrap();
+        assert!(ev2.manuel);
+        let q = |o: &trame::ouvrage::OuvrageOut| {
+            let mut v: Vec<String> = o.noyaux.iter().map(|n| format!("{:?}", n.q.map(|p| p.map(|x| (x * 100.0).round() as i64)))).collect();
+            v.sort();
+            v
+        };
+        assert_eq!(q(ov), q(ov2), "{imp:?}");
+        assert_eq!(lay.stalls.len(), lay2.stalls.len());
+        assert_eq!(ov.evacuation.as_ref().unwrap().hors, ev2.hors);
+        // Le premier escalier lâché sur une place libre la prend ; sa place d'origine est rendue.
+        let cible = lay.stalls.iter().map(|st| st.q).find(|q| !ov.noyaux.iter().any(|n| n.q == *q)).unwrap();
+        let k = saisis.iter().position(|n| n.nature == Nature::Escalier).unwrap();
+        saisis[k].p = centre(&cible);
+        s.ouvrage.as_mut().unwrap().noyaux = Some(saisis);
+        let lay3 = trame::solve(&s);
+        let ov3 = lay3.ouvrage.as_ref().unwrap();
+        assert!(ov3.noyaux.iter().any(|n| !n.ascenseur && !n.liaison && n.q == cible), "{imp:?}");
+        assert_eq!(lay3.stalls.len(), lay.stalls.len());
+        assert!(!lay3.stalls.iter().any(|st| st.q == cible));
+    }
+}

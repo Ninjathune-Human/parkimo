@@ -447,6 +447,9 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
     <button class="mi" role="menuitem" data-add="landscape"><span class="glyph" style="background:var(--island)"></span><span>Espace vert<small>Zone plantée imposée</small></span></button>
     <button class="mi" role="menuitem" data-add="basin"><span class="glyph" style="background:var(--island);box-shadow:inset 0 0 0 2px var(--tree-edge)"><svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3v3.2M8.5 3v1.8M12 3v3.2M15.5 3v1.8M5 17v-3.2M8.5 17v-1.8M12 17v-3.2M15.5 17v-1.8" fill="none" stroke="var(--tree-edge)" stroke-width="1.3" stroke-linecap="round"/></svg></span><span>Bassin de rétention<small>Zone verte en creux, talus haut et bas</small></span></button>
     <button class="mi" role="menuitem" data-add="exclusion"><span class="glyph" style="background:var(--excl);opacity:.8"></span><span>Zone non aedificandi<small>Zone inondable, réseau, emprise interdite</small></span></button>
+    <button class="mi" role="menuitem" data-add="escalier" hidden><span class="glyph" style="background:color-mix(in srgb, var(--building) 18%, transparent);box-shadow:inset 0 0 0 1.5px var(--building)"></span><span>Escalier<small>Cage dans une place, porte sur l'allée</small></span></button>
+    <button class="mi" role="menuitem" data-add="ascenseur" hidden><span class="glyph" style="background:color-mix(in srgb, var(--building) 18%, transparent);box-shadow:inset 0 0 0 1.5px var(--building)"></span><span>Ascenseur<small>Gaine dans une place</small></span></button>
+    <button class="mi" role="menuitem" data-add="liaison" hidden><span class="glyph" style="background:color-mix(in srgb, var(--building) 18%, transparent);box-shadow:inset 0 0 0 1.5px var(--building)"></span><span>Escalier de liaison<small>Entre les deux demi-plateaux</small></span></button>
     <button class="mi" role="menuitem" data-add="entry"><span class="glyph" style="background:var(--asphalt)"></span><span>Accès véhicules<small>Sur la limite de parcelle</small></span></button>
   </div>
 
@@ -767,7 +770,7 @@ function engineInput(quick) {
       pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100, irve_equip_ratio: p.irve_equip_ratio / 100,
       angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle,
     },
-    ouvrage: p.silo ? { actif: true, facade: p.silo_facade, poteau: [p.silo_pu, p.silo_pv], travee: Math.max(1, Math.round(p.silo_travee)), rives: !!p.silo_rives, densite: p.silo_densite, retrait: p.silo_retrait, systeme: p.silo_systeme, angle: p.angle, hauteur_etage: p.silo_etage, niveaux: Math.max(1, Math.round(p.silo_niveaux)), implantation: p.silo_rampes, largement_ventile: p.silo_ventile !== false, ascenseurs_demi: p.silo_asc || "deux", pente_rampe: p.silo_pente / 100, emprise: site.slab ? { cx: site.slab.cx, cy: site.slab.cy, w: site.slab.w, h: site.slab.h, rot: site.slab.rot, fixe: site.slab.fixe || [0, 0] } : null } : null,
+    ouvrage: p.silo ? { actif: true, facade: p.silo_facade, poteau: [p.silo_pu, p.silo_pv], travee: Math.max(1, Math.round(p.silo_travee)), rives: !!p.silo_rives, densite: p.silo_densite, retrait: p.silo_retrait, systeme: p.silo_systeme, angle: p.angle, hauteur_etage: p.silo_etage, niveaux: Math.max(1, Math.round(p.silo_niveaux)), implantation: p.silo_rampes, largement_ventile: p.silo_ventile !== false, ascenseurs_demi: p.silo_asc || "deux", noyaux: site.noyaux || null, pente_rampe: p.silo_pente / 100, emprise: site.slab ? { cx: site.slab.cx, cy: site.slab.cy, w: site.slab.w, h: site.slab.h, rot: site.slab.rot, fixe: site.slab.fixe || [0, 0] } : null } : null,
   };
 }
 
@@ -1119,6 +1122,7 @@ function draw() {
   ctx.beginPath(); pathPoly(outline()); ctx.strokeStyle = C["parcel-edge"]; ctx.lineWidth = 1.5; ctx.stroke();
   if (VIS.recul && layout && layout.setback_line) { ctx.setLineDash([6, 4]); ctx.strokeStyle = C.setback; ctx.lineWidth = 1.2; ctx.beginPath(); for (const r of layout.setback_line) pathPoly(r); ctx.stroke(); ctx.setLineDash([]); }
 
+  drawCoreDrag();
   drawCadSel();
   drawHandles();
   drawEdgeBtns();
@@ -1171,36 +1175,117 @@ function drawGirations(gs) {
 // (marches de 0,28 m entre deux paliers, mur d'échiffre au milieu), gaine d'ascenseur barrée d'une
 // croix ; la porte, sur l'allée, en trait épais.
 function drawNoyaux(ns) {
-  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
   ctx.save();
+  const moving = coreMoving();
   for (const n of ns) {
-    const q = n.q, fond = [q[0], q[1]], av = [q[3], q[2]];
-    const larg = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]), prof = Math.hypot(q[3][0] - q[0][0], q[3][1] - q[0][1]);
-    ctx.beginPath(); pathPoly(q); ctx.fillStyle = C.building; ctx.globalAlpha = 0.18; ctx.fill(); ctx.globalAlpha = 1;
-    ctx.strokeStyle = C.building; ctx.lineWidth = 1.5; ctx.stroke();
-    ctx.beginPath(); ctx.lineWidth = 0.8;
-    const seg = (a, b) => { const A = toS(a), B = toS(b); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); };
-    if (n.ascenseur) { seg(q[0], q[2]); seg(q[1], q[3]); }
-    else if (n.liaison) {
-      // Liaison : deux demi-volées côte à côte (montée et descente d'une demi-hauteur) au droit du
-      // joint, paliers de part et d'autre.
-      const t0 = 0.5 - 1.25 / prof, t1 = 0.5 + 1.25 / prof, pas = 0.28 / prof;
-      seg(lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t0), lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t1));
-      for (let t = t0; t <= t1 + 1e-9; t += view.s * 0.28 > 2.5 ? pas : t1 - t0) seg(lerp(fond[0], av[0], t), lerp(fond[1], av[1], t));
-    } else {
-      // Paliers de 1,00 m à chaque bout, volées entre les deux, échiffre au milieu de la largeur.
-      const t0 = Math.min(0.45, 1 / prof), t1 = 1 - t0, pas = 0.28 / prof;
-      seg(lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t0), lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t1));
-      if (view.s * 0.28 > 2.5) for (let t = t0; t <= t1 + 1e-9; t += pas) seg(lerp(fond[0], av[0], t), lerp(fond[1], av[1], t));
-      else { seg(lerp(fond[0], av[0], t0), lerp(fond[1], av[1], t0)); seg(lerp(fond[0], av[0], t1), lerp(fond[1], av[1], t1)); }
-    }
-    ctx.stroke();
-    const d = Math.min(0.45, 0.9 / 2 / larg);
-    ctx.beginPath(); seg(lerp(av[0], av[1], 0.5 - d), lerp(av[0], av[1], 0.5 + d));
-    if (n.liaison) seg(lerp(fond[0], fond[1], 0.5 - d), lerp(fond[0], fond[1], 0.5 + d));
-    ctx.lineWidth = 3; ctx.strokeStyle = C.accent; ctx.stroke();
+    if (moving && moving.n === n) { ctx.beginPath(); pathPoly(n.q); ctx.setLineDash([4, 3]); ctx.strokeStyle = C.building; ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]); continue; }
+    drawCore(n, n.q, sel && sel.type === "core" && layout.ouvrage.noyaux[sel.i] === n);
   }
   ctx.restore();
+}
+function drawCore(n, q, on) {
+  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  const fond = [q[0], q[1]], av = [q[3], q[2]];
+  const larg = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]), prof = Math.hypot(q[3][0] - q[0][0], q[3][1] - q[0][1]);
+  ctx.beginPath(); pathPoly(q); ctx.fillStyle = C.building; ctx.globalAlpha = 0.18; ctx.fill(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = on ? C.accent : C.building; ctx.lineWidth = on ? 2.5 : 1.5; ctx.stroke();
+  ctx.beginPath(); ctx.lineWidth = 0.8; ctx.strokeStyle = C.building;
+  const seg = (a, b) => { const A = toS(a), B = toS(b); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); };
+  if (n.ascenseur) { seg(q[0], q[2]); seg(q[1], q[3]); }
+  else if (n.liaison) {
+    // Liaison : deux demi-volées côte à côte (montée et descente d'une demi-hauteur) au droit du
+    // joint, paliers de part et d'autre.
+    const t0 = 0.5 - 1.25 / prof, t1 = 0.5 + 1.25 / prof, pas = 0.28 / prof;
+    seg(lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t0), lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t1));
+    for (let t = t0; t <= t1 + 1e-9; t += view.s * 0.28 > 2.5 ? pas : t1 - t0) seg(lerp(fond[0], av[0], t), lerp(fond[1], av[1], t));
+  } else {
+    // Paliers de 1,00 m à chaque bout, volées entre les deux, échiffre au milieu de la largeur.
+    const t0 = Math.min(0.45, 1 / prof), t1 = 1 - t0, pas = 0.28 / prof;
+    seg(lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t0), lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t1));
+    if (view.s * 0.28 > 2.5) for (let t = t0; t <= t1 + 1e-9; t += pas) seg(lerp(fond[0], av[0], t), lerp(fond[1], av[1], t));
+    else { seg(lerp(fond[0], av[0], t0), lerp(fond[1], av[1], t0)); seg(lerp(fond[0], av[0], t1), lerp(fond[1], av[1], t1)); }
+  }
+  ctx.stroke();
+  const d = Math.min(0.45, 0.9 / 2 / larg);
+  ctx.beginPath(); seg(lerp(av[0], av[1], 0.5 - d), lerp(av[0], av[1], 0.5 + d));
+  if (n.liaison) seg(lerp(fond[0], fond[1], 0.5 - d), lerp(fond[0], fond[1], 0.5 + d));
+  ctx.lineWidth = 3; ctx.strokeStyle = C.accent; ctx.stroke();
+}
+
+// Escaliers et ascenseurs déplacés à la main. La cage se soulève et suit le doigt ; la place visée
+// s'ouvre (marquage effacé, contour pointillé) ; à la dépose, la cage se cale dans la place et le
+// moteur refait le bilan. Les positions vont dans site.noyaux (points du site, recalés par le moteur
+// sur la place la plus proche) ; sans saisie, placement automatique.
+const LIFT = 1.06, OPEN_MS = 160, SETTLE_MS = 180;
+let coreAnim = null;
+const qCentre = (q) => [(q[0][0] + q[2][0]) / 2, (q[0][1] + q[2][1]) / 2];
+const natureOf = (n) => (n.ascenseur ? "ascenseur" : n.liaison ? "liaison" : "escalier");
+const CORE_NAME = { escalier: "Escalier", ascenseur: "Ascenseur", liaison: "Escalier de liaison" };
+const coresOn = () => !!(layout && layout.ouvrage && layout.ouvrage.evacuation);
+function coreMoving() { return drag && drag.kind === "core" && drag.moved ? drag.core : coreAnim; }
+function ensureCores() { if (!site.noyaux) site.noyaux = layout.ouvrage.noyaux.map((n) => ({ nature: natureOf(n), p: qCentre(n.q).map((v) => +v.toFixed(3)) })); }
+function coreEntry(n) {
+  const c = qCentre(n.q), nat = natureOf(n); let best = -1, bd = Infinity;
+  site.noyaux.forEach((e, k) => { const d = dist2(e.p, c); if (e.nature === nat && d < bd) { bd = d; best = k; } });
+  return best;
+}
+function coreNear(p, nat) {
+  const N = layout && layout.ouvrage ? layout.ouvrage.noyaux : []; let best = -1, bd = Infinity;
+  N.forEach((n, k) => { const d = dist2(qCentre(n.q), p); if ((!nat || natureOf(n) === nat) && d < bd) { bd = d; best = k; } });
+  return best;
+}
+// Emplacements possibles : places libres (deux places dos à dos de part et d'autre du joint pour
+// l'escalier de liaison), et la place d'origine.
+function coreTargets(n) {
+  const others = layout.ouvrage.noyaux.filter((m) => m !== n), busy = (c) => others.some((m) => pointInPoly(c, m.q)), S = layout.stalls, T = [];
+  if (n.liaison) {
+    for (let a = 0; a < S.length; a++) for (let b = a + 1; b < S.length; b++) {
+      const ca = qCentre(S[a].q), cb = qCentre(S[b].q), dx = cb[0] - ca[0], dy = cb[1] - ca[1], L = Math.hypot(dx, dy);
+      if (L < 5.05 || L > 7.5) continue;
+      const ax = [S[a].q[3][0] - S[a].q[0][0], S[a].q[3][1] - S[a].q[0][1]];
+      if (Math.abs(ax[0] * dy - ax[1] * dx) / Math.hypot(ax[0], ax[1]) > 0.15) continue;
+      const c = [(ca[0] + cb[0]) / 2, (ca[1] + cb[1]) / 2];
+      if (!busy(c)) T.push({ c, q: [S[a].q, S[b].q] });
+    }
+  } else for (const st of S) { const c = qCentre(st.q); if (!busy(c)) T.push({ c, q: [st.q] }); }
+  T.push({ c: qCentre(n.q), q: [n.q], home: true });
+  return T;
+}
+const easeOut = (t) => 1 - (1 - t) ** 3;
+function drawCoreDrag() {
+  const m = coreMoving(); if (!m) return;
+  const now = performance.now(), c0 = qCentre(m.n.q);
+  let cur = m.cur || c0, s = LIFT, lift = 1, again = false;
+  if (m === coreAnim) { const k = Math.min(1, (now - m.t0) / SETTLE_MS), e = easeOut(k); cur = [m.from[0] + (m.to[0] - m.from[0]) * e, m.from[1] + (m.to[1] - m.from[1]) * e]; s = LIFT + (1 - LIFT) * e; lift = 1 - e; again = k < 1; }
+  // Place visée : le marquage s'efface, contour pointillé.
+  const t = m.target;
+  if (t && !t.home) {
+    const k = Math.min(1, (now - (m.tt || 0)) / OPEN_MS); again = again || k < 1;
+    for (const q of t.q) { ctx.beginPath(); pathPoly(q); ctx.globalAlpha = 0.85 * easeOut(k); ctx.fillStyle = C.asphalt; ctx.fill(); ctx.globalAlpha = 1; }
+    ctx.beginPath(); for (const q of t.q) pathPoly(q); ctx.setLineDash([5, 4]); ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+  }
+  // Cage soulevée : agrandie autour de son centre, ombre portée.
+  const q = m.n.q.map((p) => [cur[0] + (p[0] - c0[0]) * s, cur[1] + (p[1] - c0[1]) * s]);
+  ctx.save();
+  ctx.shadowColor = `rgba(0, 0, 0, ${0.3 * lift})`; ctx.shadowBlur = 16 * lift; ctx.shadowOffsetY = 6 * lift;
+  ctx.beginPath(); pathPoly(q); ctx.fillStyle = C.slab; ctx.fill();
+  ctx.restore();
+  drawCore(m.n, q, true);
+  if (again) redraw();
+}
+function dropCore(c) {
+  const t = c.target && !c.target.home ? c.target : null, c0 = qCentre(c.n.q);
+  coreAnim = { n: c.n, from: c.cur || c0, to: t ? t.c : c0, t0: performance.now(), target: c.target, tt: c.tt };
+  redraw();
+  setTimeout(() => {
+    if (t) {
+      ensureCores(); const k = coreEntry(c.n);
+      if (k >= 0) site.noyaux[k].p = t.c.map((v) => +v.toFixed(3));
+      coreAnim = null; solve(false);
+      const i = coreNear(t.c, natureOf(c.n)); setSel(i >= 0 ? { type: "core", i } : null);
+      commit(); markMine();
+    } else { coreAnim = null; redraw(); }
+  }, SETTLE_MS);
 }
 
 // Parc en ouvrage : contour de dalle, poutres et solives (sous la dalle : tirets), files de la trame
@@ -1382,6 +1467,7 @@ function selAnchor() {
   if (sel.type === "vertex") return site.parcel[sel.i] || null;
   if (sel.type === "entry") { const en = site.entries[sel.i]; return en && en.edge < site.parcel.length ? entryPoint(en) : null; }
   if (sel.type === "building") { const b = site.buildings[sel.i]; return b ? [b.cx, b.cy] : null; }
+  if (sel.type === "core") { const n = coresOn() && layout.ouvrage.noyaux[sel.i]; return n && !coreMoving() ? qCentre(n.q) : null; }
   if (POLY[sel.type]) {
     const e = site[POLY[sel.type]][sel.i]; if (!e) return null;
     if (sel.v != null && e[sel.v]) return e[sel.v];
@@ -1576,8 +1662,10 @@ function updateStats(quick) {
   const ev = ov && ov.evacuation;
   $("#r-noyaux").hidden = !ev; $("#lay-noyaux").hidden = !ov || !ov.noyaux.length;
   $("#asc-field").hidden = !(ev && ov.demi_niveaux);
+  for (const k of ["escalier", "ascenseur"]) $(`[data-add="${k}"]`).hidden = !ev;
+  $('[data-add="liaison"]').hidden = !(ev && ov.demi_niveaux);
   if (ev) {
-    $("#s-noyaux").innerHTML = `${ev.escaliers}${ev.ascenseurs ? ` · ${ev.ascenseurs} ascenseur${ev.ascenseurs > 1 ? "s" : ""}` : ""}${ev.liaisons ? " · liaison" : ""}<span class="chip ${ev.hors ? "bad" : "ok"}">${ev.hors ? `${ev.hors} place${ev.hors > 1 ? "s" : ""} trop loin` : `${fmt1(ev.distance_max)} m au plus`}</span>`;
+    $("#s-noyaux").innerHTML = `${ev.escaliers}${ev.ascenseurs ? ` · ${ev.ascenseurs} ascenseur${ev.ascenseurs > 1 ? "s" : ""}` : ""}${ev.liaisons ? " · liaison" : ""}${ev.manuel ? " · à la main" : ""}<span class="chip ${ev.hors ? "bad" : "ok"}">${ev.hors ? `${ev.hors} place${ev.hors > 1 ? "s" : ""} trop loin` : `${fmt1(ev.distance_max)} m au plus`}</span>`;
     $("#r-noyaux").title = `PS 13 : ${ev.limite_deux} m entre deux escaliers opposés, ${ev.limite_un} m sinon${ev.largement_ventile ? " (parc largement ventilé)" : ""}, dans l'axe des circulations`;
   }
   $("#r-plancher").hidden = !ov; if (ov) { $("#s-plancher").textContent = `${ov.plancher.court} · étage ≥ ${ov.plancher.hauteur_min.toFixed(2).replace(".", ",")} m`; $("#r-plancher").title = ov.plancher.libelle + " (" + ov.plancher.source + ")"; }
@@ -1637,6 +1725,7 @@ function hitTest(w) {
     if (dist2(w, slabRotHandle()) < h2 * 2) return { kind: "srotate" };
     const m = slabMids(o); for (let k = 0; k < 4; k++) if (dist2(w, m[k]) < h2 * 2) return { kind: "sresize", k };
   }
+  if (VIS.noyaux && coresOn()) { const N = layout.ouvrage.noyaux; for (let i = N.length - 1; i >= 0; i--) if (pointInPoly(w, N[i].q)) return { kind: "core", i }; }
   if (VIS.pbati) for (let i = site.buildings.length - 1; i >= 0; i--) if (dist2(w, doorGeom(site.buildings[i]).p) < h2 * 1.2) return { kind: "door", i };
   for (let i = 0; i < site.entries.length; i++) if (site.entries[i].edge < site.parcel.length && dist2(w, entryPoint(site.entries[i])) < h2 * 1.3) return { kind: "entry", i };
   for (let i = 0; i < site.parcel.length; i++) if (dist2(w, site.parcel[i]) < h2) return { kind: "vertex", i };
@@ -1656,12 +1745,22 @@ function hitTest(w) {
 function setSel(s) { sel = s; updateSelbar(); redraw(); }
 function updateSelbar() {
   const bar = $("#selbar");
-  if (!sel || (sel.type !== "cadastre" && sel.type !== "building" && !(sel.type === "slab" && slabObj()))) { bar.hidden = true; $("#hint").style.opacity = ""; return; }
+  if (sel && sel.type === "core" && !(coresOn() && layout.ouvrage.noyaux[sel.i])) sel = null;
+  if (!sel || (sel.type !== "cadastre" && sel.type !== "building" && sel.type !== "core" && !(sel.type === "slab" && slabObj()))) { bar.hidden = true; $("#hint").style.opacity = ""; return; }
   bar.hidden = false; $("#hint").style.opacity = "0";
   const shape = $("#sel-shape"), rotb = $("#sel-rot");
   shape.hidden = sel.type !== "building"; rotb.hidden = sel.type !== "building" && sel.type !== "slab";
   rotb.textContent = sel.type === "slab" ? "Tourner les allées" : "Pivoter 90°";
-  $("#sel-auto").hidden = sel.type !== "slab" || !site.slab;
+  $("#sel-auto").hidden = sel.type === "slab" ? !site.slab : sel.type !== "core" || !site.noyaux;
+  $("#sel-auto").textContent = sel.type === "core" ? "Placement automatique" : "Emprise automatique";
+  if (sel.type === "core") {
+    const n = layout.ouvrage.noyaux[sel.i], ev = layout.ouvrage.evacuation;
+    $("#sel-study").hidden = $("#sel-merge").hidden = true;
+    $("#sel-what").textContent = `${CORE_NAME[natureOf(n)]} ${n.cle.replace("NY/", "")}`;
+    $("#sel-dim").textContent = site.noyaux ? "glissez-le vers une place" : "placement automatique · glissez-le pour le déplacer";
+    if (ev.hors) $("#sel-dim").textContent = `${ev.hors} place${ev.hors > 1 ? "s" : ""} trop loin d'un escalier`;
+    return;
+  }
   if (sel.type === "slab") {
     const o = slabObj();
     $("#sel-what").textContent = site.slab ? "Dalle" : "Dalle · emprise automatique";
@@ -1693,12 +1792,14 @@ canvas.addEventListener("pointerdown", (ev) => {
   if (mode === "draw") { drag = { kind: "drawtap", sp }; return; }
   const hit = hitTest(w);
   drag = { kind: hit ? hit.kind : "pan", hit, sp, w0: w, moved: false, orig: JSON.stringify(site) };
-  if (hit && (hit.kind === "smove" || hit.kind === "srotate" || hit.kind === "sresize")) drag.slab0 = slabObj();
+  if (hit && (hit.kind === "smove" || hit.kind === "srotate" || hit.kind === "sresize")) { drag.slab0 = slabObj(); drag.noy0 = site.noyaux ? JSON.parse(JSON.stringify(site.noyaux)) : null; }
+  if (hit && hit.kind === "core") { coreAnim = null; drag.core = { n: layout.ouvrage.noyaux[hit.i] }; }
   if (hit) {
     if (hit.kind === "move") setSel({ type: hit.type, i: hit.i });
     else if (hit.kind === "vertex") setSel({ type: "vertex", i: hit.i });
     else if (hit.kind === "entry") setSel({ type: "entry", i: hit.i });
     else if (hit.kind === "door") setSel({ type: "building", i: hit.i });
+    else if (hit.kind === "core") setSel({ type: "core", i: hit.i });
     else if (hit.kind === "evertex") setSel({ type: hit.type, i: hit.i, v: hit.k });
     else if (hit.kind === "setback" || hit.kind === "pedge") { /* conserve la sélection */ }
   }
@@ -1731,6 +1832,13 @@ canvas.addEventListener("pointermove", (ev) => {
   const w = toW(sp[0], sp[1]), h = drag.hit;
   switch (drag.kind) {
     case "pan": view.ox += dx; view.oy += dy; drag.sp = sp; redraw(); return;
+    case "core": {
+      const c = drag.core, c0 = qCentre(c.n.q); if (!c.T) c.T = coreTargets(c.n);
+      c.cur = [c0[0] + w[0] - drag.w0[0], c0[1] + w[1] - drag.w0[1]];
+      let best = null, bd = 3.5 * 3.5; for (const t of c.T) { const d = dist2(t.c, c.cur); if (d < bd) { bd = d; best = t; } }
+      if (best !== c.target) { c.target = best; c.tt = performance.now(); }
+      redraw(); return;
+    }
     case "vertex": site.parcel[h.i] = [snap(w[0], 0.1), snap(w[1], 0.1)]; break;
     case "setback": { const e = edgeInfo(h.i); const s = (w[0] - e.apex[0]) * e.n[0] + (w[1] - e.apex[1]) * e.n[1]; site.setbacks[h.i] = Math.max(0, Math.min(40, snap(s, 0.5))); break; }
     case "arc": { const e = edgeRef(h.ref); let sg = -((w[0] - e.mid[0]) * e.n[0] + (w[1] - e.mid[1]) * e.n[1]); sg -= h.s * KNOB / view.s; let k = Math.max(-ARC_MAX, Math.min(ARC_MAX, snap(sg / e.L, 0.005))); if (Math.abs(k) < 0.01) k = 0; setK(h.ref, k); break; }
@@ -1755,6 +1863,8 @@ canvas.addEventListener("pointermove", (ev) => {
         const cw = rot(long ? [c, 0] : [0, c], o0.rot);
         o.cx = o0.cx + cw[0]; o.cy = o0.cy + cw[1]; o[long ? "w" : "h"] = size; o.fixe = long ? [-s, 0] : [0, -s];
       }
+      // Les escaliers placés à la main suivent la dalle déplacée ou tournée.
+      if (drag.noy0 && drag.kind !== "sresize") site.noyaux = drag.noy0.map((e) => { const r = rot([e.p[0] - o0.cx, e.p[1] - o0.cy], o.rot - o0.rot); return { ...e, p: [+(o.cx + r[0]).toFixed(3), +(o.cy + r[1]).toFixed(3)] }; });
       break;
     }
     case "resize": {
@@ -1787,6 +1897,7 @@ function endPointer(ev) {
   canvas.classList.remove("dragging");
   const d = drag; drag = null; if (!d) return;
   if (mode === "map") return;
+  if (d.kind === "core") { if (d.moved) dropCore(d.core); return; }
   const now = performance.now(), dbl = now - lastTap.t < 350 && Math.hypot(sp[0] - lastTap.x, sp[1] - lastTap.y) < 16;
   if (d.kind === "drawtap") { onDrawTap(toW(sp[0], sp[1]), dbl, sp); lastTap = { t: now, x: sp[0], y: sp[1] }; return; }
   if (d.moved) { if (d.kind !== "pan") { solve(false); if (d.slab0) { syncSlab(); updateSelbar(); } commit(); markMine(); } return; }
@@ -1894,6 +2005,15 @@ function setMode(m) {
 function viewCenter() { const narrow = W < 760; return toW(narrow ? W / 2 : (W + 190 - 300) / 2, H / 2); }
 function addObject(kind) {
   const c = viewCenter().map((v) => snap(v, 0.5));
+  if (CORE_NAME[kind]) {
+    // Ajouté au milieu de la vue s'il tombe sur la dalle, sinon au milieu de la dalle ; le moteur le cale sur la place la plus proche.
+    if (!coresOn()) return;
+    const D = layout.ouvrage.dalle, p = pointInPoly(c, D) ? c : [D.reduce((a, q) => a + q[0], 0) / D.length, D.reduce((a, q) => a + q[1], 0) / D.length];
+    ensureCores(); site.noyaux.push({ nature: kind, p: p.map((v) => +v.toFixed(3)) });
+    solve(false); const i = coreNear(p, kind); setSel(i >= 0 ? { type: "core", i } : null); commit(); markMine();
+    toast(`${CORE_NAME[kind]} ajouté : glissez-le à sa place`);
+    return;
+  }
   if (kind === "building" || kind === "buildingL") { site.buildings.push({ cx: c[0], cy: c[1], w: kind === "buildingL" ? 36 : 30, h: kind === "buildingL" ? 30 : 18, rot: 0, shape: kind === "buildingL" ? "L" : "rect" }); setSel({ type: "building", i: site.buildings.length - 1 }); }
   if (kind === "landscape") {
     site.landscapes.push([[-10, -6], [2, -7], [10, -4], [9, 6], [-1, 7], [-10, 5]].map(([x, y]) => [c[0] + x, c[1] + y]));
@@ -1926,6 +2046,7 @@ function deleteSel() {
   else if (sel.type === "basin") site.basins.splice(sel.i, 1);
   else if (sel.type === "exclusion") site.exclusions.splice(sel.i, 1);
   else if (sel.type === "entry") site.entries.splice(sel.i, 1);
+  else if (sel.type === "core") { const n = layout.ouvrage.noyaux[sel.i]; ensureCores(); site.noyaux.splice(coreEntry(n), 1); toast(`${CORE_NAME[natureOf(n)]} retiré`); }
   else if (sel.type === "vertex") { if (site.parcel.length > 3) { removeParcelVertex(sel.i); return; } toast("Une parcelle garde au moins trois sommets"); return; }
   setSel(null); solve(false); commit(); markMine();
 }
@@ -1934,7 +2055,10 @@ $("#sel-rot").addEventListener("click", () => {
   if (sel.type === "slab") { const o = slabObj(); site.slab = { cx: o.cx, cy: o.cy, w: o.h, h: o.w, rot: (o.rot + 90) % 360 }; solve(false); syncSlab(); updateSelbar(); commit(); markMine(); return; }
   const o = site.buildings[sel.i]; o.rot = (o.rot + 90) % 360; updateSelbar(); solve(false); commit();
 });
-$("#sel-auto").addEventListener("click", () => { site.slab = null; solve(false); updateSelbar(); commit(); markMine(); });
+$("#sel-auto").addEventListener("click", () => {
+  if (sel && sel.type === "core") { site.noyaux = null; setSel(null); solve(false); commit(); markMine(); toast("Escaliers et ascenseurs replacés automatiquement"); return; }
+  site.slab = null; solve(false); updateSelbar(); commit(); markMine();
+});
 $("#sel-shape").addEventListener("click", () => { const o = site.buildings[sel.i]; o.shape = o.shape === "L" ? "rect" : "L"; updateSelbar(); solve(false); commit(); });
 
 function closeMenus(except) {
@@ -2080,7 +2204,9 @@ $("#ra-sel").addEventListener("change", (ev) => {
   params.silo_rampes = ev.target.value; lastAngle = null; solve(false); commit();
 });
 $("#asc-sel").addEventListener("change", (ev) => {
-  params.silo_asc = ev.target.value; solve(false); commit();
+  params.silo_asc = ev.target.value;
+  if (site.noyaux) { site.noyaux = null; toast("Escaliers et ascenseurs replacés automatiquement"); }
+  solve(false); commit();
 });
 $("#d-seg").addEventListener("click", (ev) => {
   const b = ev.target.closest("button[data-d]"); if (!b || b.dataset.d === params.silo_densite) return;

@@ -59,6 +59,9 @@ pub struct Ouvrage {
     pub largement_ventile: bool,
     /// Demi-niveaux : "deux" ascenseurs (un par demi-plateau) ou un seul et un escalier de "liaison".
     pub ascenseurs_demi: noyaux::AscenseursDemi,
+    /// Escaliers et ascenseurs placés à la main (coordonnées du site) ; absents = placement
+    /// automatique.
+    pub noyaux: Option<Vec<NoyauIn>>,
     /// Altitude NGF du niveau de référence (plancher bas), en mètres.
     pub cote: f64,
     pub nom: String,
@@ -83,6 +86,7 @@ impl Default for Ouvrage {
             pente_rampe: 0.18,
             largement_ventile: true,
             ascenseurs_demi: noyaux::AscenseursDemi::Deux,
+            noyaux: None,
             cote: 0.0,
             nom: "Parc de stationnement".into(),
         }
@@ -93,6 +97,13 @@ impl Default for Ouvrage {
 /// travers `h`, direction des allées `rot` (degrés). Les dimensions sont ramenées aux plus proches
 /// réalisables ; `fixe` (−1, 0 ou 1 par axe local) désigne le côté qui ne bouge pas pendant ce
 /// recalage, 0 gardant le centre.
+/// Noyau placé à la main : nature et point du site, recalé par le moteur sur la place la plus proche.
+#[derive(Deserialize, Clone, Debug)]
+pub struct NoyauIn {
+    pub nature: noyaux::Nature,
+    pub p: P2,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 pub struct EmpriseIn {
     pub cx: f64,
@@ -204,6 +215,7 @@ pub struct EvacuationOut {
     pub escaliers: usize,
     pub ascenseurs: usize,
     pub liaisons: usize,
+    pub manuel: bool,
 }
 
 /// File de poteaux (axe de trame), prolongée de 3 m au-delà de la dalle.
@@ -396,7 +408,18 @@ pub fn solve(site: &Site, o: &Ouvrage) -> Layout {
         return out;
     };
     // Escaliers et ascenseur au-delà d'un niveau (PS 13).
-    let evac = (o.niveaux > 1).then(|| noyaux::placer(&mut plan, &g, o.largement_ventile, o.ascenseurs_demi));
+    let evac = (o.niveaux > 1).then(|| match &o.noyaux {
+        Some(saisis) => {
+            // Points du site ramenés dans le repère du plateau (u, v orthonormés).
+            let local = |p: P2| {
+                let d = v2(p[0], p[1]) - e.o;
+                v2(d.dot(e.u), d.dot(e.v))
+            };
+            let s: Vec<(noyaux::Nature, V2)> = saisis.iter().map(|n| (n.nature, local(n.p))).collect();
+            noyaux::fixer(&mut plan, &g, o.largement_ventile, &s)
+        }
+        None => noyaux::placer(&mut plan, &g, o.largement_ventile, o.ascenseurs_demi),
+    });
     remplir(&mut out, site, o, &g, &e, &plan, evac.as_ref());
     out
 }
@@ -603,6 +626,9 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         if o.largement_ventile && larg >= ps::PSLV_DISTANCE_FACADES.v && long >= ps::PSLV_DISTANCE_FACADES.v {
             out.warnings.push("PS 3 : façades opposées à 75 m ou plus, le parc n'est pas largement ventilé".into());
         }
+        if !ev.portes_genees.is_empty() {
+            out.warnings.push(format!("Noyaux : porte dans l'épure de giration d'une rampe ({})", ev.portes_genees.iter().map(|c| c.trim_start_matches("NY/")).collect::<Vec<_>>().join(", ")));
+        }
         if plan.noyaux.iter().any(|n| n.liaison) {
             out.warnings.push("Demi-niveaux : un seul ascenseur, places PMR sur son demi-plateau ; escalier de liaison vers l'autre".into());
         }
@@ -704,6 +730,7 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
             escaliers: plan.noyaux.iter().filter(|n| !n.ascenseur && !n.liaison).count(),
             ascenseurs: plan.noyaux.iter().filter(|n| n.ascenseur).count(),
             liaisons: plan.noyaux.iter().filter(|n| n.liaison).count(),
+            manuel: ev.manuel,
         }),
         surface: r3(surface),
         m2_place: if n > 0 { r3(surface * niv as f64 / n as f64) } else { 0.0 },

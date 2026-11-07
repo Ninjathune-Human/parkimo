@@ -50,6 +50,19 @@ pub struct Evacuation {
     pub distance_max: f64,
     /// Places au-delà de la distance admise.
     pub hors: usize,
+    /// Noyaux placés à la main.
+    pub manuel: bool,
+    /// Noyaux dont la porte donne dans l'épure de giration d'une rampe (placés à la main).
+    pub portes_genees: Vec<String>,
+}
+
+/// Nature d'un noyau saisi à la main.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Nature {
+    Escalier,
+    Ascenseur,
+    Liaison,
 }
 
 /// Bout du réseau : position u de la liaison entre allées, allée transversale ou demi-tour
@@ -210,6 +223,11 @@ fn seuil(q: &[V2; 4]) -> [V2; 3] {
     [m + n, m + n + t * 0.45, m + n - t * 0.45]
 }
 
+/// Porte d'une cage hors des épures de giration des rampes.
+fn porte_libre(plan: &Plan, q: &[V2; 4]) -> bool {
+    !seuil(q).iter().any(|&p| plan.girations.iter().any(|gi| dans(&gi.contour, p)))
+}
+
 fn bornes(q: &[V2; 4]) -> (V2, V2) {
     q.iter().fold((v2(f64::MAX, f64::MAX), v2(f64::MIN, f64::MIN)), |(lo, hi), p| {
         (v2(lo.x.min(p.x), lo.y.min(p.y)), v2(hi.x.max(p.x), hi.y.max(p.y)))
@@ -337,7 +355,7 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool, demi: Ascen
     // Candidates : places présentes à tous les niveaux dont la porte ne débouche pas dans l'épure
     // d'une rampe, une par point du réseau (en façade de préférence, deux places dos à dos ayant
     // la même porte).
-    let libre = |pl: &PlaceLoc| !seuil(&pl.q).iter().any(|&p| plan.girations.iter().any(|gi| dans(&gi.contour, p)));
+    let libre = |pl: &PlaceLoc| porte_libre(plan, &pl.q);
     let mut cands: Vec<(usize, Cible, bool)> = Vec::new();
     for (i, pl) in plan.places.iter().enumerate() {
         if !libre(pl) {
@@ -544,7 +562,93 @@ pub fn placer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool, demi: Ascen
         !retirees.contains(&(i - 1))
     });
     plan.noyaux = noyaux;
-    Evacuation { limites: lim, distance_max: dmax, hors }
+    Evacuation { limites: lim, distance_max: dmax, hors, manuel: false, portes_genees: Vec::new() }
+}
+
+/// Noyaux placés à la main : chaque point (repère du plateau) est recalé sur la place présente à
+/// tous les niveaux la plus proche (deux places dos à dos de part et d'autre du joint pour un
+/// escalier de liaison, en demi-niveaux seulement) ; les places prises sont retirées et le bilan
+/// d'évacuation est refait avec ces escaliers.
+pub fn fixer(plan: &mut Plan, g: &Gabarit, largement_ventile: bool, saisis: &[(Nature, V2)]) -> Evacuation {
+    let lim = limites(largement_ventile);
+    let r = reseau(plan);
+    let centre = |q: &[V2; 4]| (q[0] + q[2]) * 0.5;
+    let moitie = |i: usize| devant(&r, plan, &plan.places[i], g.allee).map(|p| p.seg);
+    let en_demi = plan.rampes.iter().any(|rp| matches!(rp.forme, Forme::DemiU));
+    let mut retirees: Vec<usize> = Vec::new();
+    // (nature, cadre, porte sur le réseau, place)
+    let mut pris: Vec<(Nature, [V2; 4], Option<Pos>)> = Vec::new();
+    for &(nature, p) in saisis {
+        let loin = |i: usize| (centre(&plan.places[i].q) - p).len();
+        if nature == Nature::Liaison {
+            if !en_demi {
+                continue;
+            }
+            let (lo, hi) = (|i: usize| bornes(&plan.places[i].q).0, |i: usize| bornes(&plan.places[i].q).1);
+            let paire = (0..plan.places.len())
+                .filter(|i| !retirees.contains(i))
+                .flat_map(|i| (0..plan.places.len()).map(move |j| (i, j)))
+                .filter(|&(i, j)| {
+                    i < j
+                        && !retirees.contains(&j)
+                        && moitie(i).is_some()
+                        && moitie(j).is_some()
+                        && moitie(i) != moitie(j)
+                        && (lo(i).x - lo(j).x).abs() < 1e-6
+                        && (hi(i).x - hi(j).x).abs() < 1e-6
+                        && (plan.places[i].q[0].y - plan.places[j].q[0].y).abs() < 2.0
+                })
+                .min_by(|a, b| (loin(a.0) + loin(a.1)).total_cmp(&(loin(b.0) + loin(b.1))));
+            if let Some((i, j)) = paire {
+                let (yi, yj, x0, x1) = (plan.places[i].q[3].y, plan.places[j].q[3].y, lo(i).x, hi(i).x);
+                pris.push((nature, [v2(x0, yi), v2(x1, yi), v2(x1, yj), v2(x0, yj)], devant(&r, plan, &plan.places[i], g.allee)));
+                retirees.extend([i, j]);
+            }
+            continue;
+        }
+        if let Some(i) = (0..plan.places.len()).filter(|i| !retirees.contains(i)).min_by(|&a, &b| loin(a).total_cmp(&loin(b))) {
+            pris.push((nature, plan.places[i].q, devant(&r, plan, &plan.places[i], g.allee)));
+            retirees.push(i);
+        }
+    }
+    // Numérotation le long du plateau, par nature.
+    let x = |e: &(Nature, [V2; 4], Option<Pos>)| e.2.map_or(centre(&e.1), |p| point(&r, p));
+    pris.sort_by(|a, b| (x(a).x, x(a).y).partial_cmp(&(x(b).x, x(b).y)).unwrap_or(std::cmp::Ordering::Equal));
+    let mut n = [0usize; 3];
+    let mut noyaux = Vec::new();
+    let mut genees = Vec::new();
+    for e in &pris {
+        let k = e.0 as usize;
+        n[k] += 1;
+        let cle = format!("NY/{}{}", ["E", "A", "L"][k], n[k]);
+        let porte_ok = porte_libre(plan, &e.1) && (e.0 != Nature::Liaison || porte_libre(plan, &[e.1[2], e.1[3], e.1[0], e.1[1]]));
+        if !porte_ok {
+            genees.push(cle.clone());
+        }
+        noyaux.push(Noyau { q: e.1, porte: x(e), ascenseur: e.0 == Nature::Ascenseur, liaison: e.0 == Nature::Liaison, cle });
+    }
+    // Bilan avec les escaliers retenus.
+    let cibles: Vec<Cible> = pris.iter().filter(|e| e.0 == Nature::Escalier).filter_map(|e| e.2).map(|p| r.cible(p)).collect();
+    let toutes: Vec<&PlaceLoc> = plan.places.iter().chain(&plan.places_rdc).chain(&plan.places_dernier).collect();
+    let (mut hors, mut dmax) = (0, 0.0f64);
+    for (i, pl) in toutes.iter().enumerate() {
+        if retirees.contains(&i) {
+            continue;
+        }
+        let Some(dep) = devant(&r, plan, pl, g.allee).map(|p| r.depart(p)) else { continue };
+        let et = cibles.iter().enumerate().fold(Etat::VIDE, |et, (k, c)| et.ajoute(k, r.vers(&dep, c, false), r.vers(&dep, c, true)));
+        dmax = dmax.max(et.d().min(1000.0));
+        if et.ecart(lim) > 0.0 {
+            hors += 1;
+        }
+    }
+    let mut i = 0;
+    plan.places.retain(|_| {
+        i += 1;
+        !retirees.contains(&(i - 1))
+    });
+    plan.noyaux = noyaux;
+    Evacuation { limites: lim, distance_max: dmax, hors, manuel: true, portes_genees: genees }
 }
 
 #[cfg(test)]
@@ -701,5 +805,41 @@ mod tests {
         let mut p = construire(&g, 32.4, 60.0).unwrap();
         placer(&mut p, &g, false, AscenseursDemi::Liaison);
         assert!(p.noyaux.iter().filter(|n| n.ascenseur).count() == 1 && !p.noyaux.iter().any(|n| n.liaison));
+    }
+
+    /// À la main sur 32,40 × 60 (rampes en rangée, places de rive de 1,20 à 31,20 le long des
+    /// pignons). Un escalier recalé dans la place de rive d'angle (0,20 à 5,20 ; 1,20 à 3,70), porte
+    /// sur l'allée transversale (8,20 ; 2,45) : la place la plus loin est l'angle opposé, à
+    /// 5,75 + 16 + 43,50 + 5,75 = 71,00 m. Un second escalier à l'angle opposé : places de l'allée
+    /// basse centrées à 12,45 + 2,50 k ; celle de 37,45 est à 5,75 + 29,25 = 35,00 m d'un côté et
+    /// 21,75 + 14,25 = 36,00 m de l'autre, le plus loin. Hors de portée : les deux autres angles,
+    /// en cul-de-sac à 21,75 + 5,75 = 27,50 m ; et sur l'allée basse, à u - 2,45 m de l'un et
+    /// 73,45 - u m de l'autre, les places à plus de 25 m du plus proche sans l'autre à 40 m, soit
+    /// u dans ]27,45 ; 33,45[ ou ]42,45 ; 48,45[ : 29,95 et 32,45 (rangée haute, la basse étant
+    /// prise par la rampe jusqu'à 32,06), 44,95 et 47,45 (deux rangées), 6 places ; autant sur
+    /// l'allée haute, symétrique ; 14 en tout.
+    #[test]
+    fn noyaux_a_la_main() {
+        let g = gab();
+        let mut p = construire(&g, 32.4, 60.0).unwrap();
+        let n0 = p.places.len();
+        let ev = fixer(&mut p, &g, false, &[(Nature::Ascenseur, v2(15.0, 3.0)), (Nature::Escalier, v2(12.0, 3.0))]);
+        assert!(ev.manuel && ev.portes_genees.is_empty());
+        assert_eq!(p.places.len(), n0 - 2);
+        let e1 = p.noyaux.iter().find(|n| n.cle == "NY/E1").unwrap();
+        let (lo, hi) = bornes(&e1.q);
+        assert!((lo - v2(0.2, 1.2)).len() < 1e-9 && (hi - v2(5.2, 3.7)).len() < 1e-9, "{lo:?} {hi:?}");
+        assert!((e1.porte - v2(8.2, 2.45)).len() < 1e-9);
+        assert!(p.noyaux.iter().any(|n| n.cle == "NY/A1" && n.ascenseur));
+        assert!((ev.distance_max - 71.0).abs() < 1e-9, "{}", ev.distance_max);
+        let mut p = construire(&g, 32.4, 60.0).unwrap();
+        let ev = fixer(&mut p, &g, false, &[(Nature::Escalier, v2(2.7, 2.45)), (Nature::Escalier, v2(57.2, 29.95))]);
+        assert!((ev.distance_max - 35.0).abs() < 1e-9, "{}", ev.distance_max);
+        assert_eq!(ev.hors, 14);
+        assert_eq!(p.noyaux.iter().map(|n| n.cle.as_str()).collect::<Vec<_>>(), ["NY/E1", "NY/E2"]);
+        // Escalier de liaison hors demi-niveaux : ignoré.
+        let mut p = construire(&g, 32.4, 60.0).unwrap();
+        fixer(&mut p, &g, false, &[(Nature::Liaison, v2(30.0, 16.0))]);
+        assert!(p.noyaux.is_empty() && p.places.len() == n0);
     }
 }
