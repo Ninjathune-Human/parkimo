@@ -22,7 +22,7 @@ Rampes à sens unique, montée à un bout, descente à l'autre, superposées d'u
 - **En pignon, en travers des allées.** La rampe occupe la bande de pignon contre l'allée transversale. On y entre depuis l'allée la plus éloignée, on en sort dans l'allée opposée (un quart de tour à chaque bout). Trois modules au moins.
 - Variante non implantée : rampe droite unique à double sens (petits parcs, 5,50 à 6,50 m de large). Le silo de la ZAC Georges Besse 2 à Nîmes a des rampes de 7 m de large pour un bon rayon de braquage ; celles des niveaux 3 et 4 sont démontables pour passer ces niveaux en bureaux.
 
-### 2.2 Demi-niveaux décalés, système d'Humy (non implanté)
+### 2.2 Demi-niveaux décalés, système d'Humy (implanté)
 
 Deux demi-plateaux décalés d'un demi-étage, reliés aux deux bouts par des demi-rampes courtes ; circulation en boucle, montée par un côté, descente par l'autre. Neufert : rampes de 13 à 15 % sur 10 m environ, décalage de 1,50 m environ par demi-niveau. Le plus économe pour une dalle de 32 m (deux modules), largeur courante de ce type.
 
@@ -30,6 +30,8 @@ Deux demi-plateaux décalés d'un demi-étage, reliés aux deux bouts par des de
 - Darmstadt, TU Lichtwiese : 16 demi-niveaux, demi-rampes à double sens, toutes les places sur le circuit de recherche.
 - Darlington, gare (Napper) : une allée de 6 m par niveau, places de 4,80 m de part et d'autre ; demi-niveaux de 1,65 m (calculé d'après les cotes +47,60, +49,25, +50,90, +52,55) ; rampes à 1:12 et 1:13 ; descentes rapprochées au centre pour raccourcir la sortie.
 - Variante « quick return » : une rampe de plus au bout de la sortie ; on monte par le long chemin, on descend par le court.
+
+Dans Parkimo : deux demi-plateaux d'un module, décalés d'un demi-étage, et à chaque bout une demi-rampe en U à double sens, sur le modèle de TU Lichtwiese (toutes les places sur le circuit). Allées à double sens ; on circule à droite, si bien que la montée tourne deux fois à droite par la voie intérieure et la descente deux fois à gauche par la voie extérieure, sans croisement.
 
 ### 2.3 Rampes en ciseaux (non implanté)
 
@@ -63,15 +65,16 @@ Rampes au cœur du plateau qui séparent les flux montants et descendants, noyau
 - **Places par niveau.** Les emprises des rampes sont prises à tous les niveaux (au dernier, la montée qui arrive laisse une trémie). Les places dans les épures de l'extrémité basse (entrée de la montée, sortie de la descente) reviennent au dernier niveau ; celles de l'extrémité haute (sortie de la montée, entrée de la descente) reviennent au rez.
 - **Conditions (calculé, allées de 6,00 m, voie de rampe de 3,25 m, rampe de 18,36 m pour 2,90 m d'étage à 18 %) :**
   - en rangée : bouche à 8,50 − 6,00 = 2,50 m du début des rangées ; allée d'approche dont la trajectoire passe à 13,00 m au moins de l'axe de la voie (deux quarts de tour de 6,50 m), donc une seconde allée ; sortie en S de 8,46 m jusqu'à 1,50 m dans l'allée ; rangées d'au moins 2,50 + 18,36 + 8,46 = 29,32 m ;
-  - en pignon : 18,36 + 2 × 6,50 = 31,36 m entre les trajectoires des allées d'entrée et de sortie, soit 32,00 m pour trois modules (34,00 m en serrant les trajectoires à 2,00 m des bords) ; deux modules n'offrent que 18,00 m.
+  - en pignon : 18,36 + 2 × 6,50 = 31,36 m entre les trajectoires des allées d'entrée et de sortie, soit 32,00 m pour trois modules (34,00 m en serrant les trajectoires à 2,00 m des bords) ; deux modules n'offrent que 18,00 m ;
+  - en demi-niveaux : courbe à double sens de la NF (voie intérieure de 3,50 m au rayon extérieur 8,50 m, voie extérieure de 3,00 m jusqu'à 11,50 m) ; trajectoires au milieu des voies, rayons 6,75 et 10,00. Les voies intérieures des deux allées (à 1,50 m de leur bord côté dos à dos) doivent être à 2 × 6,75 = 13,50 m : 10,00 m de places dos à dos et 3,00 m de demi-voies n'en font que 13,00, d'où un joint de 0,50 m entre les demi-plateaux. Zone d'extrémité de 0,30 + 11,50 = 11,80 m (file de façade et demi-rampe), sans places de pignon. La voie extérieure, plus large en courbe, s'écarte de 0,25 m de son axe en ligne droite dans la zone d'extrémité. Pente mesurée dans l'axe de la voie intérieure : 1,45 / (π × 6,75) = 6,8 % pour 2,90 m d'étage. Les demi-rampes se superposent d'un niveau à l'autre, à une hauteur d'étage d'écart.
 - **Pourquoi les rampes en pignon du lot 2 ne passaient pas.** Elles commençaient et finissaient aux angles de façade : il fallait un demi-tour dans 9,25 m (allée de 6,00 m et voie de 3,25 m), quand l'épure NF en demande 2 × 8,50 = 17,00 m.
-- **Choix automatique.** Parkimo construit les deux implantations et garde celle qui laisse le plus de places par niveau courant. Sur 32,40 × 60 m : en rangée seulement (60 places par niveau courant, 64 au rez et au dernier). Sur 48,40 × 60 m : 102 en rangée contre 98 en pignon.
+- **Choix automatique.** Parkimo construit les trois implantations et garde celle qui laisse le plus de places par niveau courant. Sur 32,40 × 60 m : en rangée seulement (60 places par niveau courant, 64 au rez et au dernier ; les demi-niveaux demandent 32,90 m). Sur 48,40 × 60 m : 102 en rangée contre 98 en pignon. Sur 33 × 100 m : 124 en rangée contre 120 en demi-niveaux. La recherche de dalle fait passer les emprises où les rampes tiennent avant les autres.
 
 ## 4. Pistes
 
-1. Demi-niveaux décalés pour les dalles de 32 m : rampes deux fois plus courtes, giration en bout de dalle.
-2. Sortie rapide : descente courte au centre ou rampe de retour.
-3. Tour de rampe hélicoïdale adossée : plateaux libres et réversibles.
+1. Hélice : tour de rampe adossée, plateaux libres et réversibles.
+2. Plateaux inclinés.
+3. Sortie rapide : descente courte au centre ou rampe de retour ; demi-niveaux à plus de deux demi-plateaux.
 4. Accès depuis la voirie : palier à 5 % au plus sur 4,00 m (NF P 91-100 § 3.4), giration d'entrée sur le site.
 
 ## Sources

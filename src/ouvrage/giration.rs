@@ -25,47 +25,71 @@ pub fn demi_droite() -> f64 {
     nf::VOIE_DROITE_SENS_UNIQUE.v / 2.0
 }
 
-#[derive(Clone, Debug)]
-pub enum Troncon {
-    Droite { a: V2, b: V2 },
-    /// Arc de centre `c` et de rayon `r`, de l'angle `a0` à l'angle `a1` (radians, sens de parcours).
-    Arc { c: V2, r: f64, a0: f64, a1: f64 },
+/// Courbe à double sens (NF P 91-100, § 3.3) : voie intérieure de 3,50 m, rayon extérieur 8,50 m ;
+/// voie extérieure de 3,00 m au-delà. Rayons des trajectoires (milieu de chaque voie) et
+/// demi-largeurs : (6,75 ; 1,75) à l'intérieur, (10,00 ; 1,50) à l'extérieur.
+pub fn double_sens() -> ((f64, f64), (f64, f64)) {
+    let (r, vi, ve) = (nf::RAYON_EXTERIEUR_MIN.v, nf::VOIE_COURBE_INTERIEURE.v, nf::VOIE_COURBE_EXTERIEURE.v);
+    ((r - vi / 2.0, vi / 2.0), (r + ve / 2.0, ve / 2.0))
 }
 
-/// Trajectoire en construction : position, cap (radians) et tronçons parcourus.
+/// Tronçon de trajectoire et demi-largeur `h` de la voie qu'il balaie.
+#[derive(Clone, Debug)]
+pub enum Troncon {
+    Droite { a: V2, b: V2, h: f64 },
+    /// Arc de centre `c` et de rayon `r`, de l'angle `a0` à l'angle `a1` (radians, sens de parcours).
+    Arc { c: V2, r: f64, a0: f64, a1: f64, h: f64 },
+}
+
+/// Trajectoire en construction : position, cap (radians), tronçons parcourus, et gabarit (rayon
+/// des courbes, demi-largeurs en courbe et en ligne droite ; par défaut la voie à sens unique).
 #[derive(Clone, Debug)]
 pub struct Trace {
     pub p: V2,
     pub cap: f64,
     pub troncons: Vec<Troncon>,
+    r: f64,
+    h_courbe: f64,
+    h_droite: f64,
 }
 
 impl Trace {
     pub fn depuis(p: V2, cap: f64) -> Trace {
-        Trace { p, cap, troncons: Vec::new() }
+        Trace { p, cap, troncons: Vec::new(), r: rayon(), h_courbe: marge(), h_droite: demi_droite() }
+    }
+    /// Gabarit des tronçons suivants.
+    pub fn gabarit(mut self, r: f64, h_courbe: f64, h_droite: f64) -> Trace {
+        (self.r, self.h_courbe, self.h_droite) = (r, h_courbe, h_droite);
+        self
     }
     /// Ligne droite de `l` mètres dans le cap courant.
     pub fn droit(mut self, l: f64) -> Trace {
         if l > 1e-9 {
             let b = self.p + v2(self.cap.cos(), self.cap.sin()) * l;
-            self.troncons.push(Troncon::Droite { a: self.p, b });
+            self.troncons.push(Troncon::Droite { a: self.p, b, h: self.h_droite });
             self.p = b;
         }
         self
     }
-    /// Courbe au rayon de la trajectoire : `angle` > 0 à gauche, < 0 à droite (radians).
+    /// Déplacement latéral sans tronçon (ressaut de quelques centimètres entre une voie droite et
+    /// une voie courbe plus large).
+    pub fn saute(mut self, p: V2) -> Trace {
+        self.p = p;
+        self
+    }
+    /// Courbe au rayon du gabarit : `angle` > 0 à gauche, < 0 à droite (radians).
     pub fn tourne(mut self, angle: f64) -> Trace {
         if angle.abs() < 1e-12 {
             return self;
         }
-        let r = rayon();
+        let r = self.r;
         let s = angle.signum();
         // Centre à gauche (ou à droite) du cap.
         let n = v2(-self.cap.sin(), self.cap.cos()) * s;
         let c = self.p + n * r;
         let a0 = (self.p - c).y.atan2((self.p - c).x);
         let a1 = a0 + angle;
-        self.troncons.push(Troncon::Arc { c, r, a0, a1 });
+        self.troncons.push(Troncon::Arc { c, r, a0, a1, h: self.h_courbe });
         self.p = c + v2(a1.cos(), a1.sin()) * r;
         self.cap += angle;
         self
@@ -79,15 +103,15 @@ fn segments(a0: f64, a1: f64) -> usize {
 
 impl Troncon {
     /// Points de la trajectoire, chacun avec la normale à gauche du sens de parcours et la
-    /// demi-largeur de voie : 1,50 m en ligne droite, 2,00 m en courbe.
+    /// demi-largeur de voie.
     fn points(&self) -> Vec<(V2, V2, f64)> {
         match *self {
-            Troncon::Droite { a, b } => {
+            Troncon::Droite { a, b, h } => {
                 let d = (b - a).norm();
                 let n = v2(-d.y, d.x);
-                vec![(a, n, demi_droite()), (b, n, demi_droite())]
+                vec![(a, n, h), (b, n, h)]
             }
-            Troncon::Arc { c, r, a0, a1 } => {
+            Troncon::Arc { c, r, a0, a1, h } => {
                 let k = segments(a0, a1);
                 // À gauche du parcours : vers le centre si l'arc tourne à gauche, vers l'extérieur sinon.
                 let s = (a1 - a0).signum();
@@ -95,7 +119,7 @@ impl Troncon {
                     .map(|i| {
                         let t = a0 + (a1 - a0) * i as f64 / k as f64;
                         let e = v2(t.cos(), t.sin());
-                        (c + e * r, e * -s, marge())
+                        (c + e * r, e * -s, h)
                     })
                     .collect()
             }
@@ -107,7 +131,7 @@ fn points(troncons: &[Troncon]) -> Vec<(V2, V2, f64)> {
     let mut out: Vec<(V2, V2, f64)> = Vec::new();
     for t in troncons {
         for q in t.points() {
-            // Raccord de deux tronçons : on garde les deux largeurs (petit ressaut de 0,50 m).
+            // Raccord de deux tronçons : on garde les deux largeurs (petit ressaut).
             if out.last().is_some_and(|l| (l.0 - q.0).len() < 1e-9 && (l.2 - q.2).abs() < 1e-9) {
                 continue;
             }

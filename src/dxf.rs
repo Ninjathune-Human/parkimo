@@ -656,17 +656,20 @@ pub fn export(inp: &ExportIn) -> ExportOut {
     // Rampes : voie, axe dans le sens de parcours avec sa pointe, pente au milieu.
     if let Some(o) = &lay.ouvrage {
         for r in &o.rampes {
-            w.ring("PRJ_RAMPES", &r.q);
-            let pts = w.map(&[r.de, r.a]);
+            w.ring("PRJ_RAMPES", &r.contour);
+            let pts = w.map(&r.axe);
             w.lwpoly("PRJ_RAMPES", &pts, false);
-            let ((ax, ay), (bx, by)) = (pts[0], pts[1]);
+            let n = pts.len();
+            let ((ax, ay), (bx, by)) = (pts[n - 2], pts[n - 1]);
             let l = ((bx - ax).hypot(by - ay)).max(1e-9);
             let (ux, uy) = ((bx - ax) / l, (by - ay) / l);
             let pointe = [(bx - ux * 1.2 - uy * 0.6, by - uy * 1.2 + ux * 0.6), (bx, by), (bx - ux * 1.2 + uy * 0.6, by - uy * 1.2 - ux * 0.6)];
             w.lwpoly("PRJ_RAMPES", &pointe, false);
-            let quoi = if r.montee { "Montée" } else { "Descente" };
+            let quoi = if r.double_sens { "Demi-rampe" } else if r.montee { "Montée" } else { "Descente" };
             let txt = format!("{quoi} {} %", (r.pente * 100.0).round());
-            w.text("PRJ_RAMPES", (ax + bx) / 2.0, (ay + by) / 2.0, 0.5, &txt, true);
+            let k = (n - 1) / 2;
+            let (mx, my) = ((pts[k].0 + pts[k + 1].0) / 2.0, (pts[k].1 + pts[k + 1].1) / 2.0);
+            w.text("PRJ_RAMPES", mx, my, 0.5, &txt, true);
         }
         // Épures de giration : contour de la bande balayée, trajectoire.
         for gi in &o.girations {

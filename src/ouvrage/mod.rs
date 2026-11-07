@@ -144,12 +144,18 @@ impl Ouvrage {
     }
 }
 
+/// Rampe : rectangle englobant, contour, axe dans le sens de la montée (ou de la descente),
+/// extrémités de l'axe, pente et longueur mesurées sur l'axe (voie intérieure d'une demi-rampe à
+/// double sens, NF P 91-100 § 3.4).
 #[derive(Serialize, Clone, Debug, Default)]
 pub struct RampeOut {
     pub q: [P2; 4],
+    pub contour: Vec<P2>,
+    pub axe: Vec<P2>,
     pub de: P2,
     pub a: P2,
     pub montee: bool,
+    pub double_sens: bool,
     pub pente: f64,
     pub longueur: f64,
     pub cle: String,
@@ -229,8 +235,10 @@ pub struct OuvrageOut {
     pub places_niveau: usize,
     pub places_rdc: usize,
     pub places_dernier: usize,
-    /// Implantation des rampes retenue : "rangee", "pignon", ou vide sans rampe.
+    /// Implantation des rampes retenue : "rangee", "pignon", "demi", ou vide sans rampe.
     pub implantation: String,
+    /// Demi-niveaux décalés : chaque niveau compte deux demi-plateaux.
+    pub demi_niveaux: bool,
     /// Rampes droites : emprise de la voie, axe dans le sens de parcours (de → à), pente, longueur.
     pub rampes: Vec<RampeOut>,
     pub girations: Vec<GirationOut>,
@@ -389,6 +397,9 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
     // Places : niveau courant (le plan affiché) ; au rez et au dernier niveau, les places des
     // épures de giration inutiles à ces niveaux en plus.
     let niv = o.niveaux.max(1) as usize;
+    // Pente d'une rampe : celle des réglages pour les rampes droites ; un demi-étage sur l'axe de
+    // la voie intérieure pour une demi-rampe en U.
+    let pente = |r: &plateau::RampeLoc| if r.double_sens { o.hauteur_etage / 2.0 / r.longueur } else { o.pente() };
     let rives = |v: &[plateau::PlaceLoc]| v.iter().filter(|pl| pl.rive).count();
     let n_niv = out.stalls.len();
     let (n_rdc, n_dernier) = (n_niv + plan.places_rdc.len(), n_niv + plan.places_dernier.len());
@@ -497,14 +508,21 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         for gi in plan.girations.iter().filter(|gi| !gi.conflits.is_empty()) {
             out.warnings.push(format!(
                 "Giration : {} gênée par {} (NF P 91-100, § 3.3 : voie de 4,00 m en courbe, rayon extérieur de 8,50 m)",
-                gi.libelle().to_lowercase(),
+                gi.libelle.to_lowercase(),
                 gi.conflits.join(", ")
             ));
         }
-        if o.pente_rampe > nf::PENTE_RAMPE_MAX.v + 1e-9 {
+        if o.pente_rampe > nf::PENTE_RAMPE_MAX.v + 1e-9 && !plan.rampes.iter().any(|r| r.double_sens) {
             out.warnings.push("Pente des rampes ramenée à 18 % (NF P 91-100, § 3.4)".into());
         }
-        let libre = (o.hauteur_etage - pl.epaisseur) * o.pente().atan().cos();
+        if let Some(r) = plan.rampes.iter().find(|r| r.double_sens && pente(r) > nf::PENTE_RAMPE_MAX.v + 1e-9) {
+            out.warnings.push(format!(
+                "Demi-rampe à {} % dans l'axe de la voie intérieure, plus de 18 % (NF P 91-100, § 3.4)",
+                (pente(r) * 100.0).round()
+            ));
+        }
+        let p_max = plan.rampes.iter().map(&pente).fold(0.0, f64::max);
+        let libre = (o.hauteur_etage - pl.epaisseur) * p_max.atan().cos();
         let requis = nf::HAUTEUR_RAMPE.v + normes::fleche(nf::RAYON_SOMMET_MIN.v);
         if libre < requis - 1e-9 {
             out.warnings.push(format!(
@@ -563,6 +581,7 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         places_rdc: n_rdc,
         places_dernier: n_dernier,
         implantation: plan.implantation.map_or(String::new(), |i| i.nom().into()),
+        demi_niveaux: plan.implantation == Some(Implantation::DemiNiveaux),
         rampes: plan
             .rampes
             .iter()
@@ -570,11 +589,14 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
                 let (de, a) = if r.montee { (r.bas, r.haut) } else { (r.haut, r.bas) };
                 RampeOut {
                     q: quad(&r.q),
+                    contour: r.contour.iter().map(|&q| p2(w(q))).collect(),
+                    axe: r.axe.iter().map(|&q| p2(w(q))).collect(),
                     de: p2(w(de)),
                     a: p2(w(a)),
                     montee: r.montee,
-                    pente: r3(o.pente()),
-                    longueur: r3(o.longueur_rampe()),
+                    double_sens: r.double_sens,
+                    pente: r3(pente(r)),
+                    longueur: r3(r.longueur),
                     cle: r.cle.clone(),
                 }
             })
@@ -584,7 +606,7 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
             .iter()
             .map(|gi| GirationOut {
                 cle: gi.cle.clone(),
-                libelle: gi.libelle().into(),
+                libelle: gi.libelle.clone(),
                 axe: gi.axe.iter().map(|&q| p2(w(q))).collect(),
                 contour: gi.contour.iter().map(|&q| p2(w(q))).collect(),
                 conflits: gi.conflits.clone(),
