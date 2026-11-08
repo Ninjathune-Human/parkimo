@@ -19,7 +19,7 @@ fn habile() -> String {
     "habile".into()
 }
 fn margin() -> f64 {
-    0.20
+    0.10
 }
 
 #[derive(Clone, Deserialize)]

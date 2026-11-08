@@ -1052,12 +1052,12 @@ fn a_search_cut_short_by_its_budget_is_unknown_not_impossible() {
 
 #[test]
 fn the_minimum_clearance_is_measured() {
-    // Rangée sur allée de 10 m, voisines vides : le pare-chocs garé est à 0,22 m de la bordure de fond
-    // (marge + 2 cm), obstacle le plus proche.
+    // Rangée sur allée de 10 m, voisines vides : le pare-chocs garé est à 0,12 m de la bordure de fond
+    // (marge de 0,10 m + 2 cm), obstacle le plus proche.
     let p = &row_case(9, 2.5, 10.0, false, None).places[4];
     assert_eq!(p.verdict, "vert");
     for m in [&p.entry, &p.exit] {
-        assert!(m.clearance > 0.19 && m.clearance <= 0.225, "{}", m.clearance);
+        assert!(m.clearance > 0.09 && m.clearance <= 0.125, "{}", m.clearance);
     }
 }
 
@@ -1127,7 +1127,7 @@ fn a_car_parks_up_to_the_line_of_a_joined_stall_and_short_of_a_kerb() {
     let park = places(&serde_json::from_value(input).unwrap()).places[0].park;
     let nose = park[1] + v.wheelbase + v.front_overhang;
     assert!((nose - (35.0 - 0.02)).abs() < 0.005, "{nose}");
-    // Fond bordé (rangée simple) : marge de 0,20 m + 2 cm.
+    // Fond bordé (rangée simple) : marge par défaut de 0,10 m + 2 cm.
     let park = row_case(9, 2.5, 10.0, true, None).places[4].park;
-    assert!((park[1] + v.wheelbase + v.front_overhang - (35.0 - 0.22)).abs() < 0.005);
+    assert!((park[1] + v.wheelbase + v.front_overhang - (35.0 - 0.12)).abs() < 0.005);
 }

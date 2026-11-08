@@ -27,11 +27,11 @@ fn main() {
         println!("{label:52} {:6} {} rep. {:2} alertes, marge mini {:.2} m, {:.1} m dont {:.1} en marche arrière", p.verdict, p.entry.reprises, p.entry.alerts, p.entry.clearance, p.entry.length, p.entry.reverse);
     };
     println!("Allée de {aisle} m");
-    run("VL 2026, marge 0,20, parking plein (base)", &vl, 0.2, true, true);
+    run("VL 2026, marge 0,10, parking plein (base)", &vl, 0.1, true, true);
     run("VL 2026, marge 0", &vl, 0.0, true, true);
-    run("VL 2026, rangée d'en face vide", &vl, 0.2, false, true);
-    run("VL 2026, parking vide", &vl, 0.2, false, false);
-    run("VL 2026, 12,10 m lus entre murs", &vl_walls, 0.2, true, true);
-    run("Neufert 4,74 × 1,76, parking plein", &neufert, 0.2, true, true);
+    run("VL 2026, rangée d'en face vide", &vl, 0.1, false, true);
+    run("VL 2026, parking vide", &vl, 0.1, false, false);
+    run("VL 2026, 12,10 m lus entre murs", &vl_walls, 0.1, true, true);
+    run("Neufert 4,74 × 1,76, parking plein", &neufert, 0.1, true, true);
     run("Neufert, marge 0", &neufert, 0.0, true, true);
 }

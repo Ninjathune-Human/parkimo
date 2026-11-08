@@ -780,7 +780,7 @@ function rectPoly(o) {
 // Objets polygonaux (sommets modifiables) : type de sélection → liste du site.
 const POLY = { exclusion: "exclusions", landscape: "landscapes", basin: "basins" };
 // Projets enregistrés avant que les espaces verts ne soient des polygones : rectangle → sommets.
-function normSite(s) { if (s && !s.basins) s.basins = []; if (s && s.parcel) s.arcs = s.parcel.map((_, i) => (s.arcs && s.arcs[i]) || 0); if (s && s.landscapes) s.landscapes = s.landscapes.map((o) => (Array.isArray(o) ? o : rectPoly(o))); return s; }
+function normSite(s) { if (s && !s.basins) s.basins = []; if (s && s.gir && s.gir.margin === 0.2) s.gir.margin = 0.1; /* ancienne marge par défaut */ if (s && s.parcel) s.arcs = s.parcel.map((_, i) => (s.arcs && s.arcs[i]) || 0); if (s && s.landscapes) s.landscapes = s.landscapes.map((o) => (Array.isArray(o) ? o : rectPoly(o))); return s; }
 function polyArea(p) { let a = 0; for (let i = 0; i < p.length; i++) { const q = p[(i + 1) % p.length]; a += p[i][0] * q[1] - q[0] * p[i][1]; } return a / 2; }
 
 function engineInput(quick) {
@@ -2788,7 +2788,7 @@ $("#m-ok").addEventListener("click", importArea);
 // (marche avant puis, après un point de rebroussement, marche arrière) ; le moteur rend les traces des
 // huit flancs de pneus, l'enveloppe de carrosserie, la marge et les conflits typés (bordure, mur, limite).
 // ============================================================================
-const GIR0 = { profile: "habile", speed: 5, margin: 0.2, kerb: { name: "T2", visible_height: 0.16 } };
+const GIR0 = { profile: "habile", speed: 5, margin: 0.1, kerb: { name: "T2", visible_height: 0.16 } };
 const GIR_PROFILES = {
   prudent: "Prudent : 90 % de l'angle et de la vitesse de volant, jamais de braquage à l'arrêt.",
   courant: "Courant : tout l'angle, braquage à l'arrêt aux points de rebroussement.",
