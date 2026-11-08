@@ -7,7 +7,7 @@
 
 use super::kinematics::{advance, Pose, Profile, State};
 use super::scene::Scene;
-use super::sweep::{body_contact, swept_contact, tyre_on_low_kerb};
+use super::sweep::{margin_contact, swept_contact, tyre_on_low_kerb};
 use super::vehicle::Vehicle;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
@@ -141,7 +141,7 @@ impl Search<'_> {
                 hits += 1;
             } else if self.margin > 0.0 && !grazed {
                 // La marge n'est qu'un coût ici : contrôle aux poses ; le rejeu la contrôle en continu.
-                grazed = body_contact(self.v, self.scene, &p, self.margin).is_some();
+                grazed = margin_contact(self.v, self.scene, &p, self.margin);
             }
             s = next;
         }

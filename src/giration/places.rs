@@ -9,7 +9,7 @@ use super::epure::{Run, Sample};
 use super::kinematics::{Pose, Profile, State};
 use super::planner::{Costs, Outcome, Piece, Search, Table};
 use super::scene::{Obstacle, ObstacleKind, Scene};
-use super::sweep::{body_contact, footprint};
+use super::sweep::{body_contact, footprint, margin_contact};
 use super::vehicle::Vehicle;
 use crate::model::P2;
 use serde::Deserialize;
@@ -30,7 +30,7 @@ pub struct Ctx<'a> {
     pub margin: f64,
     pub speed: f64,
     /// Obstacles du plan (bordures, murs, limites), sans les véhicules garés.
-    pub base: &'a [Obstacle],
+    pub base: &'a Scene,
     pub stalls: &'a [[P2; 4]],
     pub lanes: &'a [Lane],
     pub neighbours: bool,
@@ -120,6 +120,17 @@ pub fn park_pose(v: &Vehicle, q: &[P2; 4], gap: f64) -> Pose {
     Pose { x: bumper[0] + a[0] * e, y: bumper[1] + a[1] * e, heading: (-a[1]).atan2(-a[0]) }
 }
 
+/// Voiture garée : nez à 2 cm de la ligne de fond quand la place est jointe à une autre (marquage
+/// seul), à la marge + 2 cm d'une bordure, d'un mur ou d'une limite.
+fn parked(ctx: &Ctx, q: &[P2; 4]) -> Pose {
+    let deep = park_pose(ctx.v, q, 0.02);
+    if margin_contact(ctx.v, ctx.base, &deep, ctx.margin) {
+        park_pose(ctx.v, q, ctx.margin + 0.02)
+    } else {
+        deep
+    }
+}
+
 /// Places voisines : celles qui partagent un côté avec la place `i`.
 fn neighbours(stalls: &[[P2; 4]], i: usize) -> Vec<usize> {
     let q = &stalls[i];
@@ -203,8 +214,8 @@ struct Prepared<'a> {
 fn prepare<'a>(ctx: &Ctx<'a>, i: usize) -> Prepared<'a> {
     let v = ctx.v;
     let q = &ctx.stalls[i];
-    let park = park_pose(v, q, ctx.margin + 0.02);
-    let mut obstacles = ctx.base.to_vec();
+    let park = parked(ctx, q);
+    let mut obstacles = ctx.base.obstacles.clone();
     if ctx.neighbours {
         // Parking plein : toutes les autres places de la zone explorée sont occupées ; les deux
         // voisines, garées au pire, sont décalées vers la place testée.
@@ -215,7 +226,7 @@ fn prepare<'a>(ctx: &Ctx<'a>, i: usize) -> Prepared<'a> {
             if j == i || (c[0] - me[0]).hypot(c[1] - me[1]) > RADIUS + 8.0 {
                 continue;
             }
-            let p = park_pose(v, r, ctx.margin + 0.02);
+            let p = parked(ctx, r);
             let lat = [-p.heading.sin(), p.heading.cos()];
             let s = if near.contains(&j) { dot(sub(me, [p.x, p.y]), lat).signum() * NEIGHBOUR_SHIFT } else { 0.0 };
             obstacles.push(car_obstacle(v, &Pose { x: p.x + lat[0] * s, y: p.y + lat[1] * s, heading: p.heading }));

@@ -2,7 +2,7 @@
 
 use super::epure::Sample;
 use super::kinematics::{advance, wheels, Pose, State};
-use super::scene::{segment_hit, Scene};
+use super::scene::{segment_hit, ObstacleKind, Scene};
 use super::vehicle::Vehicle;
 use crate::geom::v2;
 use crate::model::P2;
@@ -148,6 +148,17 @@ pub(crate) fn body_contact(v: &Vehicle, scene: &Scene, pose: &Pose, grow: f64) -
             return None;
         }
         touches_quad(ob.pts[k], ob.pts[k + 1], &body).map(|p| (o, p))
+    })
+}
+
+/// La caisse agrandie de `margin` touche-t-elle un obstacle fixe (bordure, mur, limite) ? Les voitures
+/// garées n'ont pas de marge : places jointes, sans bordure.
+pub(crate) fn margin_contact(v: &Vehicle, scene: &Scene, pose: &Pose, margin: f64) -> bool {
+    let body = footprint(v, pose, margin);
+    let (lo, hi) = bbox(&body);
+    scene.near(lo, hi).into_iter().any(|(o, k)| {
+        let ob = &scene.obstacles[o];
+        ob.kind != ObstacleKind::Car && ob.height >= v.ground_clearance && touches_quad(ob.pts[k], ob.pts[k + 1], &body).is_some()
     })
 }
 
@@ -340,7 +351,8 @@ pub fn conflicts(v: &Vehicle, scene: &Scene, samples: &[Sample], margin: f64) ->
         if margin > 0.0 {
             for &(o, k) in &candidates {
                 let ob = &scene.obstacles[o];
-                if ob.height < v.ground_clearance || touched.contains(&o) {
+                // Places jointes : pas de marge contre une voiture garée, seul le contact compte.
+                if ob.height < v.ground_clearance || ob.kind == ObstacleKind::Car || touched.contains(&o) {
                     continue;
                 }
                 if let Some(p) = touches_quad(ob.pts[k], ob.pts[k + 1], &outer) {

@@ -418,7 +418,12 @@ fn execute(v: &Vehicle, p: Profile, scene: &Scene, pieces: &[Piece], speed: f64,
 }
 
 pub fn places(inp: &PlacesIn) -> PlacesOut {
-    let v = Vehicle::vl2026();
+    places_with(inp, &Vehicle::vl2026())
+}
+
+/// Test des places avec un autre véhicule que le VL 2026.
+pub fn places_with(inp: &PlacesIn, v: &Vehicle) -> PlacesOut {
+    let v = v.clone();
     let profile = profile_of(&inp.profile);
     let base = Scene::from_layout(&inp.site, &inp.layout.layout(), &inp.kerb);
     let table = super::places::table(&v, profile);
@@ -428,7 +433,7 @@ pub fn places(inp: &PlacesIn) -> PlacesOut {
         profile,
         margin: inp.margin,
         speed: inp.speed,
-        base: &base.obstacles,
+        base: &base,
         stalls: &inp.layout.stalls,
         lanes: &inp.layout.axes,
         neighbours: inp.neighbours,

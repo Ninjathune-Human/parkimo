@@ -610,6 +610,16 @@ fn a_wall_inside_the_margin_warns_and_a_wall_beyond_it_does_not() {
 }
 
 #[test]
+fn a_parked_car_inside_the_margin_does_not_warn_but_still_collides() {
+    // Places jointes : la marge de 0,20 m ne vaut pas contre une voiture garée, seul le contact compte.
+    let v = Vehicle::vl2026();
+    let near = Scene::new(vec![line_obstacle(ObstacleKind::Car, 1.5, [-5.0, 1.09], [30.0, 1.09])]);
+    assert!(conflicts(&v, &near, &straight(10.0), 0.20).is_empty());
+    let hit = Scene::new(vec![line_obstacle(ObstacleKind::Car, 1.5, [-5.0, 0.90], [30.0, 0.90])]);
+    assert!(conflicts(&v, &hit, &straight(10.0), 0.20).iter().any(|c| c.part == Part::Body && c.severity == Severity::Conflict));
+}
+
+#[test]
 fn the_envelope_covers_the_swept_body() {
     let v = Vehicle::vl2026();
     let run = samples(&drive(&v, Profile::Habile, origin(0.0), kmh(5.0), 12.0, v.max_steer, STEP));
@@ -1040,8 +1050,9 @@ fn a_search_cut_short_by_its_budget_is_unknown_not_impossible() {
 
 #[test]
 fn the_minimum_clearance_is_measured() {
-    // Rangée sur allée de 10 m : le pare-chocs garé est à 0,22 m de la bordure de fond (marge + 2 cm).
-    let p = &row_case(9, 2.5, 10.0, true, None).places[4];
+    // Rangée sur allée de 10 m, voisines vides : le pare-chocs garé est à 0,22 m de la bordure de fond
+    // (marge + 2 cm), obstacle le plus proche.
+    let p = &row_case(9, 2.5, 10.0, false, None).places[4];
     assert_eq!(p.verdict, "vert");
     for m in [&p.entry, &p.exit] {
         assert!(m.clearance > 0.19 && m.clearance <= 0.225, "{}", m.clearance);
@@ -1096,4 +1107,24 @@ fn each_tested_place_carries_the_trace_of_its_car() {
     let p = &row_case(9, 2.5, 8.0, true, None).places[4];
     assert_eq!(p.verdict, "bleu");
     assert!(p.path.iter().any(|t| t.reverse) && p.path.iter().any(|t| !t.reverse));
+}
+
+#[test]
+fn a_car_parks_up_to_the_line_of_a_joined_stall_and_short_of_a_kerb() {
+    let v = Vehicle::vl2026();
+    let path = format!("{}/scenarios/rect.json", env!("CARGO_MANIFEST_DIR"));
+    let site: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    // Deux rangées dos à dos (fond commun à y = 35, sans bordure) entre deux allées de 6 m.
+    let (y0, y1) = (24.0, 30.0);
+    let mut stalls: Vec<[[f64; 2]; 4]> = (0..9).map(|i| { let a = 48.75 + 2.5 * i as f64; [[a, 35.0], [a + 2.5, 35.0], [a + 2.5, 30.0], [a, 30.0]] }).collect();
+    stalls.extend((0..9).map(|i| { let a = 48.75 + 2.5 * i as f64; [[a + 2.5, 35.0], [a, 35.0], [a, 40.0], [a + 2.5, 40.0]] }));
+    let input = serde_json::json!({ "site": site, "layout": { "paved": [[[10.0, y0], [110.0, y0], [110.0, y1], [10.0, y1]], [[10.0, 40.0], [110.0, 40.0], [110.0, 46.0], [10.0, 46.0]]],
+        "pads": [], "islands": [], "entries": [], "cross": [], "stalls": stalls,
+        "axes": [{ "pts": [[10.0, 27.0], [110.0, 27.0]], "w": 6.0, "sens": 2 }, { "pts": [[10.0, 43.0], [110.0, 43.0]], "w": 6.0, "sens": 2 }] }, "stalls": [4] });
+    let park = places(&serde_json::from_value(input).unwrap()).places[0].park;
+    let nose = park[1] + v.wheelbase + v.front_overhang;
+    assert!((nose - (35.0 - 0.02)).abs() < 0.005, "{nose}");
+    // Fond bordé (rangée simple) : marge de 0,20 m + 2 cm.
+    let park = row_case(9, 2.5, 10.0, true, None).places[4].park;
+    assert!((park[1] + v.wheelbase + v.front_overhang - (35.0 - 0.22)).abs() < 0.005);
 }
