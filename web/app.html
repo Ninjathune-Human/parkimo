@@ -2790,9 +2790,9 @@ $("#m-ok").addEventListener("click", importArea);
 // ============================================================================
 const GIR0 = { profile: "habile", speed: 5, margin: 0.1, kerb: { name: "T2", visible_height: 0.16 } };
 const GIR_PROFILES = {
-  prudent: "Prudent : 90 % de l'angle et de la vitesse de volant, jamais de braquage à l'arrêt.",
-  courant: "Courant : tout l'angle, braquage à l'arrêt aux points de rebroussement.",
-  habile: "Habile : tout l'angle, braquage à l'arrêt partout (manœuvre de parking).",
+  prudent: "Prudent : 90 % de l'angle, roues tournées à 6°/s en roulant, jamais à l'arrêt.",
+  courant: "Courant : tout l'angle, roues tournées à 10°/s en roulant, à l'arrêt aux rebroussements.",
+  habile: "Habile : tout l'angle, roues tournées à 15°/s en roulant (limite admissible), à l'arrêt aux rebroussements.",
 };
 let gir = null, girT = 0, girSel = -1, girPlay = 0;
 let gdraft = { pts: [], cusps: [], reverse: false };
@@ -3004,7 +3004,7 @@ function updateGirUI() {
 
 // ---- Test de toutes les places (phase 2) : entrée en marche avant, sortie en marche arrière,
 // parking plein. Le calcul tourne dans un Web Worker (repli : par lots sur le fil principal).
-const places = { res: null, open: -1, run: 0, worker: undefined };
+const places = { res: null, open: -1, run: 0, pool: [] };
 const VERDICT = { vert: "ok", bleu: "ok", orange: "warn", rouge: "bad", gris: "label-3" };
 const STATUS = { feasible: "possible", infeasible: "impossible", unknown: "non conclue" };
 function placesInput(extra) {
@@ -3018,9 +3018,12 @@ function placesInput(extra) {
 }
 function placesReset() { places.run++; places.res = null; places.open = -1; $("#g-prog").hidden = true; updatePlacesUI(); }
 // Moteur dédié dans un Web Worker, à partir des octets du WebAssembly déjà chargé.
-function placesWorker() {
-  if (places.worker !== undefined) return places.worker;
-  places.worker = null;
+// Plusieurs moteurs en parallèle : un par cœur disponible, quatre au plus.
+const POOL = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1));
+function placesWorker(k) {
+  places.pool = places.pool || [];
+  if (places.pool[k] !== undefined) return places.pool[k];
+  places.pool[k] = null;
   try {
     if (!Engine.bytes || !window.Worker) return null;
     // Les demandes attendent la fin de l'instanciation ; une erreur revient comme réponse.
@@ -3033,18 +3036,18 @@ function placesWorker() {
       } catch (err) { postMessage({ id: m.id, out: JSON.stringify({ error: String(err) }) }); } };`;
     const w = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
     w.postMessage({ wasm: Engine.bytes });
-    places.worker = w;
-  } catch (e) { places.worker = null; }
-  return places.worker;
+    places.pool[k] = w;
+  } catch (e) { places.pool[k] = null; }
+  return places.pool[k];
 }
 let placesSeq = 0;
-function placesCall(input) {
-  const w = placesWorker(), json = JSON.stringify(input);
+function placesCall(input, k = 0) {
+  const w = placesWorker(k), json = JSON.stringify(input);
   if (!w) return new Promise((res) => setTimeout(() => res(Engine.call("giration_places_json", input)), 0));
   return new Promise((res, rej) => {
     const id = ++placesSeq;
     const on = (e) => { if (e.data.id !== id) return; w.removeEventListener("message", on); w.removeEventListener("error", bad); res(JSON.parse(e.data.out)); };
-    const bad = (e) => { w.removeEventListener("message", on); w.removeEventListener("error", bad); places.worker = null; rej(e); };
+    const bad = (e) => { w.removeEventListener("message", on); w.removeEventListener("error", bad); places.pool[k] = null; rej(e); };
     w.addEventListener("message", on); w.addEventListener("error", bad);
     w.postMessage({ id, input: json });
   });
@@ -3053,17 +3056,27 @@ async function testPlaces() {
   if (!layout || layout.error || !layout.stalls.length) return;
   const run = ++places.run, n = layout.stalls.length, res = new Array(n).fill(null), CHUNK = 12, t0 = performance.now();
   places.res = res; places.open = -1; $("#g-prog").hidden = false; updatePlacesUI();
-  for (let a = 0; a < n; a += CHUNK) {
-    const ids = []; for (let i = a; i < Math.min(n, a + CHUNK); i++) ids.push(i);
-    let out;
-    try { out = await placesCall(placesInput({ stalls: ids })); } catch (e) { out = await placesCall(placesInput({ stalls: ids })); }
-    if (run !== places.run) return; // plan modifié pendant le calcul
-    if (out.error) { toast("Test impossible : " + out.error); placesReset(); return; }
-    for (const p of out.places) res[p.i] = p;
-    $("#g-prog-bar").style.width = (100 * Math.min(n, a + CHUNK) / n) + "%";
-    $("#g-prog-txt").textContent = `${Math.min(n, a + CHUNK)} / ${n} places`;
-    updateLayersUI(); updatePlacesUI(); redraw();
-  }
+  const chunks = [];
+  for (let a = 0; a < n; a += CHUNK) { const ids = []; for (let i = a; i < Math.min(n, a + CHUNK); i++) ids.push(i); chunks.push(ids); }
+  let next = 0, done = 0, failed = null;
+  // Chaque moteur prend le lot suivant dès qu'il a fini le sien.
+  const lane = async (k) => {
+    while (next < chunks.length && run === places.run && !failed) {
+      const ids = chunks[next++];
+      let out;
+      try { out = await placesCall(placesInput({ stalls: ids }), k); } catch (e) { out = await placesCall(placesInput({ stalls: ids }), k); }
+      if (run !== places.run) return; // plan modifié pendant le calcul
+      if (out.error) { failed = out.error; return; }
+      for (const p of out.places) res[p.i] = p;
+      done += ids.length;
+      $("#g-prog-bar").style.width = (100 * done / n) + "%";
+      $("#g-prog-txt").textContent = `${done} / ${n} places`;
+      updateLayersUI(); updatePlacesUI(); redraw();
+    }
+  };
+  await Promise.all(Array.from({ length: POOL }, (_, k) => lane(k)));
+  if (run !== places.run) return;
+  if (failed) { toast("Test impossible : " + failed); placesReset(); return; }
   $("#g-prog").hidden = true; updatePlacesUI();
   const c = placesTally();
   toast(`${c.vert + c.bleu} vertes, ${c.orange} orange, ${c.rouge} rouges, ${c.gris} grises · ${fmt1((performance.now() - t0) / 1000)} s`);

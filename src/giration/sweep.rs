@@ -154,16 +154,35 @@ pub(crate) fn body_contact(v: &Vehicle, scene: &Scene, pose: &Pose, grow: f64) -
 /// La caisse agrandie de `margin` touche-t-elle un obstacle fixe (bordure, mur, limite) ? Les voitures
 /// garées n'ont pas de marge : places jointes, sans bordure.
 pub(crate) fn margin_contact(v: &Vehicle, scene: &Scene, pose: &Pose, margin: f64) -> bool {
+    let (lo, hi) = bbox(&footprint(v, pose, margin));
+    margin_contact_among(v, scene, &scene.near(lo, hi), pose, margin)
+}
+
+/// `margin_contact` parmi des segments candidats (voir `near_body`).
+pub(crate) fn margin_contact_among(v: &Vehicle, scene: &Scene, cands: &[(usize, usize)], pose: &Pose, margin: f64) -> bool {
     let body = footprint(v, pose, margin);
     let (lo, hi) = bbox(&body);
-    scene.near(lo, hi).into_iter().any(|(o, k)| {
+    cands.iter().any(|&(o, k)| {
         let ob = &scene.obstacles[o];
-        ob.kind != ObstacleKind::Car && ob.height >= v.ground_clearance && touches_quad(ob.pts[k], ob.pts[k + 1], &body).is_some()
+        ob.kind != ObstacleKind::Car && ob.height >= v.ground_clearance && overlaps(ob.pts[k], ob.pts[k + 1], lo, hi) && touches_quad(ob.pts[k], ob.pts[k + 1], &body).is_some()
     })
 }
 
+/// Segments d'obstacles proches de la caisse en `pose` agrandie de `pad` : une seule recherche dans
+/// la grille pour tous les contrôles d'un petit mouvement.
+pub(crate) fn near_body(v: &Vehicle, scene: &Scene, pose: &Pose, pad: f64) -> Vec<(usize, usize)> {
+    let (lo, hi) = bbox(&footprint(v, pose, pad));
+    scene.near(lo, hi)
+}
+
+/// Le segment [c, d] et le rectangle [lo, hi] se recouvrent-ils (rectangles englobants) ?
+fn overlaps(c: P2, d: P2, lo: P2, hi: P2) -> bool {
+    c[0].max(d[0]) >= lo[0] && c[0].min(d[0]) <= hi[0] && c[1].max(d[1]) >= lo[1] && c[1].min(d[1]) <= hi[1]
+}
+
 /// Un pneu touche-t-il une bordure plus basse que la garde au sol (que la caisse survole) ?
-pub(crate) fn tyre_on_low_kerb(v: &Vehicle, scene: &Scene, pose: &Pose) -> bool {
+/// Recherche parmi des segments candidats (voir `near_body`).
+pub(crate) fn tyre_on_low_kerb_among(v: &Vehicle, scene: &Scene, cands: &[(usize, usize)], pose: &Pose) -> bool {
     let e = v.tyre_width / 2.0;
     let state = State { pose: *pose, steer: 0.0 };
     wheels(v, &state).iter().any(|w| {
@@ -176,9 +195,9 @@ pub(crate) fn tyre_on_low_kerb(v: &Vehicle, scene: &Scene, pose: &Pose) -> bool 
             [c[0] - u[0] + n[0], c[1] - u[1] + n[1]],
         ];
         let (lo, hi) = bbox(&tyre);
-        scene.near(lo, hi).into_iter().any(|(o, k)| {
+        cands.iter().any(|&(o, k)| {
             let ob = &scene.obstacles[o];
-            ob.height > 0.0 && ob.height < v.ground_clearance && touches_quad(ob.pts[k], ob.pts[k + 1], &tyre).is_some()
+            ob.height > 0.0 && ob.height < v.ground_clearance && overlaps(ob.pts[k], ob.pts[k + 1], lo, hi) && touches_quad(ob.pts[k], ob.pts[k + 1], &tyre).is_some()
         })
     })
 }
@@ -190,6 +209,28 @@ pub(crate) fn tyre_on_low_kerb(v: &Vehicle, scene: &Scene, pose: &Pose) -> bool 
 /// point le plus éloigné au centre de rotation. L'enveloppe convexe des deux empreintes agrandies
 /// de cette flèche contient donc tout le balayage : contrôle exact par excès, sans pas minimal.
 pub(crate) fn swept_contact(v: &Vehicle, scene: &Scene, a: &State, ds: f64, grow: f64) -> Option<(usize, P2)> {
+    let (hull, lo, hi) = swept_hull(v, a, ds, grow);
+    hull_contact(v, scene, &scene.near(lo, hi), &hull, lo, hi)
+}
+
+/// `swept_contact` parmi des segments candidats (voir `near_body`).
+pub(crate) fn swept_contact_among(v: &Vehicle, scene: &Scene, cands: &[(usize, usize)], a: &State, ds: f64, grow: f64) -> Option<(usize, P2)> {
+    let (hull, lo, hi) = swept_hull(v, a, ds, grow);
+    hull_contact(v, scene, cands, &hull, lo, hi)
+}
+
+fn hull_contact(v: &Vehicle, scene: &Scene, cands: &[(usize, usize)], hull: &[P2], lo: P2, hi: P2) -> Option<(usize, P2)> {
+    cands.iter().find_map(|&(o, k)| {
+        let ob = &scene.obstacles[o];
+        if ob.height < v.ground_clearance || !overlaps(ob.pts[k], ob.pts[k + 1], lo, hi) {
+            return None;
+        }
+        touches_convex(ob.pts[k], ob.pts[k + 1], hull).map(|p| (o, p))
+    })
+}
+
+/// Enveloppe convexe des empreintes de début et de fin, agrandies de la flèche, et son rectangle.
+fn swept_hull(v: &Vehicle, a: &State, ds: f64, grow: f64) -> (Vec<P2>, P2, P2) {
     let kappa = a.steer.tan() / v.wheelbase;
     let b = advance(v, *a, ds);
     let sagitta = if kappa.abs() < 1e-12 {
@@ -205,13 +246,7 @@ pub(crate) fn swept_contact(v: &Vehicle, scene: &Scene, a: &State, ds: f64, grow
     let ys = hull.iter().map(|p| p[1]);
     let lo = [xs.clone().fold(f64::INFINITY, f64::min), ys.clone().fold(f64::INFINITY, f64::min)];
     let hi = [xs.fold(f64::NEG_INFINITY, f64::max), ys.fold(f64::NEG_INFINITY, f64::max)];
-    scene.near(lo, hi).into_iter().find_map(|(o, k)| {
-        let ob = &scene.obstacles[o];
-        if ob.height < v.ground_clearance {
-            return None;
-        }
-        touches_convex(ob.pts[k], ob.pts[k + 1], &hull).map(|p| (o, p))
-    })
+    (hull, lo, hi)
 }
 
 /// Enveloppe convexe (chaîne monotone) de huit points, sens trigonométrique.

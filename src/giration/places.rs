@@ -6,7 +6,7 @@
 //! l'on atteint avec une tolérance ; l'entrée est cette manœuvre parcourue à rebours.
 
 use super::epure::{Run, Sample};
-use super::kinematics::{Pose, Profile, State};
+use super::kinematics::{Pose, Profile};
 use super::planner::{Costs, Outcome, Piece, Search, Table};
 use super::scene::{Obstacle, ObstacleKind, Scene};
 use super::sweep::{body_contact, footprint, margin_contact};
@@ -80,6 +80,10 @@ const RADIUS: f64 = 16.0;
 /// Budgets de la recherche : d'un seul tenant, puis (budget réglable) avec reprises ; la moins
 /// mauvaise manœuvre, avec contacts, n'est cherchée que pour l'illustrer.
 const NODES_DIRECT: usize = 5_000;
+/// Recherche à 1 reprise au plus (le cas le plus fréquent, « en deux fois »), avant la recherche
+/// sans limite.
+const STAGED_REPRISES: usize = 1;
+const NODES_STAGE: usize = 10_000;
 pub const NODES_REPRISES: usize = 40_000;
 const NODES_CONTACT: usize = 20_000;
 
@@ -173,21 +177,23 @@ fn nearest(pts: &[P2], p: P2) -> (P2, P2, f64) {
 pub fn motion(v: &Vehicle, profile: Profile, pieces: &[Piece], speed_kmh: f64) -> Run {
     let speed = (speed_kmh / 3.6).max(0.1);
     let mut run = Run { samples: Vec::new(), deviation: Vec::new(), reached: Vec::new(), stationary_time: 0.0 };
-    let (mut s, mut t, mut steer) = (0.0, 0.0, 0.0);
+    // La voiture arrive avec l'angle de roues du premier état ; ensuite, braquage à l'arrêt au début
+    // de chaque morceau (rebroussement), le volant tournant en roulant à l'intérieur d'un morceau.
+    let (mut s, mut t) = (0.0, 0.0);
+    let mut steer = pieces.first().and_then(|p| p.states.first()).map_or(0.0, |st| st.steer);
     for (k, pc) in pieces.iter().enumerate() {
-        let dt = (pc.steer - steer).abs() / profile.steer_rate(v);
+        let Some(first) = pc.states.first() else { continue };
+        let dt = (first.steer - steer).abs() / profile.steer_rate(v);
         run.stationary_time += dt;
         t += dt;
-        steer = pc.steer;
-        for (j, w) in pc.poses.windows(2).enumerate() {
-            if j == 0 {
-                run.samples.push(Sample { state: State { pose: w[0], steer }, section: k, s, t });
-            }
-            let d = (w[1].x - w[0].x).hypot(w[1].y - w[0].y);
+        run.samples.push(Sample { state: *first, section: k, s, t });
+        for w in pc.states.windows(2) {
+            let d = (w[1].pose.x - w[0].pose.x).hypot(w[1].pose.y - w[0].pose.y);
             s += d;
             t += d / speed;
-            run.samples.push(Sample { state: State { pose: w[1], steer }, section: k, s, t });
+            run.samples.push(Sample { state: w[1], section: k, s, t });
         }
+        steer = pc.states.last().map_or(steer, |st| st.steer);
         run.deviation.push(0.0);
         run.reached.push(true);
     }
@@ -196,11 +202,7 @@ pub fn motion(v: &Vehicle, profile: Profile, pieces: &[Piece], speed_kmh: f64) -
 
 /// La même manœuvre parcourue à rebours : ordre inversé, sens de marche inversé.
 fn reversed(pieces: &[Piece]) -> Vec<Piece> {
-    pieces
-        .iter()
-        .rev()
-        .map(|pc| Piece { reverse: !pc.reverse, k: pc.k, steer: pc.steer, poses: pc.poses.iter().rev().copied().collect() })
-        .collect()
+    pieces.iter().rev().map(|pc| Piece { reverse: !pc.reverse, states: pc.states.iter().rev().copied().collect() }).collect()
 }
 
 /// Une place prête à être testée : pose garée, scène avec les voisines garées, voie desservante.
@@ -288,15 +290,17 @@ pub fn test_stall(ctx: &Ctx, i: usize, illustrate: bool) -> Tested {
             .map(|&(l, t)| ctx.table.get(l.signum() * (l.abs() - (band - LANE_TOL)).max(0.0), t))
             .fold(f64::INFINITY, f64::min)
     };
-    let search = |forward: bool, cusp: f64, collision: Option<f64>, weight: f64, max_nodes: usize| {
+    let search = |max_cusps: usize, cusp: f64, collision: Option<f64>, weight: f64, max_nodes: usize| {
         Search {
             v,
             profile: ctx.profile,
             scene: &scene,
             margin: ctx.margin,
             costs: Costs { forward: FORWARD, reverse: REVERSE, cusp, switch: 0.3, margin: 8.0, collision },
+            speed: (ctx.speed / 3.6).max(0.1),
             first_reverse: true,
-            forward,
+            forward: max_cusps > 0,
+            max_cusps,
             weight,
             centre: mouth,
             radius: RADIUS,
@@ -304,19 +308,32 @@ pub fn test_stall(ctx: &Ctx, i: usize, illustrate: bool) -> Tested {
         }
         .run(park, goal, h)
     };
-    // D'un seul tenant (entrée sans reprise), puis avec reprises. Seule l'exploration complète du
-    // domaine sans solution conclut à l'impossibilité ; un budget épuisé laisse la question ouverte.
-    let (status, mut reason, mut found) = match search(false, 5.0, None, 1.2, NODES_DIRECT.min(ctx.max_nodes)) {
-        Outcome::Found(plan) => (Status::Feasible, None, Some(plan)),
-        _ => match search(true, 12.0, None, 1.2, ctx.max_nodes) {
-            Outcome::Found(plan) => (Status::Feasible, None, Some(plan)),
-            Outcome::Exhausted => (Status::Infeasible, Some("aucune manœuvre dans le domaine exploré"), None),
-            Outcome::Budget => (Status::Unknown, Some("budget de recherche épuisé"), None),
+    // Le moins de reprises possible : d'un seul tenant, puis 1 reprise au plus (chaque recherche reste
+    // petite), puis sans limite. Seule l'exploration complète du domaine sans limite de reprises
+    // conclut à l'impossibilité ; un budget épuisé laisse la question ouverte.
+    let mut found = None;
+    for k in 0..=STAGED_REPRISES {
+        let budget = if k == 0 { NODES_DIRECT } else { NODES_STAGE };
+        if let Outcome::Found(plan) = search(k, 5.0, None, 1.2, budget.min(ctx.max_nodes)) {
+            found = Some(plan);
+            break;
+        }
+    }
+    let (status, mut reason) = match found {
+        Some(_) => (Status::Feasible, None),
+        None => match search(usize::MAX, 12.0, None, 1.2, ctx.max_nodes) {
+            Outcome::Found(plan) => {
+                found = Some(plan);
+                (Status::Feasible, None)
+            }
+            Outcome::Exhausted => (Status::Infeasible, Some("aucune manœuvre dans le domaine exploré")),
+            Outcome::Budget => (Status::Unknown, Some("budget de recherche épuisé")),
         },
     };
     let mut collisions = 0;
     if found.is_none() && illustrate {
-        if let Outcome::Found(plan) = search(true, 5.0, Some(5.0), 2.0, NODES_CONTACT) {
+        // Illustration seulement : une reprise au plus suffit à montrer où la place bloque.
+        if let Outcome::Found(plan) = search(1, 5.0, Some(5.0), 2.0, NODES_CONTACT) {
             collisions = plan.collisions;
             found = Some(plan);
         }

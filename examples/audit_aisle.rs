@@ -23,8 +23,10 @@ fn main() {
         if opposite { stalls.extend(bottom.iter().copied()); }
         let input = serde_json::json!({ "site": site, "layout": { "paved": [[[5.0, y0], [115.0, y0], [115.0, y1], [5.0, y1]]], "pads": [], "islands": [], "entries": [], "cross": [], "stalls": stalls,
             "axes": [{ "pts": [[5.0, (y0 + y1) / 2.0], [115.0, (y0 + y1) / 2.0]], "w": aisle, "sens": 2 }] }, "stalls": [7], "margin": margin, "neighbours": neighbours });
+        let t = std::time::Instant::now();
         let p = &places_with(&serde_json::from_value(input).unwrap(), v).places[0];
-        println!("{label:52} {:6} {} rep. {:2} alertes, marge mini {:.2} m, {:.1} m dont {:.1} en marche arrière", p.verdict, p.entry.reprises, p.entry.alerts, p.entry.clearance, p.entry.length, p.entry.reverse);
+        let ms = t.elapsed().as_millis();
+        println!("{label:52} {:6} {} rep. {:2} alertes, marge mini {:.2} m, {:.1} m dont {:.1} en marche arrière, {ms} ms", p.verdict, p.entry.reprises, p.entry.alerts, p.entry.clearance, p.entry.length, p.entry.reverse);
     };
     println!("Allée de {aisle} m");
     run("VL 2026, marge 0,10, parking plein (base)", &vl, 0.1, true, true);

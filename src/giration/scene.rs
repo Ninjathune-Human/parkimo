@@ -10,7 +10,6 @@ use crate::region::{erode, grow, to_poly};
 use geo::algorithm::bool_ops::unary_union;
 use geo::{BooleanOps, MultiPolygon, Polygon};
 use serde::Deserialize;
-use std::collections::HashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ObstacleKind {
@@ -59,7 +58,13 @@ const CLOSE: f64 = 0.05;
 
 pub struct Scene {
     pub obstacles: Vec<Obstacle>,
-    grid: HashMap<(i32, i32), Vec<(u32, u32)>>,
+    /// Segments par case de CELL m : tableau direct de nx × ny cases à partir de la case (x0, y0) ;
+    /// pour chaque segment, sa case de coin bas gauche.
+    grid: Vec<Vec<(u32, u32, i32, i32)>>,
+    x0: i32,
+    y0: i32,
+    nx: i32,
+    ny: i32,
 }
 
 fn quad_poly(q: &[P2; 4]) -> Polygon<f64> {
@@ -120,16 +125,31 @@ pub(crate) fn segment_hit(a: P2, b: P2, c: P2, d: P2) -> Option<(f64, P2)> {
 
 impl Scene {
     pub fn new(obstacles: Vec<Obstacle>) -> Scene {
-        let mut grid: HashMap<(i32, i32), Vec<(u32, u32)>> = HashMap::new();
-        for (oi, o) in obstacles.iter().enumerate() {
-            for si in 0..o.pts.len().saturating_sub(1) {
-                let (a, b) = (o.pts[si], o.pts[si + 1]);
-                for key in cells(a, b) {
-                    grid.entry(key).or_default().push((oi as u32, si as u32));
+        let pts = obstacles.iter().flat_map(|o| o.pts.iter());
+        let (mut x0, mut y0, mut x1, mut y1) = (i32::MAX, i32::MAX, i32::MIN, i32::MIN);
+        for p in pts {
+            let (x, y) = ((p[0] / CELL).floor() as i32, (p[1] / CELL).floor() as i32);
+            (x0, y0, x1, y1) = (x0.min(x), y0.min(y), x1.max(x), y1.max(y));
+        }
+        let (nx, ny) = if x0 > x1 { (0, 0) } else { (x1 - x0 + 1, y1 - y0 + 1) };
+        let mut scene = Scene { obstacles, grid: vec![Vec::new(); (nx * ny) as usize], x0, y0, nx, ny };
+        for oi in 0..scene.obstacles.len() {
+            for si in 0..scene.obstacles[oi].pts.len().saturating_sub(1) {
+                let (a, b) = (scene.obstacles[oi].pts[si], scene.obstacles[oi].pts[si + 1]);
+                let (cx, cy) = ((a[0].min(b[0]) / CELL).floor() as i32, (a[1].min(b[1]) / CELL).floor() as i32);
+                for (x, y) in cells(a, b) {
+                    if let Some(i) = scene.index(x, y) {
+                        scene.grid[i].push((oi as u32, si as u32, cx, cy));
+                    }
                 }
             }
         }
-        Scene { obstacles, grid }
+        scene
+    }
+
+    fn index(&self, x: i32, y: i32) -> Option<usize> {
+        let (i, j) = (x - self.x0, y - self.y0);
+        (i >= 0 && j >= 0 && i < self.nx && j < self.ny).then(|| (i * self.ny + j) as usize)
     }
 
     pub fn from_layout(site: &Site, lay: &Layout, kerb: &KerbProfile) -> Scene {
@@ -223,13 +243,17 @@ impl Scene {
     /// Segments d'obstacles (obstacle, segment) dont les cases touchent le rectangle [lo, hi].
     pub fn near(&self, lo: P2, hi: P2) -> Vec<(usize, usize)> {
         let mut out: Vec<(usize, usize)> = Vec::new();
-        for key in cells(lo, hi) {
-            if let Some(list) = self.grid.get(&key) {
-                out.extend(list.iter().map(|&(o, s)| (o as usize, s as usize)));
+        let (qx, qy) = ((lo[0] / CELL).floor() as i32, (lo[1] / CELL).floor() as i32);
+        for (x, y) in cells(lo, hi) {
+            let Some(i) = self.index(x, y) else { continue };
+            for &(o, s, cx, cy) in &self.grid[i] {
+                // Un segment couvre plusieurs cases : on ne le retient que dans la première case
+                // commune au segment et au rectangle, sans tri ni dédoublonnage.
+                if (cx.max(qx), cy.max(qy)) == (x, y) {
+                    out.push((o as usize, s as usize));
+                }
             }
         }
-        out.sort_unstable();
-        out.dedup();
         out
     }
 
@@ -237,9 +261,9 @@ impl Scene {
     pub fn crossings(&self, a: P2, b: P2) -> Vec<Crossing> {
         let mut seen: Vec<(u32, u32)> = Vec::new();
         let mut hits: Vec<(f64, Crossing)> = Vec::new();
-        for key in cells(a, b) {
-            if let Some(list) = self.grid.get(&key) {
-                for &(oi, si) in list {
+        for (x, y) in cells(a, b) {
+            if let Some(i) = self.index(x, y) {
+                for &(oi, si, _, _) in &self.grid[i] {
                     if seen.contains(&(oi, si)) {
                         continue;
                     }

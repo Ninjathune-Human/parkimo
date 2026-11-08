@@ -19,30 +19,37 @@ pub struct State {
     pub steer: f64,
 }
 
-/// Profil de conducteur (voir le plan, section Cinématique).
+/// Profil de conducteur. Vitesse de braquage des roues selon l'échelle du CERTU (Giration 3.3,
+/// reprise par Mensura) ; braquage à l'arrêt aux seuls rebroussements, comme AutoTURN et Mensura.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Profile {
-    /// 90 % de l'angle et de la vitesse de volant, jamais de braquage à l'arrêt.
+    /// 90 % de l'angle, 6°/s, jamais de braquage à l'arrêt.
     Prudent,
-    /// Tout l'angle, braquage à l'arrêt aux seuls points de rebroussement.
+    /// Tout l'angle, 10°/s, braquage à l'arrêt aux rebroussements.
     Courant,
-    /// Tout l'angle, braquage à l'arrêt partout.
+    /// Tout l'angle, 15°/s (limite admissible), braquage à l'arrêt aux rebroussements.
     Habile,
 }
 
 impl Profile {
-    fn share(self) -> f64 {
+    pub(crate) fn steer_limit(self, v: &Vehicle) -> f64 {
         match self {
-            Profile::Prudent => 0.9,
-            Profile::Courant | Profile::Habile => 1.0,
+            Profile::Prudent => 0.9 * v.max_steer,
+            Profile::Courant | Profile::Habile => v.max_steer,
         }
     }
-    pub(crate) fn steer_limit(self, v: &Vehicle) -> f64 {
-        self.share() * v.max_steer
-    }
-    /// Vitesse de rotation des roues (rad/s), le conducteur tournant le volant à vitesse constante.
+    /// Vitesse de rotation des roues (rad/s), plafonnée par la direction du véhicule.
     pub(crate) fn steer_rate(self, v: &Vehicle) -> f64 {
-        self.share() * 2.0 * v.max_steer / v.lock_to_lock
+        let deg: f64 = match self {
+            Profile::Prudent => 6.0,
+            Profile::Courant => 10.0,
+            Profile::Habile => 15.0,
+        };
+        deg.to_radians().min(2.0 * v.max_steer / v.lock_to_lock)
+    }
+    /// Braquage à l'arrêt permis aux rebroussements.
+    pub(crate) fn steers_at_cusps(self) -> bool {
+        self != Profile::Prudent
     }
 }
 
@@ -122,12 +129,7 @@ pub fn steer_in_place(
     target: f64,
     at_cusp: bool,
 ) -> Option<(State, f64)> {
-    let allowed = match p {
-        Profile::Prudent => false,
-        Profile::Courant => at_cusp,
-        Profile::Habile => true,
-    };
-    if !allowed {
+    if !(at_cusp && p.steers_at_cusps()) {
         return None;
     }
     let limit = p.steer_limit(v);
