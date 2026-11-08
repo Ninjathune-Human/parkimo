@@ -3,9 +3,9 @@
 use super::epure::{follow, Run, Section};
 use super::places::{motion, test_stall, Ctx, Lane, Status, NODES_REPRISES};
 use super::planner::Piece;
-use super::kinematics::Profile;
+use super::kinematics::{Pose, Profile};
 use super::scene::{KerbProfile, ObstacleKind, Scene};
-use super::sweep::{body_contact, clearance as sweep_clearance, conflicts, envelope, tyre_tracks, Part, Severity};
+use super::sweep::{body_contact, clearance as sweep_clearance, conflicts, envelope, footprint, tyre_tracks, Part, Severity};
 use super::vehicle::Vehicle;
 use crate::model::{Layout, Site, StallOut, P2};
 use serde::{Deserialize, Serialize};
@@ -344,38 +344,29 @@ pub struct PlaceOut {
     pub entry: MoveOut,
     pub exit: MoveOut,
     pub reason: Option<&'static str>,
-    /// Tracé de l'entrée : milieu de la caisse, tous les 0,5 m, par tronçon de même sens de marche.
-    pub path: Vec<Trace>,
+    /// Places orange et rouges seulement : traces des huit flancs de pneus (un point tous les 0,25 m)
+    /// et enveloppe balayée par la caisse pendant l'entrée ; voiture garée qui ne tient pas : sa caisse.
+    pub tracks: Vec<Vec<P2>>,
+    pub envelope: Vec<Vec<Vec<P2>>>,
 }
 
-#[derive(Serialize, Clone)]
-pub struct Trace {
-    pub reverse: bool,
-    pub pts: Vec<P2>,
-}
-
-/// Tracé du milieu de la caisse, au centimètre, un point tous les 0,5 m et la fin de chaque tronçon.
-fn traces(v: &Vehicle, pieces: &[Piece]) -> Vec<Trace> {
-    let c = (v.wheelbase + v.front_overhang - v.rear_overhang) / 2.0;
-    let cm = |x: f64| (x * 100.0).round() / 100.0;
-    let mut out: Vec<Trace> = Vec::new();
-    for pc in pieces {
-        let at = |k: usize| {
-            let p = &pc.poses[k];
-            [cm(p.x + c * p.heading.cos()), cm(p.y + c * p.heading.sin())]
-        };
-        let n = pc.poses.len();
-        let mut pts: Vec<P2> = (0..n).step_by(5).map(at).collect();
-        if n > 0 && (n - 1) % 5 != 0 {
-            pts.push(at(n - 1));
-        }
-        // Tronçons successifs de même sens : un seul trait.
-        match out.last_mut() {
-            Some(t) if t.reverse == pc.reverse => t.pts.extend(pts.into_iter().skip(1)),
-            _ => out.push(Trace { reverse: pc.reverse, pts }),
+/// Ce qui montre la difficulté d'une place orange ou rouge, au centimètre.
+fn drawing(v: &Vehicle, run: &Run, park: &Pose) -> (Vec<Vec<P2>>, Vec<Vec<Vec<P2>>>) {
+    let cm = |p: &P2| [(p[0] * 100.0).round() / 100.0, (p[1] * 100.0).round() / 100.0];
+    if run.samples.is_empty() {
+        return (Vec::new(), vec![vec![footprint(v, park, 0.0).iter().map(cm).collect()]]);
+    }
+    let mut kept = Vec::new();
+    let mut last = f64::NEG_INFINITY;
+    for (i, s) in run.samples.iter().enumerate() {
+        if s.s - last >= 0.25 || i + 1 == run.samples.len() {
+            kept.push(*s);
+            last = s.s;
         }
     }
-    out
+    let tracks = tyre_tracks(v, &kept).iter().map(|t| t.iter().map(cm).collect()).collect();
+    let body = envelope(v, &run.samples, 0.0).iter().map(|poly| poly.iter().map(|r| r.iter().map(cm).collect()).collect()).collect();
+    (tracks, body)
 }
 
 #[derive(Serialize)]
@@ -451,9 +442,9 @@ pub fn places_with(inp: &PlacesIn, v: &Vehicle) -> PlacesOut {
         .into_iter()
         .filter(|&i| i < inp.layout.stalls.len())
         .map(|i| {
-            let t = test_stall(&ctx, i, inp.detail == Some(i));
+            let t = test_stall(&ctx, i, true);
             let park = [t.park.x, t.park.y, t.park.heading];
-            let (entry, _) = execute(&v, profile, &t.scene, &t.entry, inp.speed, inp.margin, t.status);
+            let (entry, run) = execute(&v, profile, &t.scene, &t.entry, inp.speed, inp.margin, t.status);
             let (exit, _) = execute(&v, profile, &t.scene, &t.exit, inp.speed, inp.margin, t.status);
             let reprises = entry.reprises.max(exit.reprises);
             let verdict = match t.status {
@@ -478,7 +469,8 @@ pub fn places_with(inp: &PlacesIn, v: &Vehicle) -> PlacesOut {
                 let run = motion(&v, profile, &both, inp.speed);
                 detail = Some(simulate_run(&gin, &v, &t.scene, &run));
             }
-            PlaceOut { i, verdict, park, entry, exit, reason: t.reason, path: traces(&v, &t.entry) }
+            let (tracks, envelope) = if matches!(verdict, "orange" | "rouge") { drawing(&v, &run, &t.park) } else { (Vec::new(), Vec::new()) };
+            PlaceOut { i, verdict, park, entry, exit, reason: t.reason, tracks, envelope }
         })
         .collect();
     PlacesOut { places, detail }

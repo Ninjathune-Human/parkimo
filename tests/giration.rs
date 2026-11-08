@@ -1035,6 +1035,8 @@ fn a_stall_closed_by_a_kerb_is_certified_impossible() {
     let out = places(&serde_json::from_value(input).unwrap());
     let p = &out.places[0];
     assert_eq!((p.verdict, p.entry.status), ("rouge", "infeasible"), "{}", serde_json::to_string(p).unwrap());
+    // La moins mauvaise manœuvre (à travers la bordure) est dessinée : caisse et roues.
+    assert!(p.tracks.len() == 8 && !p.envelope.is_empty());
 }
 
 #[test]
@@ -1089,24 +1091,25 @@ fn a_car_parked_in_a_wedge_stall_stays_between_its_sides() {
 }
 
 #[test]
-fn each_tested_place_carries_the_trace_of_its_car() {
-    let v = Vehicle::vl2026();
-    // Allée de 10 m : entrée en marche avant d'un seul tenant, tracé du milieu de la caisse.
-    let out = row_case(9, 2.5, 10.0, true, None);
-    let p = &out.places[4];
-    assert_eq!(p.verdict, "vert");
-    assert!(!p.path.is_empty() && p.path.iter().all(|t| !t.reverse && t.pts.len() >= 2));
-    let first = p.path[0].pts[0];
-    let last = *p.path.last().unwrap().pts.last().unwrap();
-    let c = (v.wheelbase + v.front_overhang - v.rear_overhang) / 2.0;
-    let centre = [p.park[0] + c * p.park[2].cos(), p.park[1] + c * p.park[2].sin()];
-    assert!(dist(last, centre) < 0.01, "{last:?} {centre:?}");
-    // Le tracé part de l'allée (y de 20 à 30), sous l'ouverture de la place (y = 30).
-    assert!(first[1] > 20.0 && first[1] < 30.0, "{first:?}");
-    // Allée de 8 m : avec reprises, des tronçons en marche arrière.
-    let p = &row_case(9, 2.5, 8.0, true, None).places[4];
-    assert_eq!(p.verdict, "bleu");
-    assert!(p.path.iter().any(|t| t.reverse) && p.path.iter().any(|t| !t.reverse));
+fn only_orange_and_red_places_carry_their_body_and_wheel_tracks() {
+    // Vertes et bleues : une pastille suffit, rien à dessiner.
+    for aisle in [10.0, 8.0] {
+        let p = &row_case(9, 2.5, aisle, true, None).places[4];
+        assert!(matches!(p.verdict, "vert" | "bleu"), "{}", p.verdict);
+        assert!(p.tracks.is_empty() && p.envelope.is_empty());
+    }
+    // Orange (allée de 6 m) : enveloppe de caisse et traces des huit flancs de pneus.
+    let p = &row_case(9, 2.5, 6.0, true, None).places[4];
+    assert_eq!(p.verdict, "orange");
+    assert!(p.tracks.len() == 8 && p.tracks.iter().all(|t| t.len() >= 2) && !p.envelope.is_empty());
+    // Rouge, voiture garée qui ne tient pas (place de 1,90 m entre bordures) : sa caisse seule.
+    let path = format!("{}/scenarios/rect.json", env!("CARGO_MANIFEST_DIR"));
+    let site: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    let input = serde_json::json!({ "site": site, "layout": { "paved": [[[10.0, 20.0], [110.0, 20.0], [110.0, 30.0], [10.0, 30.0]]], "pads": [], "islands": [], "entries": [], "cross": [],
+        "stalls": [[[59.05, 35.0], [60.95, 35.0], [60.95, 30.0], [59.05, 30.0]]], "axes": [{ "pts": [[10.0, 25.0], [110.0, 25.0]], "w": 10.0, "sens": 2 }] } });
+    let p = &places(&serde_json::from_value(input).unwrap()).places[0];
+    assert_eq!((p.verdict, p.reason), ("rouge", Some("la voiture garée touche un obstacle")));
+    assert!(p.tracks.is_empty() && p.envelope.len() == 1 && p.envelope[0][0].len() >= 4);
 }
 
 #[test]

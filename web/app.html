@@ -345,7 +345,6 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
 #g-list .chip { margin: 0; flex: none; }
 #g-list .at { margin-left: auto; color: var(--label-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .chip.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
-.chip.blue { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .chip.grey { color: var(--label-2); background: var(--field); }
 #girbar { position: absolute; left: var(--cx, 50%); transform: translateX(-50%); bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   border-radius: 999px; padding: 6px 6px 6px 16px; display: flex; align-items: center; gap: 8px; max-width: calc(100vw - 32px); }
@@ -428,8 +427,7 @@ body:has(#girbar:not([hidden])) #hint { opacity: 0; }
           <label class="lrow"><span><i class="sw" style="background:var(--gir-body);border:1px solid var(--gir-body-edge)"></i>Carrosserie</span><input type="checkbox" class="switch" role="switch" data-lay="girenv"></label>
           <label class="lrow"><span><i class="ln dash" style="--c:var(--warn)"></i>Marge de sécurité</span><input type="checkbox" class="switch" role="switch" data-lay="girmarge"></label>
           <label class="lrow"><span><i class="sw round" style="border:2px solid var(--bad)"></i>Conflits</span><input type="checkbox" class="switch" role="switch" data-lay="girconf"></label>
-          <label class="lrow"><span><i class="ln" style="--c:var(--ok)"></i>Tracés des véhicules</span><input type="checkbox" class="switch" role="switch" data-lay="girtraces"></label>
-          <label class="lrow"><span><span class="sws"><i class="sw round" style="background:var(--ok)"></i><i class="sw round" style="background:var(--accent)"></i><i class="sw round" style="background:var(--warn)"></i><i class="sw round" style="background:var(--bad)"></i></span>Verdicts des places</span><input type="checkbox" class="switch" role="switch" data-lay="girplaces"></label>
+          <label class="lrow"><span><span class="sws"><i class="sw round" style="background:var(--ok)"></i><i class="sw round" style="background:var(--warn)"></i><i class="sw round" style="background:var(--bad)"></i></span>Verdicts des places</span><input type="checkbox" class="switch" role="switch" data-lay="girplaces"></label>
         </div>
         <div id="lay-base" hidden>
           <div class="couche">
@@ -2235,7 +2233,7 @@ const LAYER_DEFAULTS = {
   places: true, pvoirie: true, sens: true, ilots: true, pbati: true, servitudes: true, recul: true, vehicules: true, arbres: true,
   ovoirie: true, bati: true, vegetation: true,
   photo: true, parcelles: true, numeros: true, feuilles: false, communes: true,
-  girroues: true, girenv: true, girmarge: true, girconf: true, girtraces: true, girplaces: true,
+  girroues: true, girenv: true, girmarge: true, girconf: true, girplaces: true,
 };
 function tileUrl(L, z, x, y) {
   return `${GEO.wmts}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${L.layer}&STYLE=${encodeURIComponent(L.style)}&TILEMATRIXSET=${TMS[tmsIdx]}&TILEMATRIX=${z}&TILEROW=${y}&TILECOL=${x}&FORMAT=${encodeURIComponent(L.fmt)}`;
@@ -3007,7 +3005,7 @@ function updateGirUI() {
 // ---- Test de toutes les places (phase 2) : entrée en marche avant, sortie en marche arrière,
 // parking plein. Le calcul tourne dans un Web Worker (repli : par lots sur le fil principal).
 const places = { res: null, open: -1, run: 0, worker: undefined };
-const VERDICT = { vert: "ok", bleu: "accent", orange: "warn", rouge: "bad", gris: "label-3" };
+const VERDICT = { vert: "ok", bleu: "ok", orange: "warn", rouge: "bad", gris: "label-3" };
 const STATUS = { feasible: "possible", infeasible: "impossible", unknown: "non conclue" };
 function placesInput(extra) {
   const g = girSet();
@@ -3068,7 +3066,7 @@ async function testPlaces() {
   }
   $("#g-prog").hidden = true; updatePlacesUI();
   const c = placesTally();
-  toast(`${c.vert} vertes, ${c.bleu} bleues, ${c.orange} orange, ${c.rouge} rouges, ${c.gris} grises · ${fmt1((performance.now() - t0) / 1000)} s`);
+  toast(`${c.vert + c.bleu} vertes, ${c.orange} orange, ${c.rouge} rouges, ${c.gris} grises · ${fmt1((performance.now() - t0) / 1000)} s`);
 }
 function placesTally() { const c = { vert: 0, bleu: 0, orange: 0, rouge: 0, gris: 0 }; for (const p of places.res || []) if (p) c[p.verdict]++; return c; }
 function updatePlacesUI() {
@@ -3077,7 +3075,7 @@ function updatePlacesUI() {
   t.hidden = !r;
   if (!r) return;
   const c = placesTally();
-  t.innerHTML = `<span class="chip ok">${c.vert} vertes</span><span class="chip blue">${c.bleu} bleues</span><span class="chip warn">${c.orange} orange</span><span class="chip bad">${c.rouge} rouges</span><span class="chip grey">${c.gris} grises</span><br>Vert : d'un seul tenant ; bleu : avec reprises (3 au plus) ; orange : marge entamée ou plus de 3 reprises ; rouge : impossible dans le domaine exploré ; gris : non conclu (budget de recherche épuisé). Parking plein, voisines garées au pire. Touchez une place pour voir sa manœuvre.`;
+  t.innerHTML = `<span class="chip ok">${c.vert + c.bleu} vertes</span><span class="chip warn">${c.orange} orange</span><span class="chip bad">${c.rouge} rouges</span><span class="chip grey">${c.gris} grises</span><br>Vert : d'un seul tenant ou avec 3 reprises au plus (${c.bleu} avec reprises) ; orange : marge entamée ou plus de 3 reprises ; rouge : impossible dans le domaine exploré ; gris : non conclu (budget de recherche épuisé). Orange et rouges : caisse et roues dessinées. Parking plein, voisines garées au pire. Touchez une place pour voir sa manœuvre.`;
 }
 // Place sous le point (plan), ou −1.
 function stallAt(w) { if (!layout || !layout.stalls) return -1; for (let k = 0; k < layout.stalls.length; k++) if (pointInPoly(w, layout.stalls[k].q)) return k; return -1; }
@@ -3094,24 +3092,23 @@ async function openPlace(k) {
   if ($("#girmenu").hidden) toggleMenu("#b-gir", "#girmenu");
   girFocus([p.park[0], p.park[1]], 18);
 }
-// Repère de verdict au centre de chaque place testée : rond (vert), losange (bleu), triangle
-// (orange), carré (rouge), anneau (gris) ; la forme double la couleur.
+// Repère de verdict au centre de chaque place testée : rond (vert, avec ou sans reprises), triangle
+// (orange), carré (rouge), anneau (gris) ; la forme double la couleur. Orange et rouges : caisse
+// balayée et traces des roues, pour voir où la place pose problème.
 function drawPlaces() {
   if (!places.res || !layout || !layout.stalls) return;
-  // Tracé de chaque voiture (milieu de la caisse), couleur du verdict, marche arrière en tirets.
-  if (VIS.girtraces) {
-    ctx.lineWidth = 1.2; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.globalAlpha = places.open >= 0 ? 0.35 : 1;
-    for (const p of places.res) if (p && p.path) for (const t of p.path) { ctx.strokeStyle = C[VERDICT[p.verdict]]; ctx.setLineDash(t.reverse ? [5, 4] : []); strokeLine(t.pts); }
-    ctx.setLineDash([]); ctx.globalAlpha = 1;
-  }
+  const shown = places.res.filter((p, k) => p && k !== places.open && p.envelope && p.envelope.length);
+  ctx.globalAlpha = places.open >= 0 ? 0.35 : 1;
+  if (VIS.girenv) for (const p of shown) { girRings(p.envelope, C["gir-body"]); ctx.strokeStyle = C["gir-body-edge"]; ctx.lineWidth = 1; ctx.stroke(); }
+  if (VIS.girroues) { ctx.strokeStyle = C["gir-wheel"]; ctx.lineWidth = 1; ctx.lineJoin = "round"; for (const p of shown) for (const t of p.tracks) strokeLine(t); }
+  ctx.globalAlpha = 1;
   if (!VIS.girplaces) return;
   const r = Math.max(3, Math.min(8, 0.45 * view.s));
   places.res.forEach((p, k) => {
     if (!p || !layout.stalls[k]) return;
     const q = layout.stalls[k].q, c = toS([(q[0][0] + q[1][0] + q[2][0] + q[3][0]) / 4, (q[0][1] + q[1][1] + q[2][1] + q[3][1]) / 4]);
     ctx.beginPath();
-    if (p.verdict === "vert" || p.verdict === "gris") ctx.arc(c[0], c[1], r, 0, Math.PI * 2);
-    else if (p.verdict === "bleu") { ctx.moveTo(c[0], c[1] - r * 1.2); ctx.lineTo(c[0] + r, c[1]); ctx.lineTo(c[0], c[1] + r * 1.2); ctx.lineTo(c[0] - r, c[1]); ctx.closePath(); }
+    if (p.verdict === "vert" || p.verdict === "bleu" || p.verdict === "gris") ctx.arc(c[0], c[1], r, 0, Math.PI * 2);
     else if (p.verdict === "orange") { ctx.moveTo(c[0], c[1] - r * 1.15); ctx.lineTo(c[0] + r, c[1] + r * 0.75); ctx.lineTo(c[0] - r, c[1] + r * 0.75); ctx.closePath(); }
     else ctx.rect(c[0] - r * 0.9, c[1] - r * 0.9, r * 1.8, r * 1.8);
     if (p.verdict === "gris") { ctx.lineWidth = 2; ctx.strokeStyle = C["label-3"]; ctx.stroke(); return; }
