@@ -7,7 +7,7 @@
 
 use super::epure::{Run, Sample};
 use super::kinematics::{Pose, Profile, State};
-use super::planner::{Costs, Outcome, Piece, Search, Table};
+use super::planner::{Costs, Outcome, Piece, Plan, Search, Table};
 use super::scene::{Obstacle, ObstacleKind, Scene};
 use super::sweep::{body_contact, footprint, margin_contact, near_body, tyre_on_kerb_among};
 use super::vehicle::Vehicle;
@@ -77,6 +77,15 @@ const LANE_TOL: f64 = 0.3;
 const HEADING_TOL: f64 = 8.0 * PI / 180.0;
 /// Rayon de la zone explorée autour de l'entrée de la place (m).
 const RADIUS: f64 = 16.0;
+/// Approche : la voiture arrive dans le sens de la circulation, alignée sur la voie à cette distance
+/// en amont de l'ouverture (m), en remontant les voies à travers virages et carrefours.
+const APPROACH: f64 = 10.0;
+/// Au-delà de cet écart entre la voie, à la distance d'approche en amont, et l'axe d'entrée de la
+/// place, l'entrée revient sur l'approche (place juste après un virage, côté intérieur) : elle est
+/// cherchée depuis l'amont.
+const TURN_BACK: f64 = 100.0 * PI / 180.0;
+/// Approche atteinte : centre de la caisse à cette distance du point d'approche, le long de la voie (m).
+const APPROACH_TOL: f64 = 1.5;
 /// Budgets de la recherche : d'un seul tenant, puis (budget réglable) avec reprises ; la moins
 /// mauvaise manœuvre, avec contacts, n'est cherchée que pour l'illustrer.
 const NODES_DIRECT: usize = 5_000;
@@ -200,6 +209,81 @@ pub fn motion(v: &Vehicle, profile: Profile, pieces: &[Piece], speed_kmh: f64) -
     run
 }
 
+/// Points d'approche de l'ouverture `mouth` desservie par `lane` : à `dist` en amont le long de la
+/// circulation, en remontant les voies qui arrivent au carrefour quand la voie commence plus près
+/// (toutes les branches ; les deux sens d'une voie à double sens). Point, direction de marche,
+/// largeur de la voie.
+fn approaches(lanes: &[Lane], lane: &Lane, mouth: P2, dist: f64) -> Vec<(P2, P2, f64)> {
+    // Pied de l'ouverture sur la voie : abscisse curviligne depuis le premier point.
+    let (mut best, mut s_foot, mut acc) = (f64::INFINITY, 0.0, 0.0);
+    for w in lane.pts.windows(2) {
+        let d = sub(w[1], w[0]);
+        let l = d[0].hypot(d[1]);
+        let t = (dot(sub(mouth, w[0]), d) / (l * l).max(1e-18)).clamp(0.0, 1.0);
+        let q = [w[0][0] + t * d[0], w[0][1] + t * d[1]];
+        let e = (mouth[0] - q[0]).hypot(mouth[1] - q[1]);
+        if e < best {
+            (best, s_foot) = (e, acc + t * l);
+        }
+        acc += l;
+    }
+    let mut out = Vec::new();
+    // Sens de marche le long des points (`along`), ou à rebours sur une voie à double sens.
+    walk(lanes, &lane.pts, lane.w, s_foot, dist, true, 0, &mut out);
+    if lane.sens != 1 {
+        walk(lanes, &lane.pts, lane.w, s_foot, dist, false, 0, &mut out);
+    }
+    out
+}
+
+/// Remonte de `left` m la polyligne `pts` depuis l'abscisse `s`, la circulation allant dans l'ordre
+/// des points si `along` ; au début de la voie, continue sur les voies qui arrivent à ce carrefour.
+#[allow(clippy::too_many_arguments)]
+fn walk(lanes: &[Lane], pts: &[P2], w: f64, s: f64, left: f64, along: bool, depth: usize, out: &mut Vec<(P2, P2, f64)>) {
+    let total: f64 = pts.windows(2).map(|w| (w[1][0] - w[0][0]).hypot(w[1][1] - w[0][1])).sum();
+    // Distance disponible en amont, et le carrefour d'où vient la circulation.
+    let (room, node) = if along { (s, pts[0]) } else { (total - s, pts[pts.len() - 1]) };
+    if room >= left || depth >= 4 {
+        let target = if along { (s - left).max(0.0) } else { (s + left).min(total) };
+        let (p, u) = point_at(pts, target);
+        out.push((p, if along { u } else { [-u[0], -u[1]] }, w));
+        return;
+    }
+    let close = |a: P2| (a[0] - node[0]).hypot(a[1] - node[1]) < 1.0;
+    let mut fed = false;
+    for l in lanes.iter().filter(|l| l.pts.len() >= 2 && !std::ptr::eq(l.pts.as_ptr(), pts.as_ptr())) {
+        let len: f64 = l.pts.windows(2).map(|w| (w[1][0] - w[0][0]).hypot(w[1][1] - w[0][1])).sum();
+        // Voie dont la circulation arrive au carrefour : par sa fin, ou par son début à double sens.
+        if close(l.pts[l.pts.len() - 1]) {
+            fed = true;
+            walk(lanes, &l.pts, l.w, len, left - room, true, depth + 1, out);
+        } else if l.sens != 1 && close(l.pts[0]) {
+            fed = true;
+            walk(lanes, &l.pts, l.w, 0.0, left - room, false, depth + 1, out);
+        }
+    }
+    if !fed {
+        // Rien n'arrive (accès depuis la rue, impasse) : l'approche part du carrefour.
+        let (p, u) = point_at(pts, if along { 0.0 } else { total });
+        out.push((p, if along { u } else { [-u[0], -u[1]] }, w));
+    }
+}
+
+/// Point et direction (ordre des points) à l'abscisse curviligne `s`, bornée à la polyligne.
+fn point_at(pts: &[P2], s: f64) -> (P2, P2) {
+    let (mut acc, n) = (0.0, pts.len() - 1);
+    for (k, w) in pts.windows(2).enumerate() {
+        let d = sub(w[1], w[0]);
+        let l = d[0].hypot(d[1]);
+        if acc + l >= s || k + 1 == n {
+            let t = ((s - acc) / l.max(1e-12)).clamp(0.0, 1.0);
+            return ([w[0][0] + t * d[0], w[0][1] + t * d[1]], unit(d));
+        }
+        acc += l;
+    }
+    (pts[0], [1.0, 0.0])
+}
+
 /// La même manœuvre parcourue à rebours : ordre inversé, sens de marche inversé.
 fn reversed(pieces: &[Piece]) -> Vec<Piece> {
     pieces.iter().rev().map(|pc| Piece { reverse: !pc.reverse, states: pc.states.iter().rev().copied().collect() }).collect()
@@ -236,13 +320,75 @@ fn prepare<'a>(ctx: &Ctx<'a>, i: usize) -> Prepared<'a> {
     }
     // Voie qui dessert la place : l'axe le plus proche de son ouverture.
     let mouth = mid(q[2], q[3]);
-    let lane = ctx
-        .lanes
+    Prepared { park, scene: Scene::new(obstacles), lane: serving(ctx.lanes, mouth), mouth }
+}
+
+/// Voie qui dessert une ouverture : l'axe le plus proche.
+fn serving(lanes: &[Lane], mouth: P2) -> Option<&Lane> {
+    lanes
         .iter()
         .filter(|l| l.pts.len() >= 2)
         .min_by(|a, b| nearest(&a.pts, mouth).2.total_cmp(&nearest(&b.pts, mouth).2))
-        .filter(|l| nearest(&l.pts, mouth).2 < RADIUS - 4.0);
-    Prepared { park, scene: Scene::new(obstacles), lane, mouth }
+        .filter(|l| nearest(&l.pts, mouth).2 < RADIUS - 4.0)
+}
+
+/// L'entrée, de cap `heading`, revient-elle sur toutes les approches (plus de `TURN_BACK`) ?
+fn turning_back(ups: &[(P2, P2, f64)], heading: P2) -> bool {
+    !ups.is_empty() && ups.iter().all(|(_, d, _)| dot(*d, heading).clamp(-1.0, 1.0).acos() > TURN_BACK)
+}
+
+/// L'entrée de la place `q` revient-elle sur son approche (place juste après un virage, côté
+/// intérieur) ? Géométrie seule : la voie à `APPROACH` en amont, l'axe d'entrée de la place.
+pub fn turns_back(q: &[P2; 4], lanes: &[Lane]) -> bool {
+    let mouth = mid(q[2], q[3]);
+    serving(lanes, mouth).is_some_and(|lane| turning_back(&approaches(lanes, lane, mouth, APPROACH), unit(sub(mid(q[0], q[1]), mouth))))
+}
+
+/// Arrivée de l'approche : centre de la caisse près d'un point d'approche, dans la voie, au cap de la
+/// circulation ; et l'estimation qui guide la recherche vers lui.
+fn upstream_goal<'a>(v: &'a Vehicle, ups: &'a [(P2, P2, f64)]) -> (impl Fn(&Pose) -> bool + 'a, impl Fn(&Pose) -> f64 + 'a) {
+    let centre = move |p: &Pose| {
+        let c = (v.wheelbase + v.front_overhang - v.rear_overhang) / 2.0;
+        [p.x + c * p.heading.cos(), p.y + c * p.heading.sin()]
+    };
+    let goal = move |p: &Pose| {
+        let c = centre(p);
+        ups.iter().any(|&(g, d, w)| {
+            let r = sub(c, g);
+            let band = (w / 2.0 - v.width / 2.0 - 0.1).max(LANE_TOL);
+            dot(r, d).abs() <= APPROACH_TOL && (r[1] * d[0] - r[0] * d[1]).abs() <= band && wrap(p.heading - d[1].atan2(d[0])).abs() <= HEADING_TOL
+        })
+    };
+    let h = move |p: &Pose| {
+        let c = centre(p);
+        ups.iter().map(|&(g, d, _)| (c[0] - g[0]).hypot(c[1] - g[1]) + wrap(p.heading - d[1].atan2(d[0])).abs()).fold(f64::INFINITY, f64::min)
+    };
+    (goal, h)
+}
+
+/// La place `i`, dont l'entrée revient sur son approche, se prend-elle d'un seul tenant en arrivant
+/// de l'amont ? Recherche courte (budget d'un seul tenant), pour la conception du plan.
+pub fn enters_in_one_go(ctx: &Ctx, i: usize) -> bool {
+    let Prepared { park, scene, lane, mouth } = prepare(ctx, i);
+    let Some(lane) = lane else { return false };
+    let ups = approaches(ctx.lanes, lane, mouth, APPROACH);
+    let (goal, h) = upstream_goal(ctx.v, &ups);
+    let search = Search {
+        v: ctx.v,
+        profile: ctx.profile,
+        scene: &scene,
+        margin: ctx.margin,
+        costs: Costs { forward: FORWARD, reverse: REVERSE, cusp: 5.0, switch: 0.3, margin: 8.0, collision: None },
+        speed: (ctx.speed / 3.6).max(0.1),
+        first_reverse: true,
+        forward: false,
+        max_cusps: 0,
+        weight: 1.2,
+        centre: mouth,
+        radius: RADIUS,
+        max_nodes: NODES_DIRECT,
+    };
+    matches!(search.run(park, goal, h), Outcome::Found(_))
 }
 
 /// Teste la place `i` ; `illustrate` cherche en plus, si aucune manœuvre n'est possible, la moins
@@ -290,7 +436,7 @@ pub fn test_stall(ctx: &Ctx, i: usize, illustrate: bool) -> Tested {
             .map(|&(l, t)| ctx.table.get(l.signum() * (l.abs() - (band - LANE_TOL)).max(0.0), t))
             .fold(f64::INFINITY, f64::min)
     };
-    let search = |max_cusps: usize, cusp: f64, collision: Option<f64>, weight: f64, max_nodes: usize| {
+    let search = |max_cusps: usize, cusp: f64, collision: Option<f64>, weight: f64, max_nodes: usize, goal: &dyn Fn(&Pose) -> bool, h: &dyn Fn(&Pose) -> f64| {
         Search {
             v,
             profile: ctx.profile,
@@ -311,36 +457,62 @@ pub fn test_stall(ctx: &Ctx, i: usize, illustrate: bool) -> Tested {
     // Le moins de reprises possible : d'un seul tenant, puis 1 reprise au plus (chaque recherche reste
     // petite), puis sans limite. Seule l'exploration complète du domaine sans limite de reprises
     // conclut à l'impossibilité ; un budget épuisé laisse la question ouverte.
-    let mut found = None;
-    for k in 0..=STAGED_REPRISES {
-        let budget = if k == 0 { NODES_DIRECT } else { NODES_STAGE };
-        if let Outcome::Found(plan) = search(k, 5.0, None, 1.2, budget.min(ctx.max_nodes)) {
-            found = Some(plan);
-            break;
-        }
-    }
-    let (status, mut reason) = match found {
-        Some(_) => (Status::Feasible, None),
-        None => match search(usize::MAX, 12.0, None, 1.2, ctx.max_nodes) {
-            Outcome::Found(plan) => {
-                found = Some(plan);
-                (Status::Feasible, None)
+    let staged = |goal: &dyn Fn(&Pose) -> bool, h: &dyn Fn(&Pose) -> f64| -> (Option<Plan>, Status, Option<&'static str>) {
+        for k in 0..=STAGED_REPRISES {
+            let budget = if k == 0 { NODES_DIRECT } else { NODES_STAGE };
+            if let Outcome::Found(plan) = search(k, 5.0, None, 1.2, budget.min(ctx.max_nodes), goal, h) {
+                return (Some(plan), Status::Feasible, None);
             }
-            Outcome::Exhausted => (Status::Infeasible, Some("aucune manœuvre dans le domaine exploré")),
-            Outcome::Budget => (Status::Unknown, Some("budget de recherche épuisé")),
-        },
+        }
+        match search(usize::MAX, 12.0, None, 1.2, ctx.max_nodes, goal, h) {
+            Outcome::Found(plan) => (Some(plan), Status::Feasible, None),
+            Outcome::Exhausted => (None, Status::Infeasible, Some("aucune manœuvre dans le domaine exploré")),
+            Outcome::Budget => (None, Status::Unknown, Some("budget de recherche épuisé")),
+        }
     };
+    // Sortie : marche arrière, puis dans le sens de la voie. Sans autre contrainte, l'entrée est cette
+    // sortie parcourue à rebours.
+    let (mut exit, mut status, mut reason) = staged(&goal, &h);
+    // Entrée qui revient sur l'approche (place juste après un virage, côté intérieur) : cherchée
+    // depuis l'amont, la voiture arrivant alignée sur la voie dans le sens de la circulation.
+    let ups = approaches(ctx.lanes, lane, mouth, APPROACH);
+    let (up_goal, up_h) = upstream_goal(v, &ups);
+    let mut entry = None;
+    if turning_back(&ups, [park.heading.cos(), park.heading.sin()]) && exit.is_some() {
+        let (found, st, _) = staged(&up_goal, &up_h);
+        if found.is_none() {
+            status = st;
+            reason = Some(match st {
+                Status::Infeasible => "entrée impossible en arrivant de l'amont (virage ou carrefour)",
+                _ => "entrée depuis l'amont non conclue (budget de recherche épuisé)",
+            });
+        }
+        entry = Some(found);
+    }
     let mut collisions = 0;
-    if found.is_none() && illustrate {
+    if illustrate {
         // Illustration seulement : une reprise au plus suffit à montrer où la place bloque.
-        if let Outcome::Found(plan) = search(1, 5.0, Some(5.0), 2.0, NODES_CONTACT) {
-            collisions = plan.collisions;
-            found = Some(plan);
+        if exit.is_none() {
+            if let Outcome::Found(plan) = search(1, 5.0, Some(5.0), 2.0, NODES_CONTACT, &goal, &h) {
+                collisions = plan.collisions;
+                exit = Some(plan);
+            }
+        } else if let Some(None) = entry {
+            if let Outcome::Found(plan) = search(1, 5.0, Some(5.0), 2.0, NODES_CONTACT, &up_goal, &up_h) {
+                collisions = plan.collisions;
+                entry = Some(Some(plan));
+            }
         }
     }
-    let Some(plan) = found else {
+    let Some(exit) = exit else {
         reason = reason.or(Some("aucune manœuvre trouvée"));
         return Tested { park, scene, entry: Vec::new(), exit: Vec::new(), status, collisions: 0, reason };
     };
-    Tested { park, entry: reversed(&plan.pieces), exit: plan.pieces, status, collisions, scene, reason }
+    let entry = match entry {
+        None => reversed(&exit.pieces),
+        Some(Some(plan)) => reversed(&plan.pieces),
+        Some(None) => Vec::new(),
+    };
+    Tested { park, entry, exit: exit.pieces, status, collisions, scene, reason }
 }
+

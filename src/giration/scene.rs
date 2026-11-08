@@ -198,7 +198,7 @@ impl Scene {
         let kind_of = |a: P2, b: P2| {
             let (m, d) = (v2(0.5 * (a[0] + b[0]), 0.5 * (a[1] + b[1])), v2(b[0] - a[0], b[1] - a[1]));
             let n = v2(-d.y, d.x) * (SIDE / d.len().max(1e-12));
-            let hard_side = |p: V2| !drivable.contains(&Point::new(p.x, p.y)) && hard.iter().any(|r| r.contains(p));
+            let hard_side = |p: V2| hard.iter().any(|r| r.contains(p)) && !drivable.contains(&Point::new(p.x, p.y));
             if hard_side(m + n) || hard_side(m - n) {
                 ObstacleKind::Kerb
             } else {

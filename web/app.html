@@ -783,7 +783,7 @@ const POLY = { exclusion: "exclusions", landscape: "landscapes", basin: "basins"
 function normSite(s) { if (s && !s.basins) s.basins = []; if (s && s.gir && s.gir.margin === 0.2) s.gir.margin = 0.1; /* ancienne marge par défaut */ if (s && s.parcel) s.arcs = s.parcel.map((_, i) => (s.arcs && s.arcs[i]) || 0); if (s && s.landscapes) s.landscapes = s.landscapes.map((o) => (Array.isArray(o) ? o : rectPoly(o))); return s; }
 function polyArea(p) { let a = 0; for (let i = 0; i < p.length; i++) { const q = p[(i + 1) % p.length]; a += p[i][0] * q[1] - q[0] * p[i][1]; } return a / 2; }
 
-function engineInput(quick) {
+function engineInput(quick, turns = false) {
   const p = params;
   return {
     ...flatSite(), exclusions: site.exclusions.map(polyOutline),
@@ -793,7 +793,7 @@ function engineInput(quick) {
       slant: p.slant, stall_w: p.stall_w, stall_d: p.stall_d, noue_w: p.noue_w, basin_h: p.basin_h, basin_margin: p.basin_margin, aisle: p.aisle, aisle_one: p.aisle_one, entry_w: p.entry_w, building_margin: p.building_margin,
       planter_every: Math.max(0, Math.round(p.planter_every)), cap: p.cap,
       pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100, irve_equip_ratio: p.irve_equip_ratio / 100,
-      angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle,
+      angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle, turns: !!turns,
     },
   };
 }
@@ -1435,8 +1435,20 @@ function solve(quick) {
   // Repères du squelette recalés par le moteur sur le milieu de leur voie (une voie resserrée se décale).
   const ln = !quick && layout && layout.circulation && layout.circulation.lanes;
   if (ln && site.lanes && ln.length === site.lanes.length) site.lanes = ln;
-  if (!quick) { placesReset(); girRun(); }
+  if (!quick) { placesReset(); girRun(); refine(); }
   updateStats(quick); redraw();
+}
+// Places au sortir des virages : le contrôle (recherche de giration) tourne en arrière-plan ; le plan
+// affiché tout de suite est celui du calcul sans lui, remplacé s'il retire des places.
+let refineRev = 0;
+function refine() {
+  const rev = ++refineRev;
+  if (!layout || layout.error || !layout.stalls.length) return;
+  workerCall("solve_json", engineInput(false, true)).then((out) => {
+    if (rev !== refineRev || !out || out.error || !layout || layout.error || out.stalls.length === layout.stalls.length) return;
+    layout = out;
+    placesReset(); girRun(); updateStats(false); redraw();
+  }).catch(() => {});
 }
 let solveQueued = false, solveQuick = false;
 function requestSolve(quick) { solveQuick = quick; if (!solveQueued) { solveQueued = true; requestAnimationFrame(() => { solveQueued = false; solve(solveQuick); }); } }
@@ -3031,7 +3043,7 @@ function placesWorker(k) {
       if (m.wasm) { ready = WebAssembly.instantiate(m.wasm, {}).then((r) => r.instance.exports); return; }
       try {
         const ex = await ready, b = new TextEncoder().encode(m.input), p = ex.alloc(b.length); new Uint8Array(ex.memory.buffer, p, b.length).set(b);
-        const o = ex.giration_places_json(p, b.length), out = new TextDecoder().decode(new Uint8Array(ex.memory.buffer, o, ex.out_len()));
+        const o = ex[m.fn](p, b.length), out = new TextDecoder().decode(new Uint8Array(ex.memory.buffer, o, ex.out_len()));
         ex.dealloc(p, b.length); postMessage({ id: m.id, out });
       } catch (err) { postMessage({ id: m.id, out: JSON.stringify({ error: String(err) }) }); } };`;
     const w = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
@@ -3041,15 +3053,17 @@ function placesWorker(k) {
   return places.pool[k];
 }
 let placesSeq = 0;
-function placesCall(input, k = 0) {
+function placesCall(input, k = 0) { return workerCall("giration_places_json", input, k); }
+// Appel du moteur dans un Web Worker (repli : sur le fil principal, après l'affichage en cours).
+function workerCall(fn, input, k = 0) {
   const w = placesWorker(k), json = JSON.stringify(input);
-  if (!w) return new Promise((res) => setTimeout(() => res(Engine.call("giration_places_json", input)), 0));
+  if (!w) return new Promise((res) => setTimeout(() => res(Engine.call(fn, input)), 0));
   return new Promise((res, rej) => {
     const id = ++placesSeq;
     const on = (e) => { if (e.data.id !== id) return; w.removeEventListener("message", on); w.removeEventListener("error", bad); res(JSON.parse(e.data.out)); };
     const bad = (e) => { w.removeEventListener("message", on); w.removeEventListener("error", bad); places.pool[k] = null; rej(e); };
     w.addEventListener("message", on); w.addEventListener("error", bad);
-    w.postMessage({ id, input: json });
+    w.postMessage({ id, fn, input: json });
   });
 }
 async function testPlaces() {
@@ -3174,7 +3188,8 @@ async function exportDxf() {
     vehicules: dr.cars.map((c) => ({ b: c.v.bloc, p: [+c.x.toFixed(3), +c.y.toFixed(3)], a: +c.a.toFixed(2) })),
     arbres: dr.trees.map((t) => ({ b: t.sp.bloc, p: [t.x, t.y], a: +t.a.toFixed(1), s: +t.s.toFixed(3) })),
   };
-  const input = { site: engineInput(false), georef: null, crs, off, cadastre: {}, date: "", dress };
+  // Plan complet, places au sortir des virages contrôlées, comme le plan affiché une fois mis à jour.
+  const input = { site: engineInput(false, true), georef: null, crs, off, cadastre: {}, date: "", dress };
   if (gir) input.giration = girEpure(site.gir);
   let commune = "";
   if (geo) {

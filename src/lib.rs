@@ -205,22 +205,49 @@ pub(crate) fn mp_of_quads(qs: &[Quad]) -> MultiPolygon<f64> {
 }
 
 pub fn solve(site: &Site) -> Layout {
-    let first = solve_flow(site, None);
+    let first = solve_flow(site, None, Vec::new());
+    if site.params.quick || first.stalls.is_empty() {
+        return first;
+    }
+    // Les calculs suivants gardent le réseau et les sens du premier.
+    let kept = (circulation::Flow::new(&first.circulation.axes), first.circulation.clone());
     // Places inclinées : le sens des voies n'est connu qu'en fin de calcul. Les places qui
-    // déboucheraient à contresens sont reposées inclinées dans l'autre sens (pas pendant un glisser).
-    if !site.params.oblique() || site.params.quick {
-        return first;
-    }
-    let flow = circulation::Flow::new(&first.circulation.axes);
+    // déboucheraient à contresens sont reposées inclinées dans l'autre sens.
     let quad = |q: &[P2; 4]| Quad([v2(q[0][0], q[0][1]), v2(q[1][0], q[1][1]), v2(q[2][0], q[2][1]), v2(q[3][0], q[3][1])]);
-    if !first.stalls.iter().any(|s| flow.against(&quad(&s.q))) {
-        return first;
+    let lay = if site.params.oblique() && first.stalls.iter().any(|s| kept.0.against(&quad(&s.q))) {
+        solve_flow(site, Some(kept.clone()), Vec::new())
+    } else {
+        first
+    };
+    // Places juste après un virage, côté intérieur, qui ne se prennent pas d'un seul tenant en
+    // arrivant de l'amont : remplacées par un îlot planté.
+    // Un îlot à la place d'une voiture garée peut gêner la voisine : contrôle repris sur le plan
+    // obtenu, jusqu'à ce qu'il ne retire plus rien (trois fois au plus).
+    if !site.params.turns {
+        return lay;
     }
-    // Le second calcul garde le réseau et les sens du premier : les places y sont inclinées.
-    solve_flow(site, Some((flow, first.circulation)))
+    let (mut out, mut removed) = (lay, Vec::new());
+    for _ in 0..3 {
+        let more = giration::api::unreachable_after_turns(site, &out);
+        if more.is_empty() {
+            break;
+        }
+        removed.extend(more.iter().map(|p| v2(p[0], p[1])));
+        out = solve_flow(site, Some(kept.clone()), removed.clone());
+    }
+    let n = removed.len();
+    if n == 0 {
+        return out;
+    }
+    out.warnings.push(if n == 1 {
+        "1 place retirée : au sortir d'un virage, elle ne se prend pas d'un seul tenant".into()
+    } else {
+        format!("{n} places retirées : au sortir d'un virage, elles ne se prennent pas d'un seul tenant")
+    });
+    out
 }
 
-fn solve_flow(site: &Site, flow: Option<(circulation::Flow, circulation::Circulation)>) -> Layout {
+fn solve_flow(site: &Site, flow: Option<(circulation::Flow, circulation::Circulation)>, removed: Vec<V2>) -> Layout {
     let p = &site.params;
     let mut out = Layout::default();
     let Some(mut z) = region::build(site) else {
@@ -284,6 +311,7 @@ fn solve_flow(site: &Site, flow: Option<(circulation::Flow, circulation::Circula
     let (flow, kept) = flow.unzip();
     let mut acc = Acc::new();
     acc.flow = flow;
+    acc.removed = removed;
     acc.noue_off = site.noue_off.clone();
     acc.traverses = site.traverses.clone();
     if p.perimeter {

@@ -1067,6 +1067,31 @@ fn a_planned_manoeuvre_keeps_its_tyres_off_the_kerbs_at_the_check() {
     assert_eq!(p.entry.conflicts + p.exit.conflicts, 0, "{}", serde_json::to_string(&p).unwrap());
 }
 
+/// Voie à sens unique de 6 m qui file vers l'est puis tourne à angle droit vers le sud (coin
+/// intérieur en (34, 50)) ; une place à 90° sur le côté ouest de la branche sud, fond à x = 29,
+/// entre les ordonnées `y` et `y + 2,5`.
+fn corner_case(y: f64) -> trame::giration::api::PlaceOut {
+    let path = format!("{}/scenarios/rect.json", env!("CARGO_MANIFEST_DIR"));
+    let site: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    let input = serde_json::json!({ "site": site, "layout": {
+        "paved": [[[10.0, 50.0], [34.0, 50.0], [34.0, 10.0], [40.0, 10.0], [40.0, 56.0], [10.0, 56.0]]],
+        "pads": [], "islands": [], "entries": [], "cross": [],
+        "stalls": [[[29.0, y + 2.5], [29.0, y], [34.0, y], [34.0, y + 2.5]]],
+        "axes": [{ "pts": [[10.0, 53.0], [37.0, 53.0], [37.0, 10.0]], "w": 6.0, "sens": 1 }] } });
+    places(&serde_json::from_value(input).unwrap()).places.remove(0)
+}
+
+#[test]
+fn a_stall_right_after_a_turn_is_entered_from_upstream() {
+    // Juste après le virage, côté intérieur : en arrivant de l'amont, il faudrait tourner de 180° en
+    // quelques mètres. La voiture ne peut pas partir de la branche sud déjà alignée, au pied de la place.
+    let p = corner_case(47.5);
+    assert!(!matches!(p.verdict, "vert" | "bleu"), "{}", serde_json::to_string(&p).unwrap());
+    // 15 m plus bas, la voie est droite en amont : accessible.
+    let p = corner_case(32.5);
+    assert!(matches!(p.verdict, "vert" | "bleu"), "{}", serde_json::to_string(&p).unwrap());
+}
+
 #[test]
 fn every_stall_of_the_reference_scenarios_is_rated() {
     for name in ["rect", "ruisseau"] {

@@ -615,6 +615,9 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, nw: f64, rf: f64, m: usize, r
                 if planter[k] {
                     acc.islands.push(wq);
                     acc.trees.push(wq.center());
+                } else if acc.is_removed(&wq) {
+                    // Place retirée à la conception : un îlot planté la remplace.
+                    acc.islands.push(wq);
                 } else {
                     acc.hash.insert(wq);
                     acc.stalls.push(Stall {

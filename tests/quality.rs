@@ -91,13 +91,17 @@ fn scenarios_respect_invariants() {
     for name in ["rect", "courbe", "ruisseau", "triangle", "etroit"] {
         let site = load(name);
         // Meilleur de trois calculs : les autres tests tournent en parallèle sur la même machine.
+        // Calcul affiché tout de suite : sans le contrôle des places au sortir des virages, que
+        // l'interface lance en arrière-plan.
+        let mut direct = site.clone();
+        direct.params.turns = false;
         let mut ms = f64::INFINITY;
-        let mut lay = trame::solve(&site);
         for _ in 0..3 {
             let t = std::time::Instant::now();
-            lay = trame::solve(&site);
+            trame::solve(&direct);
             ms = ms.min(t.elapsed().as_secs_f64() * 1000.0);
         }
+        let lay = trame::solve(&site);
         check(&site, &lay, name);
         assert!(
             lay.metrics.stalls > 150,
@@ -504,10 +508,18 @@ fn skeleton_toggles_lane_typology_and_keeps_the_site_connected() {
                 touched.sens,
                 c.refused
             );
-            assert_eq!(
-                lay.stalls.len(),
-                base.stalls.len(),
-                "{name}: la typologie ne change pas la géométrie"
+            // La typologie ne déplace aucune place ; elle peut en retirer, devenues inaccessibles au
+            // sortir d'un virage (signalé).
+            let retired: usize = lay
+                .warnings
+                .iter()
+                .find(|w| w.contains("retirée"))
+                .and_then(|w| w.split_whitespace().next()?.parse().ok())
+                .unwrap_or(0);
+            assert_eq!(lay.stalls.len() + retired, base.stalls.len(), "{name}: la typologie ne change pas la géométrie {:?}", lay.warnings);
+            assert!(
+                lay.stalls.iter().all(|s| base.stalls.iter().any(|b| b.q == s.q)),
+                "{name}: une place a bougé"
             );
             check_circulation(&lay, name);
         }
@@ -838,6 +850,31 @@ fn oblique_stalls_lean_with_the_traffic_of_their_lane() {
         let bad = against_flow(&lay);
         if !bad.is_empty() {
             report.push(format!("{tag} : {} places à contresens sur {}, dont {:?}", bad.len(), lay.stalls.len(), &bad[..bad.len().min(3)]));
+        }
+    }
+    assert!(report.is_empty(), "{}", report.join("\n"));
+}
+
+#[test]
+fn no_stall_turns_back_on_an_approach_it_cannot_take_in_one_go() {
+    // Plan de la capture du 8 novembre 2026 (ruisseau sans servitude, 30°) et voisins : aucune place
+    // dont l'entrée revient sur l'approche (place juste après un virage, côté intérieur) sans pouvoir
+    // se prendre d'un seul tenant en arrivant de l'amont.
+    let mut report = Vec::new();
+    for (name, slant, easement) in [("ruisseau", 30.0, false), ("ruisseau", 60.0, true), ("rect", 45.0, true), ("triangle", 60.0, true)] {
+        let mut site = load(name);
+        if !easement {
+            site.exclusions.clear();
+        }
+        site.params.slant = slant;
+        let lay = trame::solve(&site);
+        let bad = trame::giration::api::unreachable_after_turns(&site, &lay);
+        if !bad.is_empty() {
+            report.push(format!("{name} à {slant}° : {} places, dont {:?}", bad.len(), bad.first()));
+        }
+        if name == "ruisseau" && slant == 30.0 {
+            // La place de la capture, au sortir du virage du coin planté.
+            assert!(lay.stalls.iter().all(|s| { let c = quad(&s.q).center(); (c.x - 32.3).hypot(c.y - 41.5) > 1.5 }), "place de la capture toujours là");
         }
     }
     assert!(report.is_empty(), "{}", report.join("\n"));

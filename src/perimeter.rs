@@ -300,7 +300,16 @@ pub fn place(b: &Region, drive: &Region, p: &Params, entries: &[Quad], acc: &mut
                 let ok = ok_geom
                     && drive.contains_quad(&box_, TOL)
                     && !acc.hash.hits(&box_.shrink(TOL));
-                if ok {
+                if ok && acc.is_removed(&q) {
+                    // Place retirée à la conception : un îlot planté la remplace, sans décaler les
+                    // îlots réguliers de la rangée.
+                    acc.islands.push(q);
+                    acc.hash.insert(q);
+                    idx += 1;
+                    run += 1;
+                    s = s1;
+                    last_ok = true;
+                } else if ok {
                     if !last_ok && idx > 0 {
                         row = acc.new_row();
                     }

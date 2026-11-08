@@ -121,6 +121,9 @@ pub struct Params {
     pub phase: Option<f64>,
     /// Recherche réduite autour de `angle_hint` (pendant un glisser).
     pub quick: bool,
+    /// Contrôle des places au sortir des virages (recherche de giration, plus lent) : l'interface le
+    /// lance en arrière-plan, après avoir affiché le plan calculé sans lui.
+    pub turns: bool,
     pub angle_hint: Option<f64>,
 }
 
@@ -226,6 +229,7 @@ impl Default for Params {
             angle: None,
             phase: None,
             quick: false,
+            turns: true,
             angle_hint: None,
         }
     }
