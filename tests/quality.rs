@@ -879,3 +879,34 @@ fn no_stall_turns_back_on_an_approach_it_cannot_take_in_one_go() {
     }
     assert!(report.is_empty(), "{}", report.join("\n"));
 }
+
+/// Plan de la capture du 8 novembre 2026, 22 h 21 : plan par défaut de l'application, sans servitude,
+/// places à 45°.
+fn capture_45(turns: bool) -> (Site, Layout) {
+    let mut site = load("capture45");
+    site.params.turns = turns;
+    let lay = trame::solve(&site);
+    (site, lay)
+}
+
+#[test]
+fn leaning_with_the_traffic_keeps_the_places_the_other_lean_allows() {
+    // Places de bordure reprises dans l'autre inclinaison : à gauche de l'accès haut et en tête de la
+    // colonne de bordure gauche, l'autre inclinaison laisse la place qu'il faut.
+    let (_, lay) = capture_45(false);
+    let centres: Vec<V2> = lay.stalls.iter().map(|s| quad(&s.q).center()).collect();
+    let top = centres.iter().filter(|c| c.y > 99.5 && c.x < 37.0).count();
+    assert!(top >= 5, "{top} places en haut, à gauche de l'accès ({} en tout)", lay.stalls.len());
+    assert!(centres.iter().any(|c| c.x < 9.0 && c.y > 93.0 && c.y < 99.0), "tête de la colonne gauche ({} en tout)", lay.stalls.len());
+}
+
+#[test]
+fn a_place_retired_after_a_turn_gives_its_room_back_to_the_next_row() {
+    // Au sortir du virage du coin planté, la tête de la colonne est retirée ; la rangée qui longe la
+    // voie d'arrivée gagne une place sur l'angle ainsi libéré.
+    let (_, lay) = capture_45(true);
+    let centres: Vec<V2> = lay.stalls.iter().map(|s| quad(&s.q).center()).collect();
+    let near = |x: f64, y: f64| centres.iter().any(|c| (c.x - x).hypot(c.y - y) < 1.0);
+    assert!(!near(32.65, 40.88), "tête de colonne au sortir du virage toujours là");
+    assert!(near(27.0, 42.65), "pas de place en bout de rangée sur l'angle libéré ({} en tout)", lay.stalls.len());
+}

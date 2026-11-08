@@ -220,9 +220,9 @@ pub fn solve(site: &Site) -> Layout {
         first
     };
     // Places juste après un virage, côté intérieur, qui ne se prennent pas d'un seul tenant en
-    // arrivant de l'amont : remplacées par un îlot planté.
-    // Un îlot à la place d'une voiture garée peut gêner la voisine : contrôle repris sur le plan
-    // obtenu, jusqu'à ce qu'il ne retire plus rien (trois fois au plus).
+    // arrivant de l'amont : retirées ; leur emplacement reste planté, ou une rangée voisine déborde
+    // sur lui. Le plan change autour : contrôle repris sur le plan obtenu, jusqu'à ce qu'il ne
+    // retire plus rien (trois fois au plus).
     if !site.params.turns {
         return lay;
     }
@@ -232,7 +232,7 @@ pub fn solve(site: &Site) -> Layout {
         if more.is_empty() {
             break;
         }
-        removed.extend(more.iter().map(|p| v2(p[0], p[1])));
+        removed.extend(more.iter().map(quad));
         out = solve_flow(site, Some(kept.clone()), removed.clone());
     }
     let n = removed.len();
@@ -247,7 +247,7 @@ pub fn solve(site: &Site) -> Layout {
     out
 }
 
-fn solve_flow(site: &Site, flow: Option<(circulation::Flow, circulation::Circulation)>, removed: Vec<V2>) -> Layout {
+fn solve_flow(site: &Site, flow: Option<(circulation::Flow, circulation::Circulation)>, removed: Vec<Quad>) -> Layout {
     let p = &site.params;
     let mut out = Layout::default();
     let Some(mut z) = region::build(site) else {

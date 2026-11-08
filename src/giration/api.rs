@@ -419,12 +419,11 @@ pub fn places(inp: &PlacesIn) -> PlacesOut {
     places_with(inp, &Vehicle::vl2026())
 }
 
-/// Test des places avec un autre véhicule que le VL 2026.
 /// Conception du plan : places dont l'entrée revient sur l'approche (juste après un virage, côté
 /// intérieur) et qui ne se prennent pas d'un seul tenant en arrivant de l'amont, avec les hypothèses
 /// par défaut (VL 2026, conducteur habile, 5 km/h, marge de 0,10 m, bordure T2, voisines garées).
-/// Centre de chacune.
-pub fn unreachable_after_turns(site: &Site, lay: &Layout) -> Vec<P2> {
+/// Chacune telle qu'elle est posée.
+pub fn unreachable_after_turns(site: &Site, lay: &Layout) -> Vec<[P2; 4]> {
     let stalls: Vec<[P2; 4]> = lay.stalls.iter().map(|s| s.q).collect();
     let lanes: Vec<Lane> = lay.circulation.axes.iter().map(|a| Lane { pts: a.pts.clone(), w: a.w, sens: a.sens }).collect();
     let suspects: Vec<usize> = (0..stalls.len()).filter(|&i| turns_back(&stalls[i], &lanes)).collect();
@@ -440,13 +439,11 @@ pub fn unreachable_after_turns(site: &Site, lay: &Layout) -> Vec<P2> {
     suspects
         .into_iter()
         .filter(|&i| !enters_in_one_go(&ctx, i))
-        .map(|i| {
-            let q = &stalls[i];
-            [(q[0][0] + q[1][0] + q[2][0] + q[3][0]) / 4.0, (q[0][1] + q[1][1] + q[2][1] + q[3][1]) / 4.0]
-        })
+        .map(|i| stalls[i])
         .collect()
 }
 
+/// Test des places avec un autre véhicule que le VL 2026.
 pub fn places_with(inp: &PlacesIn, v: &Vehicle) -> PlacesOut {
     let v = v.clone();
     let profile = profile_of(&inp.profile);

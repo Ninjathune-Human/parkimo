@@ -50,8 +50,8 @@ pub struct Acc {
     /// Sens de circulation d'un premier calcul : les places inclinées qui déboucheraient à
     /// contresens s'inclinent dans l'autre sens.
     pub flow: Option<crate::circulation::Flow>,
-    /// Places retirées à la conception (centre) : un îlot planté les remplace.
-    pub removed: Vec<V2>,
+    /// Places retirées à la conception, telles qu'elles étaient posées.
+    pub removed: Vec<Quad>,
 }
 
 impl Acc {
@@ -77,7 +77,11 @@ impl Acc {
     /// L'emplacement `q` porte-t-il une place retirée à la conception ? Repérée par son centre, qui
     /// tombe dans un seul emplacement, même pour une place PMR élargie sur plusieurs.
     pub fn is_removed(&self, q: &Quad) -> bool {
-        self.removed.iter().any(|r| q.contains(*r))
+        self.removed.iter().any(|r| q.contains(r.center()))
+    }
+    /// La place `q` empiète-t-elle sur l'emplacement d'une place retirée à la conception ?
+    pub fn on_removed(&self, q: &Quad) -> bool {
+        self.removed.iter().any(|r| r.overlaps(q))
     }
     pub fn new_row(&mut self) -> u32 {
         self.next_row += 1;

@@ -1,6 +1,7 @@
 //! Places périphériques : on longe chaque limite de la zone B (extérieure et trous),
 //! y compris les bords courbes, en posant des places perpendiculaires au bord local.
 
+use crate::circulation::Flow;
 use crate::geom::{Quad, Region, V2};
 use crate::layout::{Acc, Stall, KIND_STD};
 use crate::model::Params;
@@ -166,11 +167,24 @@ fn build_stall(ch: &Chain, s: f64, w: f64, d: f64, c: f64, s_end: f64) -> Result
     Err(false)
 }
 
+/// Inclinaison de la place posée en `s` : celle du plan (`c`), ou l'autre si la place déboucherait à
+/// contresens (au droit d'un carrefour où le sens change, ni l'une ni l'autre ne convient : celle du
+/// plan reste).
+fn lean(ch: &Chain, s: f64, w: f64, d: f64, c: f64, s_end: f64, flow: Option<&Flow>) -> f64 {
+    let Some(f) = flow.filter(|_| c != 0.0) else {
+        return c;
+    };
+    match (build_stall(ch, s, w, d, c, s_end), build_stall(ch, s, w, d, -c, s_end)) {
+        (Ok((_, _, q)), Ok((_, _, r))) if f.against(&q) && !f.against(&r) => -c,
+        _ => c,
+    }
+}
+
 /// Tronçons libres d'une chaîne entre les obstacles (accès, cheminements d'entrée de bâtiment) :
 /// (début de la première place, fin permise). Le reste de place de chaque tronçon est réparti
 /// équitablement de part et d'autre de chaque obstacle (même jeu des deux côtés, au plus le reste
 /// disponible), sans jamais perdre une place.
-fn segments(ch: &Chain, w: f64, d: f64, c: f64, s0: f64, s_end: f64, entries: &[Quad]) -> Vec<(f64, f64)> {
+fn segments(ch: &Chain, w: f64, d: f64, lean: &dyn Fn(f64) -> f64, s0: f64, s_end: f64, entries: &[Quad]) -> Vec<(f64, f64)> {
     const SCAN: f64 = 0.1;
     // Intervalles bloqués : (fin de la dernière place possible, début de la première place libre).
     let mut obs: Vec<(f64, f64)> = Vec::new();
@@ -178,7 +192,7 @@ fn segments(ch: &Chain, w: f64, d: f64, c: f64, s0: f64, s_end: f64, entries: &[
         let mut cur: Option<f64> = None;
         let mut s = s0;
         while s + w <= s_end + 1e-6 {
-            if let Ok((s1, _, q)) = build_stall(ch, s, w, d, c, s_end) {
+            if let Ok((s1, _, q)) = build_stall(ch, s, w, d, lean(s), s_end) {
                 let hit = entries.iter().any(|e| e.overlaps(&q));
                 match (hit, cur) {
                     (true, None) => cur = Some(s1 - SCAN),
@@ -210,7 +224,7 @@ fn segments(ch: &Chain, w: f64, d: f64, c: f64, s0: f64, s_end: f64, entries: &[
         .iter()
         .map(|&(a, b)| {
             let (mut s, mut e) = (a, a);
-            while let Ok((s1, _, _)) = build_stall(ch, s, w, d, c, b) {
+            while let Ok((s1, _, _)) = build_stall(ch, s, w, d, lean(s), b) {
                 s = s1;
                 e = s1;
             }
@@ -248,6 +262,7 @@ pub fn place(b: &Region, drive: &Region, p: &Params, entries: &[Quad], acc: &mut
     let (w, d, c) = (p.row_pitch(), p.row_d(), p.row_shear());
     let a_chk = (p.row_aisle() - 0.3).max(3.0);
     let mut chains: Vec<Chain> = b.rings.iter().flat_map(|r| chains_of(r)).collect();
+    let flow = acc.flow.clone();
     chains.sort_by(|x, y| y.len().partial_cmp(&x.len()).unwrap());
 
     for ch in &chains {
@@ -255,23 +270,30 @@ pub fn place(b: &Region, drive: &Region, p: &Params, entries: &[Quad], acc: &mut
         let chain_start = corner_trim(ch.turn_start, d, a_chk);
         // Sur un arc, un îlot est un coin de verdure entre deux places en éventail : on n'en pose pas.
         let planter_every = if ch.is_curved() { 0 } else { p.planter_every };
-        for (seg_start, s_end) in segments(ch, w, d, c, chain_start, chain_end, entries) {
+        // Au bout d'une chaîne qui contourne un angle saillant, la dernière place peut déborder sur
+        // l'angle quand une place retirée à la conception l'a libéré.
+        let reach = if ch.turn_end < -CORNER { w } else { 0.0 };
+        let lean_at = |s: f64| lean(ch, s, w, d, c, chain_end + reach, flow.as_ref());
+        // Place posable : dans la zone, libre, hors des accès, son aire de manœuvre dans la chaussée.
+        let fits = |acc: &Acc, q: &Quad, n: V2| {
+            let box_ = Quad::on_base(q.0[3], q.0[2], n, a_chk);
+            b.contains_quad(q, TOL)
+                && !acc.hash.hits(&q.shrink(TOL))
+                && !acc.access.hits(&q.shrink(TOL))
+                && !entries.iter().any(|e| e.overlaps(q))
+                && drive.contains_quad(&box_, TOL)
+                && !acc.hash.hits(&box_.shrink(TOL))
+        };
+        for (seg_start, s_end) in segments(ch, w, d, &lean_at, chain_start, chain_end, entries) {
+            let s_lim = if s_end >= chain_end - 1e-9 { s_end + reach } else { s_end };
             let mut s = seg_start;
             let mut row = acc.new_row();
             let mut idx = 0i32;
             let mut run = 0u32;
             let mut last_ok = false;
-            while s + w <= s_end + 1e-6 {
-                // Place qui déboucherait à contresens : inclinée dans l'autre sens, si celui-ci convient
-                // (au droit d'un carrefour où le sens change, ni l'un ni l'autre ne convient).
-                let built = match (build_stall(ch, s, w, d, c, s_end), &acc.flow) {
-                    (Ok((s1, n, q)), Some(f)) if c != 0.0 && f.against(&q) => match build_stall(ch, s, w, d, -c, s_end) {
-                        Ok((t1, m, r)) if !f.against(&r) => Ok((t1, m, r)),
-                        _ => Ok((s1, n, q)),
-                    },
-                    (b, _) => b,
-                };
-                let (s1, n, q) = match built {
+            while s + w <= s_lim + 1e-6 {
+                let l = lean_at(s);
+                let (s1, n, q) = match build_stall(ch, s, w, d, l, s_lim) {
                     Ok(x) => x,
                     Err(true) => break,
                     Err(false) => {
@@ -281,6 +303,31 @@ pub fn place(b: &Region, drive: &Region, p: &Params, entries: &[Quad], acc: &mut
                         continue;
                     }
                 };
+                // Place qui ne tient pas dans son inclinaison quand la pose reprend plus loin dans l'autre,
+                // ou ne reprend pas (tête de colonne contre un angle) : posée dans l'autre inclinaison, si
+                // elle donne dans le sens d'une voie à sens unique.
+                let other_next = |acc: &Acc| {
+                    let mut t = s + STEP;
+                    while t + w <= s_lim + 1e-6 {
+                        let lt = lean_at(t);
+                        if matches!(build_stall(ch, t, w, d, lt, s_lim), Ok((_, m, r)) if fits(acc, &r, m)) {
+                            return lt != l;
+                        }
+                        t += STEP;
+                    }
+                    true
+                };
+                let (s1, n, q) = match &flow {
+                    Some(f) if c != 0.0 && !fits(acc, &q, n) => match build_stall(ch, s, w, d, -l, s_lim) {
+                        Ok((t1, m, r)) if f.with(&r) && fits(acc, &r, m) && other_next(acc) => (t1, m, r),
+                        _ => (s1, n, q),
+                    },
+                    _ => (s1, n, q),
+                };
+                // Débord sur l'angle : seulement sur une place retirée, et sans entamer la chaussée.
+                if s1 > s_end + 1e-6 && !(acc.on_removed(&q) && !q.shrink(TOL).0.iter().chain([q.center()].iter()).any(|&p| drive.contains(p))) {
+                    break;
+                }
                 let planter_turn = planter_every > 0 && run >= planter_every;
                 let ok_geom = b.contains_quad(&q, TOL)
                     && !acc.hash.hits(&q.shrink(TOL))
@@ -297,14 +344,10 @@ pub fn place(b: &Region, drive: &Region, p: &Params, entries: &[Quad], acc: &mut
                     continue;
                 }
                 let box_ = Quad::on_base(q.0[3], q.0[2], n, a_chk);
-                let ok = ok_geom
-                    && drive.contains_quad(&box_, TOL)
-                    && !acc.hash.hits(&box_.shrink(TOL));
+                let ok = fits(acc, &q, n);
                 if ok && acc.is_removed(&q) {
-                    // Place retirée à la conception : un îlot planté la remplace, sans décaler les
-                    // îlots réguliers de la rangée.
-                    acc.islands.push(q);
-                    acc.hash.insert(q);
+                    // Place retirée à la conception : l'emplacement reste libre (espace planté, ou
+                    // débord d'une place voisine), sans décaler les îlots réguliers de la rangée.
                     idx += 1;
                     run += 1;
                     s = s1;

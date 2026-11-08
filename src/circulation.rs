@@ -59,6 +59,17 @@ impl Flow {
     /// sens unique ? Son axe d'entrée, de l'ouverture vers le fond, va alors contre la circulation
     /// de la voie la plus proche, lue à 1 m devant l'ouverture.
     pub fn against(&self, q: &Quad) -> bool {
+        self.along(q).is_some_and(|c| c < -0.1)
+    }
+
+    /// La place `q` débouche-t-elle dans le sens d'une voie à sens unique ?
+    pub fn with(&self, q: &Quad) -> bool {
+        self.along(q).is_some_and(|c| c > 0.1)
+    }
+
+    /// Cosinus entre l'axe d'entrée de `q` et la circulation de la voie à sens unique sur laquelle
+    /// elle débouche ; aucun si la voie la plus proche est à double sens ou hors de portée.
+    fn along(&self, q: &Quad) -> Option<f64> {
         let (front, back) = ((q.0[2] + q.0[3]) * 0.5, (q.0[0] + q.0[1]) * 0.5);
         let a = (back - front).norm();
         let p = front - a * 1.0;
@@ -67,10 +78,8 @@ impl Flow {
             let t = ((p - s.0).dot(ab) / ab.dot(ab).max(1e-12)).clamp(0.0, 1.0);
             (s.0 + ab * t - p).len()
         };
-        let Some(s) = self.segs.iter().min_by(|x, y| dist(x).total_cmp(&dist(y))) else {
-            return false;
-        };
-        s.3 && dist(s) <= s.2 * 0.5 + 0.5 && (s.1 - s.0).norm().dot(a) < -0.1
+        let s = self.segs.iter().min_by(|x, y| dist(x).total_cmp(&dist(y)))?;
+        (s.3 && dist(s) <= s.2 * 0.5 + 0.5).then(|| (s.1 - s.0).norm().dot(a))
     }
 }
 
