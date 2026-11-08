@@ -205,6 +205,22 @@ pub(crate) fn mp_of_quads(qs: &[Quad]) -> MultiPolygon<f64> {
 }
 
 pub fn solve(site: &Site) -> Layout {
+    let first = solve_flow(site, None);
+    // Places inclinées : le sens des voies n'est connu qu'en fin de calcul. Les places qui
+    // déboucheraient à contresens sont reposées inclinées dans l'autre sens (pas pendant un glisser).
+    if !site.params.oblique() || site.params.quick {
+        return first;
+    }
+    let flow = circulation::Flow::new(&first.circulation.axes);
+    let quad = |q: &[P2; 4]| Quad([v2(q[0][0], q[0][1]), v2(q[1][0], q[1][1]), v2(q[2][0], q[2][1]), v2(q[3][0], q[3][1])]);
+    if !first.stalls.iter().any(|s| flow.against(&quad(&s.q))) {
+        return first;
+    }
+    // Le second calcul garde le réseau et les sens du premier : les places y sont inclinées.
+    solve_flow(site, Some((flow, first.circulation)))
+}
+
+fn solve_flow(site: &Site, flow: Option<(circulation::Flow, circulation::Circulation)>) -> Layout {
     let p = &site.params;
     let mut out = Layout::default();
     let Some(mut z) = region::build(site) else {
@@ -265,7 +281,9 @@ pub fn solve(site: &Site) -> Layout {
     }
     let core_rings = region::rings_of(&z.core, 1.0);
 
+    let (flow, kept) = flow.unzip();
     let mut acc = Acc::new();
+    acc.flow = flow;
     acc.noue_off = site.noue_off.clone();
     acc.traverses = site.traverses.clone();
     if p.perimeter {
@@ -550,9 +568,14 @@ pub fn solve(site: &Site) -> Layout {
         // Places inclinées : deux allées voisines sont parcourues en sens inverses, chaque rangée
         // double s'incline vers le sens de l'allée qu'elle borde. Ces sens sont imposés à l'analyse
         // (sans repère visible pour le concepteur, dont les propres repères restent prioritaires).
-        let hints = if p.oblique() { aisle_hints(&rows, &paved_rings, p, &stalls) } else { Vec::new() };
-        out.circulation =
-            circulation::analyse(&paved_rings, &lanes, &entries, p.aisle, one, &rules, &hints);
+        // Second calcul des places inclinées : réseau et sens du premier, repris tels quels.
+        out.circulation = match kept {
+            Some(c) => c,
+            None => {
+                let hints = if p.oblique() { aisle_hints(&rows, &paved_rings, p, &stalls) } else { Vec::new() };
+                circulation::analyse(&paved_rings, &lanes, &entries, p.aisle, one, &rules, &hints)
+            }
+        };
         for &(i, regular, actual) in &rows.narrowed {
             let r = &mut out.circulation.lanes[narrow_rule[i]];
             if r.fix {

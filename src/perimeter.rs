@@ -262,7 +262,16 @@ pub fn place(b: &Region, drive: &Region, p: &Params, entries: &[Quad], acc: &mut
             let mut run = 0u32;
             let mut last_ok = false;
             while s + w <= s_end + 1e-6 {
-                let (s1, n, q) = match build_stall(ch, s, w, d, c, s_end) {
+                // Place qui déboucherait à contresens : inclinée dans l'autre sens, si celui-ci convient
+                // (au droit d'un carrefour où le sens change, ni l'un ni l'autre ne convient).
+                let built = match (build_stall(ch, s, w, d, c, s_end), &acc.flow) {
+                    (Ok((s1, n, q)), Some(f)) if c != 0.0 && f.against(&q) => match build_stall(ch, s, w, d, -c, s_end) {
+                        Ok((t1, m, r)) if !f.against(&r) => Ok((t1, m, r)),
+                        _ => Ok((s1, n, q)),
+                    },
+                    (b, _) => b,
+                };
+                let (s1, n, q) = match built {
                     Ok(x) => x,
                     Err(true) => break,
                     Err(false) => {

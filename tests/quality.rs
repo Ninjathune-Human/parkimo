@@ -779,3 +779,66 @@ fn neufert_aisle_table_is_fully_integrated() {
     p.stall_w = 2.8;
     assert!((p.neufert_aisle() - 4.0).abs() < 1e-9);
 }
+
+/// Places qui débouchent sur une voie à sens unique et dont l'axe d'entrée (de l'ouverture vers le
+/// fond) va contre le sens de circulation, alors que l'inclinaison inverse irait dans son sens : pour
+/// y entrer en marche avant, il faut faire demi-tour. Au droit d'un carrefour où le sens change, ni
+/// l'une ni l'autre inclinaison ne convient : la place n'est pas comptée.
+fn against_flow(lay: &Layout) -> Vec<(usize, [f64; 2])> {
+    let segs: Vec<(V2, V2, f64, u8)> = lay
+        .circulation
+        .axes
+        .iter()
+        .flat_map(|a| a.pts.windows(2).map(move |w| (v2(w[0][0], w[0][1]), v2(w[1][0], w[1][1]), a.w, a.sens)))
+        .collect();
+    let dist = |p: V2, a: V2, b: V2| {
+        let ab = b - a;
+        let t = ((p - a).dot(ab) / ab.dot(ab).max(1e-12)).clamp(0.0, 1.0);
+        (a + ab * t - p).len()
+    };
+    let against = |q: &Quad| {
+        let (front, back) = ((q.0[2] + q.0[3]) * 0.5, (q.0[0] + q.0[1]) * 0.5);
+        let a = (back - front).norm();
+        let p = front - a * 1.0;
+        let Some(&(s0, s1, w, sens)) = segs.iter().min_by(|x, y| dist(p, x.0, x.1).total_cmp(&dist(p, y.0, y.1))) else { return false };
+        sens == 1 && dist(p, s0, s1) <= w * 0.5 + 0.5 && (s1 - s0).norm().dot(a) < -0.1
+    };
+    // Inclinaison inverse : même fond, avant déporté de l'autre côté le long du fond.
+    let mirror = |q: &Quad| {
+        let t = (q.0[1] - q.0[0]).norm();
+        let flip = |c: V2, b: V2| c - t * (2.0 * (c - b).dot(t));
+        Quad([q.0[0], q.0[1], flip(q.0[2], q.0[1]), flip(q.0[3], q.0[0])])
+    };
+    let mut out = Vec::new();
+    for (i, s) in lay.stalls.iter().enumerate() {
+        let q = quad(&s.q);
+        if against(&q) && !against(&mirror(&q)) {
+            let f = (q.0[2] + q.0[3]) * 0.5;
+            out.push((i, [f.x, f.y]));
+        }
+    }
+    out
+}
+
+#[test]
+fn oblique_stalls_lean_with_the_traffic_of_their_lane() {
+    // Plan de la capture du 8 novembre 2026 (ruisseau sans servitude, places à 30°) et voisins.
+    let mut cases = Vec::new();
+    for (name, slant, easement) in [("ruisseau", 30.0, false), ("ruisseau", 45.0, false), ("ruisseau", 60.0, true), ("rect", 45.0, true), ("rect", 30.0, true)] {
+        let mut site = load(name);
+        if !easement {
+            site.exclusions.clear();
+        }
+        site.params.slant = slant;
+        cases.push((format!("{name} à {slant}°{}", if easement { "" } else { " sans servitude" }), site));
+    }
+    let mut report = Vec::new();
+    for (tag, site) in cases {
+        let lay = trame::solve(&site);
+        let bad = against_flow(&lay);
+        if !bad.is_empty() {
+            report.push(format!("{tag} : {} places à contresens sur {}, dont {:?}", bad.len(), lay.stalls.len(), &bad[..bad.len().min(3)]));
+        }
+    }
+    assert!(report.is_empty(), "{}", report.join("\n"));
+}

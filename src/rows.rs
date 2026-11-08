@@ -327,7 +327,10 @@ pub fn optimize(core: &[Vec<V2>], b_rings: &[Vec<V2>], p: &Params) -> (f64, f64,
 /// `m` : pente de la rangée (places inclinées) ; les calculs se font dans le repère cisaillé de cette
 /// pente, où les places sont des rectangles de pas `row_pitch` et de profondeur `row_d`, puis les
 /// quadrilatères sont ramenés dans le repère des rangées (parallélogrammes) et dans le plan.
-fn pack_double_row(f: &Frame, p: &Params, y0: f64, nw: f64, rf: f64, m: usize, rot: (f64, f64), acc: &mut Acc) -> usize {
+/// `only` : demi-rangée `h` seule, places dont le milieu du fond tombe entre les abscisses `x0` et
+/// `x1` du repère des rangées (partie reposée à pente inverse : ni allée transversale ni noue).
+#[allow(clippy::too_many_arguments)]
+fn pack_double_row(f: &Frame, p: &Params, y0: f64, nw: f64, rf: f64, m: usize, rot: (f64, f64), acc: &mut Acc, only: Option<(usize, f64, f64)>) -> usize {
     let (w, d, cap) = (p.row_pitch(), p.row_d(), p.cap);
     let nominal = p.noue();
     let kk = f.kk(m);
@@ -340,6 +343,13 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, nw: f64, rf: f64, m: usize, r
     let mut halves: [Vec<(f64, f64)>; 2] = [Vec::new(), Vec::new()];
     strip_intervals(rg, y0 + 1e-4, y0 + d - 1e-4, &mut halves[0]);
     strip_intervals(rg, y0 + d + nw + 1e-4, y0 + 2.0 * d + nw - 1e-4, &mut halves[1]);
+    // Ligne de fond de chaque demi-rangée.
+    let back = [y0 + d, y0 + d + nw];
+    if let Some((h, x0, x1)) = only {
+        halves[1 - h].clear();
+        let (lo, hi) = (x0 - kk * back[h] - w * 0.5, x1 - kk * back[h] + w * 0.5);
+        halves[h] = halves[h].iter().map(|&(a, b)| (a.max(lo), b.min(hi))).filter(|&(a, b)| b > a).collect();
+    }
     for h in halves.iter_mut() {
         *h = h
             .iter()
@@ -379,7 +389,9 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, nw: f64, rf: f64, m: usize, r
                     }
                     let x = g + (kmin + i as i64) as f64 * w;
                     let q = xf(&Quad([v2(x, ya), v2(x + w, ya), v2(x + w, yz), v2(x, yz)]), rot);
-                    if acc.hash.hits(&q.shrink(0.03)) || acc.access.hits(&q.shrink(0.03)) {
+                    // Partie reposée à pente inverse : ni sur les places ni sur les îlots déjà posés.
+                    let island = only.is_some() && acc.islands.iter().any(|o| o.overlaps(&q.shrink(0.03)));
+                    if island || acc.hash.hits(&q.shrink(0.03)) || acc.access.hits(&q.shrink(0.03)) {
                         v[h][i] = false;
                     }
                 }
@@ -404,6 +416,35 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, nw: f64, rf: f64, m: usize, r
     let g = best_g;
     let (kmin, mut v) = valid(g);
     let n = v[0].len();
+
+    // Places qui déboucheraient à contresens de leur voie (sens d'un premier calcul) : retirées ici,
+    // reposées ensuite à pente inverse si celle-ci convient. Abscisses du milieu du fond.
+    let mut against: Vec<(usize, f64, f64)> = Vec::new();
+    if let (Some(flow), None, true) = (&acc.flow, only, p.oblique()) {
+        for h in 0..2 {
+            let (yb, yf) = if h == 0 { (y0 + d, y0) } else { (y0 + d + nw, y0 + 2.0 * d + nw) };
+            let mut run: Option<(f64, f64)> = None;
+            for i in 0..=n {
+                let flagged = i < n && v[h][i] && {
+                    let x = g + (kmin + i as i64) as f64 * w;
+                    let q = if h == 0 {
+                        Quad([v2(x, yb), v2(x + w, yb), v2(x + w, yf), v2(x, yf)])
+                    } else {
+                        Quad([v2(x + w, yb), v2(x, yb), v2(x, yf), v2(x + w, yf)])
+                    };
+                    let wq = xf(&q, rot);
+                    flow.against(&wq) && !flow.against(&mirror(&wq))
+                };
+                let xm = g + (kmin + i as i64) as f64 * w + w * 0.5 + kk * yb;
+                if flagged {
+                    v[h][i] = false;
+                    run = Some(run.map_or((xm, xm), |r| (r.0, xm)));
+                } else if let Some((a, b)) = run.take() {
+                    against.push((h, a - w * 0.5, b + w * 0.5));
+                }
+            }
+        }
+    }
 
     // Traverses tracées par le concepteur : chaque segment coupe la rangée en une allée transversale
     // (créneaux de places retirés, largeur d'allée plus les îlots d'extrémité).
@@ -462,7 +503,9 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, nw: f64, rf: f64, m: usize, r
                 v2(x1, y0 + 2.0 * d + nw),
                 v2(x0, y0 + 2.0 * d + nw),
             ]);
-            acc.cross.push(xf(&q, rot));
+            if only.is_none() {
+                acc.cross.push(xf(&q, rot));
+            }
         }
     }
 
@@ -490,7 +533,7 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, nw: f64, rf: f64, m: usize, r
 
     // Noue entre les deux demi-rangées : un tronçon par suite continue de places. Une noue supprimée
     // reste listée avec une largeur nulle, sur la jonction des deux demi-rangées.
-    if nominal > 0.0 {
+    if nominal > 0.0 && only.is_none() {
         let off = nw <= 0.0;
         let (ya, yz) = if off { (y0 + d - 1e-4, y0 + d + 1e-4) } else { (y0 + d + 1e-4, y0 + d + nw - 1e-4) };
         let yr = rf + d + nominal / 2.0;
@@ -553,6 +596,9 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, nw: f64, rf: f64, m: usize, r
                 for (c0, c1) in [(xa - cap, xa), (xb, xb + cap)] {
                     let q = Quad([v2(c0, yb), v2(c1, yb), v2(c1, yf), v2(c0, yf)]);
                     let wq = xf(&q, rot);
+                    if only.is_some() && acc.hash.hits(&wq.shrink(0.03)) {
+                        continue; // îlot d'extrémité d'une partie reposée, sur une place déjà posée
+                    }
                     acc.islands.push(wq);
                     acc.blockers.push(wq);
                     acc.trees.push(wq.center());
@@ -584,7 +630,17 @@ fn pack_double_row(f: &Frame, p: &Params, y0: f64, nw: f64, rf: f64, m: usize, r
             }
         }
     }
+    for (h, a, b) in against {
+        placed += pack_double_row(f, p, y0, nw, rf, 1 - m, rot, acc, Some((h, a, b)));
+    }
     placed
+}
+
+/// Même place inclinée dans l'autre sens : même fond, avant déporté de l'autre côté le long du fond.
+fn mirror(q: &Quad) -> Quad {
+    let t = (q.0[1] - q.0[0]).norm();
+    let flip = |c: V2, b: V2| c - t * (2.0 * (c - b).dot(t));
+    Quad([q.0[0], q.0[1], flip(q.0[2], q.0[1]), flip(q.0[3], q.0[0])])
 }
 
 fn xf_plain(q: &Quad, rot: (f64, f64)) -> Quad {
@@ -714,7 +770,7 @@ pub fn place(
     let (x0, x1) = (f.rxlo - 1.0, f.rxhi + 1.0);
     let mut rows: Vec<(f64, f64, usize)> = Vec::new();
     let push_row = |acc: &mut Acc, strips: &mut Vec<Quad>, rows: &mut Vec<(f64, f64, usize)>, y0: f64, nw: f64, rf: f64, m: usize| {
-        pack_double_row(&f, p, y0, nw, rf, m, rot, acc);
+        pack_double_row(&f, p, y0, nw, rf, m, rot, acc, None);
         let y1 = y0 + 2.0 * d + nw;
         strips.push(xf_plain(&Quad([v2(x0, y0), v2(x1, y0), v2(x1, y1), v2(x0, y1)]), rot));
         rows.push((y0, y1, m));

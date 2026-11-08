@@ -38,6 +38,42 @@ pub struct Axis {
     pub rule: Option<usize>,
 }
 
+/// Sens de circulation d'un plan déjà calculé, pour incliner les places dans le sens de la voie
+/// qui les dessert.
+#[derive(Clone, Debug)]
+pub struct Flow {
+    /// Tronçons d'axe : origine, extrémité (dans le sens de circulation), largeur, sens unique.
+    segs: Vec<(V2, V2, f64, bool)>,
+}
+
+impl Flow {
+    pub fn new(axes: &[Axis]) -> Flow {
+        let segs = axes
+            .iter()
+            .flat_map(|a| a.pts.windows(2).map(move |w| (v2(w[0][0], w[0][1]), v2(w[1][0], w[1][1]), a.w, a.sens == 1)))
+            .collect();
+        Flow { segs }
+    }
+
+    /// La place `q` (q0 q1 au fond, q2 q3 sur la voie) débouche-t-elle à contresens sur une voie à
+    /// sens unique ? Son axe d'entrée, de l'ouverture vers le fond, va alors contre la circulation
+    /// de la voie la plus proche, lue à 1 m devant l'ouverture.
+    pub fn against(&self, q: &Quad) -> bool {
+        let (front, back) = ((q.0[2] + q.0[3]) * 0.5, (q.0[0] + q.0[1]) * 0.5);
+        let a = (back - front).norm();
+        let p = front - a * 1.0;
+        let dist = |s: &(V2, V2, f64, bool)| {
+            let ab = s.1 - s.0;
+            let t = ((p - s.0).dot(ab) / ab.dot(ab).max(1e-12)).clamp(0.0, 1.0);
+            (s.0 + ab * t - p).len()
+        };
+        let Some(s) = self.segs.iter().min_by(|x, y| dist(x).total_cmp(&dist(y))) else {
+            return false;
+        };
+        s.3 && dist(s) <= s.2 * 0.5 + 0.5 && (s.1 - s.0).norm().dot(a) < -0.1
+    }
+}
+
 #[derive(Serialize, Clone, Copy, Debug)]
 pub struct Arrow {
     pub p: P2,

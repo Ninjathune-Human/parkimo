@@ -47,6 +47,9 @@ pub struct Acc {
     pub traverses: Vec<[[f64; 2]; 2]>,
     /// Pour chaque noue : axe de sa rangée et milieu du tronçon sur la trame de référence (noues partout).
     pub noue_ref: Vec<[[f64; 2]; 3]>,
+    /// Sens de circulation d'un premier calcul : les places inclinées qui déboucheraient à
+    /// contresens s'inclinent dans l'autre sens.
+    pub flow: Option<crate::circulation::Flow>,
 }
 
 impl Acc {
@@ -65,6 +68,7 @@ impl Acc {
             noue_off: Vec::new(),
             traverses: Vec::new(),
             noue_ref: Vec::new(),
+            flow: None,
         }
     }
     pub fn new_row(&mut self) -> u32 {
