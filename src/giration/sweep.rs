@@ -16,6 +16,10 @@ use std::collections::HashMap;
 /// de caisse au-dessus d'un muret de 0,20 m au plus.
 pub const OVERHANG_KERB: f64 = 0.20;
 
+/// Garde latérale des pneus contrôlés aux poses de la recherche (m) : flèche de l'arc d'un pneu
+/// entre deux poses et écart des traces suivies en cordes, quelques millimètres.
+const TYRE_PAD: f64 = 0.01;
+
 /// L'obstacle arrête-t-il la caisse ? Non s'il est plus bas que la garde au sol, ni s'il borde un
 /// espace planté sans dépasser `OVERHANG_KERB` : la caisse déborde au-dessus, seuls les pneus butent.
 fn stops_body(v: &Vehicle, ob: &Obstacle) -> bool {
@@ -191,11 +195,12 @@ fn overlaps(c: P2, d: P2, lo: P2, hi: P2) -> bool {
 }
 
 /// Un pneu touche-t-il une bordure que la caisse survole (plus basse que la garde au sol, ou
-/// d'espace planté) ? Recherche parmi des segments candidats (voir `near_body`).
-pub(crate) fn tyre_on_kerb_among(v: &Vehicle, scene: &Scene, cands: &[(usize, usize)], pose: &Pose) -> bool {
-    let e = v.tyre_width / 2.0;
-    let state = State { pose: *pose, steer: 0.0 };
-    wheels(v, &state).iter().any(|w| {
+/// d'espace planté) ? Pneus à l'angle des roues, élargis de `TYRE_PAD` : contrôlés aux poses, ils
+/// couvrent les traces que le rejeu suit entre deux poses. Recherche parmi des segments candidats
+/// (voir `near_body`).
+pub(crate) fn tyre_on_kerb_among(v: &Vehicle, scene: &Scene, cands: &[(usize, usize)], state: &State) -> bool {
+    let e = v.tyre_width / 2.0 + TYRE_PAD;
+    wheels(v, state).iter().any(|w| {
         let (c, h) = (w.centre, w.heading);
         let (u, n) = ([h.cos() * 0.35, h.sin() * 0.35], [-h.sin() * e, h.cos() * e]);
         let tyre = [

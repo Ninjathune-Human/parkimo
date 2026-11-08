@@ -6,7 +6,7 @@
 //! l'on atteint avec une tolérance ; l'entrée est cette manœuvre parcourue à rebours.
 
 use super::epure::{Run, Sample};
-use super::kinematics::{Pose, Profile};
+use super::kinematics::{Pose, Profile, State};
 use super::planner::{Costs, Outcome, Piece, Search, Table};
 use super::scene::{Obstacle, ObstacleKind, Scene};
 use super::sweep::{body_contact, footprint, margin_contact, near_body, tyre_on_kerb_among};
@@ -255,7 +255,7 @@ pub fn test_stall(ctx: &Ctx, i: usize, illustrate: bool) -> Tested {
         return fail(scene, Status::Unknown, "aucune voie ne dessert la place");
     };
     // Impossibilité démontrée : la voiture garée ne tient pas dans la place.
-    if body_contact(v, &scene, &park, 0.0).is_some() || tyre_on_kerb_among(v, &scene, &near_body(v, &scene, &park, 0.0), &park) {
+    if body_contact(v, &scene, &park, 0.0).is_some() || tyre_on_kerb_among(v, &scene, &near_body(v, &scene, &park, 0.0), &State { pose: park, steer: 0.0 }) {
         return fail(scene, Status::Infeasible, "la voiture garée touche un obstacle");
     }
 

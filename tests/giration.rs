@@ -455,6 +455,18 @@ fn planted_ground_kerbs_let_the_overhang_pass_and_sidewalk_kerbs_do_not() {
     assert_eq!(kinds(30.0), vec![ObstacleKind::Planted]);
 }
 
+#[test]
+fn sharp_corners_of_slanted_stalls_leave_no_sidewalk_kerb_on_planted_ground() {
+    // Places à 45° sur la parcelle rect (ni bâtiment, ni cheminement, ni servitude) : leurs angles
+    // vifs laissent des bouts de bordure de quelques millimètres, tous le long de la pleine terre.
+    let (mut site, _) = scenario("rect");
+    site.params.slant = 45.0;
+    let lay = trame::solve(&site);
+    let scene = Scene::from_layout(&site, &lay, &KerbProfile::t2());
+    let sidewalk: Vec<[f64; 2]> = scene.obstacles.iter().filter(|o| o.kind == ObstacleKind::Kerb).map(|o| o.pts[0]).collect();
+    assert!(sidewalk.is_empty(), "{} bordures de trottoir, la première en {:?}", sidewalk.len(), sidewalk.first());
+}
+
 // ---------------------------------------------------------------------------
 // Épure : le véhicule suit une polyligne tracée, en marche avant ou arrière
 
@@ -1028,6 +1040,31 @@ fn a_row_facing_planted_ground_needs_no_alert_on_a_narrow_aisle() {
     // pneus sur la chaussée. Pastille verte, sans alerte.
     let p = &row_case(9, 2.5, 5.5, true, None).places[4];
     assert!(matches!(p.verdict, "vert" | "bleu") && p.entry.alerts + p.exit.alerts == 0, "{}", serde_json::to_string(p).unwrap());
+}
+
+/// Places d'un scénario résolu à l'inclinaison `slant`, plan transmis tel quel ; seule la place la
+/// plus proche de `near` est testée.
+fn slanted_place(name: &str, slant: f64, near: [f64; 2]) -> trame::giration::api::PlaceOut {
+    let path = format!("{}/scenarios/{name}.json", env!("CARGO_MANIFEST_DIR"));
+    let mut raw: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    raw["params"] = serde_json::json!({ "slant": slant });
+    let lay = trame::solve(&serde_json::from_value(raw.clone()).unwrap());
+    let i = (0..lay.stalls.len()).min_by(|&a, &b| dist(centroid(&lay.stalls[a].q), near).total_cmp(&dist(centroid(&lay.stalls[b].q), near))).unwrap();
+    let layout = serde_json::json!({
+        "paved": lay.paved, "pads": lay.pads, "islands": lay.islands, "entries": lay.entries, "cross": lay.cross, "walks": lay.walks,
+        "stalls": lay.stalls.iter().map(|s| s.q).collect::<Vec<_>>(),
+        "axes": lay.circulation.axes.iter().map(|a| serde_json::json!({ "pts": a.pts, "w": a.w, "sens": a.sens })).collect::<Vec<_>>(),
+    });
+    let input: trame::giration::api::PlacesIn = serde_json::from_value(serde_json::json!({ "site": raw, "layout": layout, "stalls": [i] })).unwrap();
+    places(&input).places.remove(0)
+}
+
+#[test]
+fn a_planned_manoeuvre_keeps_its_tyres_off_the_kerbs_at_the_check() {
+    // Place à 45° au bord d'un îlot planté : la recherche doit contrôler les pneus au moins aussi
+    // strictement que le rejeu, sinon la place sort grise (« contact au contrôle »).
+    let p = slanted_place("rect", 45.0, [100.6, 43.5]);
+    assert_eq!(p.entry.conflicts + p.exit.conflicts, 0, "{}", serde_json::to_string(&p).unwrap());
 }
 
 #[test]

@@ -171,7 +171,7 @@ impl Search<'_> {
             if (p.x - self.centre[0]).hypot(p.y - self.centre[1]) > self.radius {
                 return None;
             }
-            if swept_contact_among(self.v, self.scene, &cands, &mid, ds, 0.0).is_some() || tyre_on_kerb_among(self.v, self.scene, &cands, &p) {
+            if swept_contact_among(self.v, self.scene, &cands, &mid, ds, 0.0).is_some() || tyre_on_kerb_among(self.v, self.scene, &cands, &State { pose: p, steer: next }) {
                 self.costs.collision?;
                 hits += 1;
             } else if self.margin > 0.0 && !grazed {

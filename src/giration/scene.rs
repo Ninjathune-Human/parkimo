@@ -1,8 +1,8 @@
 //! Scène : obstacles typés que les roues et la carrosserie ne doivent pas toucher.
 //!
 //! Bordures : contour de la surface roulable (chaussée, allées, accès, places), là où il est
-//! intérieur à la parcelle ; bordure d'espace planté quand la pleine terre la longe, sinon de
-//! trottoir (cheminement piéton, bâtiment, servitude). Murs : bâtiments. Limite : contour de
+//! intérieur à la parcelle ; bordure d'espace planté quand la pleine terre la longe (servitudes
+//! comprises), de trottoir le long d'un cheminement piéton ou d'un bâtiment. Murs : bâtiments. Limite : contour de
 //! parcelle, sauf les bouches des accès.
 
 use crate::geom::{v2, Region, V2};
@@ -184,29 +184,25 @@ impl Scene {
         let islands: Vec<Polygon<f64>> = lay.islands.iter().map(quad_poly).collect();
         let drivable = erode(&grow(&unary_union(polys.iter()), CLOSE), CLOSE).difference(&unary_union(islands.iter()));
 
-        // Ce qui n'est pas de la pleine terre hors de la surface roulable : bâtiments, cheminements
-        // piétons, servitudes (de nature inconnue).
+        // Ce qui n'est pas de la pleine terre hors de la surface roulable : bâtiments et cheminements
+        // piétons. Les servitudes restent de la pleine terre, comme dans le calcul des espaces verts.
         let hard: Vec<Region> = site
             .buildings
             .iter()
             .map(|b| b.poly.clone())
             .chain(lay.walks.iter().map(|q| q.to_vec()))
-            .chain(site.exclusions.iter().cloned())
             .map(|r| Region::new(vec![r.iter().map(|p| v2(p[0], p[1])).collect()]))
             .collect();
+        // Trottoir si le côté hors de la surface roulable tombe sur l'un d'eux ; sinon pleine terre.
+        // Aux angles vifs et aux filets de quelques millimètres, les deux côtés sont examinés.
         let kind_of = |a: P2, b: P2| {
             let (m, d) = (v2(0.5 * (a[0] + b[0]), 0.5 * (a[1] + b[1])), v2(b[0] - a[0], b[1] - a[1]));
             let n = v2(-d.y, d.x) * (SIDE / d.len().max(1e-12));
-            let off = |p: V2| !drivable.contains(&Point::new(p.x, p.y));
-            let outer = match (off(m + n), off(m - n)) {
-                (true, false) => m + n,
-                (false, true) => m - n,
-                _ => return ObstacleKind::Kerb,
-            };
-            if inside.contains(outer) && !hard.iter().any(|r| r.contains(outer)) {
-                ObstacleKind::Planted
-            } else {
+            let hard_side = |p: V2| !drivable.contains(&Point::new(p.x, p.y)) && hard.iter().any(|r| r.contains(p));
+            if hard_side(m + n) || hard_side(m - n) {
                 ObstacleKind::Kerb
+            } else {
+                ObstacleKind::Planted
             }
         };
         let height = kerb.visible_height;
