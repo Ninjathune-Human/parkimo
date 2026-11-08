@@ -344,6 +344,38 @@ pub struct PlaceOut {
     pub entry: MoveOut,
     pub exit: MoveOut,
     pub reason: Option<&'static str>,
+    /// Tracé de l'entrée : milieu de la caisse, tous les 0,5 m, par tronçon de même sens de marche.
+    pub path: Vec<Trace>,
+}
+
+#[derive(Serialize, Clone)]
+pub struct Trace {
+    pub reverse: bool,
+    pub pts: Vec<P2>,
+}
+
+/// Tracé du milieu de la caisse, au centimètre, un point tous les 0,5 m et la fin de chaque tronçon.
+fn traces(v: &Vehicle, pieces: &[Piece]) -> Vec<Trace> {
+    let c = (v.wheelbase + v.front_overhang - v.rear_overhang) / 2.0;
+    let cm = |x: f64| (x * 100.0).round() / 100.0;
+    let mut out: Vec<Trace> = Vec::new();
+    for pc in pieces {
+        let at = |k: usize| {
+            let p = &pc.poses[k];
+            [cm(p.x + c * p.heading.cos()), cm(p.y + c * p.heading.sin())]
+        };
+        let n = pc.poses.len();
+        let mut pts: Vec<P2> = (0..n).step_by(5).map(at).collect();
+        if n > 0 && (n - 1) % 5 != 0 {
+            pts.push(at(n - 1));
+        }
+        // Tronçons successifs de même sens : un seul trait.
+        match out.last_mut() {
+            Some(t) if t.reverse == pc.reverse => t.pts.extend(pts.into_iter().skip(1)),
+            _ => out.push(Trace { reverse: pc.reverse, pts }),
+        }
+    }
+    out
 }
 
 #[derive(Serialize)]
@@ -441,7 +473,7 @@ pub fn places(inp: &PlacesIn) -> PlacesOut {
                 let run = motion(&v, profile, &both, inp.speed);
                 detail = Some(simulate_run(&gin, &v, &t.scene, &run));
             }
-            PlaceOut { i, verdict, park, entry, exit, reason: t.reason }
+            PlaceOut { i, verdict, park, entry, exit, reason: t.reason, path: traces(&v, &t.entry) }
         })
         .collect();
     PlacesOut { places, detail }

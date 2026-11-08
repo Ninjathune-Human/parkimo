@@ -103,21 +103,19 @@ fn wrap(a: f64) -> f64 {
 /// Pose garée dans la place `q` (q0, q1 au fond ; q2, q3 sur l'allée) : caisse centrée, nez vers
 /// le fond, coin de pare-chocs le plus avancé à `gap` de la ligne de fond.
 pub fn park_pose(v: &Vehicle, q: &[P2; 4], gap: f64) -> Pose {
-    let a = unit(sub(q[3], q[0])); // du fond vers l'allée
-    let lat = [-a[1], a[0]];
     let back = mid(q[0], q[1]);
     let front = mid(q[2], q[3]);
+    // Axe de la place : du milieu du fond au milieu de l'ouverture. Une place en coin (cassure de
+    // la limite) a des côtés non parallèles : l'axe d'un seul côté pousserait la caisse sur l'autre.
+    let a = unit(sub(front, back)); // du fond vers l'allée
+    let lat = [-a[1], a[0]];
     let edge = unit(sub(q[1], q[0]));
     let mut nb = [-edge[1], edge[0]];
     if dot(sub(front, q[0]), nb) < 0.0 {
         nb = [-nb[0], -nb[1]];
     }
-    // Axe de la place : à mi-largeur entre les deux côtés, mesurée perpendiculairement à `a`.
-    let (l0, l1) = (dot(sub(q[0], back), lat), dot(sub(q[1], back), lat));
-    let c = 0.5 * (l0 + l1);
-    let base = [back[0] + lat[0] * c, back[1] + lat[1] * c];
     let t = (gap + v.width / 2.0 * dot(lat, nb).abs()) / dot(a, nb);
-    let bumper = [base[0] + a[0] * t, base[1] + a[1] * t];
+    let bumper = [back[0] + a[0] * t, back[1] + a[1] * t];
     let e = v.wheelbase + v.front_overhang;
     Pose { x: bumper[0] + a[0] * e, y: bumper[1] + a[1] * e, heading: (-a[1]).atan2(-a[0]) }
 }

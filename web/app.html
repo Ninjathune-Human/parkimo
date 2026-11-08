@@ -428,6 +428,7 @@ body:has(#girbar:not([hidden])) #hint { opacity: 0; }
           <label class="lrow"><span><i class="sw" style="background:var(--gir-body);border:1px solid var(--gir-body-edge)"></i>Carrosserie</span><input type="checkbox" class="switch" role="switch" data-lay="girenv"></label>
           <label class="lrow"><span><i class="ln dash" style="--c:var(--warn)"></i>Marge de sécurité</span><input type="checkbox" class="switch" role="switch" data-lay="girmarge"></label>
           <label class="lrow"><span><i class="sw round" style="border:2px solid var(--bad)"></i>Conflits</span><input type="checkbox" class="switch" role="switch" data-lay="girconf"></label>
+          <label class="lrow"><span><i class="ln" style="--c:var(--ok)"></i>Tracés des véhicules</span><input type="checkbox" class="switch" role="switch" data-lay="girtraces"></label>
           <label class="lrow"><span><span class="sws"><i class="sw round" style="background:var(--ok)"></i><i class="sw round" style="background:var(--accent)"></i><i class="sw round" style="background:var(--warn)"></i><i class="sw round" style="background:var(--bad)"></i></span>Verdicts des places</span><input type="checkbox" class="switch" role="switch" data-lay="girplaces"></label>
         </div>
         <div id="lay-base" hidden>
@@ -2234,7 +2235,7 @@ const LAYER_DEFAULTS = {
   places: true, pvoirie: true, sens: true, ilots: true, pbati: true, servitudes: true, recul: true, vehicules: true, arbres: true,
   ovoirie: true, bati: true, vegetation: true,
   photo: true, parcelles: true, numeros: true, feuilles: false, communes: true,
-  girroues: true, girenv: true, girmarge: true, girconf: true, girplaces: true,
+  girroues: true, girenv: true, girmarge: true, girconf: true, girtraces: true, girplaces: true,
 };
 function tileUrl(L, z, x, y) {
   return `${GEO.wmts}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${L.layer}&STYLE=${encodeURIComponent(L.style)}&TILEMATRIXSET=${TMS[tmsIdx]}&TILEMATRIX=${z}&TILEROW=${y}&TILECOL=${x}&FORMAT=${encodeURIComponent(L.fmt)}`;
@@ -3096,7 +3097,14 @@ async function openPlace(k) {
 // Repère de verdict au centre de chaque place testée : rond (vert), losange (bleu), triangle
 // (orange), carré (rouge), anneau (gris) ; la forme double la couleur.
 function drawPlaces() {
-  if (!places.res || !VIS.girplaces || !layout || !layout.stalls) return;
+  if (!places.res || !layout || !layout.stalls) return;
+  // Tracé de chaque voiture (milieu de la caisse), couleur du verdict, marche arrière en tirets.
+  if (VIS.girtraces) {
+    ctx.lineWidth = 1.2; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.globalAlpha = places.open >= 0 ? 0.35 : 1;
+    for (const p of places.res) if (p && p.path) for (const t of p.path) { ctx.strokeStyle = C[VERDICT[p.verdict]]; ctx.setLineDash(t.reverse ? [5, 4] : []); strokeLine(t.pts); }
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
+  if (!VIS.girplaces) return;
   const r = Math.max(3, Math.min(8, 0.45 * view.s));
   places.res.forEach((p, k) => {
     if (!p || !layout.stalls[k]) return;

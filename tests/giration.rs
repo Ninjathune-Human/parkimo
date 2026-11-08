@@ -1047,3 +1047,53 @@ fn the_minimum_clearance_is_measured() {
         assert!(m.clearance > 0.19 && m.clearance <= 0.225, "{}", m.clearance);
     }
 }
+
+use trame::giration::places::park_pose;
+
+/// Plus petit écart, en mètres, entre la caisse garée et les deux côtés de la place (négatif : elle déborde).
+fn side_clearance(v: &Vehicle, q: &[[f64; 2]; 4]) -> f64 {
+    let p = park_pose(v, q, 0.22);
+    let inside = if (q[1][0] - q[0][0]) * (q[2][1] - q[0][1]) - (q[1][1] - q[0][1]) * (q[2][0] - q[0][0]) > 0.0 { 1.0 } else { -1.0 };
+    let signed = |a: [f64; 2], b: [f64; 2], c: [f64; 2]| inside * ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / dist(a, b);
+    body_corners(v, &p).iter().map(|&c| signed(q[1], q[2], c).min(signed(q[3], q[0], c))).fold(f64::INFINITY, f64::min)
+}
+
+#[test]
+fn a_car_parked_in_a_wedge_stall_stays_between_its_sides() {
+    let v = Vehicle::vl2026();
+    // Places n° 8 et 9 du plan ruisseau, à la cassure de la limite : la 8 s'ouvre en coin (fond 3,72 m,
+    // ouverture 2,50 m), la 9 est un rectangle de 2,50 × 5,00 m.
+    let wedge = [[131.173, 78.067], [127.549, 77.216], [129.073, 72.454], [131.496, 73.077]];
+    let rect = [[127.549, 77.216], [125.168, 76.454], [126.692, 71.692], [129.073, 72.454]];
+    // Voisines garées au pire, décalées de 10 cm vers la place testée : il faut plus de 10 cm de chaque côté.
+    for q in [wedge, rect] {
+        let c = side_clearance(&v, &q);
+        assert!(c > 0.11, "{c:.3}");
+    }
+    // Place à 60° (parallélogramme) : la caisse reste centrée.
+    let (s, c) = (60f64.to_radians().sin(), 60f64.to_radians().cos());
+    let w = 2.5 / s;
+    let slanted = [[5.0 * c / s, 5.0], [5.0 * c / s + w, 5.0], [w, 0.0], [0.0, 0.0]];
+    assert!(close(side_clearance(&v, &slanted), (2.5 - v.width) / 2.0, 1e-6));
+}
+
+#[test]
+fn each_tested_place_carries_the_trace_of_its_car() {
+    let v = Vehicle::vl2026();
+    // Allée de 10 m : entrée en marche avant d'un seul tenant, tracé du milieu de la caisse.
+    let out = row_case(9, 2.5, 10.0, true, None);
+    let p = &out.places[4];
+    assert_eq!(p.verdict, "vert");
+    assert!(!p.path.is_empty() && p.path.iter().all(|t| !t.reverse && t.pts.len() >= 2));
+    let first = p.path[0].pts[0];
+    let last = *p.path.last().unwrap().pts.last().unwrap();
+    let c = (v.wheelbase + v.front_overhang - v.rear_overhang) / 2.0;
+    let centre = [p.park[0] + c * p.park[2].cos(), p.park[1] + c * p.park[2].sin()];
+    assert!(dist(last, centre) < 0.01, "{last:?} {centre:?}");
+    // Le tracé part de l'allée (y de 20 à 30), sous l'ouverture de la place (y = 30).
+    assert!(first[1] > 20.0 && first[1] < 30.0, "{first:?}");
+    // Allée de 8 m : avec reprises, des tronçons en marche arrière.
+    let p = &row_case(9, 2.5, 8.0, true, None).places[4];
+    assert_eq!(p.verdict, "bleu");
+    assert!(p.path.iter().any(|t| t.reverse) && p.path.iter().any(|t| !t.reverse));
+}
