@@ -517,7 +517,7 @@ body:has(#girbar:not([hidden])) #hint { opacity: 0; }
       <div class="field"><label>Bordures</label><span class="seg" role="group" aria-label="Type de bordure" id="g-kerb"><button data-k="T2">T2</button><button data-k="T3">T3</button></span></div>
       <div class="field"><label for="g-kh">Hauteur vue des bordures</label><span class="unit"><input id="g-kh" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <p class="note" id="g-prof-note"></p>
-      <p class="note">Garde au sol 0,14 m : une bordure plus haute arrête aussi la carrosserie. La hauteur vue dépend de la pose ; 0,16 m pour un T2 courant (Métropole Aix-Marseille-Provence), à régler pour un T3.</p>
+      <p class="note">Garde au sol 0,14 m : une bordure plus haute arrête aussi la carrosserie, sauf celle d'un espace planté jusqu'à 0,20 m (Neufert) : la caisse déborde au-dessus, seuls les pneus butent. La hauteur vue dépend de la pose ; 0,16 m pour un T2 courant (Métropole Aix-Marseille-Provence), à régler pour un T3.</p>
     </div></details>
   </section>
 
@@ -2815,7 +2815,7 @@ function girRun() {
   if (Engine.ex && sec.length && layout && !layout.error) {
     let out;
     // Le plan affiché est transmis tel quel : le moteur le contrôle sans le recalculer.
-    const lay = { paved: layout.paved, pads: layout.pads, stalls: layout.stalls.map((st) => st.q), islands: layout.islands, entries: layout.entries, cross: layout.cross };
+    const lay = { paved: layout.paved, pads: layout.pads, stalls: layout.stalls.map((st) => st.q), islands: layout.islands, entries: layout.entries, cross: layout.cross, walks: layout.walks || [] };
     try { out = Engine.call("giration_json", { site: engineInput(false), ...girEpure(g), layout: lay }); } catch (e) { out = { error: String(e) }; }
     if (out.error) toast("Giration impossible : " + out.error); else gir = out;
   }
@@ -3011,7 +3011,7 @@ function placesInput(extra) {
   const g = girSet();
   return {
     site: engineInput(false), profile: g.profile, margin: g.margin, kerb: g.kerb, speed: g.speed,
-    layout: { paved: layout.paved, pads: layout.pads, stalls: layout.stalls.map((st) => st.q), islands: layout.islands, entries: layout.entries, cross: layout.cross,
+    layout: { paved: layout.paved, pads: layout.pads, stalls: layout.stalls.map((st) => st.q), islands: layout.islands, entries: layout.entries, cross: layout.cross, walks: layout.walks || [],
       axes: ((layout.circulation && layout.circulation.axes) || []).map((a) => ({ pts: a.pts, w: a.w, sens: a.sens })) },
     ...extra,
   };

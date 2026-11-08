@@ -2,7 +2,7 @@
 
 use super::epure::Sample;
 use super::kinematics::{advance, wheels, Pose, State};
-use super::scene::{segment_hit, ObstacleKind, Scene};
+use super::scene::{segment_hit, Obstacle, ObstacleKind, Scene};
 use super::vehicle::Vehicle;
 use crate::geom::v2;
 use crate::model::P2;
@@ -11,6 +11,16 @@ use geo::algorithm::bool_ops::unary_union;
 use geo::{ConvexHull, Polygon};
 use serde::Serialize;
 use std::collections::HashMap;
+
+/// Bordure d'espace planté la plus haute que les porte-à-faux survolent (m) : Neufert p. 272, débord
+/// de caisse au-dessus d'un muret de 0,20 m au plus.
+pub const OVERHANG_KERB: f64 = 0.20;
+
+/// L'obstacle arrête-t-il la caisse ? Non s'il est plus bas que la garde au sol, ni s'il borde un
+/// espace planté sans dépasser `OVERHANG_KERB` : la caisse déborde au-dessus, seuls les pneus butent.
+fn stops_body(v: &Vehicle, ob: &Obstacle) -> bool {
+    ob.height >= v.ground_clearance && !(ob.kind == ObstacleKind::Planted && ob.height <= OVERHANG_KERB)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
 pub enum Part {
@@ -138,13 +148,13 @@ fn bbox(q: &[P2; 4]) -> (P2, P2) {
     )
 }
 
-/// Premier obstacle plus haut que la garde au sol touché par la caisse agrandie de `grow`.
+/// Premier obstacle qui arrête la caisse (voir `stops_body`) touché par la caisse agrandie de `grow`.
 pub(crate) fn body_contact(v: &Vehicle, scene: &Scene, pose: &Pose, grow: f64) -> Option<(usize, P2)> {
     let body = footprint(v, pose, grow);
     let (lo, hi) = bbox(&body);
     scene.near(lo, hi).into_iter().find_map(|(o, k)| {
         let ob = &scene.obstacles[o];
-        if ob.height < v.ground_clearance {
+        if !stops_body(v, ob) {
             return None;
         }
         touches_quad(ob.pts[k], ob.pts[k + 1], &body).map(|p| (o, p))
@@ -164,7 +174,7 @@ pub(crate) fn margin_contact_among(v: &Vehicle, scene: &Scene, cands: &[(usize, 
     let (lo, hi) = bbox(&body);
     cands.iter().any(|&(o, k)| {
         let ob = &scene.obstacles[o];
-        ob.kind != ObstacleKind::Car && ob.height >= v.ground_clearance && overlaps(ob.pts[k], ob.pts[k + 1], lo, hi) && touches_quad(ob.pts[k], ob.pts[k + 1], &body).is_some()
+        ob.kind != ObstacleKind::Car && stops_body(v, ob) && overlaps(ob.pts[k], ob.pts[k + 1], lo, hi) && touches_quad(ob.pts[k], ob.pts[k + 1], &body).is_some()
     })
 }
 
@@ -180,9 +190,9 @@ fn overlaps(c: P2, d: P2, lo: P2, hi: P2) -> bool {
     c[0].max(d[0]) >= lo[0] && c[0].min(d[0]) <= hi[0] && c[1].max(d[1]) >= lo[1] && c[1].min(d[1]) <= hi[1]
 }
 
-/// Un pneu touche-t-il une bordure plus basse que la garde au sol (que la caisse survole) ?
-/// Recherche parmi des segments candidats (voir `near_body`).
-pub(crate) fn tyre_on_low_kerb_among(v: &Vehicle, scene: &Scene, cands: &[(usize, usize)], pose: &Pose) -> bool {
+/// Un pneu touche-t-il une bordure que la caisse survole (plus basse que la garde au sol, ou
+/// d'espace planté) ? Recherche parmi des segments candidats (voir `near_body`).
+pub(crate) fn tyre_on_kerb_among(v: &Vehicle, scene: &Scene, cands: &[(usize, usize)], pose: &Pose) -> bool {
     let e = v.tyre_width / 2.0;
     let state = State { pose: *pose, steer: 0.0 };
     wheels(v, &state).iter().any(|w| {
@@ -197,7 +207,7 @@ pub(crate) fn tyre_on_low_kerb_among(v: &Vehicle, scene: &Scene, cands: &[(usize
         let (lo, hi) = bbox(&tyre);
         cands.iter().any(|&(o, k)| {
             let ob = &scene.obstacles[o];
-            ob.height > 0.0 && ob.height < v.ground_clearance && overlaps(ob.pts[k], ob.pts[k + 1], lo, hi) && touches_quad(ob.pts[k], ob.pts[k + 1], &tyre).is_some()
+            ob.height > 0.0 && !stops_body(v, ob) && overlaps(ob.pts[k], ob.pts[k + 1], lo, hi) && touches_quad(ob.pts[k], ob.pts[k + 1], &tyre).is_some()
         })
     })
 }
@@ -222,7 +232,7 @@ pub(crate) fn swept_contact_among(v: &Vehicle, scene: &Scene, cands: &[(usize, u
 fn hull_contact(v: &Vehicle, scene: &Scene, cands: &[(usize, usize)], hull: &[P2], lo: P2, hi: P2) -> Option<(usize, P2)> {
     cands.iter().find_map(|&(o, k)| {
         let ob = &scene.obstacles[o];
-        if ob.height < v.ground_clearance || !overlaps(ob.pts[k], ob.pts[k + 1], lo, hi) {
+        if !stops_body(v, ob) || !overlaps(ob.pts[k], ob.pts[k + 1], lo, hi) {
             return None;
         }
         touches_convex(ob.pts[k], ob.pts[k + 1], hull).map(|p| (o, p))
@@ -286,7 +296,7 @@ fn touches_convex(c: P2, d: P2, poly: &[P2]) -> Option<P2> {
     (0..poly.len()).find_map(|i| segment_hit(poly[i], poly[(i + 1) % poly.len()], c, d).map(|h| h.1))
 }
 
-/// Distance de la caisse aux obstacles plus hauts que la garde au sol, plafonnée à `cap` (m).
+/// Distance de la caisse aux obstacles qui l'arrêtent (voir `stops_body`), plafonnée à `cap` (m).
 pub(crate) fn clearance(v: &Vehicle, scene: &Scene, pose: &Pose, cap: f64) -> f64 {
     let body = footprint(v, pose, 0.0);
     let (lo, hi) = bbox(&footprint(v, pose, cap));
@@ -298,7 +308,7 @@ pub(crate) fn clearance(v: &Vehicle, scene: &Scene, pose: &Pose, cap: f64) -> f6
     let mut best = cap;
     for (o, k) in scene.near(lo, hi) {
         let ob = &scene.obstacles[o];
-        if ob.height < v.ground_clearance {
+        if !stops_body(v, ob) {
             continue;
         }
         let (c, d) = (ob.pts[k], ob.pts[k + 1]);
@@ -362,7 +372,7 @@ pub fn conflicts(v: &Vehicle, scene: &Scene, samples: &[Sample], margin: f64) ->
         let candidates = scene.near(lo, hi);
         for &(o, k) in &candidates {
             let ob = &scene.obstacles[o];
-            if ob.height < v.ground_clearance {
+            if !stops_body(v, ob) {
                 continue;
             }
             if let Some(p) = touches_quad(ob.pts[k], ob.pts[k + 1], &body) {
@@ -387,7 +397,7 @@ pub fn conflicts(v: &Vehicle, scene: &Scene, samples: &[Sample], margin: f64) ->
             for &(o, k) in &candidates {
                 let ob = &scene.obstacles[o];
                 // Places jointes : pas de marge contre une voiture garée, seul le contact compte.
-                if ob.height < v.ground_clearance || ob.kind == ObstacleKind::Car || touched.contains(&o) {
+                if !stops_body(v, ob) || ob.kind == ObstacleKind::Car || touched.contains(&o) {
                     continue;
                 }
                 if let Some(p) = touches_quad(ob.pts[k], ob.pts[k + 1], &outer) {

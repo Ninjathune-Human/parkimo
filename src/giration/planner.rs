@@ -8,7 +8,7 @@
 
 use super::kinematics::{advance, Pose, Profile, State};
 use super::scene::Scene;
-use super::sweep::{margin_contact_among, near_body, swept_contact_among, tyre_on_low_kerb_among};
+use super::sweep::{margin_contact_among, near_body, swept_contact_among, tyre_on_kerb_among};
 use super::vehicle::Vehicle;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
@@ -171,7 +171,7 @@ impl Search<'_> {
             if (p.x - self.centre[0]).hypot(p.y - self.centre[1]) > self.radius {
                 return None;
             }
-            if swept_contact_among(self.v, self.scene, &cands, &mid, ds, 0.0).is_some() || tyre_on_low_kerb_among(self.v, self.scene, &cands, &p) {
+            if swept_contact_among(self.v, self.scene, &cands, &mid, ds, 0.0).is_some() || tyre_on_kerb_among(self.v, self.scene, &cands, &p) {
                 self.costs.collision?;
                 hits += 1;
             } else if self.margin > 0.0 && !grazed {

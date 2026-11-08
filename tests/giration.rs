@@ -381,7 +381,7 @@ fn no_kerb_cuts_through_a_stall() {
 }
 
 #[test]
-fn buildings_are_walls_behind_a_kerbed_sidewalk_and_planted_areas_are_kerbed() {
+fn buildings_are_walls_behind_a_kerbed_planted_strip_and_planted_areas_are_kerbed() {
     let (site, lay) = scenario("ruisseau");
     let scene = Scene::from_layout(&site, &lay, &KerbProfile::t2());
     // Un point intérieur au bâtiment (en L : le barycentre des sommets tombe dans l'encoche).
@@ -393,8 +393,9 @@ fn buildings_are_walls_behind_a_kerbed_sidewalk_and_planted_areas_are_kerbed() {
         .unwrap();
     let hits = scene.crossings(b, nearest_stall(&lay, b));
     let kinds: Vec<ObstacleKind> = hits.iter().map(|h| scene.obstacles[h.obstacle].kind).collect();
+    // Sans porte, pas de cheminement : de la pleine terre entre le bâtiment et la chaussée.
     assert!(kinds.contains(&ObstacleKind::Wall), "{kinds:?}");
-    assert!(kinds.contains(&ObstacleKind::Kerb), "{kinds:?}");
+    assert!(kinds.contains(&ObstacleKind::Planted), "{kinds:?}");
     let mut checked = 0;
     for poly in &lay.planted {
         let c = centroid(&poly[0]);
@@ -404,12 +405,12 @@ fn buildings_are_walls_behind_a_kerbed_sidewalk_and_planted_areas_are_kerbed() {
             continue;
         }
         let hits = scene.crossings(c, nearest_stall(&lay, c));
-        assert!(hits.iter().any(|h| scene.obstacles[h.obstacle].kind == ObstacleKind::Kerb));
+        assert!(hits.iter().any(|h| scene.obstacles[h.obstacle].kind == ObstacleKind::Planted));
         checked += 1;
     }
     assert!(checked > 3, "{checked} espaces plantés vérifiés");
     // Hauteur vue de la T2 par défaut.
-    assert!(scene.obstacles.iter().any(|o| o.kind == ObstacleKind::Kerb && o.height == 0.16));
+    assert!(scene.obstacles.iter().any(|o| o.kind == ObstacleKind::Planted && o.height == 0.16));
 }
 
 #[test]
@@ -421,7 +422,7 @@ fn row_islands_and_noues_are_kerbed() {
         for q in lay.islands.iter().chain(&lay.noues) {
             let c = centroid(q);
             let hits = scene.crossings(c, nearest_stall(&lay, c));
-            assert!(hits.iter().any(|h| scene.obstacles[h.obstacle].kind == ObstacleKind::Kerb), "{name} : îlot {q:?} sans bordure");
+            assert!(hits.iter().any(|h| scene.obstacles[h.obstacle].kind == ObstacleKind::Planted), "{name} : îlot {q:?} sans bordure");
             checked += 1;
         }
     }
@@ -435,8 +436,23 @@ fn row_islands_and_noues_are_kerbed() {
     for q in &lay.noues {
         let c = centroid(q);
         let hits = scene.crossings(c, nearest_stall(&lay, c));
-        assert!(hits.iter().any(|h| scene.obstacles[h.obstacle].kind == ObstacleKind::Kerb), "noue {q:?} sans bordure");
+        assert!(hits.iter().any(|h| scene.obstacles[h.obstacle].kind == ObstacleKind::Planted), "noue {q:?} sans bordure");
     }
+}
+
+#[test]
+fn planted_ground_kerbs_let_the_overhang_pass_and_sidewalk_kerbs_do_not() {
+    // Allée de 10 m sur la parcelle rect, pleine terre autour ; un cheminement piéton de 2 m au nord.
+    let (site, _) = scenario("rect");
+    let lay = Layout {
+        paved: vec![vec![[10.0, 20.0], [110.0, 20.0], [110.0, 30.0], [10.0, 30.0]]],
+        walks: vec![[[59.0, 30.0], [61.0, 30.0], [61.0, 34.0], [59.0, 34.0]]],
+        ..Layout::default()
+    };
+    let scene = Scene::from_layout(&site, &lay, &KerbProfile::t2());
+    let kinds = |x: f64| scene.crossings([x, 25.0], [x, 31.0]).iter().map(|h| scene.obstacles[h.obstacle].kind).collect::<Vec<_>>();
+    assert_eq!(kinds(60.0), vec![ObstacleKind::Kerb]);
+    assert_eq!(kinds(30.0), vec![ObstacleKind::Planted]);
 }
 
 // ---------------------------------------------------------------------------
@@ -608,6 +624,24 @@ fn a_kerb_lower_than_the_ground_clearance_lets_the_overhang_pass() {
 }
 
 #[test]
+fn the_overhang_passes_over_a_planted_kerb_but_not_the_wheels() {
+    // Bordure T2 d'un espace planté : la caisse déborde au-dessus, sans alerte de marge ; les pneus butent.
+    let v = Vehicle::vl2026();
+    let scene = Scene::new(vec![line_obstacle(ObstacleKind::Planted, 0.16, [10.0, -5.0], [10.0, 5.0])]);
+    let found = conflicts(&v, &scene, &straight(15.0), 0.20);
+    assert!(found.iter().all(|c| c.part != Part::Body && c.part != Part::Margin), "{found:?}");
+    assert!(found.iter().any(|c| c.part == Part::Wheel(0) && c.severity == Severity::Conflict));
+}
+
+#[test]
+fn a_planted_kerb_higher_than_twenty_centimetres_stops_the_overhang() {
+    // Neufert p. 272 : débord de caisse au-dessus d'un muret de 0,20 m au plus.
+    let v = Vehicle::vl2026();
+    let scene = Scene::new(vec![line_obstacle(ObstacleKind::Planted, 0.25, [10.0, -5.0], [10.0, 5.0])]);
+    assert!(conflicts(&v, &scene, &straight(15.0), 0.20).iter().any(|c| c.part == Part::Body));
+}
+
+#[test]
 fn a_wall_inside_the_margin_warns_and_a_wall_beyond_it_does_not() {
     let v = Vehicle::vl2026();
     let near = Scene::new(vec![line_obstacle(ObstacleKind::Wall, f64::INFINITY, [-5.0, 1.09], [30.0, 1.09])]);
@@ -776,7 +810,7 @@ fn entering_from_the_street_is_clean_and_driving_into_a_planted_area_is_not() {
         .unwrap();
     let from = nearest_stall(&lay, green);
     let out = simulate(&epure_json("rect", &[from, green]));
-    assert!(out.conflicts.iter().any(|c| c.severity == "conflit" && c.obstacle == "bordure T2"), "{:?}", out.conflicts);
+    assert!(out.conflicts.iter().any(|c| c.severity == "conflit" && c.obstacle == "bordure T2 d'espace planté"), "{:?}", out.conflicts);
 }
 
 /// Surface roulable du plan affiché, telle que l'interface la transmet (places réduites à leur quadrilatère).
@@ -803,9 +837,9 @@ fn the_displayed_layout_is_checked_without_solving_again() {
     let names = |o: &trame::giration::api::GirOut| o.conflicts.iter().map(|k| (k.part, k.obstacle.clone())).collect::<Vec<_>>();
     assert_eq!(given.poses.len(), solved.poses.len());
     assert_eq!(names(&given), names(&solved));
-    assert!(names(&given).iter().any(|(_, o)| o == "bordure T2"));
+    assert!(names(&given).iter().any(|(_, o)| o == "bordure T2 d'espace planté"));
     // Le plan transmis fait foi : sans ses îlots, plus de bordure à franchir.
-    assert!(!names(&with(false)).iter().any(|(_, o)| o == "bordure T2"));
+    assert!(!names(&with(false)).iter().any(|(_, o)| o.starts_with("bordure T2")));
 }
 
 #[test]
@@ -888,8 +922,13 @@ fn dxf_export_draws_the_epure_on_declared_gir_layers() {
 use trame::giration::api::{places, PlacesOut};
 
 /// Une rangée de `n` places de `w` × 5 m au-dessus d'une allée de largeur `aisle` à double sens,
-/// sur la parcelle du scénario rect (120 × 80 m). Les places donnent sur l'allée (q2, q3).
+/// sur la parcelle du scénario rect (120 × 80 m), en pleine terre. Les places donnent sur l'allée (q2, q3).
 fn row_case(n: usize, w: f64, aisle: f64, neighbours: bool, detail: Option<usize>) -> PlacesOut {
+    row_with_walks(n, w, aisle, neighbours, detail, false, false)
+}
+
+/// La même rangée, avec un trottoir de 2 m en face de l'allée (`facing`) ou derrière les places (`behind`).
+fn row_with_walks(n: usize, w: f64, aisle: f64, neighbours: bool, detail: Option<usize>, facing: bool, behind: bool) -> PlacesOut {
     let path = format!("{}/scenarios/rect.json", env!("CARGO_MANIFEST_DIR"));
     let site: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     let (y0, y1) = (20.0, 20.0 + aisle);
@@ -900,11 +939,18 @@ fn row_case(n: usize, w: f64, aisle: f64, neighbours: bool, detail: Option<usize
             [[a, y1 + 5.0], [a + w, y1 + 5.0], [a + w, y1], [a, y1]]
         })
         .collect();
+    let mut walks = Vec::new();
+    if facing {
+        walks.push([[10.0, y0 - 2.0], [110.0, y0 - 2.0], [110.0, y0], [10.0, y0]]);
+    }
+    if behind {
+        walks.push([[10.0, y1 + 5.0], [110.0, y1 + 5.0], [110.0, y1 + 7.0], [10.0, y1 + 7.0]]);
+    }
     let input = serde_json::json!({
         "site": site,
         "layout": {
             "paved": [[[10.0, y0], [110.0, y0], [110.0, y1], [10.0, y1]]],
-            "pads": [], "islands": [], "entries": [], "cross": [], "stalls": stalls,
+            "pads": [], "islands": [], "entries": [], "cross": [], "stalls": stalls, "walks": walks,
             "axes": [{ "pts": [[10.0, (y0 + y1) / 2.0], [110.0, (y0 + y1) / 2.0]], "w": aisle, "sens": 2 }],
         },
         "neighbours": neighbours,
@@ -977,6 +1023,14 @@ fn a_full_car_park_needs_a_wider_aisle_to_enter_without_reprise() {
 }
 
 #[test]
+fn a_row_facing_planted_ground_needs_no_alert_on_a_narrow_aisle() {
+    // Allée de 5,5 m, pleine terre en face et en fond de place : caisse au-dessus des plantations,
+    // pneus sur la chaussée. Pastille verte, sans alerte.
+    let p = &row_case(9, 2.5, 5.5, true, None).places[4];
+    assert!(matches!(p.verdict, "vert" | "bleu") && p.entry.alerts + p.exit.alerts == 0, "{}", serde_json::to_string(p).unwrap());
+}
+
+#[test]
 fn every_stall_of_the_reference_scenarios_is_rated() {
     for name in ["rect", "ruisseau"] {
         let path = format!("{}/scenarios/{name}.json", env!("CARGO_MANIFEST_DIR"));
@@ -1039,8 +1093,9 @@ fn a_stall_closed_by_a_kerb_is_certified_impossible() {
     let path = format!("{}/scenarios/rect.json", env!("CARGO_MANIFEST_DIR"));
     let site: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     let stalls: Vec<[[f64; 2]; 4]> = (0..3).map(|i| { let a = 56.25 + 2.5 * i as f64; [[a, 35.5], [a + 2.5, 35.5], [a + 2.5, 30.0], [a, 30.0]] }).collect();
+    // Bordure de 0,25 m : plus haute que ce que les porte-à-faux survolent, même en espace planté.
     let input = serde_json::json!({ "site": site, "layout": { "paved": [], "pads": [], "islands": [], "entries": [], "cross": [], "stalls": stalls,
-        "axes": [{ "pts": [[10.0, 27.0], [110.0, 27.0]], "w": 6.0, "sens": 2 }] }, "stalls": [1] });
+        "axes": [{ "pts": [[10.0, 27.0], [110.0, 27.0]], "w": 6.0, "sens": 2 }] }, "stalls": [1], "kerb": { "name": "haute", "visible_height": 0.25 } });
     let out = places(&serde_json::from_value(input).unwrap());
     let p = &out.places[0];
     assert_eq!((p.verdict, p.entry.status), ("rouge", "infeasible"), "{}", serde_json::to_string(p).unwrap());
@@ -1061,9 +1116,9 @@ fn a_search_cut_short_by_its_budget_is_unknown_not_impossible() {
 
 #[test]
 fn the_minimum_clearance_is_measured() {
-    // Rangée sur allée de 10 m, voisines vides : le pare-chocs garé est à 0,12 m de la bordure de fond
-    // (marge de 0,10 m + 2 cm), obstacle le plus proche.
-    let p = &row_case(9, 2.5, 10.0, false, None).places[4];
+    // Rangée sur allée de 10 m, voisines vides, trottoir derrière les places : le pare-chocs garé est
+    // à 0,12 m de la bordure de fond (marge de 0,10 m + 2 cm), obstacle le plus proche.
+    let p = &row_with_walks(9, 2.5, 10.0, false, None, false, true).places[4];
     assert_eq!(p.verdict, "vert");
     for m in [&p.entry, &p.exit] {
         assert!(m.clearance > 0.09 && m.clearance <= 0.125, "{}", m.clearance);
@@ -1107,15 +1162,16 @@ fn only_orange_and_red_places_carry_their_body_and_wheel_tracks() {
         assert!(matches!(p.verdict, "vert" | "bleu"), "{}", p.verdict);
         assert!(p.tracks.is_empty() && p.envelope.is_empty());
     }
-    // Orange (allée de 5,5 m face à une bordure) : enveloppe de caisse et traces des huit flancs de pneus.
-    let p = &row_case(9, 2.5, 5.5, true, None).places[4];
+    // Orange (allée de 5,5 m entre deux trottoirs) : enveloppe de caisse et traces des huit flancs de pneus.
+    let p = &row_with_walks(9, 2.5, 5.5, true, None, true, true).places[4];
     assert_eq!(p.verdict, "orange");
     assert!(p.tracks.len() == 8 && p.tracks.iter().all(|t| t.len() >= 2) && !p.envelope.is_empty());
-    // Rouge, voiture garée qui ne tient pas (place de 1,90 m entre bordures) : sa caisse seule.
+    // Rouge, voiture garée qui ne tient pas (place de 1,80 m en pleine terre : les pneus, 1,90 m hors
+    // tout, touchent les bordures) : sa caisse seule.
     let path = format!("{}/scenarios/rect.json", env!("CARGO_MANIFEST_DIR"));
     let site: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     let input = serde_json::json!({ "site": site, "layout": { "paved": [[[10.0, 20.0], [110.0, 20.0], [110.0, 30.0], [10.0, 30.0]]], "pads": [], "islands": [], "entries": [], "cross": [],
-        "stalls": [[[59.05, 35.0], [60.95, 35.0], [60.95, 30.0], [59.05, 30.0]]], "axes": [{ "pts": [[10.0, 25.0], [110.0, 25.0]], "w": 10.0, "sens": 2 }] } });
+        "stalls": [[[59.1, 35.0], [60.9, 35.0], [60.9, 30.0], [59.1, 30.0]]], "axes": [{ "pts": [[10.0, 25.0], [110.0, 25.0]], "w": 10.0, "sens": 2 }] } });
     let p = &places(&serde_json::from_value(input).unwrap()).places[0];
     assert_eq!((p.verdict, p.reason), ("rouge", Some("la voiture garée touche un obstacle")));
     assert!(p.tracks.is_empty() && p.envelope.len() == 1 && p.envelope[0][0].len() >= 4);
@@ -1136,8 +1192,11 @@ fn a_car_parks_up_to_the_line_of_a_joined_stall_and_short_of_a_kerb() {
     let park = places(&serde_json::from_value(input).unwrap()).places[0].park;
     let nose = park[1] + v.wheelbase + v.front_overhang;
     assert!((nose - (35.0 - 0.02)).abs() < 0.005, "{nose}");
-    // Fond bordé (rangée simple) : marge par défaut de 0,10 m + 2 cm.
+    // Fond sur la pleine terre : la caisse peut la survoler, nez à 2 cm de la ligne.
     let park = row_case(9, 2.5, 10.0, true, None).places[4].park;
+    assert!((park[1] + v.wheelbase + v.front_overhang - (35.0 - 0.02)).abs() < 0.005);
+    // Fond sur un trottoir : marge par défaut de 0,10 m + 2 cm.
+    let park = row_with_walks(9, 2.5, 10.0, true, None, false, true).places[4].park;
     assert!((park[1] + v.wheelbase + v.front_overhang - (35.0 - 0.12)).abs() < 0.005);
 }
 

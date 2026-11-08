@@ -1,20 +1,23 @@
 //! Scène : obstacles typés que les roues et la carrosserie ne doivent pas toucher.
 //!
 //! Bordures : contour de la surface roulable (chaussée, allées, accès, places), là où il est
-//! intérieur à la parcelle. Murs : bâtiments. Limite : contour de parcelle, sauf les bouches
-//! des accès.
+//! intérieur à la parcelle ; bordure d'espace planté quand la pleine terre la longe, sinon de
+//! trottoir (cheminement piéton, bâtiment, servitude). Murs : bâtiments. Limite : contour de
+//! parcelle, sauf les bouches des accès.
 
 use crate::geom::{v2, Region, V2};
 use crate::model::{Layout, Site, P2};
 use crate::region::{erode, grow, to_poly};
 use geo::algorithm::bool_ops::unary_union;
-use geo::{BooleanOps, MultiPolygon, Polygon};
+use geo::{BooleanOps, Contains, MultiPolygon, Point, Polygon};
 use serde::Deserialize;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ObstacleKind {
-    /// Bordure de trottoir ou d'espace planté.
+    /// Bordure de trottoir ou de cheminement piéton.
     Kerb,
+    /// Bordure d'espace planté (pleine terre, îlot, noue) : la caisse déborde au-dessus, pas les pneus.
+    Planted,
     /// Façade de bâtiment.
     Wall,
     /// Limite de parcelle (clôture, mur ou haie : infranchissable).
@@ -55,6 +58,11 @@ pub struct Crossing {
 const CELL: f64 = 2.0;
 /// Fermeture morphologique de la surface roulable : comble les joints de quelques centimètres.
 const CLOSE: f64 = 0.05;
+/// Distance au milieu d'une bordure du point qui dit ce qu'elle longe (m).
+const SIDE: f64 = 0.15;
+/// Pas d'examen de ce que longe une bordure : un côté de chaussée peut longer un trottoir puis la
+/// pleine terre (m).
+const PIECE: f64 = 0.5;
 
 pub struct Scene {
     pub obstacles: Vec<Obstacle>,
@@ -176,6 +184,40 @@ impl Scene {
         let islands: Vec<Polygon<f64>> = lay.islands.iter().map(quad_poly).collect();
         let drivable = erode(&grow(&unary_union(polys.iter()), CLOSE), CLOSE).difference(&unary_union(islands.iter()));
 
+        // Ce qui n'est pas de la pleine terre hors de la surface roulable : bâtiments, cheminements
+        // piétons, servitudes (de nature inconnue).
+        let hard: Vec<Region> = site
+            .buildings
+            .iter()
+            .map(|b| b.poly.clone())
+            .chain(lay.walks.iter().map(|q| q.to_vec()))
+            .chain(site.exclusions.iter().cloned())
+            .map(|r| Region::new(vec![r.iter().map(|p| v2(p[0], p[1])).collect()]))
+            .collect();
+        let kind_of = |a: P2, b: P2| {
+            let (m, d) = (v2(0.5 * (a[0] + b[0]), 0.5 * (a[1] + b[1])), v2(b[0] - a[0], b[1] - a[1]));
+            let n = v2(-d.y, d.x) * (SIDE / d.len().max(1e-12));
+            let off = |p: V2| !drivable.contains(&Point::new(p.x, p.y));
+            let outer = match (off(m + n), off(m - n)) {
+                (true, false) => m + n,
+                (false, true) => m - n,
+                _ => return ObstacleKind::Kerb,
+            };
+            if inside.contains(outer) && !hard.iter().any(|r| r.contains(outer)) {
+                ObstacleKind::Planted
+            } else {
+                ObstacleKind::Kerb
+            }
+        };
+        let height = kerb.visible_height;
+        let flush = |cur: &mut Vec<P2>, kind: ObstacleKind, obstacles: &mut Vec<Obstacle>| {
+            if cur.len() > 1 {
+                obstacles.push(Obstacle { kind, height, pts: std::mem::take(cur) });
+            } else {
+                cur.clear();
+            }
+        };
+
         let mut obstacles = Vec::new();
         for poly in &drivable.0 {
             for ring in std::iter::once(poly.exterior()).chain(poly.interiors()) {
@@ -183,24 +225,39 @@ impl Scene {
                 if crate::geom::signed_area(&pts.iter().map(|p| v2(p[0], p[1])).collect::<Vec<_>>()).abs() < 0.2 {
                     continue;
                 }
-                // Découpe en polylignes : on écarte ce qui longe la limite ou sort de la parcelle.
+                // Découpe en polylignes : on écarte ce qui longe la limite ou sort de la parcelle, et
+                // l'on coupe où la bordure change de nature.
                 let mut cur: Vec<P2> = Vec::new();
+                let mut kind = ObstacleKind::Kerb;
                 for w in pts.windows(2) {
                     let m = v2(0.5 * (w[0][0] + w[1][0]), 0.5 * (w[0][1] + w[1][1]));
                     if inside.contains(m) && !near_limit(m) {
-                        if cur.is_empty() {
-                            cur.push(w[0]);
+                        // Morceaux de PIECE au plus ; un sommet seulement où la nature change.
+                        let n = ((w[1][0] - w[0][0]).hypot(w[1][1] - w[0][1]) / PIECE).ceil().max(1.0) as usize;
+                        let at = |j: usize| {
+                            let t = j as f64 / n as f64;
+                            [w[0][0] + (w[1][0] - w[0][0]) * t, w[0][1] + (w[1][1] - w[0][1]) * t]
+                        };
+                        let ks: Vec<ObstacleKind> = (0..n).map(|j| kind_of(at(j), at(j + 1))).collect();
+                        for j in 0..n {
+                            if ks[j] != kind {
+                                flush(&mut cur, kind, &mut obstacles);
+                                kind = ks[j];
+                            }
+                            if cur.is_empty() {
+                                cur.push(at(j));
+                            }
+                            if j + 1 == n {
+                                cur.push(w[1]);
+                            } else if ks[j + 1] != kind {
+                                cur.push(at(j + 1));
+                            }
                         }
-                        cur.push(w[1]);
-                    } else if cur.len() > 1 {
-                        obstacles.push(Obstacle { kind: ObstacleKind::Kerb, height: kerb.visible_height, pts: std::mem::take(&mut cur) });
                     } else {
-                        cur.clear();
+                        flush(&mut cur, kind, &mut obstacles);
                     }
                 }
-                if cur.len() > 1 {
-                    obstacles.push(Obstacle { kind: ObstacleKind::Kerb, height: kerb.visible_height, pts: cur });
-                }
+                flush(&mut cur, kind, &mut obstacles);
             }
         }
 

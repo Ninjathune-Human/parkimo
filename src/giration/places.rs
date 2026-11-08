@@ -9,7 +9,7 @@ use super::epure::{Run, Sample};
 use super::kinematics::{Pose, Profile};
 use super::planner::{Costs, Outcome, Piece, Search, Table};
 use super::scene::{Obstacle, ObstacleKind, Scene};
-use super::sweep::{body_contact, footprint, margin_contact};
+use super::sweep::{body_contact, footprint, margin_contact, near_body, tyre_on_kerb_among};
 use super::vehicle::Vehicle;
 use crate::model::P2;
 use serde::Deserialize;
@@ -83,7 +83,7 @@ const NODES_DIRECT: usize = 5_000;
 /// Recherche à 1 reprise au plus (le cas le plus fréquent, « en deux fois »), avant la recherche
 /// sans limite.
 const STAGED_REPRISES: usize = 1;
-const NODES_STAGE: usize = 10_000;
+const NODES_STAGE: usize = 20_000;
 pub const NODES_REPRISES: usize = 40_000;
 const NODES_CONTACT: usize = 20_000;
 
@@ -255,7 +255,7 @@ pub fn test_stall(ctx: &Ctx, i: usize, illustrate: bool) -> Tested {
         return fail(scene, Status::Unknown, "aucune voie ne dessert la place");
     };
     // Impossibilité démontrée : la voiture garée ne tient pas dans la place.
-    if body_contact(v, &scene, &park, 0.0).is_some() {
+    if body_contact(v, &scene, &park, 0.0).is_some() || tyre_on_kerb_among(v, &scene, &near_body(v, &scene, &park, 0.0), &park) {
         return fail(scene, Status::Infeasible, "la voiture garée touche un obstacle");
     }
 

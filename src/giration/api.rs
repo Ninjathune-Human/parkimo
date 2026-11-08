@@ -37,7 +37,8 @@ pub struct GirIn {
     pub layout: Option<Drivable>,
 }
 
-/// Ce que la scène lit du plan : chaussée, fonds de rangées, places, îlots, accès, allées transversales.
+/// Ce que la scène lit du plan : chaussée, fonds de rangées, places, îlots, accès, allées transversales,
+/// cheminements piétons.
 #[derive(Clone, Deserialize)]
 pub struct Drivable {
     pub paved: Vec<Vec<P2>>,
@@ -46,6 +47,9 @@ pub struct Drivable {
     pub islands: Vec<[P2; 4]>,
     pub entries: Vec<[P2; 4]>,
     pub cross: Vec<[P2; 4]>,
+    /// Cheminements piétons : leurs bordures sont des trottoirs, pas des bordures d'espace planté.
+    #[serde(default)]
+    pub walks: Vec<[P2; 4]>,
     /// Axes des voies, pour le test des places.
     #[serde(default)]
     pub axes: Vec<Lane>,
@@ -60,6 +64,7 @@ impl Drivable {
             islands: self.islands.clone(),
             entries: self.entries.clone(),
             cross: self.cross.clone(),
+            walks: self.walks.clone(),
             ..Layout::default()
         }
     }
@@ -238,6 +243,7 @@ fn simulate_run(inp: &GirIn, v: &Vehicle, scene: &Scene, run: &Run) -> GirOut {
             .map(|o| ObstacleOut {
                 kind: match o.kind {
                     ObstacleKind::Kerb => "bordure",
+                    ObstacleKind::Planted => "bordure plantee",
                     ObstacleKind::Wall => "mur",
                     ObstacleKind::Limit => "limite",
                     ObstacleKind::Car => "vehicule",
@@ -256,6 +262,7 @@ fn simulate_run(inp: &GirIn, v: &Vehicle, scene: &Scene, run: &Run) -> GirOut {
                 },
                 obstacle: match scene.obstacles[c.obstacle].kind {
                     ObstacleKind::Kerb => format!("bordure {}", inp.kerb.name),
+                    ObstacleKind::Planted => format!("bordure {} d'espace planté", inp.kerb.name),
                     ObstacleKind::Wall => "mur".into(),
                     ObstacleKind::Limit => "limite de parcelle".into(),
                     ObstacleKind::Car => "véhicule garé".into(),
