@@ -1,0 +1,264 @@
+//! Scène : obstacles typés que les roues et la carrosserie ne doivent pas toucher.
+//!
+//! Bordures : contour de la surface roulable (chaussée, allées, accès, places), là où il est
+//! intérieur à la parcelle. Murs : bâtiments. Limite : contour de parcelle, sauf les bouches
+//! des accès.
+
+use crate::geom::{v2, Region, V2};
+use crate::model::{Layout, Site, P2};
+use crate::region::{erode, grow, to_poly};
+use geo::algorithm::bool_ops::unary_union;
+use geo::{BooleanOps, MultiPolygon, Polygon};
+use serde::Deserialize;
+use std::collections::HashMap;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ObstacleKind {
+    /// Bordure de trottoir ou d'espace planté.
+    Kerb,
+    /// Façade de bâtiment.
+    Wall,
+    /// Limite de parcelle (clôture, mur ou haie : infranchissable).
+    Limit,
+    /// Véhicule garé dans une place voisine.
+    Car,
+}
+
+#[derive(Clone, Debug)]
+pub struct Obstacle {
+    pub kind: ObstacleKind,
+    /// Hauteur vue (m) ; infinie pour un mur ou une limite.
+    pub height: f64,
+    /// Polyligne ; un anneau répète son premier point à la fin.
+    pub pts: Vec<P2>,
+}
+
+/// Profil de bordure : son nom et sa hauteur vue au-dessus de la chaussée.
+#[derive(Clone, Debug, Deserialize)]
+pub struct KerbProfile {
+    pub name: String,
+    pub visible_height: f64,
+}
+
+impl KerbProfile {
+    /// T2, hauteur vue 0,16 m (trottoir courant, prescriptions de la Métropole Aix-Marseille-Provence).
+    pub fn t2() -> KerbProfile {
+        KerbProfile { name: "T2".into(), visible_height: 0.16 }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Crossing {
+    pub obstacle: usize,
+    pub point: P2,
+}
+
+const CELL: f64 = 2.0;
+/// Fermeture morphologique de la surface roulable : comble les joints de quelques centimètres.
+const CLOSE: f64 = 0.05;
+
+pub struct Scene {
+    pub obstacles: Vec<Obstacle>,
+    grid: HashMap<(i32, i32), Vec<(u32, u32)>>,
+}
+
+fn quad_poly(q: &[P2; 4]) -> Polygon<f64> {
+    to_poly(&q.iter().map(|p| v2(p[0], p[1])).collect::<Vec<_>>())
+}
+
+fn ring_pts(ls: &geo::LineString<f64>) -> Vec<P2> {
+    ls.0.iter().map(|c| [c.x, c.y]).collect()
+}
+
+fn dist_to_segment(p: V2, a: V2, b: V2) -> f64 {
+    let ab = b - a;
+    let t = ((p - a).dot(ab) / ab.dot(ab).max(1e-18)).clamp(0.0, 1.0);
+    (a + ab * t - p).len()
+}
+
+/// Intervalles du segment [a, b] (paramètre 0..1) contenus dans le quadrilatère convexe `q`.
+fn clip_in_quad(a: V2, b: V2, q: &[V2; 4]) -> Option<(f64, f64)> {
+    let area: f64 = (0..4).map(|i| q[i].cross(q[(i + 1) % 4])).sum();
+    let s = area.signum();
+    let (mut t0, mut t1) = (0.0f64, 1.0f64);
+    let d = b - a;
+    for i in 0..4 {
+        let (e0, e1) = (q[i], q[(i + 1) % 4]);
+        let e = e1 - e0;
+        // Intérieur : s · cross(e, p − e0) ≥ −ε.
+        let num = s * e.cross(a - e0) + 0.01 * e.len();
+        let den = s * e.cross(d);
+        if den.abs() < 1e-12 {
+            if num < 0.0 {
+                return None;
+            }
+        } else {
+            let t = -num / den;
+            if den > 0.0 {
+                t0 = t0.max(t);
+            } else {
+                t1 = t1.min(t);
+            }
+        }
+    }
+    (t1 > t0).then_some((t0, t1))
+}
+
+pub(crate) fn segment_hit(a: P2, b: P2, c: P2, d: P2) -> Option<(f64, P2)> {
+    let r = [b[0] - a[0], b[1] - a[1]];
+    let s = [d[0] - c[0], d[1] - c[1]];
+    let den = r[0] * s[1] - r[1] * s[0];
+    if den.abs() < 1e-14 {
+        return None;
+    }
+    let q = [c[0] - a[0], c[1] - a[1]];
+    let t = (q[0] * s[1] - q[1] * s[0]) / den;
+    let u = (q[0] * r[1] - q[1] * r[0]) / den;
+    ((0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&u))
+        .then(|| (t, [a[0] + t * r[0], a[1] + t * r[1]]))
+}
+
+impl Scene {
+    pub fn new(obstacles: Vec<Obstacle>) -> Scene {
+        let mut grid: HashMap<(i32, i32), Vec<(u32, u32)>> = HashMap::new();
+        for (oi, o) in obstacles.iter().enumerate() {
+            for si in 0..o.pts.len().saturating_sub(1) {
+                let (a, b) = (o.pts[si], o.pts[si + 1]);
+                for key in cells(a, b) {
+                    grid.entry(key).or_default().push((oi as u32, si as u32));
+                }
+            }
+        }
+        Scene { obstacles, grid }
+    }
+
+    pub fn from_layout(site: &Site, lay: &Layout, kerb: &KerbProfile) -> Scene {
+        let parcel: Vec<V2> = site.parcel.iter().map(|p| v2(p[0], p[1])).collect();
+        let inside = Region::new(vec![parcel.clone()]);
+        let near_limit = |p: V2| {
+            (0..parcel.len())
+                .map(|i| dist_to_segment(p, parcel[i], parcel[(i + 1) % parcel.len()]))
+                .fold(f64::INFINITY, f64::min)
+                < 0.02
+        };
+
+        // Surface roulable : chaussée (anneaux pair-impair), allées transversales, accès, places.
+        let mut paved = MultiPolygon::new(vec![]);
+        for r in &lay.paved {
+            let ring = to_poly(&r.iter().map(|p| v2(p[0], p[1])).collect::<Vec<_>>());
+            paved = paved.xor(&MultiPolygon::new(vec![ring]));
+        }
+        let mut polys: Vec<Polygon<f64>> = paved.0;
+        let quads = lay.cross.iter().chain(&lay.entries).chain(&lay.pads);
+        polys.extend(quads.map(quad_poly));
+        polys.extend(lay.stalls.iter().map(|s| quad_poly(&s.q)));
+        // Îlots des rangées : posés sur les fonds de rangées, bordés de tous côtés (les noues sont déjà hors chaussée).
+        let islands: Vec<Polygon<f64>> = lay.islands.iter().map(quad_poly).collect();
+        let drivable = erode(&grow(&unary_union(polys.iter()), CLOSE), CLOSE).difference(&unary_union(islands.iter()));
+
+        let mut obstacles = Vec::new();
+        for poly in &drivable.0 {
+            for ring in std::iter::once(poly.exterior()).chain(poly.interiors()) {
+                let pts = ring_pts(ring);
+                if crate::geom::signed_area(&pts.iter().map(|p| v2(p[0], p[1])).collect::<Vec<_>>()).abs() < 0.2 {
+                    continue;
+                }
+                // Découpe en polylignes : on écarte ce qui longe la limite ou sort de la parcelle.
+                let mut cur: Vec<P2> = Vec::new();
+                for w in pts.windows(2) {
+                    let m = v2(0.5 * (w[0][0] + w[1][0]), 0.5 * (w[0][1] + w[1][1]));
+                    if inside.contains(m) && !near_limit(m) {
+                        if cur.is_empty() {
+                            cur.push(w[0]);
+                        }
+                        cur.push(w[1]);
+                    } else if cur.len() > 1 {
+                        obstacles.push(Obstacle { kind: ObstacleKind::Kerb, height: kerb.visible_height, pts: std::mem::take(&mut cur) });
+                    } else {
+                        cur.clear();
+                    }
+                }
+                if cur.len() > 1 {
+                    obstacles.push(Obstacle { kind: ObstacleKind::Kerb, height: kerb.visible_height, pts: cur });
+                }
+            }
+        }
+
+        for b in &site.buildings {
+            let mut pts = b.poly.clone();
+            if let Some(&first) = pts.first() {
+                pts.push(first);
+            }
+            obstacles.push(Obstacle { kind: ObstacleKind::Wall, height: f64::INFINITY, pts });
+        }
+
+        // Limite de parcelle, bouches d'accès retirées.
+        let entries: Vec<[V2; 4]> = lay
+            .entries
+            .iter()
+            .map(|q| [v2(q[0][0], q[0][1]), v2(q[1][0], q[1][1]), v2(q[2][0], q[2][1]), v2(q[3][0], q[3][1])])
+            .collect();
+        for i in 0..parcel.len() {
+            let (a, b) = (parcel[i], parcel[(i + 1) % parcel.len()]);
+            let mut cuts: Vec<(f64, f64)> = entries.iter().filter_map(|q| clip_in_quad(a, b, q)).collect();
+            cuts.sort_by(|x, y| x.0.total_cmp(&y.0));
+            let mut t = 0.0;
+            let at = |t: f64| {
+                let p = a + (b - a) * t;
+                [p.x, p.y]
+            };
+            for (c0, c1) in cuts {
+                if c0 > t + 1e-9 {
+                    obstacles.push(Obstacle { kind: ObstacleKind::Limit, height: f64::INFINITY, pts: vec![at(t), at(c0)] });
+                }
+                t = t.max(c1);
+            }
+            if t < 1.0 - 1e-9 {
+                obstacles.push(Obstacle { kind: ObstacleKind::Limit, height: f64::INFINITY, pts: vec![at(t), at(1.0)] });
+            }
+        }
+        Scene::new(obstacles)
+    }
+
+    /// Segments d'obstacles (obstacle, segment) dont les cases touchent le rectangle [lo, hi].
+    pub fn near(&self, lo: P2, hi: P2) -> Vec<(usize, usize)> {
+        let mut out: Vec<(usize, usize)> = Vec::new();
+        for key in cells(lo, hi) {
+            if let Some(list) = self.grid.get(&key) {
+                out.extend(list.iter().map(|&(o, s)| (o as usize, s as usize)));
+            }
+        }
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+
+    /// Points où le segment [a, b] coupe un obstacle, du plus proche de `a` au plus lointain.
+    pub fn crossings(&self, a: P2, b: P2) -> Vec<Crossing> {
+        let mut seen: Vec<(u32, u32)> = Vec::new();
+        let mut hits: Vec<(f64, Crossing)> = Vec::new();
+        for key in cells(a, b) {
+            if let Some(list) = self.grid.get(&key) {
+                for &(oi, si) in list {
+                    if seen.contains(&(oi, si)) {
+                        continue;
+                    }
+                    seen.push((oi, si));
+                    let o = &self.obstacles[oi as usize];
+                    let (c, d) = (o.pts[si as usize], o.pts[si as usize + 1]);
+                    if let Some((t, point)) = segment_hit(a, b, c, d) {
+                        hits.push((t, Crossing { obstacle: oi as usize, point }));
+                    }
+                }
+            }
+        }
+        hits.sort_by(|x, y| x.0.total_cmp(&y.0));
+        hits.into_iter().map(|h| h.1).collect()
+    }
+}
+
+fn cells(a: P2, b: P2) -> impl Iterator<Item = (i32, i32)> {
+    let (x0, x1) = ((a[0].min(b[0]) / CELL).floor() as i32, (a[0].max(b[0]) / CELL).floor() as i32);
+    let (y0, y1) = ((a[1].min(b[1]) / CELL).floor() as i32, (a[1].max(b[1]) / CELL).floor() as i32);
+    (x0..=x1).flat_map(move |x| (y0..=y1).map(move |y| (x, y)))
+}

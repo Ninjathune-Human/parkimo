@@ -8,6 +8,7 @@ pub mod circulation;
 pub mod dxf;
 pub mod finish;
 pub mod geom;
+pub mod giration;
 pub mod layout;
 pub mod model;
 pub mod occupation;
@@ -786,6 +787,21 @@ pub unsafe extern "C" fn occupation_json(ptr: *const u8, n: usize) -> *const u8 
 #[no_mangle]
 pub unsafe extern "C" fn export_dxf_json(ptr: *const u8, n: usize) -> *const u8 {
     json_call(ptr, n, dxf::export)
+}
+
+/// Épure de giration : trajectoire, traces des roues, enveloppes et conflits.
+///
+/// # Safety
+/// `ptr` doit pointer vers `n` octets JSON valides alloués par `alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn giration_json(ptr: *const u8, n: usize) -> *const u8 {
+    json_call(ptr, n, giration::api::simulate)
+}
+
+/// Test des places : entrée en marche avant, sortie en marche arrière, verdict par place.
+#[no_mangle]
+pub unsafe extern "C" fn giration_places_json(ptr: *const u8, n: usize) -> *const u8 {
+    json_call(ptr, n, giration::api::places)
 }
 
 #[no_mangle]

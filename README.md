@@ -94,6 +94,21 @@ Menu **Modifier**, « Inclinaison des places » : 90° (défaut), 75°, 60°, 45
 - **Bordure** : chaque place est un parallélogramme dont le fond suit la limite (corde de `largeur / sin(angle)`) et dont l'avant est reculé de `profondeur × cotan(angle)` contre le sens de la limite. L'anneau devient une voie à sens unique de la largeur Neufert, parcourue dans le sens de la limite (les places restent à droite de la voie : anti-horaire sur le pourtour, horaire autour d'un bâtiment) ; ces sens sont imposés à l'analyse de circulation, sans repère visible. L'aire de manœuvre devant chaque place de bordure reste chaussée, et les rangées intérieures évitent les places de bordure et leur aire de manœuvre. Les accès, les cheminements devant les portes et la bande de bordure prennent la profondeur inclinée.
 - **Effet sur le nombre de places** (scénario « rect », 302 places à 90°) : 295 à 75°, 279 à 60°, 251 à 45°, 184 à 30°. La bordure perd le plus (112 places à 90°, 107, 91, 72 puis 49) ; l'intérieur reste stable car l'anneau plus étroit libère de la profondeur.
 
+## Giration
+
+Menu **Giration** : épure tracée à la main, comme dans Covadis. « Tracer une trajectoire », puis toucher le plan : départ, points de passage ; le bouton Avant / Arrière pose un point de rebroussement (rond) et le tronçon suivant se fait en marche arrière (tirets). Terminer, Entrée ou double toucher lance la simulation ; Annuler retire le dernier point pendant le tracé. Les sommets se glissent ensuite sur le plan, la simulation suit.
+
+- Véhicule : VL 2026 (enveloppe Peugeot 308, Renault Austral, Tesla Model Y), 4,83 × 1,98 m, empattement 2,89 m, diamètre de braquage publié 12,10 m lu entre trottoirs (13,15 m entre murs, calculé). Modèle bicyclette, épure de Jeantaud, volant à vitesse finie (butée à butée en 4 s).
+- Le véhicule suit la trajectoire tracée (essieu avant en marche avant, essieu arrière en marche arrière) ; l'écart maximal et les tronçons non atteints sont signalés.
+- Sorties : traces des huit flancs de pneus, enveloppe de carrosserie, marge de sécurité, véhicule à la position choisie (curseur, lecture), conflits typés : roue ou carrosserie contre bordure, mur (bâtiment) ou limite de parcelle ; la carrosserie ne heurte une bordure que si sa hauteur vue dépasse la garde au sol (0,14 m). Une marge franchie est une alerte.
+- Hypothèses (repliées sous le résultat) : conducteur Prudent, Courant ou Habile (par défaut), vitesse (5 km/h par défaut), marge (0,20 m), bordures T2 ou T3 et leur hauteur vue (0,16 m par défaut, Métropole Aix-Marseille-Provence).
+- Bordures : contours de la surface roulable (chaussée, allées, accès, fonds de rangées, places) à l'intérieur de la parcelle, îlots des rangées compris. Le plan affiché est contrôlé tel quel.
+- **Test de toutes les places** (« Tester toutes les places ») : chaque place est jouée en entrée, en marche avant depuis l'allée, puis en sortie, en marche arrière vers l'allée, parking plein (toutes les places occupées, les deux voisines garées au pire, décalées de 0,10 m vers la place testée). La voiture garée est centrée, nez vers le fond, pare-chocs à la marge plus 2 cm du fond. Manœuvre planifiée par A* hybride depuis la pose garée (le modèle bicyclette est réversible : l'entrée est la sortie parcourue à rebours), d'abord d'un seul tenant, puis avec reprises ; braquage à l'arrêt à chaque changement de courbure (conducteur habile).
+- **Statuts** : une manœuvre est possible (trouvée sans contact), impossible (la voiture garée ne tient pas, ou le domaine de recherche a été exploré en entier sans solution : pas de 0,25 m, 5°, zone de 16 m) ou non conclue (budget de recherche épuisé, réglable). Un échec de recherche n'est jamais présenté comme une impossibilité.
+- **Verdicts** : vert, d'un seul tenant ; bleu, avec reprises (3 au plus) ; orange, sous condition (marge entamée ou plus de 3 reprises) ; rouge, impossible ; gris, non conclu. Repères doublés d'une forme : rond, losange, triangle, carré, anneau. Marge minimale mesurée (distance de la caisse aux obstacles). Calcul dans un Web Worker, par lots ; toucher une place montre sa manœuvre, ou la moins mauvaise si aucune n'est possible. Un plan modifié efface les verdicts.
+- **Collisions continues** : entre deux poses, la caisse balaye au plus l'enveloppe convexe de ses deux empreintes agrandie de la flèche de l'arc décrit par son coin le plus éloigné du centre de rotation ; ce contrôle exact par excès remplace l'échantillonnage (épure et test des places). La marge, simple alerte, reste contrôlée aux échantillons.
+- Calques `Trajectoire et roues`, `Carrosserie`, `Marge de sécurité`, `Conflits`, `Verdicts des places` ; export DXF sur `GIR_TRAJECTOIRE`, `GIR_ROUES`, `GIR_CARROSSERIE`, `GIR_MARGE`, `GIR_VEHICULE` (gabarit tous les 2 m), `GIR_CONFLITS`.
+
 ## Export tableur (XLS)
 
 Menu **Exporter**, bouton « Télécharger le tableur XLS » : classeur XML Spreadsheet 2003 (`.xls`, lu par Excel, LibreOffice et Numbers, sans bibliothèque). Feuille **Synthèse** : projet (dates de création et de dernière modification, conservées dans le navigateur avec le projet), emplacement (commune, références cadastrales, latitude et longitude WGS84 du centre de la parcelle), places (total, standard, PMR, IRVE, bordure et cœur, conformités, parts), arbres, surfaces et ratios (enrobé, espaces verts, m² par place, places par hectare), hypothèses de calcul et estimation financière (tranche, ratios, totaux mini, maxi et central, avec ou sans études et MOE). Feuille **Barème** : le barème en vigueur et la tranche appliquée.
@@ -112,6 +127,7 @@ Bouton **Exporter** : fichier DXF AutoCAD 2010 (texte UTF-8), unités en mètres
 | Habillage | `HAB_VEHICULES`, `HAB_ARBRES` |
 | Occupation du sol | `OCC_VOIRIE`, `OCC_BATI`, `OCC_VEGETATION` |
 | Cadastre | `CAD_PARCELLES`, `CAD_NUMEROS`, `CAD_FEUILLES`, `CAD_COMMUNES` |
+| Giration | `GIR_TRAJECTOIRE`, `GIR_ROUES`, `GIR_CARROSSERIE`, `GIR_MARGE`, `GIR_VEHICULE`, `GIR_CONFLITS` |
 | Repères | `EMPRISE`, `INFO` (système de coordonnées, sources, bilan) |
 
 Le squelette du fichier (en-tête, tables, calques, types de ligne, blocs) est produit par ezdxf (`tools/dxf_template.py`) ; chaque export est relu par ezdxf dans les tests, sans erreur d'audit.
@@ -147,12 +163,18 @@ src/planted.rs    espaces plantés, arrondis en bordure de chaussée
 src/occupation.rs occupation du sol : voirie, bâti, végétation
 src/proj.rs       projections Lambert-93 et CC (RGF93, GRS80)
 src/dxf.rs        export DXF AutoCAD 2010 géoréférencé
+src/giration/     simulateur de giration : véhicule (vehicle.rs), cinématique (kinematics.rs), bordures, murs et
+                  limites (scene.rs), suivi de trajectoire (epure.rs), traces, enveloppes et conflits (sweep.rs),
+                  A* hybride (planner.rs), test des places (places.rs), contrat JSON (api.rs)
 src/dxf_template.dxf squelette AutoCAD (calques, types de ligne, blocs d'habillage)
 src/symbols.json  symboles d'habillage (véhicules, arbres) et flèche au sol, partagés par l'interface et l'export
 src/lib.rs        orchestration, union de parcelles, interface WebAssembly (JSON en entrée, JSON en sortie)
 tests/quality.rs  invariants : aucun chevauchement, aucune place hors zone ou sans accès, quotas, 60 parcelles aléatoires,
                   flèches dans la chaussée, sens unique fortement connexe, bascule des voies par le squelette,
                   voies resserrées à la largeur sens unique, repères stables, sens de parcours imposé
+tests/giration.rs véhicule, cinématique, scène, suivi, conflits ; recettes AASHTO P, NF P 91-100, Neufert
+examples/giration.rs rendu SVG de contrôle d'un virage du VL 2026
+examples/places_bench.rs test de toutes les places d'un scénario : durée et verdicts
 examples/dxf.rs   export d'un scénario en DXF
 web/app.html      interface (canvas, poignées, panneaux, mode carte, couches et calques, export)
 tools/bundle.py   assemble dist/index.html avec le moteur embarqué

@@ -78,6 +78,9 @@ pub struct ExportIn {
     pub date: String,
     #[serde(default)]
     pub dress: DressIn,
+    /// Épure de giration à dessiner sur les calques GIR_*.
+    #[serde(default)]
+    pub giration: Option<crate::giration::api::EpureIn>,
 }
 
 #[derive(Serialize)]
@@ -654,6 +657,49 @@ pub fn export(inp: &ExportIn) -> ExportOut {
         w.ring("PRJ_PARCELLE", &site.parcel);
     }
 
+    // Épure de giration.
+    if let Some(e) = &inp.giration {
+        use crate::giration::api::{simulate_on, GirIn};
+        use crate::giration::kinematics::Pose;
+        use crate::giration::sweep::footprint;
+        let g = simulate_on(&GirIn::new(site.clone(), e), &lay);
+        for sec in &e.sections {
+            let pts = w.map(&sec.pts);
+            w.lwpoly("GIR_TRAJECTOIRE", &pts, false);
+        }
+        for t in &g.tracks {
+            let pts = w.map(t);
+            w.lwpoly("GIR_ROUES", &pts, false);
+        }
+        for r in g.envelope.iter().flatten() {
+            w.ring("GIR_CARROSSERIE", r);
+        }
+        for r in g.margin_envelope.iter().flatten() {
+            w.ring("GIR_MARGE", r);
+        }
+        // Véhicule tous les 2 m, au départ et à l'arrivée.
+        let v = crate::giration::vehicle::Vehicle::vl2026();
+        let mut last = f64::NEG_INFINITY;
+        for (i, p) in g.poses.iter().enumerate() {
+            if p[4] - last >= 2.0 || i + 1 == g.poses.len() {
+                let q = footprint(&v, &Pose { x: p[0], y: p[1], heading: p[2] }, 0.0);
+                w.ring("GIR_VEHICULE", &q);
+                last = p[4];
+            }
+        }
+        for c in &g.conflicts {
+            let ring: Vec<P2> = (0..16)
+                .map(|k| {
+                    let a = k as f64 * std::f64::consts::TAU / 16.0;
+                    [c.point[0] + 0.25 * a.cos(), c.point[1] + 0.25 * a.sin()]
+                })
+                .collect();
+            w.ring("GIR_CONFLITS", &ring);
+            let (x, y) = (w.tf)(c.point[0] + 0.35, c.point[1] + 0.35);
+            w.text("GIR_CONFLITS", x, y, 0.25, &format!("{} : {}", c.part, c.obstacle), false);
+        }
+    }
+
     // Emprise et informations.
     let m = &lay.metrics;
     let mut info = vec![
@@ -776,6 +822,7 @@ mod tests {
                     "arbres":[{"b":"ARB_PALMIER","p":[40,30],"a":15,"s":2.4}]}"#,
             )
             .unwrap(),
+            giration: None,
         }
     }
 

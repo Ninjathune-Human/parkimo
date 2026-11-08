@@ -35,6 +35,12 @@ LAYERS = [
     ("PRJ_SIGNALISATION", 7, "Continuous", 13, "Projet : signalisation horizontale (sens de circulation)"),
     ("HAB_VEHICULES", 8, "Continuous", 13, "Habillage : vehicules"),
     ("HAB_ARBRES", 94, "Continuous", 13, "Habillage : arbres"),
+    ("GIR_TRAJECTOIRE", 7, "DASHED", 18, "Giration : trajectoire tracee (point guide)"),
+    ("GIR_ROUES", 4, "Continuous", 13, "Giration : traces des roues (bords des pneus)"),
+    ("GIR_CARROSSERIE", 30, "Continuous", 25, "Giration : enveloppe balayee par la carrosserie"),
+    ("GIR_MARGE", 40, "DASHED", 13, "Giration : marge de securite autour de la carrosserie"),
+    ("GIR_VEHICULE", 8, "Continuous", 13, "Giration : vehicule aux positions cles"),
+    ("GIR_CONFLITS", 1, "Continuous", 35, "Giration : conflits et alertes"),
 ]
 
 doc = ezdxf.new("R2010", setup=False, units=6)

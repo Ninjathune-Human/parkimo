@@ -50,6 +50,9 @@
   --veg: #3E8B39;
   --veg-tint: rgba(118, 178, 96, .2);
   --occ-voirie: rgba(128, 132, 134, .34);
+  --gir-wheel: #2B50B8;
+  --gir-body: rgba(17, 22, 20, .13);
+  --gir-body-edge: rgba(17, 22, 20, .55);
 
   --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 20px;
   --ease: cubic-bezier(.25, .1, .25, 1);
@@ -67,7 +70,7 @@
     --glass-shadow: 0 18px 48px rgba(0, 0, 0, .45); --field: rgba(238, 243, 240, .07);
     --ok: #3CC26E; --warn: #FFA43A; --bad: #FF5A4F; --field-strong: rgba(238, 243, 240, .22);
     --cad: #FFC94D; --cad-halo: rgba(0, 0, 0, .55); --cad-label: #FFE7A8; --cad-bati: rgba(255, 228, 184, .2); --cad-bati-edge: rgba(255, 228, 184, .55);
-    --cad-sheet: #F47FB2; --cad-commune: #A99CFF; --veg: #86CF77; --veg-tint: rgba(120, 200, 100, .16); --occ-voirie: rgba(190, 196, 198, .22); color-scheme: dark;
+    --cad-sheet: #F47FB2; --cad-commune: #A99CFF; --veg: #86CF77; --veg-tint: rgba(120, 200, 100, .16); --occ-voirie: rgba(190, 196, 198, .22); --gir-wheel: #8FB2FF; --gir-body: rgba(238, 243, 240, .13); --gir-body-edge: rgba(238, 243, 240, .55); color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
@@ -80,7 +83,7 @@
   --glass-shadow: 0 18px 48px rgba(0, 0, 0, .45); --field: rgba(238, 243, 240, .07);
   --ok: #3CC26E; --warn: #FFA43A; --bad: #FF5A4F; --field-strong: rgba(238, 243, 240, .22);
   --cad: #FFC94D; --cad-halo: rgba(0, 0, 0, .55); --cad-label: #FFE7A8; --cad-bati: rgba(255, 228, 184, .2); --cad-bati-edge: rgba(255, 228, 184, .55);
-  --cad-sheet: #F47FB2; --cad-commune: #A99CFF; --veg: #86CF77; --veg-tint: rgba(120, 200, 100, .16); --occ-voirie: rgba(190, 196, 198, .22); color-scheme: dark;
+  --cad-sheet: #F47FB2; --cad-commune: #A99CFF; --veg: #86CF77; --veg-tint: rgba(120, 200, 100, .16); --occ-voirie: rgba(190, 196, 198, .22); --gir-wheel: #8FB2FF; --gir-body: rgba(238, 243, 240, .13); --gir-body-edge: rgba(238, 243, 240, .55); color-scheme: dark;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -325,6 +328,33 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
 .sp[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 13%, transparent); box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--accent); font-weight: 600; }
 #export h3 { margin: 0; font-size: 17px; font-weight: 600; }
 .tb.wide { width: 100%; }
+#girmenu { width: min(380px, calc(100vw - 32px)); overflow: auto; padding: 14px 16px 16px; gap: 10px;
+  max-height: calc(100vh - 92px - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px));
+  max-height: calc(100dvh - 92px - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px)); }
+#girmenu h3 { margin: 0; font-size: 17px; font-weight: 600; }
+#girmenu .big { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+#g-res { gap: 6px; }
+#g-places { gap: 8px; }
+#g-prog { display: grid; gap: 4px; }
+#g-tally .chip:first-child { margin-left: 0; }
+#g-scrub { display: flex; align-items: center; gap: 8px; }
+#g-scrub .unit { min-width: 52px; justify-content: flex-end; color: var(--label-2); font-size: 13px; }
+#g-list { list-style: none; margin: 0; padding: 0; max-height: 176px; overflow: auto; }
+#g-list button { width: 100%; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 2px; border: 0; border-top: .5px solid var(--sep); background: none; color: var(--label); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+#g-list button:hover, #g-list button[aria-current="true"] { background: var(--field); }
+#g-list .chip { margin: 0; flex: none; }
+#g-list .at { margin-left: auto; color: var(--label-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chip.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.chip.blue { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.chip.grey { color: var(--label-2); background: var(--field); }
+#girbar { position: absolute; left: var(--cx, 50%); transform: translateX(-50%); bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  border-radius: 999px; padding: 6px 6px 6px 16px; display: flex; align-items: center; gap: 8px; max-width: calc(100vw - 32px); }
+#girbar .what { font-size: 14px; font-weight: 600; white-space: nowrap; }
+#girbar .dim { font-size: 13px; color: var(--label-2); white-space: nowrap; }
+#girbar .tb { flex: none; }
+@media (max-width: 520px) { #girbar .what, #girbar .dim { display: none; } #girbar { padding-left: 6px; } }
+#g-hyp summary { cursor: pointer; color: var(--label-2); font-size: 13px; padding: 4px 0; }
+body:has(#girbar:not([hidden])) #hint { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 </style>
 
@@ -392,6 +422,14 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
           <label class="lrow"><span><i class="sw" style="background:#7B8186"></i>Véhicules</span><input type="checkbox" class="switch" role="switch" data-lay="vehicules"></label>
           <label class="lrow"><span><i class="sw round" style="background:var(--tree)"></i>Arbres</span><input type="checkbox" class="switch" role="switch" data-lay="arbres"></label>
         </div>
+        <div class="couche" id="lay-gir" hidden>
+          <div class="eyebrow">Giration</div>
+          <label class="lrow"><span><i class="ln" style="--c:var(--gir-wheel)"></i>Trajectoire et roues</span><input type="checkbox" class="switch" role="switch" data-lay="girroues"></label>
+          <label class="lrow"><span><i class="sw" style="background:var(--gir-body);border:1px solid var(--gir-body-edge)"></i>Carrosserie</span><input type="checkbox" class="switch" role="switch" data-lay="girenv"></label>
+          <label class="lrow"><span><i class="ln dash" style="--c:var(--warn)"></i>Marge de sécurité</span><input type="checkbox" class="switch" role="switch" data-lay="girmarge"></label>
+          <label class="lrow"><span><i class="sw round" style="border:2px solid var(--bad)"></i>Conflits</span><input type="checkbox" class="switch" role="switch" data-lay="girconf"></label>
+          <label class="lrow"><span><span class="sws"><i class="sw round" style="background:var(--ok)"></i><i class="sw round" style="background:var(--accent)"></i><i class="sw round" style="background:var(--warn)"></i><i class="sw round" style="background:var(--bad)"></i></span>Verdicts des places</span><input type="checkbox" class="switch" role="switch" data-lay="girplaces"></label>
+        </div>
         <div id="lay-base" hidden>
           <div class="couche">
             <div class="eyebrow">Occupation du sol</div>
@@ -423,6 +461,13 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
     <button class="tb" id="sel-rot" hidden>Pivoter 90°</button>
   </div>
 
+  <div id="girbar" class="glass" hidden>
+    <span class="what">Trajectoire</span><span class="dim num" id="gb-dim"></span>
+    <span class="seg" role="group" aria-label="Sens de marche du tronçon" id="gb-dir"><button data-r="0" aria-pressed="true">Avant</button><button data-r="1" aria-pressed="false">Arrière</button></span>
+    <button class="tb primary" id="gb-ok">Terminer</button>
+    <button class="tb icon" id="gb-x" aria-label="Annuler le tracé"><svg width="14" height="14" viewBox="0 0 14 14"><path d="m3 3 8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+  </div>
+
   <div id="addmenu" class="menu glass" hidden role="menu" aria-label="Ajouter">
     <button class="mi" role="menuitem" data-add="building"><span class="glyph" style="background:var(--building)"></span><span>Bâtiment<small>Emprise rectangulaire, trottoir autour</small></span></button>
     <button class="mi" role="menuitem" data-add="buildingL"><span class="glyph" style="background:var(--building);clip-path:polygon(0 0,40% 0,40% 60%,100% 60%,100% 100%,0 100%)"></span><span>Bâtiment en L</span></button>
@@ -448,6 +493,33 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
       <p class="note" id="sl-note"></p>
     </div>
     <button class="mi" role="menuitem" data-add="traverse"><span class="glyph" style="background:var(--asphalt)"></span><span>Traverse<small>Voie transversale qui coupe les rangées</small></span></button>
+  </section>
+
+  <section id="girmenu" class="menu glass" hidden aria-label="Giration">
+    <h3>Giration</h3>
+    <p class="note">VL 2026 · 4,83 × 1,98 m, empattement 2,89 m · diamètre de braquage 12,10 m entre trottoirs, 13,15 m entre murs.</p>
+    <div class="pgroup" id="g-places">
+      <button class="tb primary wide" id="g-test">Tester toutes les places</button>
+      <div id="g-prog" hidden><div class="bar"><i id="g-prog-bar"></i></div><span class="note num" id="g-prog-txt"></span></div>
+      <p class="note" id="g-tally" hidden></p>
+    </div>
+    <button class="tb small wide" id="g-draw">Tracer une trajectoire</button>
+    <div id="g-res" class="pgroup" hidden>
+      <div><span class="big" id="g-count"></span> <span class="note" id="g-sum"></span></div>
+      <div id="g-scrub"><button class="tb icon" id="g-play" aria-label="Lire le parcours"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path id="g-play-ico" d="M5 3.5v9l7-4.5z" fill="currentColor"/></svg></button><input id="g-pos" type="range" min="0" max="1" step="0.05" aria-label="Position du véhicule sur le parcours"><span class="unit num" id="g-at"></span></div>
+      <ul id="g-list" aria-label="Conflits et alertes"></ul>
+      <p class="note" id="g-note"></p>
+      <button class="tb small" id="g-clear">Effacer la trajectoire</button>
+    </div>
+    <details id="g-hyp"><summary id="g-hyp-sum">Hypothèses</summary><div class="pgroup">
+      <div class="field"><label>Conducteur</label><span class="seg" role="group" aria-label="Conducteur" id="g-prof"><button data-p="prudent">Prudent</button><button data-p="courant">Courant</button><button data-p="habile">Habile</button></span></div>
+      <div class="field"><label for="g-speed">Vitesse</label><span class="unit"><input id="g-speed" type="text" inputmode="decimal" autocomplete="off">km/h</span></div>
+      <div class="field"><label for="g-margin">Marge autour de la carrosserie</label><span class="unit"><input id="g-margin" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+      <div class="field"><label>Bordures</label><span class="seg" role="group" aria-label="Type de bordure" id="g-kerb"><button data-k="T2">T2</button><button data-k="T3">T3</button></span></div>
+      <div class="field"><label for="g-kh">Hauteur vue des bordures</label><span class="unit"><input id="g-kh" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+      <p class="note" id="g-prof-note"></p>
+      <p class="note">Garde au sol 0,14 m : une bordure plus haute arrête aussi la carrosserie. La hauteur vue dépend de la pose ; 0,16 m pour un T2 courant (Métropole Aix-Marseille-Provence), à régler pour un T3.</p>
+    </div></details>
   </section>
 
   <section id="costmenu" class="menu glass" hidden aria-label="Estimation">
@@ -539,6 +611,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
     <button class="tb" id="b-mod" title="Modifier : squelettes et traverses" aria-expanded="false" aria-controls="modmenu"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 14.5 3.6 11 11.8 2.8a1.4 1.4 0 0 1 2 0l1.4 1.4a1.4 1.4 0 0 1 0 2L7 14.4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg><span class="lbl">Modifier</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button class="tb" id="b-dress" title="Habillage" aria-expanded="false" aria-controls="dress"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 11.8a4.6 4.6 0 1 0 0-9.2 4.6 4.6 0 0 0 0 9.2zM9 11.8V16M6.6 16h4.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">Habillage</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <span class="vsep" aria-hidden="true"></span>
+    <button class="tb" id="b-gir" title="Giration : trajectoire, traces des roues, conflits" aria-expanded="false" aria-controls="girmenu"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3.5 15.5V10a6.5 6.5 0 0 1 6.5-6.5h5M7.5 15.5V10A2.5 2.5 0 0 1 10 7.5h5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">Giration</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button class="tb" id="b-cost" title="Estimation des travaux" aria-expanded="false" aria-controls="costmenu"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M13.5 4.2A5.4 5.4 0 1 0 13.5 13.8M3 7.4h7M3 10.6h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">Estimation</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button class="tb" id="b-export" title="Exporter" aria-expanded="false" aria-controls="export"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 3v8M5.5 7.5 9 11l3.5-3.5M3.5 14.5h11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Exporter</span><svg class="notch" width="10" height="10" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <span class="vsep" aria-hidden="true"></span>
@@ -604,6 +677,7 @@ const Engine = {
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       const { instance } = await WebAssembly.instantiate(bytes, {});
+      this.bytes = bytes;
       this.ex = instance.exports;
     } catch (e) {
       if (!window.TrameJS) await loadLazyEngine();
@@ -738,9 +812,9 @@ function commit() {
   updateUndo();
 }
 function restore(s) { const o = JSON.parse(s); site = o.site; params = o.params; exampleName = o.exampleName; sel = null; syncParamsUI(); syncExample(); updateLayersUI(); solve(false); }
-function undo() { if (hist.past.length < 2) return; hist.future.push(hist.past.pop()); restore(hist.past[hist.past.length - 1]); updateUndo(); }
+function undo() { if (mode === "gir") { girPop(); return; } if (hist.past.length < 2) return; hist.future.push(hist.past.pop()); restore(hist.past[hist.past.length - 1]); updateUndo(); }
 function redo() { if (!hist.future.length) return; const s = hist.future.pop(); hist.past.push(s); restore(s); updateUndo(); }
-function updateUndo() { $("#b-undo").disabled = hist.past.length < 2; $("#b-redo").disabled = !hist.future.length; }
+function updateUndo() { $("#b-undo").disabled = mode === "gir" ? !gdraft.pts.length : hist.past.length < 2; $("#b-redo").disabled = !hist.future.length; }
 
 // ============================================================================
 // Vue : monde (m) ↔ écran (px CSS).
@@ -793,7 +867,7 @@ function workBounds() {
 // Plus grand rectangle de l'écran libre de tout panneau, choisi pour la forme des zones à cadrer.
 function freeArea(bw, bh, m) {
   const cr = canvas.getBoundingClientRect();
-  const obst = ["#stats", "#layers", "#toolbar", "#selbar"].map((q) => $(q))
+  const obst = ["#stats", "#layers", "#toolbar", "#selbar", "#girmenu"].map((q) => $(q))
     .filter((el) => el && !el.hidden && el.getClientRects().length)
     .map((el) => { const r = el.getBoundingClientRect(); return [r.left - cr.left - 8, r.top - cr.top - 8, r.right - cr.left + 8, r.bottom - cr.top + 8]; });
   const xs0 = [0, ...obst.map((r) => r[2])], xs1 = [W, ...obst.map((r) => r[0])], ys0 = [0, ...obst.map((r) => r[3])], ys1 = [H, ...obst.map((r) => r[1])];
@@ -833,7 +907,7 @@ function fit(animate) {
 let C = {};
 function readColors() {
   const cs = getComputedStyle(document.documentElement);
-  for (const k of ["glass-solid", "sep", "ground", "grid", "grid-strong", "parcel", "parcel-edge", "asphalt", "stripe", "island", "tree", "tree-edge", "building", "building-edge", "building-label", "excl", "setback", "pmr", "irve", "pmr-irve", "accent", "label", "label-2", "cad", "cad-halo", "cad-label", "cad-bati", "cad-bati-edge", "cad-sheet", "cad-commune", "veg", "veg-tint", "occ-voirie"]) C[k] = cs.getPropertyValue("--" + k).trim();
+  for (const k of ["glass-solid", "sep", "ground", "grid", "grid-strong", "parcel", "parcel-edge", "asphalt", "stripe", "island", "tree", "tree-edge", "building", "building-edge", "building-label", "excl", "setback", "pmr", "irve", "pmr-irve", "accent", "label", "label-2", "cad", "cad-halo", "cad-label", "cad-bati", "cad-bati-edge", "cad-sheet", "cad-commune", "veg", "veg-tint", "occ-voirie", "label-3", "ok", "warn", "bad", "gir-wheel", "gir-body", "gir-body-edge"]) C[k] = cs.getPropertyValue("--" + k).trim();
   hatch = null; vegPat = null;
 }
 let hatch = null;
@@ -1067,12 +1141,15 @@ function draw() {
   ctx.beginPath(); pathPoly(outline()); ctx.strokeStyle = C["parcel-edge"]; ctx.lineWidth = 1.5; ctx.stroke();
   if (VIS.recul && layout && layout.setback_line) { ctx.setLineDash([6, 4]); ctx.strokeStyle = C.setback; ctx.lineWidth = 1.2; ctx.beginPath(); for (const r of layout.setback_line) pathPoly(r); ctx.stroke(); ctx.setLineDash([]); }
 
+  drawPlaces();
+  drawGir();
   drawCadSel();
   drawHandles();
   drawEdgeBtns();
   drawSelDel();
   drawScale(view.s);
   drawDraft();
+  drawGirDraft();
 }
 
 // Point d'étiquette : centre de l'emprise, ou de la plus longue aile pour un L.
@@ -1351,7 +1428,7 @@ function drawDraft() {
 // Calcul et bilan.
 // ============================================================================
 function solve(quick) {
-  if (!Engine.ex || site.parcel.length < 3) { layout = null; updateStats(quick); redraw(); return; }
+  if (!Engine.ex || site.parcel.length < 3) { layout = null; gir = null; updateStats(quick); redraw(); return; }
   const t0 = performance.now();
   try { layout = Engine.solve(engineInput(quick)); } catch (e) { layout = { error: String(e) }; }
   lastMs = performance.now() - t0;
@@ -1359,6 +1436,7 @@ function solve(quick) {
   // Repères du squelette recalés par le moteur sur le milieu de leur voie (une voie resserrée se décale).
   const ln = !quick && layout && layout.circulation && layout.circulation.lanes;
   if (ln && site.lanes && ln.length === site.lanes.length) site.lanes = ln;
+  if (!quick) { placesReset(); girRun(); }
   updateStats(quick); redraw();
 }
 let solveQueued = false, solveQuick = false;
@@ -1410,6 +1488,8 @@ const snap = (x, s) => +(Math.round(x / s) * s).toFixed(3);
 function hitTest(w) {
   const h = HIT(), h2 = h * h;
   if (selDelBtn) { const sp = toS(w); if (Math.hypot(sp[0] - selDelBtn.x, sp[1] - selDelBtn.y) <= ICON_R + 8) return { kind: "sdel" }; }
+  // Sommets de la trajectoire de giration : glissés, ils relancent la simulation au lâcher.
+  if (gir && places.open < 0 && site.gir && site.gir.pts.length >= 2 && VIS.girroues) { const sp = toS(w); for (let k = 0; k < site.gir.pts.length; k++) { const q = toS(site.gir.pts[k]); if (Math.hypot(sp[0] - q[0], sp[1] - q[1]) <= 12) return { kind: "gvert", k }; } }
   if (hoverEdge) { const part = edgeBtnAt(toS(w)); if (part) return { kind: part === "move" ? "emove" : "ebtn", ref: hoverEdge, part }; }
   if (SKEL) {
     const sp = toS(w), T = site.traverses || [];
@@ -1472,7 +1552,7 @@ canvas.addEventListener("pointerdown", (ev) => {
   if (pointers.size === 2) { drag = null; const [a, b] = [...pointers.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], s: view.s, ox: view.ox, oy: view.oy, mz: mapv.z, mx: mapv.x, my: mapv.y }; return; }
   if (mode === "map") { mapDown(sp); return; }
   const w = toW(sp[0], sp[1]);
-  if (mode === "draw") { drag = { kind: "drawtap", sp }; return; }
+  if (mode === "draw" || mode === "gir") { drag = { kind: "drawtap", sp }; return; }
   const hit = hitTest(w);
   drag = { kind: hit ? hit.kind : "pan", hit, sp, w0: w, moved: false, orig: JSON.stringify(site) };
   if (hit) {
@@ -1489,6 +1569,7 @@ canvas.addEventListener("pointerdown", (ev) => {
 canvas.addEventListener("pointermove", (ev) => {
   const sp = canvasPos(ev);
   if (mode === "draw") { hoverW = snapW(toW(sp[0], sp[1])); redraw(); }
+  if (mode === "gir") { hoverW = girSnap(toW(sp[0], sp[1])); redraw(); }
   if (!drag && ev.pointerType !== "touch") setHoverEdge(edgeUnder(sp));
   if (!pointers.has(ev.pointerId)) return;
   pointers.set(ev.pointerId, sp);
@@ -1543,6 +1624,7 @@ canvas.addEventListener("pointermove", (ev) => {
       break;
     }
     case "tend": site.traverses[h.i][h.k] = [snap(w[0], 0.1), snap(w[1], 0.1)]; break;
+    case "gvert": site.gir.pts[h.k] = girSnap(w); redraw(); return;
     case "pedge": case "cadastre": case "pill": case "ebtn": case "nbtn": case "tbtn": case "sdel": drag.kind = "pan"; return;
   }
   updateSelbar(); requestSolve(true);
@@ -1556,8 +1638,8 @@ function endPointer(ev) {
   const d = drag; drag = null; if (!d) return;
   if (mode === "map") return;
   const now = performance.now(), dbl = now - lastTap.t < 350 && Math.hypot(sp[0] - lastTap.x, sp[1] - lastTap.y) < 16;
-  if (d.kind === "drawtap") { onDrawTap(toW(sp[0], sp[1]), dbl, sp); lastTap = { t: now, x: sp[0], y: sp[1] }; return; }
-  if (d.moved) { if (d.kind !== "pan") { solve(false); commit(); markMine(); } return; }
+  if (d.kind === "drawtap") { (mode === "gir" ? onGirTap : onDrawTap)(toW(sp[0], sp[1]), dbl, sp); lastTap = { t: now, x: sp[0], y: sp[1] }; return; }
+  if (d.moved) { if (d.kind === "gvert") { girRun(); commit(); markMine(); } else if (d.kind !== "pan") { solve(false); commit(); markMine(); } return; }
   // Toucher simple
   lastTap = { t: dbl ? 0 : now, x: sp[0], y: sp[1] };
   const h = d.hit;
@@ -1574,6 +1656,7 @@ function endPointer(ev) {
   }
   if (h && h.kind === "cadastre") { setSel({ type: "cadastre", i: h.i }); return; }
   { const nb = nearAnyEdge(toW(sp[0], sp[1])); setHoverEdge(nb && nb.d * view.s < 12 && edgeRef(nb.ref).L * view.s >= 100 ? nb.ref : null); }
+  if ((!h || h.kind === "pedge" || h.kind === "setback") && places.res && VIS.girplaces) { const k = stallAt(toW(sp[0], sp[1])); if (k >= 0) { openPlace(k); return; } }
   if (!h || h.kind === "pedge" || h.kind === "setback") setSel(null);
 }
 canvas.addEventListener("pointerup", endPointer);
@@ -1649,7 +1732,10 @@ function finishDraft() {
   setMode("edit"); exampleName = "mine"; syncExample(); lastAngle = null; solve(false); commit(); fit(); toast("Parcelle créée · recul 5 m sur la limite la plus longue, 3 m ailleurs");
 }
 function setMode(m) {
-  mode = m; draft = []; hoverW = null; canvas.classList.toggle("drawing", m === "draw");
+  if (mode === "gir" && m !== "gir") $("#girbar").hidden = true;
+  mode = m; draft = []; hoverW = null; canvas.classList.toggle("drawing", m === "draw" || m === "gir");
+  if (m === "gir") { gdraft = { pts: [], cusps: [], reverse: false }; $("#girbar").hidden = false; syncGirBar(); }
+  updateUndo();
   $("#b-draw").setAttribute("aria-pressed", String(m === "draw")); $("#b-draw").classList.toggle("on", m === "draw");
   $("#hint").textContent = m === "draw" ? "Touchez pour placer les sommets · touchez le premier sommet pour fermer · Échap pour annuler" : "Glissez sommets, reculs, accès et bâtiments · survolez ou touchez un bord pour ajouter un sommet ou l'arrondir";
   setSel(null); redraw();
@@ -1700,7 +1786,7 @@ $("#sel-rot").addEventListener("click", () => { const o = site.buildings[sel.i];
 $("#sel-shape").addEventListener("click", () => { const o = site.buildings[sel.i]; o.shape = o.shape === "L" ? "rect" : "L"; updateSelbar(); solve(false); commit(); });
 
 function closeMenus(except) {
-  for (const [btn, menu] of [["#b-add", "#addmenu"], ["#b-mod", "#modmenu"], ["#b-cost", "#costmenu"], ["#b-params", "#params"], ["#b-dress", "#dress"], ["#b-export", "#export"], ["#b-new", "#newmenu"]]) if (menu !== except) { $(menu).hidden = true; $(btn).setAttribute("aria-expanded", "false"); }
+  for (const [btn, menu] of [["#b-add", "#addmenu"], ["#b-mod", "#modmenu"], ["#b-cost", "#costmenu"], ["#b-gir", "#girmenu"], ["#b-params", "#params"], ["#b-dress", "#dress"], ["#b-export", "#export"], ["#b-new", "#newmenu"]]) if (menu !== except) { $(menu).hidden = true; $(btn).setAttribute("aria-expanded", "false"); }
 }
 function toggleMenu(btn, menu) {
   const open = $(menu).hidden; closeMenus(menu);
@@ -1716,6 +1802,7 @@ function placeMenu(btn, menu) {
 $("#b-add").addEventListener("click", () => toggleMenu("#b-add", "#addmenu"));
 $("#b-mod").addEventListener("click", () => toggleMenu("#b-mod", "#modmenu"));
 $("#b-cost").addEventListener("click", () => { updateCost(); toggleMenu("#b-cost", "#costmenu"); });
+$("#b-gir").addEventListener("click", () => { updateGirUI(); updatePlacesUI(); toggleMenu("#b-gir", "#girmenu"); });
 $("#b-params").addEventListener("click", () => toggleMenu("#b-params", "#params"));
 $("#b-dress").addEventListener("click", () => { syncDressUI(); toggleMenu("#b-dress", "#dress"); });
 $("#b-export").addEventListener("click", () => { updateExportUI(); toggleMenu("#b-export", "#export"); });
@@ -1739,6 +1826,12 @@ window.addEventListener("keydown", (ev) => {
   const mod = ev.metaKey || ev.ctrlKey;
   if (mod && ev.key.toLowerCase() === "z") { ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
   if (mod && ev.key.toLowerCase() === "y") { ev.preventDefault(); redo(); return; }
+  if (mode === "gir") {
+    if (ev.key === "Escape") setMode("edit");
+    if (ev.key === "Enter") finishGir();
+    if (ev.key === "Backspace" || ev.key === "Delete") { ev.preventDefault(); girPop(); }
+    return;
+  }
   if (ev.key === "Escape") { if (mode === "draw") setMode("edit"); else { hoverEdge = null; setSel(null); closeMenus(); } }
   if (ev.key === "Enter" && mode === "draw" && draft.length >= 3) finishDraft();
   if ((ev.key === "Delete" || ev.key === "Backspace") && sel) { ev.preventDefault(); deleteSel(); }
@@ -2141,6 +2234,7 @@ const LAYER_DEFAULTS = {
   places: true, pvoirie: true, sens: true, ilots: true, pbati: true, servitudes: true, recul: true, vehicules: true, arbres: true,
   ovoirie: true, bati: true, vegetation: true,
   photo: true, parcelles: true, numeros: true, feuilles: false, communes: true,
+  girroues: true, girenv: true, girmarge: true, girconf: true, girplaces: true,
 };
 function tileUrl(L, z, x, y) {
   return `${GEO.wmts}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${L.layer}&STYLE=${encodeURIComponent(L.style)}&TILEMATRIXSET=${TMS[tmsIdx]}&TILEMATRIX=${z}&TILEROW=${y}&TILECOL=${x}&FORMAT=${encodeURIComponent(L.fmt)}`;
@@ -2658,6 +2752,7 @@ function studyParcel(i, merge) {
 // ---- Panneau des couches : chaque interrupteur est un calque
 function updateLayersUI() {
   $("#lay-base").hidden = !baseShown();
+  $("#lay-gir").hidden = !gir && !places.res;
   document.querySelectorAll("[data-lay]").forEach((c) => { c.checked = !!VIS[c.dataset.lay]; });
   if (!basemap) return;
   $("#lay-op").value = Math.round(PHOTO_OPACITY * 100); $("#lay-op").disabled = !VIS.photo;
@@ -2690,6 +2785,335 @@ $("#m-cad").addEventListener("click", () => { mapCad = !mapCad; updateMapUI(); r
 $("#m-ok").addEventListener("click", importArea);
 
 // ============================================================================
+// Giration (moteur Rust) : épure tracée à la main, comme dans Covadis. Le véhicule suit la trajectoire
+// (marche avant puis, après un point de rebroussement, marche arrière) ; le moteur rend les traces des
+// huit flancs de pneus, l'enveloppe de carrosserie, la marge et les conflits typés (bordure, mur, limite).
+// ============================================================================
+const GIR0 = { profile: "habile", speed: 5, margin: 0.2, kerb: { name: "T2", visible_height: 0.16 } };
+const GIR_PROFILES = {
+  prudent: "Prudent : 90 % de l'angle et de la vitesse de volant, jamais de braquage à l'arrêt.",
+  courant: "Courant : tout l'angle, braquage à l'arrêt aux points de rebroussement.",
+  habile: "Habile : tout l'angle, braquage à l'arrêt partout (manœuvre de parking).",
+};
+let gir = null, girT = 0, girSel = -1, girPlay = 0;
+let gdraft = { pts: [], cusps: [], reverse: false };
+const girSnap = (w) => [snap(w[0], 0.1), snap(w[1], 0.1)];
+const girSet = () => ({ ...GIR0, ...(site.gir || {}) });
+function ensureGir() { if (!site.gir) site.gir = { ...GIR0, kerb: { ...GIR0.kerb }, pts: [], cusps: [], reverse: false }; return site.gir; }
+// Points de rebroussement → tronçons, marche avant et arrière en alternance.
+function girSections(g) {
+  const n = g.pts.length, out = [];
+  if (n < 2) return out;
+  const cuts = [0, ...g.cusps.filter((i) => i > 0 && i < n - 1), n - 1];
+  for (let i = 0; i + 1 < cuts.length; i++) out.push({ pts: g.pts.slice(cuts[i], cuts[i + 1] + 1), reverse: (i % 2 === 1) !== !!g.reverse, speed_kmh: g.speed });
+  return out;
+}
+function girEpure(g) { const c = { ...GIR0, ...g }; return { sections: girSections(c), profile: c.profile, margin: c.margin, kerb: c.kerb }; }
+function girRun() {
+  places.open = -1;
+  const g = site.gir, sec = g ? girSections(g) : [];
+  gir = null;
+  if (Engine.ex && sec.length && layout && !layout.error) {
+    let out;
+    // Le plan affiché est transmis tel quel : le moteur le contrôle sans le recalculer.
+    const lay = { paved: layout.paved, pads: layout.pads, stalls: layout.stalls.map((st) => st.q), islands: layout.islands, entries: layout.entries, cross: layout.cross };
+    try { out = Engine.call("giration_json", { site: engineInput(false), ...girEpure(g), layout: lay }); } catch (e) { out = { error: String(e) }; }
+    if (out.error) toast("Giration impossible : " + out.error); else gir = out;
+  }
+  if (gir) { girT = Math.min(girT, gir.time); if (girSel >= gir.conflicts.length) girSel = -1; } else stopGirPlay();
+  updateGirUI(); updateLayersUI(); redraw();
+}
+// Pose interpolée au temps t : [x, y, cap, angle bicyclette, distance, temps, tronçon].
+function girPoseAt(t) {
+  const P = gir.poses; let lo = 0, hi = P.length - 1;
+  if (t <= P[0][5]) return P[0];
+  if (t >= P[hi][5]) return P[hi];
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (P[m][5] <= t) lo = m; else hi = m; }
+  const a = P[lo], b = P[hi], k = (t - a[5]) / ((b[5] - a[5]) || 1), dh = Math.atan2(Math.sin(b[2] - a[2]), Math.cos(b[2] - a[2]));
+  return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + dh * k, a[3] + (b[3] - a[3]) * k, a[4] + (b[4] - a[4]) * k, t, a[6]];
+}
+const girTimeAt = (s) => { const q = gir.poses.find((p) => p[4] >= s - 1e-6); return q ? q[5] : gir.time; };
+
+// ---- Rendu
+function girRings(polys, fill) {
+  ctx.beginPath(); for (const poly of polys) for (const r of poly) pathPoly(r);
+  if (fill) { ctx.fillStyle = fill; ctx.fill("evenodd"); }
+}
+function strokeLine(pts) { ctx.beginPath(); pts.forEach((v, i) => { const q = toS(v); i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); }); ctx.stroke(); }
+// Trajectoire guide : trait plein en marche avant, tirets en marche arrière, rond aux rebroussements.
+function drawGirPath(g, hover) {
+  const secs = girSections(hover ? { ...g, pts: [...g.pts, hover] } : g);
+  ctx.lineWidth = 1.4; ctx.strokeStyle = C.label; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  for (const sc of secs) { ctx.setLineDash(sc.reverse ? [6, 5] : []); strokeLine(sc.pts); }
+  ctx.setLineDash([]);
+  if (secs.length) {
+    const s0 = secs[0].pts, a = toS(s0[0]), b = toS(s0[1]), L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (L > 24) arrow(a[0] + (b[0] - a[0]) * 12 / L, a[1] + (b[1] - a[1]) * 12 / L, (b[0] - a[0]) / L, (b[1] - a[1]) / L, 6, C.label, 1.6);
+  }
+  g.pts.forEach((v, k) => { const q = toS(v); if (g.cusps.includes(k)) { ctx.beginPath(); ctx.arc(q[0], q[1], 5, 0, Math.PI * 2); ctx.fillStyle = C.ground; ctx.fill(); ctx.strokeStyle = C.label; ctx.lineWidth = 1.6; ctx.stroke(); } else squareHandle(q, false, 6); });
+}
+// Véhicule à la pose p : caisse (seule prise en compte), quatre roues (épure de Jeantaud pour les roues avant).
+function drawGirCar(p) {
+  const v = gir.vehicle, c = Math.cos(p[2]), s = Math.sin(p[2]);
+  const at = (f, l) => toS([p[0] + f * c - l * s, p[1] + f * s + l * c]);
+  const quad = (pts) => { ctx.beginPath(); pts.forEach(([f, l], i) => { const q = at(f, l); i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); }); ctx.closePath(); };
+  const F = v.wheelbase + v.front_overhang, R = -v.rear_overhang, hw = v.width / 2;
+  quad([[F, hw], [F, -hw], [R, -hw], [R, hw]]);
+  ctx.fillStyle = C["glass-solid"]; ctx.globalAlpha = 0.9; ctx.fill(); ctx.globalAlpha = 1; ctx.strokeStyle = C.label; ctx.lineWidth = 1.3; ctx.stroke();
+  quad([[F - 0.25, hw - 0.12], [F - 0.25, -hw + 0.12], [F - 0.9, -hw + 0.2], [F - 0.9, hw - 0.2]]); ctx.lineWidth = 1; ctx.stroke();
+  const d = Math.abs(p[3]), E = v.wheelbase, T = v.track / 2;
+  let left = 0, right = 0;
+  if (d > 1e-6) { const r = E / Math.tan(d), inner = Math.atan(E / (r - T)), outer = Math.atan(E / (r + T)); [left, right] = p[3] > 0 ? [inner, outer] : [-outer, -inner]; }
+  ctx.fillStyle = C.label;
+  for (const [f, l, a] of [[E, T, left], [E, -T, right], [0, T, 0], [0, -T, 0]]) {
+    const cx = p[0] + f * c - l * s, cy = p[1] + f * s + l * c, ca = Math.cos(p[2] + a), sa = Math.sin(p[2] + a), hl = 0.35, ht = v.tyre_width / 2;
+    ctx.beginPath(); [[hl, ht], [hl, -ht], [-hl, -ht], [-hl, ht]].forEach(([u, w], i) => { const q = toS([cx + u * ca - w * sa, cy + u * sa + w * ca]); i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); }); ctx.closePath(); ctx.fill();
+  }
+}
+function drawGir() {
+  if (!gir || mode === "gir") return;
+  if (VIS.girenv) { girRings(gir.envelope, C["gir-body"]); ctx.strokeStyle = C["gir-body-edge"]; ctx.lineWidth = 1; ctx.stroke(); }
+  if (VIS.girmarge && gir.margin_envelope.length) { ctx.setLineDash([5, 4]); girRings(gir.margin_envelope); ctx.strokeStyle = C.warn; ctx.lineWidth = 1.2; ctx.stroke(); ctx.setLineDash([]); }
+  if (VIS.girroues) { ctx.strokeStyle = C["gir-wheel"]; ctx.lineWidth = 1; ctx.lineJoin = "round"; for (const t of gir.tracks) strokeLine(t); if (places.open < 0) drawGirPath(site.gir); }
+  if (VIS.girenv) drawGirCar(girPoseAt(girT));
+  if (VIS.girconf) gir.conflicts.forEach((k, i) => {
+    const q = toS(k.point), r = Math.max(7, 0.3 * view.s) + (i === girSel ? 3 : 0), col = k.severity === "conflit" ? C.bad : C.warn;
+    ctx.beginPath(); ctx.arc(q[0], q[1], r, 0, Math.PI * 2); ctx.fillStyle = col; ctx.globalAlpha = 0.18; ctx.fill(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = col; ctx.lineWidth = i === girSel ? 2.6 : 1.8; ctx.stroke();
+  });
+}
+function drawGirDraft() {
+  if (mode !== "gir" || !gdraft.pts.length) return;
+  drawGirPath(gdraft, hoverW);
+  if (hoverW) { const a = gdraft.pts[gdraft.pts.length - 1], q = toS(hoverW); ctx.font = `600 11px ${getComputedStyle(document.body).fontFamily}`; ctx.fillStyle = C.label; ctx.textAlign = "left"; ctx.fillText(fmt1(Math.hypot(hoverW[0] - a[0], hoverW[1] - a[1])) + " m", q[0] + 12, q[1] - 10); }
+}
+
+// ---- Tracé : chaque toucher ajoute un point ; Avant / Arrière pose un point de rebroussement.
+const girRev = (g) => (g.cusps.length % 2 === 1) !== g.reverse;
+function girLen(pts) { let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return L; }
+function syncGirBar() {
+  const g = gdraft, r = girRev(g), n = g.pts.length;
+  for (const b of $("#gb-dir").children) b.setAttribute("aria-pressed", String((b.dataset.r === "1") === r));
+  $("#gb-dim").textContent = n ? `${n} point${n > 1 ? "s" : ""} · ${fmt1(girLen(g.pts))} m` : "Touchez le départ";
+  $("#gb-ok").disabled = n < 2; updateUndo();
+}
+function onGirTap(w, dbl) {
+  if (dbl && gdraft.pts.length >= 2) { finishGir(); return; }
+  w = girSnap(w); const last = gdraft.pts[gdraft.pts.length - 1];
+  if (last && Math.hypot(w[0] - last[0], w[1] - last[1]) < 0.3) return;
+  gdraft.pts.push(w); syncGirBar(); redraw();
+}
+function girFlip() {
+  const g = gdraft, n = g.pts.length, last = g.cusps.length ? g.cusps[g.cusps.length - 1] : 0;
+  if (n - 1 > last) g.cusps.push(n - 1); // le tronçon a au moins un segment : rebroussement au dernier point
+  else if (g.cusps.length) g.cusps.pop(); // rebroussement pas encore suivi d'un point : on le retire
+  else g.reverse = !g.reverse; // aucun segment : sens du premier tronçon
+  syncGirBar(); redraw();
+}
+function girPop() {
+  const g = gdraft;
+  if (g.cusps.length && g.cusps[g.cusps.length - 1] === g.pts.length - 1) g.cusps.pop(); else g.pts.pop();
+  syncGirBar(); redraw();
+}
+function finishGir() {
+  const g = gdraft, n = g.pts.length;
+  if (n < 2) { toast("Placez au moins deux points"); return; }
+  const set = ensureGir();
+  Object.assign(set, { pts: g.pts.slice(), cusps: g.cusps.filter((i) => i < n - 1), reverse: g.reverse });
+  setMode("edit"); girT = 0; girSel = -1; girRun(); commit(); markMine();
+  if (gir) { const na = gir.conflicts.filter((k) => k.severity !== "conflit").length; toast(`${girCount()}${na ? `, ${na} alerte${na > 1 ? "s" : ""}` : ""} · ${fmt1(gir.length)} m · détail dans Giration`); }
+}
+$("#gb-dir").addEventListener("click", (ev) => { const b = ev.target.closest("button[data-r]"); if (b && (b.dataset.r === "1") !== girRev(gdraft)) girFlip(); });
+$("#gb-ok").addEventListener("click", finishGir);
+$("#gb-x").addEventListener("click", () => setMode("edit"));
+$("#g-draw").addEventListener("click", () => { closeMenus(); stopGirPlay(); setSel(null); setMode("gir"); toast("Touchez le plan : départ, puis les points de passage"); });
+$("#g-clear").addEventListener("click", () => { const g = ensureGir(); g.pts = []; g.cusps = []; girRun(); commit(); toast("Trajectoire effacée"); });
+
+// ---- Lecture du parcours
+function stopGirPlay() { cancelAnimationFrame(girPlay); girPlay = 0; $("#g-play-ico").setAttribute("d", "M5 3.5v9l7-4.5z"); $("#g-play").setAttribute("aria-label", "Lire le parcours"); }
+function setGirT(t) { girT = Math.max(0, Math.min(gir.time, t)); $("#g-pos").value = girT; $("#g-at").textContent = fmt1(girPoseAt(girT)[4]) + " m"; redraw(); }
+$("#g-play").addEventListener("click", () => {
+  if (girPlay) { stopGirPlay(); return; }
+  if (!gir) return;
+  if (girT >= gir.time - 1e-3) girT = 0;
+  $("#g-play-ico").setAttribute("d", "M4.5 3.5h2.5v9H4.5zM9 3.5h2.5v9H9z"); $("#g-play").setAttribute("aria-label", "Mettre en pause");
+  let t0 = performance.now(), from = girT;
+  const step = (now) => { if (!gir) return; setGirT(from + (now - t0) / 1000); if (girT < gir.time) girPlay = requestAnimationFrame(step); else stopGirPlay(); };
+  girPlay = requestAnimationFrame(step);
+});
+$("#g-pos").addEventListener("input", (ev) => { stopGirPlay(); if (gir) setGirT(+ev.target.value); });
+$("#g-list").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-i]"); if (!b || !gir) return;
+  stopGirPlay(); girSel = +b.dataset.i; setGirT(girTimeAt(gir.conflicts[girSel].s_start)); updateGirList(); girFocus(gir.conflicts[girSel].point);
+});
+// Cadre les 12 m autour d'un conflit dans la place laissée libre par les panneaux et le menu.
+function girFocus(p, size = 12) {
+  const fa = freeArea(size, size, 16), s = Math.max(4, Math.min(30, fa.s));
+  cancelAnimationFrame(viewAnim); view.s = s; view.ox = (fa.x0 + fa.x1) / 2 - p[0] * s; view.oy = (fa.y0 + fa.y1) / 2 + p[1] * s; redraw();
+}
+
+// ---- Hypothèses
+const num = (el) => parseFloat(el.value.replace(",", "."));
+const frNum = (x) => String(x).replace(".", ",");
+let girTimer = null;
+function girChanged() { clearTimeout(girTimer); girTimer = setTimeout(() => { placesReset(); girRun(); commit(); }, 250); }
+$("#g-prof").addEventListener("click", (ev) => { const b = ev.target.closest("button[data-p]"); if (!b) return; ensureGir().profile = b.dataset.p; updateGirUI(); girChanged(); });
+$("#g-kerb").addEventListener("click", (ev) => { const b = ev.target.closest("button[data-k]"); if (!b) return; const g = ensureGir(); g.kerb = { ...g.kerb, name: b.dataset.k }; updateGirUI(); girChanged(); });
+for (const [id, lo, hi, put] of [["#g-speed", 1, 30, (g, v) => { g.speed = v; }], ["#g-margin", 0, 1, (g, v) => { g.margin = v; }], ["#g-kh", 0, 0.5, (g, v) => { g.kerb = { ...g.kerb, visible_height: v }; }]])
+  $(id).addEventListener("input", (ev) => { const v = num(ev.target); if (!isFinite(v) || v < lo || v > hi) return; put(ensureGir(), v); girChanged(); });
+
+function girCount() { const nc = gir.conflicts.filter((k) => k.severity === "conflit").length; return nc ? `${nc} conflit${nc > 1 ? "s" : ""}` : "Aucun conflit"; }
+function updateGirList() {
+  const ul = $("#g-list"); ul.textContent = "";
+  gir.conflicts.forEach((k, i) => {
+    const li = document.createElement("li"), b = document.createElement("button");
+    b.dataset.i = i; if (i === girSel) b.setAttribute("aria-current", "true");
+    const bad = k.severity === "conflit";
+    b.innerHTML = `<span class="chip ${bad ? "bad" : "warn"}">${bad ? "conflit" : "alerte"}</span><span></span><span class="at"></span>`;
+    b.children[1].textContent = (k.part[0].toUpperCase() + k.part.slice(1)) + " · " + k.obstacle;
+    b.children[2].textContent = fmt1(k.s_start) + " m";
+    li.appendChild(b); ul.appendChild(li);
+  });
+  ul.hidden = !gir.conflicts.length;
+}
+function updateGirUI() {
+  const g = girSet();
+  for (const b of $("#g-prof").children) b.setAttribute("aria-pressed", String(b.dataset.p === g.profile));
+  for (const b of $("#g-kerb").children) b.setAttribute("aria-pressed", String(b.dataset.k === g.kerb.name));
+  for (const [id, v] of [["#g-speed", g.speed], ["#g-margin", g.margin], ["#g-kh", g.kerb.visible_height]]) if (document.activeElement !== $(id)) $(id).value = frNum(v);
+  $("#g-prof-note").textContent = GIR_PROFILES[g.profile] || "";
+  $("#g-hyp-sum").textContent = `Hypothèses : conducteur ${g.profile}, ${frNum(g.speed)} km/h, marge ${frNum(g.margin)} m, bordure ${g.kerb.name} de ${frNum(g.kerb.visible_height)} m`;
+  $("#g-draw").textContent = site.gir && site.gir.pts.length >= 2 ? "Tracer une nouvelle trajectoire" : "Tracer une trajectoire";
+  $("#g-draw").disabled = !layout || !!layout.error;
+  $("#g-res").hidden = !gir;
+  if (!gir) return;
+  const nc = gir.conflicts.filter((k) => k.severity === "conflit").length, na = gir.conflicts.length - nc;
+  const pl = places.open >= 0 && places.res && places.res[places.open];
+  $("#g-clear").hidden = places.open >= 0;
+  $("#g-count").textContent = pl ? `Place ${places.open + 1} : ${pl.verdict}` : girCount();
+  const pa = pl ? pl.entry.alerts + pl.exit.alerts : 0;
+  $("#g-sum").textContent = pl ? [`entrée ${STATUS[pl.entry.status]}, sortie ${STATUS[pl.exit.status]}`, `reprises : ${pl.entry.reprises} en entrée, ${pl.exit.reprises} en sortie`, pa ? `${pa} alerte${pa > 1 ? "s" : ""} de marge` : "", `marge minimale ${pl.entry.clearance >= 1 ? "1 m ou plus" : Math.round(Math.min(pl.entry.clearance, pl.exit.clearance) * 100) + " cm"}`, `${fmt1(gir.time)} s`].filter(Boolean).join(" · ") : [na ? `${na} alerte${na > 1 ? "s" : ""} de marge` : "", `${fmt1(gir.length)} m`, `${fmt1(gir.time)} s` + (gir.stationary_time > 0.05 ? ` dont ${fmt1(gir.stationary_time)} s de braquage à l'arrêt` : "")].filter(Boolean).join(" · ");
+  $("#g-pos").max = gir.time; $("#g-pos").step = 0.05; setGirT(girT);
+  updateGirList();
+  const miss = gir.sections.map((q, i) => (q.reached ? 0 : i + 1)).filter(Boolean), dev = Math.max(0, ...gir.sections.map((q) => q.deviation));
+  $("#g-note").textContent = [
+    miss.length ? `Tronçon ${miss.join(", ")} non atteint : trajectoire trop serrée pour le véhicule.` : "",
+    dev >= 0.05 ? `Écart maximal à la trajectoire tracée : ${nf2.format(dev)} m.` : "",
+    pl ? (pl.entry.status === "feasible" ? "Entrée en marche avant depuis l'allée, puis sortie en marche arrière." : `Aucune manœuvre sans contact (${pl.reason}) : voici la moins mauvaise trouvée.`) : "Trait plein : marche avant ; tirets : marche arrière.",
+  ].filter(Boolean).join(" ");
+}
+
+// ---- Test de toutes les places (phase 2) : entrée en marche avant, sortie en marche arrière,
+// parking plein. Le calcul tourne dans un Web Worker (repli : par lots sur le fil principal).
+const places = { res: null, open: -1, run: 0, worker: undefined };
+const VERDICT = { vert: "ok", bleu: "accent", orange: "warn", rouge: "bad", gris: "label-3" };
+const STATUS = { feasible: "possible", infeasible: "impossible", unknown: "non conclue" };
+function placesInput(extra) {
+  const g = girSet();
+  return {
+    site: engineInput(false), profile: g.profile, margin: g.margin, kerb: g.kerb, speed: g.speed,
+    layout: { paved: layout.paved, pads: layout.pads, stalls: layout.stalls.map((st) => st.q), islands: layout.islands, entries: layout.entries, cross: layout.cross,
+      axes: ((layout.circulation && layout.circulation.axes) || []).map((a) => ({ pts: a.pts, w: a.w, sens: a.sens })) },
+    ...extra,
+  };
+}
+function placesReset() { places.run++; places.res = null; places.open = -1; $("#g-prog").hidden = true; updatePlacesUI(); }
+// Moteur dédié dans un Web Worker, à partir des octets du WebAssembly déjà chargé.
+function placesWorker() {
+  if (places.worker !== undefined) return places.worker;
+  places.worker = null;
+  try {
+    if (!Engine.bytes || !window.Worker) return null;
+    // Les demandes attendent la fin de l'instanciation ; une erreur revient comme réponse.
+    const src = `let ready; onmessage = async (e) => { const m = e.data;
+      if (m.wasm) { ready = WebAssembly.instantiate(m.wasm, {}).then((r) => r.instance.exports); return; }
+      try {
+        const ex = await ready, b = new TextEncoder().encode(m.input), p = ex.alloc(b.length); new Uint8Array(ex.memory.buffer, p, b.length).set(b);
+        const o = ex.giration_places_json(p, b.length), out = new TextDecoder().decode(new Uint8Array(ex.memory.buffer, o, ex.out_len()));
+        ex.dealloc(p, b.length); postMessage({ id: m.id, out });
+      } catch (err) { postMessage({ id: m.id, out: JSON.stringify({ error: String(err) }) }); } };`;
+    const w = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
+    w.postMessage({ wasm: Engine.bytes });
+    places.worker = w;
+  } catch (e) { places.worker = null; }
+  return places.worker;
+}
+let placesSeq = 0;
+function placesCall(input) {
+  const w = placesWorker(), json = JSON.stringify(input);
+  if (!w) return new Promise((res) => setTimeout(() => res(Engine.call("giration_places_json", input)), 0));
+  return new Promise((res, rej) => {
+    const id = ++placesSeq;
+    const on = (e) => { if (e.data.id !== id) return; w.removeEventListener("message", on); w.removeEventListener("error", bad); res(JSON.parse(e.data.out)); };
+    const bad = (e) => { w.removeEventListener("message", on); w.removeEventListener("error", bad); places.worker = null; rej(e); };
+    w.addEventListener("message", on); w.addEventListener("error", bad);
+    w.postMessage({ id, input: json });
+  });
+}
+async function testPlaces() {
+  if (!layout || layout.error || !layout.stalls.length) return;
+  const run = ++places.run, n = layout.stalls.length, res = new Array(n).fill(null), CHUNK = 12, t0 = performance.now();
+  places.res = res; places.open = -1; $("#g-prog").hidden = false; updatePlacesUI();
+  for (let a = 0; a < n; a += CHUNK) {
+    const ids = []; for (let i = a; i < Math.min(n, a + CHUNK); i++) ids.push(i);
+    let out;
+    try { out = await placesCall(placesInput({ stalls: ids })); } catch (e) { out = await placesCall(placesInput({ stalls: ids })); }
+    if (run !== places.run) return; // plan modifié pendant le calcul
+    if (out.error) { toast("Test impossible : " + out.error); placesReset(); return; }
+    for (const p of out.places) res[p.i] = p;
+    $("#g-prog-bar").style.width = (100 * Math.min(n, a + CHUNK) / n) + "%";
+    $("#g-prog-txt").textContent = `${Math.min(n, a + CHUNK)} / ${n} places`;
+    updateLayersUI(); updatePlacesUI(); redraw();
+  }
+  $("#g-prog").hidden = true; updatePlacesUI();
+  const c = placesTally();
+  toast(`${c.vert} vertes, ${c.bleu} bleues, ${c.orange} orange, ${c.rouge} rouges, ${c.gris} grises · ${fmt1((performance.now() - t0) / 1000)} s`);
+}
+function placesTally() { const c = { vert: 0, bleu: 0, orange: 0, rouge: 0, gris: 0 }; for (const p of places.res || []) if (p) c[p.verdict]++; return c; }
+function updatePlacesUI() {
+  $("#g-test").disabled = !layout || !!layout.error || !layout.stalls.length;
+  const r = places.res, t = $("#g-tally");
+  t.hidden = !r;
+  if (!r) return;
+  const c = placesTally();
+  t.innerHTML = `<span class="chip ok">${c.vert} vertes</span><span class="chip blue">${c.bleu} bleues</span><span class="chip warn">${c.orange} orange</span><span class="chip bad">${c.rouge} rouges</span><span class="chip grey">${c.gris} grises</span><br>Vert : d'un seul tenant ; bleu : avec reprises (3 au plus) ; orange : marge entamée ou plus de 3 reprises ; rouge : impossible dans le domaine exploré ; gris : non conclu (budget de recherche épuisé). Parking plein, voisines garées au pire. Touchez une place pour voir sa manœuvre.`;
+}
+// Place sous le point (plan), ou −1.
+function stallAt(w) { if (!layout || !layout.stalls) return -1; for (let k = 0; k < layout.stalls.length; k++) if (pointInPoly(w, layout.stalls[k].q)) return k; return -1; }
+async function openPlace(k) {
+  const run = places.run;
+  let out;
+  try { out = await placesCall(placesInput({ stalls: [k], detail: k })); } catch (e) { return; }
+  if (run !== places.run || out.error) return;
+  const p = out.places[0];
+  if (places.res) places.res[k] = p;
+  if (!out.detail) { if (places.res) redraw(); toast(`Place ${k + 1} : ${p.verdict}${p.reason ? " · " + p.reason : ""}`); return; }
+  gir = out.detail; places.open = k; girT = 0; girSel = -1;
+  updateGirUI(); updateLayersUI(); redraw();
+  if ($("#girmenu").hidden) toggleMenu("#b-gir", "#girmenu");
+  girFocus([p.park[0], p.park[1]], 18);
+}
+// Repère de verdict au centre de chaque place testée : rond (vert), losange (bleu), triangle
+// (orange), carré (rouge), anneau (gris) ; la forme double la couleur.
+function drawPlaces() {
+  if (!places.res || !VIS.girplaces || !layout || !layout.stalls) return;
+  const r = Math.max(3, Math.min(8, 0.45 * view.s));
+  places.res.forEach((p, k) => {
+    if (!p || !layout.stalls[k]) return;
+    const q = layout.stalls[k].q, c = toS([(q[0][0] + q[1][0] + q[2][0] + q[3][0]) / 4, (q[0][1] + q[1][1] + q[2][1] + q[3][1]) / 4]);
+    ctx.beginPath();
+    if (p.verdict === "vert" || p.verdict === "gris") ctx.arc(c[0], c[1], r, 0, Math.PI * 2);
+    else if (p.verdict === "bleu") { ctx.moveTo(c[0], c[1] - r * 1.2); ctx.lineTo(c[0] + r, c[1]); ctx.lineTo(c[0], c[1] + r * 1.2); ctx.lineTo(c[0] - r, c[1]); ctx.closePath(); }
+    else if (p.verdict === "orange") { ctx.moveTo(c[0], c[1] - r * 1.15); ctx.lineTo(c[0] + r, c[1] + r * 0.75); ctx.lineTo(c[0] - r, c[1] + r * 0.75); ctx.closePath(); }
+    else ctx.rect(c[0] - r * 0.9, c[1] - r * 0.9, r * 1.8, r * 1.8);
+    if (p.verdict === "gris") { ctx.lineWidth = 2; ctx.strokeStyle = C["label-3"]; ctx.stroke(); return; }
+    ctx.fillStyle = C[VERDICT[p.verdict]]; ctx.fill();
+    ctx.lineWidth = k === places.open ? 2.5 : 1; ctx.strokeStyle = k === places.open ? C.label : C.ground; ctx.stroke();
+  });
+}
+$("#g-test").addEventListener("click", () => { closeMenus(); testPlaces(); });
+
+// ============================================================================
 // Export DXF (moteur Rust) : RGF93 / Lambert-93 ou CC, calques AutoCAD.
 // ============================================================================
 // Calque de l'interface → calques AutoCAD correspondants.
@@ -2699,6 +3123,7 @@ const DXF_LAYERS = {
   pbati: ["PRJ_BATIMENTS", "PRJ_ESPACES_VERTS", "PRJ_BASSIN_TALUS_HAUT", "PRJ_BASSIN_TALUS_BAS"], servitudes: ["PRJ_SERVITUDES"], recul: ["PRJ_RECUL"],
   ovoirie: ["OCC_VOIRIE"], bati: ["OCC_BATI"], vegetation: ["OCC_VEGETATION"],
   parcelles: ["CAD_PARCELLES"], numeros: ["CAD_NUMEROS"], feuilles: ["CAD_FEUILLES"], communes: ["CAD_COMMUNES"],
+  girroues: ["GIR_TRAJECTOIRE", "GIR_ROUES"], girenv: ["GIR_CARROSSERIE", "GIR_VEHICULE"], girmarge: ["GIR_MARGE"], girconf: ["GIR_CONFLITS"],
 };
 let XCRS = "L93";
 try { XCRS = localStorage.getItem("trame.crs") === "CC" ? "CC" : "L93"; } catch (e) { /* stockage indisponible */ }
@@ -2732,6 +3157,7 @@ async function exportDxf() {
     arbres: dr.trees.map((t) => ({ b: t.sp.bloc, p: [t.x, t.y], a: +t.a.toFixed(1), s: +t.s.toFixed(3) })),
   };
   const input = { site: engineInput(false), georef: null, crs, off, cadastre: {}, date: "", dress };
+  if (gir) input.giration = girEpure(site.gir);
   let commune = "";
   if (geo) {
     const L = basemap.layers, r = basemap.rect, occ = basemap.occ;
@@ -2903,7 +3329,7 @@ $("#e-draw").addEventListener("click", () => { setMode("draw"); toast("Touchez l
 const mq = window.matchMedia("(prefers-color-scheme: dark)");
 mq.addEventListener("change", () => { readColors(); redraw(); });
 new MutationObserver(() => { readColors(); redraw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-function relayout(cw, ch) { resize(cw, ch); if (mode === "map") updateMapUI(); if (!$("#addmenu").hidden) placeMenu("#b-add", "#addmenu"); if (!$("#modmenu").hidden) placeMenu("#b-mod", "#modmenu"); if (!$("#costmenu").hidden) placeMenu("#b-cost", "#costmenu"); if (!$("#params").hidden) placeMenu("#b-params", "#params"); if (!$("#dress").hidden) placeMenu("#b-dress", "#dress"); if (!$("#export").hidden) placeMenu("#b-export", "#export"); if (!$("#newmenu").hidden) placeMenu("#b-new", "#newmenu"); }
+function relayout(cw, ch) { resize(cw, ch); if (mode === "map") updateMapUI(); if (!$("#addmenu").hidden) placeMenu("#b-add", "#addmenu"); if (!$("#modmenu").hidden) placeMenu("#b-mod", "#modmenu"); if (!$("#costmenu").hidden) placeMenu("#b-cost", "#costmenu"); if (!$("#girmenu").hidden) placeMenu("#b-gir", "#girmenu"); if (!$("#params").hidden) placeMenu("#b-params", "#params"); if (!$("#dress").hidden) placeMenu("#b-dress", "#dress"); if (!$("#export").hidden) placeMenu("#b-export", "#export"); if (!$("#newmenu").hidden) placeMenu("#b-new", "#newmenu"); }
 if (window.ResizeObserver) new ResizeObserver((es) => { const r = es[es.length - 1].contentRect; relayout(r.width, r.height); }).observe(canvas);
 else window.addEventListener("resize", () => relayout());
 
