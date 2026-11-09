@@ -10,6 +10,9 @@ use std::f64::consts::PI;
 const CORNER: f64 = 0.5; // ~29° : au-delà, on considère un angle et non une courbe
 const STEP: f64 = 0.25;
 const TOL: f64 = 0.02;
+/// Tête de colonne inclinée contre une rangée voisine : longueur de bordure droite laissée entre son
+/// coin avant et l'angle de l'allée (giration plus aisée, contour planté sans pointe).
+const STRAIGHT: f64 = 1.0;
 
 struct Chain {
     pts: Vec<V2>,
@@ -344,7 +347,14 @@ pub fn place(b: &Region, drive: &Region, p: &Params, entries: &[Quad], acc: &mut
                     continue;
                 }
                 let box_ = Quad::on_base(q.0[3], q.0[2], n, a_chk);
-                let ok = fits(acc, &q, n);
+                // En tête de colonne inclinée, le coin avant, en saillie vers l'arrière, ne vient pas au
+                // ras d'une rangée voisine : l'aire de manœuvre prolongée de `STRAIGHT` vers l'arrière
+                // reste libre de places, et chaussée si elle est dans la zone circulable (l'angle de
+                // l'allée garde sa bordure droite).
+                let head = !last_ok && c != 0.0;
+                let long = Quad::on_base(q.0[3] - (q.0[2] - q.0[3]).norm() * STRAIGHT, q.0[2], n, a_chk);
+                let ok = fits(acc, &q, n) && !(head && acc.hash.hits(&long.shrink(TOL)));
+                let box_ = if head && drive.contains_quad(&long, TOL) { long } else { box_ };
                 if ok && acc.is_removed(&q) {
                     // Place retirée à la conception : l'emplacement reste libre (espace planté, ou
                     // débord d'une place voisine), sans décaler les îlots réguliers de la rangée.

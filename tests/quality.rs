@@ -878,6 +878,27 @@ fn no_stall_after_a_turn_is_left_unreachable() {
 
 /// Plan de la capture du 8 novembre 2026, 22 h 21 : plan par défaut de l'application, sans servitude,
 /// places à 45°.
+#[test]
+fn a_slanted_column_starts_after_a_straight_kerb_at_the_corner() {
+    // Plan par défaut sans servitude à 75°, angle haut gauche : la colonne de bordure gauche
+    // débouche sur l'allée du haut. Sa première place ne commence pas au ras de l'angle de l'allée
+    // (front des places du haut en y = 99,52) : un segment droit de bordure d'au moins 1 m l'en
+    // sépare, le long du front de la colonne (x = 8,48).
+    let mut site = load("capture45");
+    site.params.slant = 75.0;
+    site.params.turns = false;
+    let lay = trame::solve(&site);
+    let head = lay
+        .stalls
+        .iter()
+        .map(|s| quad(&s.q))
+        .filter(|q| q.0.iter().all(|p| p.x < 9.0 && p.y > 85.0))
+        .map(|q| q.0.iter().map(|p| p.y).fold(f64::MIN, f64::max))
+        .fold(f64::MIN, f64::max);
+    assert!(head > 90.0, "colonne gauche introuvable");
+    assert!(head <= 99.52 - 1.0 + 0.02, "première place de la colonne à {head:.2}, au ras de l'allée du haut");
+}
+
 fn capture_45(turns: bool) -> (Site, Layout) {
     let mut site = load("capture45");
     site.params.turns = turns;
