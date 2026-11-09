@@ -730,21 +730,23 @@ function arc(cx, cy, r, a0, a1, n) {
   for (let i = 0; i <= n; i++) { const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180; pts.push([+(cx + r * Math.cos(a)).toFixed(2), +(cy + r * Math.sin(a)).toFixed(2)]); }
   return pts;
 }
+// Accès posés par l'application au tiers de leur limite : le milieu porte les boutons du segment.
+const ENTRY_T = 1 / 3;
 const EXAMPLES = {
   ruisseau: () => ({
     parcel: [[0, 0], [160, 0], [160, 110], [0, 110]], setbacks: [5, 3, 5, 3],
     exclusions: [[[-5, 70], [20, 72], [45, 85], [70, 92], [95, 95], [125, 100], [165, 104], [165, 80], [130, 78], [105, 70], [80, 58], [55, 48], [30, 45], [-5, 46]]],
     buildings: [{ cx: 132.5, cy: 29, w: 42, h: 35, rot: 90, shape: "L" }],
     landscapes: [[[8, 8], [30, 8], [30, 40], [8, 40]]],
-    entries: [{ edge: 0, t: 0.45 }, { edge: 2, t: 0.75 }],
+    entries: [{ edge: 0, t: ENTRY_T }, { edge: 2, t: 0.75 }],
   }),
   courbe: () => {
     const curve = arc(-60, 0, 200, 0, 35, 20).slice(1);
     const parcel = [[0, 0], [140, 0], ...curve, [0, +(200 * Math.sin(35 * Math.PI / 180)).toFixed(2)]];
     return { parcel, setbacks: parcel.map((_, i) => (i === 0 ? 5 : 3)), exclusions: [], buildings: [], landscapes: [], basins: [], entries: [{ edge: 0, t: 0.3 }] };
   },
-  triangle: () => ({ parcel: [[0, 0], [150, 0], [30, 170]], setbacks: [5, 3, 3], exclusions: [], buildings: [{ cx: 52, cy: 78, w: 24, h: 40, rot: 80, shape: "rect" }], landscapes: [], basins: [], entries: [{ edge: 0, t: 0.4 }] }),
-  rectangle: () => ({ parcel: [[0, 0], [120, 0], [120, 80], [0, 80]], setbacks: [5, 3, 3, 3], exclusions: [], buildings: [], landscapes: [], basins: [], entries: [{ edge: 0, t: 0.5 }] }),
+  triangle: () => ({ parcel: [[0, 0], [150, 0], [30, 170]], setbacks: [5, 3, 3], exclusions: [], buildings: [{ cx: 52, cy: 78, w: 24, h: 40, rot: 80, shape: "rect" }], landscapes: [], basins: [], entries: [{ edge: 0, t: ENTRY_T }] }),
+  rectangle: () => ({ parcel: [[0, 0], [120, 0], [120, 80], [0, 80]], setbacks: [5, 3, 3, 3], exclusions: [], buildings: [], landscapes: [], basins: [], entries: [{ edge: 0, t: ENTRY_T }] }),
 };
 
 let site = EXAMPLES.ruisseau();
@@ -1750,7 +1752,7 @@ function onDrawTap(w, dbl, sp) {
 function finishDraft() {
   const P = draft.slice(); if (P.length < 3 || Math.abs(polyArea(P)) < 100) { toast("Parcelle trop petite"); return; }
   let li = 0, lb = 0; for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L > lb) { lb = L; li = i; } }
-  site = { parcel: P, setbacks: P.map((_, i) => (i === li ? 5 : 3)), exclusions: [], buildings: [], landscapes: [], basins: [], entries: [{ edge: li, t: 0.5 }] };
+  site = { parcel: P, setbacks: P.map((_, i) => (i === li ? 5 : 3)), exclusions: [], buildings: [], landscapes: [], basins: [], entries: [{ edge: li, t: ENTRY_T }] };
   setMode("edit"); exampleName = "mine"; syncExample(); lastAngle = null; solve(false); commit(); fit(); toast("Parcelle créée · recul 5 m sur la limite la plus longue, 3 m ailleurs");
 }
 function setMode(m) {
@@ -1790,7 +1792,10 @@ function addObject(kind) {
   }
   if (kind === "entry") {
     const best = nearEdge(c);
-    if (best) { site.entries.push({ edge: best.i, t: Math.max(0.1, Math.min(0.9, best.t)) }); setSel({ type: "entry", i: site.entries.length - 1 }); }
+    // Au tiers de la limite la plus proche, aux deux tiers si un accès y est déjà, sinon au droit du
+    // centre de la vue.
+    const free = (t) => !site.entries.some((en) => en.edge === best.i && Math.abs(en.t - t) < 0.1);
+    if (best) { site.entries.push({ edge: best.i, t: [ENTRY_T, 1 - ENTRY_T].find(free) ?? Math.max(0.1, Math.min(0.9, best.t)) }); setSel({ type: "entry", i: site.entries.length - 1 }); }
   }
   solve(false); commit(); markMine();
 }
@@ -2765,7 +2770,7 @@ function studyParcel(i, merge) {
   let li = 0, lb = 0;
   ring.forEach((a, j) => { const b = ring[(j + 1) % ring.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L > lb) { lb = L; li = j; } });
   const keep = merge ? site : { exclusions: [], buildings: [], landscapes: [], basins: [] };
-  site = { ...keep, arcs: [], parcel: ring, setbacks: ring.map(() => 3), entries: [{ edge: li, t: 0.5 }], cadastre: [...(merge ? site.cadastre || [] : []), f.p.idu].filter(Boolean) };
+  site = { ...keep, arcs: [], parcel: ring, setbacks: ring.map(() => 3), entries: [{ edge: li, t: ENTRY_T }], cadastre: [...(merge ? site.cadastre || [] : []), f.p.idu].filter(Boolean) };
   exampleName = "mine"; syncExample(); lastAngle = null; setSel(null); solve(false); commit();
   if (split) toast("Parcelles non contiguës : seule la plus grande emprise est conservée");
   else toast(merge ? `Parcelle ${cadName(f)} ajoutée · ${fmtInt(Math.abs(polyArea(ring)))} m²` : `Parcelle ${cadName(f)} à l'étude · reculs de 3 m, accès sur la plus longue limite`);
