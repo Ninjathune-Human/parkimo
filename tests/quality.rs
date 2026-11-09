@@ -856,10 +856,10 @@ fn oblique_stalls_lean_with_the_traffic_of_their_lane() {
 }
 
 #[test]
-fn no_stall_turns_back_on_an_approach_it_cannot_take_in_one_go() {
+fn no_stall_after_a_turn_is_left_unreachable() {
     // Plan de la capture du 8 novembre 2026 (ruisseau sans servitude, 30°) et voisins : aucune place
-    // dont l'entrée revient sur l'approche (place juste après un virage, côté intérieur) sans pouvoir
-    // se prendre d'un seul tenant en arrivant de l'amont.
+    // dont l'entrée revient sur l'approche (place juste après un virage, côté intérieur) que le test
+    // des places trouve impossible ou à plus de 3 reprises en arrivant de l'amont.
     let mut report = Vec::new();
     for (name, slant, easement) in [("ruisseau", 30.0, false), ("ruisseau", 60.0, true), ("rect", 45.0, true), ("triangle", 60.0, true)] {
         let mut site = load(name);
@@ -871,10 +871,6 @@ fn no_stall_turns_back_on_an_approach_it_cannot_take_in_one_go() {
         let bad = trame::giration::api::unreachable_after_turns(&site, &lay);
         if !bad.is_empty() {
             report.push(format!("{name} à {slant}° : {} places, dont {:?}", bad.len(), bad.first()));
-        }
-        if name == "ruisseau" && slant == 30.0 {
-            // La place de la capture, au sortir du virage du coin planté.
-            assert!(lay.stalls.iter().all(|s| { let c = quad(&s.q).center(); (c.x - 32.3).hypot(c.y - 41.5) > 1.5 }), "place de la capture toujours là");
         }
     }
     assert!(report.is_empty(), "{}", report.join("\n"));
@@ -901,12 +897,10 @@ fn leaning_with_the_traffic_keeps_the_places_the_other_lean_allows() {
 }
 
 #[test]
-fn a_place_retired_after_a_turn_gives_its_room_back_to_the_next_row() {
-    // Au sortir du virage du coin planté, la tête de la colonne est retirée ; la rangée qui longe la
-    // voie d'arrivée gagne une place sur l'angle ainsi libéré.
+fn the_place_after_the_turn_stays_when_it_takes_three_reprises_at_most() {
+    // Au sortir du virage du coin planté, la tête de la colonne se prend avec reprises (3 au plus)
+    // en arrivant de l'amont : elle reste au plan complet.
     let (_, lay) = capture_45(true);
     let centres: Vec<V2> = lay.stalls.iter().map(|s| quad(&s.q).center()).collect();
-    let near = |x: f64, y: f64| centres.iter().any(|c| (c.x - x).hypot(c.y - y) < 1.0);
-    assert!(!near(32.65, 40.88), "tête de colonne au sortir du virage toujours là");
-    assert!(near(27.0, 42.65), "pas de place en bout de rangée sur l'angle libéré ({} en tout)", lay.stalls.len());
+    assert!(centres.iter().any(|c| (c.x - 32.65).hypot(c.y - 40.88) < 1.0), "tête de colonne au sortir du virage retirée ({} en tout)", lay.stalls.len());
 }

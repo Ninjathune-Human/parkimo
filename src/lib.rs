@@ -219,8 +219,8 @@ pub fn solve(site: &Site) -> Layout {
     } else {
         first
     };
-    // Places juste après un virage, côté intérieur, qui ne se prennent pas d'un seul tenant en
-    // arrivant de l'amont : retirées ; leur emplacement reste planté, ou une rangée voisine déborde
+    // Places juste après un virage, côté intérieur, impossibles ou à plus de 3 reprises en arrivant
+    // de l'amont (même test que « Tester toutes les places ») : retirées ; leur emplacement reste planté, ou une rangée voisine déborde
     // sur lui. Le plan change autour : contrôle repris sur le plan obtenu, jusqu'à ce qu'il ne
     // retire plus rien (trois fois au plus).
     if !site.params.turns {
@@ -240,9 +240,9 @@ pub fn solve(site: &Site) -> Layout {
         return out;
     }
     out.warnings.push(if n == 1 {
-        "1 place retirée : au sortir d'un virage, elle ne se prend pas d'un seul tenant".into()
+        "1 place retirée : au sortir d'un virage, inaccessible ou à plus de 3 reprises".into()
     } else {
-        format!("{n} places retirées : au sortir d'un virage, elles ne se prennent pas d'un seul tenant")
+        format!("{n} places retirées : au sortir d'un virage, inaccessibles ou à plus de 3 reprises")
     });
     out
 }

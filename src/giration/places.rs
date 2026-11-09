@@ -417,31 +417,6 @@ fn upstream_goal<'a>(v: &'a Vehicle, table: &'a Table, ups: &'a [(P2, P2, f64)])
     (goal, h)
 }
 
-/// La place `i`, dont l'entrée revient sur son approche, se prend-elle d'un seul tenant en arrivant
-/// de l'amont ? Recherche courte (budget d'un seul tenant), pour la conception du plan.
-pub fn enters_in_one_go(ctx: &Ctx, i: usize) -> bool {
-    let Prepared { park, scene, lane, mouth } = prepare(ctx, i);
-    let Some(lane) = lane else { return false };
-    let ups = approaches(ctx.lanes, lane, mouth, APPROACH);
-    let (goal, h) = upstream_goal(ctx.v, ctx.table, &ups);
-    let search = Search {
-        v: ctx.v,
-        profile: ctx.profile,
-        scene: &scene,
-        margin: ctx.margin,
-        costs: Costs { forward: FORWARD, reverse: REVERSE, cusp: 5.0, switch: 0.3, margin: 8.0, collision: None },
-        speed: (ctx.speed / 3.6).max(0.1),
-        first_reverse: true,
-        forward: false,
-        max_cusps: 0,
-        weight: 1.2,
-        centre: mouth,
-        radius: RADIUS,
-        max_nodes: NODES_DIRECT,
-    };
-    matches!(search.run(park, goal, h), Outcome::Found(_))
-}
-
 /// Teste la place `i` ; `illustrate` cherche en plus, si aucune manœuvre n'est possible, la moins
 /// mauvaise pour la montrer (détail d'une place).
 pub fn test_stall(ctx: &Ctx, i: usize, illustrate: bool) -> Tested {

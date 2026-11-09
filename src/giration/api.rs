@@ -1,7 +1,7 @@
 //! Contrat JSON de l'épure : entrée de `giration_json` (WebAssembly) et de l'export DXF.
 
 use super::epure::{follow, Run, Section};
-use super::places::{enters_in_one_go, motion, test_stall, turns_back, Ctx, Lane, Status, NODES_REPRISES};
+use super::places::{motion, test_stall, turns_back, Ctx, Lane, Status, NODES_REPRISES};
 use super::planner::Piece;
 use super::kinematics::{Pose, Profile};
 use super::scene::{KerbProfile, ObstacleKind, Scene};
@@ -420,9 +420,9 @@ pub fn places(inp: &PlacesIn) -> PlacesOut {
 }
 
 /// Conception du plan : places dont l'entrée revient sur l'approche (juste après un virage, côté
-/// intérieur) et qui ne se prennent pas d'un seul tenant en arrivant de l'amont, avec les hypothèses
-/// par défaut (Peugeot 3008, conducteur habile, 5 km/h, marge de 0,10 m, bordure T2, voisines garées).
-/// Chacune telle qu'elle est posée.
+/// intérieur) que le test des places trouve impossibles ou à plus de 3 reprises, avec les hypothèses
+/// par défaut (Peugeot 3008, conducteur habile, 5 km/h, marge de 0,10 m, bordure T2, voisines
+/// garées). Une place que la recherche ne conclut pas reste. Chacune telle qu'elle est posée.
 pub fn unreachable_after_turns(site: &Site, lay: &Layout) -> Vec<[P2; 4]> {
     let stalls: Vec<[P2; 4]> = lay.stalls.iter().map(|s| s.q).collect();
     let lanes: Vec<Lane> = lay.circulation.axes.iter().map(|a| Lane { pts: a.pts.clone(), w: a.w, sens: a.sens }).collect();
@@ -436,9 +436,17 @@ pub fn unreachable_after_turns(site: &Site, lay: &Layout) -> Vec<[P2; 4]> {
     static TABLE: std::sync::OnceLock<super::planner::Table> = std::sync::OnceLock::new();
     let table = TABLE.get_or_init(|| super::places::table(&Vehicle::peugeot_3008(), Profile::Habile));
     let ctx = Ctx { table, v: &v, profile: Profile::Habile, margin: margin(), speed: speed(), base: &base, stalls: &stalls, lanes: &lanes, neighbours: true, max_nodes: NODES_REPRISES };
+    let turns = |p: &[Piece]| p.windows(2).filter(|w| w[0].reverse != w[1].reverse).count();
     suspects
         .into_iter()
-        .filter(|&i| !enters_in_one_go(&ctx, i))
+        .filter(|&i| {
+            let t = test_stall(&ctx, i, false);
+            match t.status {
+                Status::Infeasible => true,
+                Status::Feasible => turns(&t.entry).max(turns(&t.exit)) > three(),
+                Status::Unknown => false,
+            }
+        })
         .map(|i| stalls[i])
         .collect()
 }

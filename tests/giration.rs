@@ -1375,6 +1375,38 @@ fn capture_75_place(at: [f64; 2]) -> (PlacesOut, [f64; 2]) {
 }
 
 #[test]
+fn design_retires_exactly_the_turn_stalls_the_test_finds_unreachable() {
+    // Plan de la capture à 45°, sans contrôle des virages : parmi les places dont l'entrée revient
+    // sur l'approche, la conception retire celles que « Tester toutes les places » trouve
+    // impossibles (rouge) ou à plus de 3 reprises (orange pour reprises), et garde les autres,
+    // reprises comprises (bleu) ou non conclues (gris).
+    let path = format!("{}/scenarios/capture45.json", env!("CARGO_MANIFEST_DIR"));
+    let mut raw: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    raw["params"]["turns"] = serde_json::json!(false);
+    let site: trame::model::Site = serde_json::from_value(raw.clone()).unwrap();
+    let lay = trame::solve(&site);
+    let retired = trame::giration::api::unreachable_after_turns(&site, &lay);
+    let lanes: Vec<trame::giration::places::Lane> = lay.circulation.axes.iter().map(|a| trame::giration::places::Lane { pts: a.pts.clone(), w: a.w, sens: a.sens }).collect();
+    let suspects: Vec<usize> = (0..lay.stalls.len()).filter(|&i| trame::giration::places::turns_back(&lay.stalls[i].q, &lanes)).collect();
+    assert!(!suspects.is_empty());
+    let layout = serde_json::json!({
+        "paved": lay.paved, "pads": lay.pads, "islands": lay.islands, "entries": lay.entries, "cross": lay.cross, "walks": lay.walks,
+        "stalls": lay.stalls.iter().map(|s| s.q).collect::<Vec<_>>(),
+        "axes": lay.circulation.axes.iter().map(|a| serde_json::json!({ "pts": a.pts, "w": a.w, "sens": a.sens })).collect::<Vec<_>>(),
+    });
+    let out = places(&serde_json::from_value(serde_json::json!({ "site": raw, "layout": layout, "stalls": suspects })).unwrap());
+    let mut kept_with_reprises = 0;
+    for p in &out.places {
+        let reprises = p.entry.reprises.max(p.exit.reprises);
+        let unreachable = p.verdict == "rouge" || (p.verdict == "orange" && reprises > 3);
+        let gone = retired.contains(&lay.stalls[p.i].q);
+        assert_eq!(gone, unreachable, "place {} : {} ({} reprises), retirée {}", p.i, p.verdict, reprises, gone);
+        kept_with_reprises += usize::from(!gone && reprises > 0);
+    }
+    assert!(kept_with_reprises > 0, "aucune place gardée avec reprises sur {} soupçonnées", out.places.len());
+}
+
+#[test]
 fn islands_are_rounded_wider_where_cars_turn() {
     // Plan à 75° de la capture : en venant de l'est, on tourne à gauche vers le sud autour de
     // l'angle nord-ouest de l'îlot planté, angle aigu en (38,9 ; 45,6). Arrondi de giration (3 m,

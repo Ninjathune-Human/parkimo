@@ -1438,17 +1438,20 @@ function solve(quick) {
   if (!quick) { placesReset(); girRun(); refine(); }
   updateStats(quick); redraw();
 }
-// Places au sortir des virages : le contrôle (recherche de giration) tourne en arrière-plan ; le plan
-// affiché tout de suite est celui du calcul sans lui, remplacé s'il retire des places.
-let refineRev = 0;
+// Places au sortir des virages : le contrôle (recherche de giration, quelques secondes) tourne en
+// arrière-plan, sur un Web Worker à part de ceux du test des places ; le plan affiché tout de suite
+// est celui du calcul sans lui, remplacé s'il retire des places. Un seul contrôle à la fois : le plan
+// modifié entre-temps est contrôlé à la fin du précédent.
+let refineRev = 0, refining = false;
 function refine() {
   const rev = ++refineRev;
-  if (!layout || layout.error || !layout.stalls.length) return;
-  workerCall("solve_json", engineInput(false, true)).then((out) => {
+  if (refining || !layout || layout.error || !layout.stalls.length) return;
+  refining = true;
+  workerCall("solve_json", engineInput(false, true), POOL).then((out) => {
     if (rev !== refineRev || !out || out.error || !layout || layout.error || out.stalls.length === layout.stalls.length) return;
     layout = out;
     placesReset(); girRun(); updateStats(false); redraw();
-  }).catch(() => {});
+  }).catch(() => {}).finally(() => { refining = false; if (rev !== refineRev) refine(); });
 }
 let solveQueued = false, solveQuick = false;
 function requestSolve(quick) { solveQuick = quick; if (!solveQueued) { solveQueued = true; requestAnimationFrame(() => { solveQueued = false; solve(solveQuick); }); } }
