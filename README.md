@@ -98,7 +98,14 @@ Menu **Modifier**, « Inclinaison des places » : 90° (défaut), 75°, 60°, 45
 
 ## Giration
 
-Menu **Giration** : épure tracée à la main, comme dans Covadis. « Tracer une trajectoire », puis toucher le plan : départ, points de passage ; le bouton Avant / Arrière pose un point de rebroussement (rond) et le tronçon suivant se fait en marche arrière (tirets). Terminer, Entrée ou double toucher lance la simulation ; Annuler retire le dernier point pendant le tracé. Les sommets se glissent ensuite sur le plan, la simulation suit.
+Menu **Giration** : épure tracée à la main, comme dans Covadis. « Tracer une trajectoire », puis toucher le plan : départ, points de passage ; le bouton Avant / Arrière pose un point de rebroussement (rond) et le tronçon suivant se fait en marche arrière (tirets). Terminer, Entrée ou double toucher lance la simulation ; Annuler retire le dernier point pendant le tracé.
+
+Édition de la trajectoire tracée, avec les gestes des limites de parcelle :
+- toucher le trait sélectionne la trajectoire et le segment touché ; la croix ou Suppr efface la trajectoire (Annuler la rend) ;
+- toucher un point le sélectionne : il se glisse, la croix le retire (deux points au moins) ; double toucher sur un point le retire, sur le trait ajoute un point ;
+- au survol (ou après un toucher) d'un segment, trois boutons : ajouter un point au milieu, déplacer le segment, le courber ou le redresser ; un segment courbé prolonge sans cassure le segment précédent (arc tangent), sinon flèche de 15 % de la corde ; une poignée règle l'arc ;
+- panneau du segment sélectionné : Droit | Courbe, rayon saisi (demi-cercle au plus), bouton Tangent qui recale l'arc sur le segment précédent (au rebroussement, sur le tracé repris en sens inverse) ; un rayon inférieur au rayon mini du point guidé est signalé en rouge : 4,65 m au milieu de l'essieu avant en marche avant, 3,76 m à l'essieu arrière en marche arrière (Peugeot 3008, conducteur courant ou habile) ;
+- ajouter ou retirer un point ne change le sens de marche d'aucun autre segment ; les arcs sont discrétisés (un côté tous les 4° environ) pour le moteur et l'export DXF. La simulation est relancée à chaque modification.
 
 - Véhicule de référence : Peugeot 3008 (3e génération, 2024), 4,54 × 1,90 m hors rétroviseurs, empattement 2,74 m, porte-à-faux 0,94 / 0,86 m, voie 1,63 m, garde au sol 0,198 m, pneus de 235 ; diamètre de braquage publié de 10,6 à 10,9 m selon la version, sans convention : 10,90 m lus entre trottoirs (11,95 m entre murs, calculé). Modèle bicyclette, épure de Jeantaud, volant à vitesse finie : roues tournées à 15°/s (habile), 10°/s (courant) ou 6°/s (prudent), échelle du CERTU reprise par Mensura, dans la limite de la direction (butée à butée en 4 s) ; braquage à l'arrêt aux seuls rebroussements, comme AutoTURN et Mensura, jamais pour le conducteur prudent.
 - Le véhicule suit la trajectoire tracée (essieu avant en marche avant, essieu arrière en marche arrière) ; l'écart maximal et les tronçons non atteints sont signalés.
