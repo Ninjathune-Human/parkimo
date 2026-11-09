@@ -212,6 +212,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 32px
 }
 #selbar .what { font-size: 14px; font-weight: 600; white-space: nowrap; }
 #selbar .dim { font-size: 13px; color: var(--label-2); white-space: nowrap; }
+#selbar .unit { display: flex; align-items: center; gap: 6px; color: var(--label-2); font-size: 13px; white-space: nowrap; }
+#selbar .unit label { color: var(--label); }
+#selbar input[type="text"] {
+  width: 60px; min-height: 32px; text-align: right; font: inherit; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--label);
+  background: var(--field); border: 0; border-radius: var(--r-sm); padding: 0 8px;
+}
+#selbar input.bad { color: var(--bad); box-shadow: inset 0 0 0 1px var(--bad); }
 .tb.danger { color: var(--bad); }
 
 /* Calques et légende */
@@ -283,7 +290,7 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
   #hint { display: none; }
 }
 @media (max-width: 520px) {
-  #selbar .dim { display: none; }
+  #selbar .dim, #selbar.gir .what, #sel-rwrap label { display: none; }
 }
 /* Téléphone : boutons en icônes sur toute la largeur, l'encoche des menus posée sur l'icône */
 @media (max-width: 600px) {
@@ -462,6 +469,9 @@ body:has(#girbar:not([hidden])) #hint { opacity: 0; }
 
   <div id="selbar" class="glass" hidden>
     <span class="what" id="sel-what"></span><span class="dim num" id="sel-dim"></span>
+    <span class="seg" role="group" aria-label="Forme du segment" id="sel-arc" hidden><button data-c="0" aria-pressed="true">Droit</button><button data-c="1" aria-pressed="false">Courbe</button></span>
+    <span class="unit" id="sel-rwrap" hidden><label for="sel-r">Rayon</label><input id="sel-r" type="text" inputmode="decimal" autocomplete="off" aria-label="Rayon du segment">m</span>
+    <button class="tb" id="sel-tan" hidden title="Arc qui prolonge le segment précédent sans cassure">Tangent</button>
     <button class="tb primary" id="sel-study" hidden>Étudier</button>
     <button class="tb" id="sel-merge" hidden>Ajouter à l'étude</button>
     <button class="tb" id="sel-shape" hidden>Forme en L</button>
@@ -1214,9 +1224,10 @@ function drawScale(pxPerM) {
 const ARC_MAX = 0.5;
 const arcK = (i) => (site.arcs && site.arcs[i]) || 0;
 function edgeInfo(i) { return edgeG(site.parcel, i, arcK(i)); }
-function edgeG(P, i, k0) {
+// `sg` : côté imposé (ligne ouverte, trajectoire de giration : flèche positive à droite du sens de tracé).
+function edgeG(P, i, k0, sg) {
   const a = P[i], b = P[(i + 1) % P.length];
-  const sgn = Math.sign(polyArea(P)) || 1, dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+  const sgn = sg || Math.sign(polyArea(P)) || 1, dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
   const u = [dx / L, dy / L], n = [-u[1] * sgn, u[0] * sgn], mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
   const k = Math.max(-ARC_MAX, Math.min(ARC_MAX, k0));
   const e = { a, b, u, n, L, mid, k, apex: mid, N: 1, at: (t) => [a[0] + dx * t, a[1] + dy * t], nAt: () => n };
@@ -1235,11 +1246,12 @@ function outline() { const out = []; for (let i = 0; i < site.parcel.length; i++
 // Servitudes et espaces verts : le sommet [x, y, k] porte la flèche k de l'arête qui en part.
 const vk = (p) => p[2] || 0;
 function polyOutline(P) { const out = []; for (let i = 0; i < P.length; i++) { const e = edgeG(P, i, vk(P[i])); for (let j = 0; j < e.N; j++) out.push(j ? e.at(j / e.N) : [e.a[0], e.a[1]]); } return out; }
-// Référence d'une arête : { g: "parcel" | "exclusion" | "landscape", o: objet, i: arête }.
-function ringOf(r) { return r.g === "parcel" ? site.parcel : (site[POLY[r.g]] || [])[r.o]; }
+// Référence d'une arête : { g: "parcel" | "exclusion" | "landscape" | "basin" | "gir", o: objet, i: arête }.
+// "gir" : segment i de la trajectoire de giration, ligne ouverte (n − 1 segments).
+function ringOf(r) { return r.g === "parcel" ? site.parcel : r.g === "gir" ? site.gir && site.gir.pts : (site[POLY[r.g]] || [])[r.o]; }
 const kOf = (r) => (r.g === "parcel" ? arcK(r.i) : vk(ringOf(r)[r.i]));
 function setK(r, k) { if (r.g === "parcel") { ensureArcs(); site.arcs[r.i] = k; } else { const P = ringOf(r), p = P[r.i]; P[r.i] = k ? [p[0], p[1], k] : [p[0], p[1]]; } }
-function edgeRef(r) { const P = ringOf(r); return P && r.i < P.length ? edgeG(P, r.i, kOf(r)) : null; }
+function edgeRef(r) { const P = ringOf(r), open = r.g === "gir"; return P && r.i < P.length - (open ? 1 : 0) ? edgeG(P, r.i, kOf(r), open ? 1 : 0) : null; }
 const sameRef = (a, b) => (!a && !b) || (a && b && a.g === b.g && a.o === b.o && a.i === b.i);
 // `selectedOnly` : poignées d'arc ; hors parcelle, seuls les contours de l'objet sélectionné en portent.
 function eachRing(fn, selectedOnly) {
@@ -1248,18 +1260,19 @@ function eachRing(fn, selectedOnly) {
   if (VIS.pbati) site.landscapes.forEach((P, o) => on("landscape", o) && fn({ g: "landscape", o }, P));
   if (VIS.pbati) (site.basins || []).forEach((P, o) => on("basin", o) && fn({ g: "basin", o }, P));
   if (VIS.servitudes) site.exclusions.forEach((P, o) => on("exclusion", o) && fn({ g: "exclusion", o }, P));
+  if (girEditable() && on("gir")) fn({ g: "gir" }, site.gir.pts);
 }
-function nearRing(P, kf, w) {
+function nearRing(P, kf, w, open) {
   let best = null;
-  for (let i = 0; i < P.length; i++) {
-    const e = edgeG(P, i, kf(i)); let prev = e.a;
+  for (let i = 0; i < P.length - (open ? 1 : 0); i++) {
+    const e = edgeG(P, i, kf(i), open ? 1 : 0); let prev = e.a;
     for (let j = 1; j <= e.N; j++) { const q = e.at(j / e.N), [d, t] = distSeg(w, prev, q); if (!best || d < best.d) best = { d, i, t: (j - 1 + t) / e.N }; prev = q; }
   }
   return best;
 }
 function nearAnyEdge(w) {
   let best = null;
-  eachRing((r, P) => { if (P.length < 3) return; const nb = nearRing(P, r.g === "parcel" ? arcK : (i) => vk(P[i]), w); if (nb && (!best || nb.d < best.d)) best = { d: nb.d, t: nb.t, ref: { ...r, i: nb.i } }; });
+  eachRing((r, P) => { const open = r.g === "gir"; if (P.length < (open ? 2 : 3)) return; const nb = nearRing(P, r.g === "parcel" ? arcK : (i) => vk(P[i]), w, open); if (nb && (!best || nb.d < best.d)) best = { d: nb.d, t: nb.t, ref: { ...r, i: nb.i } }; });
   return best;
 }
 // Coupe un arc de flèche k au paramètre t : deux arcs du même cercle ; les fusionne.
@@ -1286,7 +1299,7 @@ function rotHandle(o) { const c = Math.cos(o.rot * Math.PI / 180), s = Math.sin(
 // Boutons au milieu d'une limite survolée : ajouter un sommet, arrondir le segment. Sur la limite de
 // parcelle, ils passent côté extérieur, hors des poignées de recul et des places.
 function edgeBtns(r) {
-  const e = r && edgeRef(r); if (!e || e.L * view.s < 100) return [];
+  const e = r && !(r.g === "gir" && !girEditable()) && edgeRef(r); if (!e || e.L * view.s < 100) return [];
   const a = toS(e.apex), d = r.g === "parcel" ? EBTN.out : 0, m = [a[0] - e.n[0] * d, a[1] + e.n[1] * d];
   // Boutons posés sur le segment, dans son inclinaison (écran) : « + » côté gauche (ou haut), arc côté droit.
   let ux = e.u[0], uy = -e.u[1]; if (ux < -1e-6 || (Math.abs(ux) <= 1e-6 && uy > 0)) { ux = -ux; uy = -uy; }
@@ -1301,6 +1314,7 @@ function selAnchor() {
   if (sel.type === "vertex") return site.parcel[sel.i] || null;
   if (sel.type === "entry") { const en = site.entries[sel.i]; return en && en.edge < site.parcel.length ? entryPoint(en) : null; }
   if (sel.type === "building") { const b = site.buildings[sel.i]; return b ? [b.cx, b.cy] : null; }
+  if (sel.type === "gir") { const P = girEditable() && site.gir.pts; return !P ? null : sel.v != null ? P[sel.v] || null : girEdge(sel.e != null ? sel.e : 0).apex; }
   if (POLY[sel.type]) {
     const e = site[POLY[sel.type]][sel.i]; if (!e) return null;
     if (sel.v != null && e[sel.v]) return e[sel.v];
@@ -1405,6 +1419,12 @@ function drawHandles() {
     const e = site[POLY[sel.type]][sel.i];
     ctx.beginPath(); pathPoly(polyOutline(e)); ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.stroke();
     e.forEach((v, k) => squareHandle(toS(v), sel.v === k));
+  }
+  if (sel.type === "gir" && girEditable()) {
+    const P = site.gir.pts; ctx.strokeStyle = C.accent; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.lineWidth = 2; strokeLine(girDense(P, 0, P.length - 1));
+    if (sel.e != null && sel.e < P.length - 1) { ctx.lineWidth = 4; strokeLine(girDense(P, sel.e, sel.e + 1)); }
+    P.forEach((v, k) => squareHandle(toS(v), sel.v === k, sel.v === k ? null : 6));
   }
 }
 function squareHandle(p, on, size) {
@@ -1513,8 +1533,8 @@ const snap = (x, s) => +(Math.round(x / s) * s).toFixed(3);
 function hitTest(w) {
   const h = HIT(), h2 = h * h;
   if (selDelBtn) { const sp = toS(w); if (Math.hypot(sp[0] - selDelBtn.x, sp[1] - selDelBtn.y) <= ICON_R + 8) return { kind: "sdel" }; }
-  // Sommets de la trajectoire de giration : glissés, ils relancent la simulation au lâcher.
-  if (gir && places.open < 0 && site.gir && site.gir.pts.length >= 2 && VIS.girroues) { const sp = toS(w); for (let k = 0; k < site.gir.pts.length; k++) { const q = toS(site.gir.pts[k]); if (Math.hypot(sp[0] - q[0], sp[1] - q[1]) <= 12) return { kind: "gvert", k }; } }
+  // Points de la trajectoire de giration : glissés, ils relancent la simulation au lâcher.
+  if (girEditable()) { const sp = toS(w); for (let k = 0; k < site.gir.pts.length; k++) { const q = toS(site.gir.pts[k]); if (Math.hypot(sp[0] - q[0], sp[1] - q[1]) <= 12) return { kind: "gvert", k }; } }
   if (hoverEdge) { const part = edgeBtnAt(toS(w)); if (part) return { kind: part === "move" ? "emove" : "ebtn", ref: hoverEdge, part }; }
   if (SKEL) {
     const sp = toS(w), T = site.traverses || [];
@@ -1539,6 +1559,8 @@ function hitTest(w) {
   for (let i = 0; i < site.parcel.length; i++) if (dist2(w, site.parcel[i]) < h2) return { kind: "vertex", i };
   { let hit = null; eachRing((r, P) => { for (let i = 0; i < P.length && !hit; i++) { const ref = { ...r, i }, k = kOf(ref); if (k && dist2(w, arcKnob(ref)) < h2) hit = { kind: "arc", ref, s: Math.sign(k) }; } }, true); if (hit) return hit; }
   if (VIS.recul) for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); if (e.L * view.s >= 40 && dist2(w, setbackHandle(i)) < h2) return { kind: "setback", i }; }
+  // Trait de la trajectoire : sélectionne le segment touché.
+  if (girEditable()) { const P = site.gir.pts, nb = nearRing(P, (i) => vk(P[i]), w, true); if (nb && nb.d < h * 0.7) return { kind: "gpath", i: nb.i, t: nb.t }; }
   if (VIS.pbati) for (let i = site.buildings.length - 1; i >= 0; i--) if (pointInPoly(w, rectPoly(site.buildings[i]))) return { kind: "move", type: "building", i };
   if (VIS.pbati) for (let i = site.landscapes.length - 1; i >= 0; i--) { const e = polyOutline(site.landscapes[i]); if (pointInPoly(w, e)) return { kind: "move", type: "landscape", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "landscape", i }; }
   if (VIS.pbati) for (let i = (site.basins || []).length - 1; i >= 0; i--) { const e = polyOutline(site.basins[i]); if (pointInPoly(w, e)) return { kind: "move", type: "basin", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "basin", i }; }
@@ -1551,8 +1573,11 @@ function hitTest(w) {
 function setSel(s) { sel = s; updateSelbar(); redraw(); }
 function updateSelbar() {
   const bar = $("#selbar");
-  if (!sel || (sel.type !== "cadastre" && sel.type !== "building")) { bar.hidden = true; $("#hint").style.opacity = ""; return; }
+  if (!sel || (sel.type !== "cadastre" && sel.type !== "building" && !(sel.type === "gir" && girEditable()))) { bar.hidden = true; $("#hint").style.opacity = ""; return; }
   bar.hidden = false; $("#hint").style.opacity = "0";
+  bar.classList.toggle("gir", sel.type === "gir");
+  for (const id of ["#sel-arc", "#sel-rwrap", "#sel-tan"]) $(id).hidden = true;
+  if (sel.type === "gir") { for (const id of ["#sel-study", "#sel-merge", "#sel-shape", "#sel-rot"]) $(id).hidden = true; girSelbar(); return; }
   const shape = $("#sel-shape"), rotb = $("#sel-rot");
   shape.hidden = sel.type !== "building"; rotb.hidden = sel.type !== "building";
   $("#sel-study").hidden = sel.type !== "cadastre"; $("#sel-merge").hidden = sel.type !== "cadastre" || site.parcel.length < 3;
@@ -1586,6 +1611,8 @@ canvas.addEventListener("pointerdown", (ev) => {
     else if (hit.kind === "entry") setSel({ type: "entry", i: hit.i });
     else if (hit.kind === "door") setSel({ type: "building", i: hit.i });
     else if (hit.kind === "evertex") setSel({ type: hit.type, i: hit.i, v: hit.k });
+    else if (hit.kind === "gvert") setSel({ type: "gir", v: hit.k });
+    else if (hit.kind === "gpath") setSel({ type: "gir", e: hit.i });
     else if (hit.kind === "setback" || hit.kind === "pedge") { /* conserve la sélection */ }
   }
   canvas.classList.add("dragging");
@@ -1643,15 +1670,17 @@ canvas.addEventListener("pointermove", (ev) => {
     }
     case "emove": {
       // Déplace le segment : ses deux sommets suivent le doigt (les autres sommets ne bougent pas).
-      const o0 = JSON.parse(drag.orig), R0 = h.ref.g === "parcel" ? o0.parcel : o0[POLY[h.ref.g]][h.ref.o], R = ringOf(h.ref), n = R0.length;
+      const o0 = JSON.parse(drag.orig), R0 = h.ref.g === "parcel" ? o0.parcel : h.ref.g === "gir" ? o0.gir.pts : o0[POLY[h.ref.g]][h.ref.o], R = ringOf(h.ref), n = R0.length;
       const ddx = snap(w[0] - drag.w0[0], 0.1), ddy = snap(w[1] - drag.w0[1], 0.1);
       for (const k of [h.ref.i, (h.ref.i + 1) % n]) R[k] = [R0[k][0] + ddx, R0[k][1] + ddy, ...R0[k].slice(2)];
       break;
     }
     case "tend": site.traverses[h.i][h.k] = [snap(w[0], 0.1), snap(w[1], 0.1)]; break;
-    case "gvert": site.gir.pts[h.k] = girSnap(w); redraw(); return;
-    case "pedge": case "cadastre": case "pill": case "ebtn": case "nbtn": case "tbtn": case "sdel": drag.kind = "pan"; return;
+    case "gvert": { const P = site.gir.pts, q = girSnap(w); P[h.k] = withK(q[0], q[1], vk(P[h.k])); break; }
+    case "pedge": case "cadastre": case "pill": case "ebtn": case "nbtn": case "tbtn": case "sdel": case "gpath": drag.kind = "pan"; return;
   }
+  // La trajectoire ne touche pas au plan : simulation relancée au lâcher seulement.
+  if (girDrag(drag)) { updateSelbar(); redraw(); return; }
   updateSelbar(); requestSolve(true);
 });
 
@@ -1664,7 +1693,7 @@ function endPointer(ev) {
   if (mode === "map") return;
   const now = performance.now(), dbl = now - lastTap.t < 350 && Math.hypot(sp[0] - lastTap.x, sp[1] - lastTap.y) < 16;
   if (d.kind === "drawtap") { (mode === "gir" ? onGirTap : onDrawTap)(toW(sp[0], sp[1]), dbl, sp); lastTap = { t: now, x: sp[0], y: sp[1] }; return; }
-  if (d.moved) { if (d.kind === "gvert") { girRun(); commit(); markMine(); } else if (d.kind !== "pan") { solve(false); commit(); markMine(); } return; }
+  if (d.moved) { if (girDrag(d)) girEdited(); else if (d.kind !== "pan") { solve(false); commit(); markMine(); } return; }
   // Toucher simple
   lastTap = { t: dbl ? 0 : now, x: sp[0], y: sp[1] };
   const h = d.hit;
@@ -1674,6 +1703,8 @@ function endPointer(ev) {
   if (h && h.kind === "pill") { (h.part === "dir" ? reverseLane : toggleLanes)(h.i); return; }
   if (h && h.kind === "ebtn") { (h.part === "add" ? insertVertexRef(h.ref, 0.5) : curveRef(h.ref)); return; }
   if (dbl && h) {
+    if (h.kind === "gvert") { removeGirPoint(h.k); return; }
+    if (h.kind === "gpath") { insertGirPoint(h.i, h.t); return; }
     if (h.kind === "vertex" && site.parcel.length > 3) { removeParcelVertex(h.i); return; }
     if (h.kind === "pedge") { insertParcelVertex(h.i, h.t); return; }
     if (h.kind === "evertex" && site[POLY[h.type]][h.i].length > 3) { removePolyVertex(h.type, h.i, h.k); return; }
@@ -1715,9 +1746,10 @@ function removePolyVertex(g, o, k) {
   P[pv] = withK(P[pv][0], P[pv][1], arcJoin(vk(P[pv]), vk(P[k]))); P.splice(k, 1);
   setSel({ type: g, i: o }); solve(false); commit(); markMine();
 }
-const insertVertexRef = (r, t) => (r.g === "parcel" ? insertParcelVertex(r.i, t) : insertPolyVertex(r.g, r.o, r.i, t));
+const insertVertexRef = (r, t) => (r.g === "parcel" ? insertParcelVertex(r.i, t) : r.g === "gir" ? insertGirPoint(r.i, t) : insertPolyVertex(r.g, r.o, r.i, t));
 function curveRef(r) {
   if (r.g === "parcel") { curveParcelEdge(r.i); return; }
+  if (r.g === "gir") { hoverEdge = null; girCurve(r.i, kOf(r) === 0); return; }
   const was = kOf(r) !== 0; setK(r, was ? 0 : 0.15); hoverEdge = null;
   solve(false); commit(); markMine(); toast(was ? "Segment redressé" : "Segment arrondi · glissez le point pour régler l'arc");
 }
@@ -1802,6 +1834,7 @@ function addObject(kind) {
 }
 function deleteSel() {
   if (!sel) return;
+  if (sel.type === "gir") { if (!girEditable()) return; if (sel.v != null) removeGirPoint(sel.v); else girClear(); return; }
   if (sel.type === "building") site.buildings.splice(sel.i, 1);
   else if (sel.type === "landscape") site.landscapes.splice(sel.i, 1);
   else if (sel.type === "basin") site.basins.splice(sel.i, 1);
@@ -2833,9 +2866,21 @@ function girSections(g) {
   const n = g.pts.length, out = [];
   if (n < 2) return out;
   const cuts = [0, ...g.cusps.filter((i) => i > 0 && i < n - 1), n - 1];
-  for (let i = 0; i + 1 < cuts.length; i++) out.push({ pts: g.pts.slice(cuts[i], cuts[i + 1] + 1), reverse: (i % 2 === 1) !== !!g.reverse, speed_kmh: g.speed });
+  for (let i = 0; i + 1 < cuts.length; i++) out.push({ pts: girDense(g.pts, cuts[i], cuts[i + 1]), reverse: (i % 2 === 1) !== !!g.reverse, speed_kmh: g.speed });
   return out;
 }
+// Le point [x, y, k] porte la flèche k du segment qui en part (0 : droit ; positive à droite du sens
+// de tracé), comme les sommets des servitudes ; le dernier point n'en porte pas. Points des segments
+// i0 à i1, arcs discrétisés (un côté tous les 4° environ) : moteur, tracé, export.
+function girDense(P, i0, i1) {
+  const out = [[P[i0][0], P[i0][1]]];
+  for (let i = i0; i < i1; i++) { const e = edgeG(P, i, vk(P[i]), 1); for (let j = 1; j <= e.N; j++) { const q = e.at(j / e.N); out.push([q[0], q[1]]); } }
+  return out;
+}
+// Sens de marche de chaque segment ↔ points de rebroussement : un point ajouté ou retiré ne change
+// le sens d'aucun autre segment.
+function girDirs(g) { const out = []; let r = !!g.reverse; for (let i = 0; i < g.pts.length - 1; i++) { if (i > 0 && g.cusps.includes(i)) r = !r; out.push(r); } return out; }
+function setGirDirs(g, d) { g.reverse = !!d[0]; g.cusps = []; for (let i = 1; i < d.length; i++) if (d[i] !== d[i - 1]) g.cusps.push(i); }
 function girEpure(g) { const c = { ...GIR0, ...g }; return { sections: girSections(c), profile: c.profile, margin: c.margin, kerb: c.kerb }; }
 function girRun() {
   places.open = -1;
@@ -2875,8 +2920,8 @@ function drawGirPath(g, hover) {
   for (const sc of secs) { ctx.setLineDash(sc.reverse ? [6, 5] : []); strokeLine(sc.pts); }
   ctx.setLineDash([]);
   if (secs.length) {
-    const s0 = secs[0].pts, a = toS(s0[0]), b = toS(s0[1]), L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (L > 24) arrow(a[0] + (b[0] - a[0]) * 12 / L, a[1] + (b[1] - a[1]) * 12 / L, (b[0] - a[0]) / L, (b[1] - a[1]) / L, 6, C.label, 1.6);
+    const s0 = secs[0].pts, a = toS(s0[0]), b = s0.map(toS).find((q) => Math.hypot(q[0] - a[0], q[1] - a[1]) > 24);
+    if (b) { const L = Math.hypot(b[0] - a[0], b[1] - a[1]); arrow(a[0] + (b[0] - a[0]) * 12 / L, a[1] + (b[1] - a[1]) * 12 / L, (b[0] - a[0]) / L, (b[1] - a[1]) / L, 6, C.label, 1.6); }
   }
   g.pts.forEach((v, k) => { const q = toS(v); if (g.cusps.includes(k)) { ctx.beginPath(); ctx.arc(q[0], q[1], 5, 0, Math.PI * 2); ctx.fillStyle = C.ground; ctx.fill(); ctx.strokeStyle = C.label; ctx.lineWidth = 1.6; ctx.stroke(); } else squareHandle(q, false, 6); });
 }
@@ -2899,10 +2944,12 @@ function drawGirCar(p) {
   }
 }
 function drawGir() {
-  if (!gir || mode === "gir") return;
+  if (mode === "gir") return;
+  // Trajectoire tracée sans simulation (moteur en erreur) : toujours visible, donc éditable.
+  if (!gir) { if (girShown()) drawGirPath(site.gir); return; }
   if (VIS.girenv) { girRings(gir.envelope, C["gir-body"]); ctx.strokeStyle = C["gir-body-edge"]; ctx.lineWidth = 1; ctx.stroke(); }
   if (VIS.girmarge && gir.margin_envelope.length) { ctx.setLineDash([5, 4]); girRings(gir.margin_envelope); ctx.strokeStyle = C.warn; ctx.lineWidth = 1.2; ctx.stroke(); ctx.setLineDash([]); }
-  if (VIS.girroues) { ctx.strokeStyle = C["gir-wheel"]; ctx.lineWidth = 1; ctx.lineJoin = "round"; for (const t of gir.tracks) strokeLine(t); if (places.open < 0) drawGirPath(site.gir); }
+  if (VIS.girroues) { ctx.strokeStyle = C["gir-wheel"]; ctx.lineWidth = 1; ctx.lineJoin = "round"; for (const t of gir.tracks) strokeLine(t); if (girShown()) drawGirPath(site.gir); }
   if (VIS.girenv) drawGirCar(girPoseAt(girT));
   if (VIS.girconf) gir.conflicts.forEach((k, i) => {
     const q = toS(k.point), r = Math.max(7, 0.3 * view.s) + (i === girSel ? 3 : 0), col = k.severity === "conflit" ? C.bad : C.warn;
@@ -2955,7 +3002,96 @@ $("#gb-dir").addEventListener("click", (ev) => { const b = ev.target.closest("bu
 $("#gb-ok").addEventListener("click", finishGir);
 $("#gb-x").addEventListener("click", () => setMode("edit"));
 $("#g-draw").addEventListener("click", () => { closeMenus(); stopGirPlay(); setSel(null); setMode("gir"); toast("Touchez le plan : départ, puis les points de passage"); });
-$("#g-clear").addEventListener("click", () => { const g = ensureGir(); g.pts = []; g.cusps = []; girRun(); commit(); toast("Trajectoire effacée"); });
+$("#g-clear").addEventListener("click", girClear);
+
+// ---- Édition de la trajectoire tracée : toucher le trait la sélectionne (segment touché), toucher un
+// point le sélectionne ; boutons de segment au survol (point, déplacement, arc), poignée d'arc, panneau.
+function girShown() { return places.open < 0 && VIS.girroues && !!site.gir && site.gir.pts.length >= 2; }
+function girEditable() { return mode === "edit" && girShown(); }
+const girDrag = (d) => d.kind === "gvert" || ((d.kind === "arc" || d.kind === "emove") && d.hit.ref.g === "gir");
+const girEdge = (i) => edgeG(site.gir.pts, i, vk(site.gir.pts[i]), 1);
+function girEdited() { girRun(); commit(); markMine(); updateSelbar(); }
+// Rayon (m) du segment i, 0 s'il est droit ; longueur parcourue.
+function girRadius(i) { const e = girEdge(i); if (!e.k) return 0; const s = Math.abs(e.k) * e.L; return (e.L * e.L / 4 + s * s) / (2 * s); }
+function girSegLen(i) { const e = girEdge(i); return e.k ? girRadius(i) * 4 * Math.atan(2 * Math.abs(e.k)) : e.L; }
+// Direction du tracé au début ou à la fin du segment i : la corde tournée de la demi-ouverture de l'arc.
+function girTan(i, end) { const e = girEdge(i), a = (end ? 2 : -2) * Math.atan(2 * e.k), c = Math.cos(a), s = Math.sin(a); return [e.u[0] * c - e.u[1] * s, e.u[0] * s + e.u[1] * c]; }
+// Cassure au point i entre les segments i − 1 et i (rad) ; au rebroussement, le tracé repart en sens inverse.
+function girKink(i) {
+  const d = girDirs(site.gir), f = d[i] !== d[i - 1] ? -1 : 1, a = girTan(i - 1, true), b = girTan(i, false);
+  return Math.acos(Math.max(-1, Math.min(1, f * (a[0] * b[0] + a[1] * b[1]))));
+}
+// Flèche du segment i qui prolonge le segment i − 1 sans cassure (demi-cercle au plus).
+function girTangentK(i) {
+  const d = girDirs(site.gir), f = d[i] !== d[i - 1] ? -1 : 1, t = girTan(i - 1, true).map((x) => x * f), u = girEdge(i).u;
+  const phi = Math.atan2(u[0] * t[1] - u[1] * t[0], u[0] * t[0] + u[1] * t[1]);
+  return Math.max(-ARC_MAX, Math.min(ARC_MAX, -Math.tan(phi / 2) / 2));
+}
+// Rayon mini du point guidé par le moteur : milieu de l'essieu avant en marche avant, de l'essieu arrière en marche arrière.
+function girRmin(rev) {
+  if (!gir) return 0;
+  const v = gir.vehicle, r = v.wheelbase / Math.tan(v.steer_deg * Math.PI / 180 * (girSet().profile === "prudent" ? 0.9 : 1));
+  return rev ? r : Math.hypot(r, v.wheelbase);
+}
+// Segment i courbe (arc tangent au segment précédent, sinon flèche de 15 % de la corde) ou droit.
+function girCurve(i, on) {
+  const P = site.gir.pts; let k = 0;
+  if (on) { k = i > 0 ? girTangentK(i) : 0; if (Math.abs(k) < 0.01) k = 0.15; }
+  P[i] = withK(P[i][0], P[i][1], k); sel = { type: "gir", e: i };
+  girEdited(); toast(on ? "Segment courbe · glissez le point ou saisissez le rayon" : "Segment droit");
+}
+function girSetRadius(i, R) {
+  const P = site.gir.pts, e = girEdge(i);
+  if (!(R > 0)) { updateSelbar(); return; }
+  if (R < e.L / 2) toast(`Rayon mini de ce segment : ${fmt1(e.L / 2)} m (demi-cercle)`);
+  const k = R <= e.L / 2 ? ARC_MAX : (R - Math.sqrt(R * R - e.L * e.L / 4)) / e.L;
+  P[i] = withK(P[i][0], P[i][1], (Math.sign(e.k) || 1) * k); girEdited();
+}
+function insertGirPoint(i, t) {
+  const g = site.gir, P = g.pts, d = girDirs(g), k = vk(P[i]), q = girEdge(i).at(t), [k1, k2] = k ? arcSplit(k, t) : [0, 0];
+  hoverEdge = null; P[i] = withK(P[i][0], P[i][1], k1); P.splice(i + 1, 0, withK(snap(q[0], 0.01), snap(q[1], 0.01), k2));
+  d.splice(i, 0, d[i]); setGirDirs(g, d);
+  sel = { type: "gir", v: i + 1 }; girEdited(); toast("Point ajouté");
+}
+function removeGirPoint(k) {
+  const g = site.gir, P = g.pts, n = P.length;
+  if (n <= 2) { toast("Une trajectoire garde au moins deux points"); return; }
+  const d = girDirs(g);
+  if (k === 0) d.shift();
+  else if (k === n - 1) d.pop();
+  else { d.splice(k, 1); P[k - 1] = withK(P[k - 1][0], P[k - 1][1], arcJoin(vk(P[k - 1]), vk(P[k]))); } // les deux arcs n'en font qu'un
+  P.splice(k, 1); P[n - 2] = [P[n - 2][0], P[n - 2][1]]; setGirDirs(g, d);
+  hoverEdge = null; sel = { type: "gir" }; girEdited(); toast("Point supprimé");
+}
+function girClear() {
+  const g = ensureGir(); g.pts = []; g.cusps = []; g.reverse = false;
+  hoverEdge = null; sel = null; girEdited(); toast("Trajectoire effacée");
+}
+// Panneau de sélection : trajectoire, point, ou segment (droit ou courbe, rayon saisi, tangente).
+function girSelbar() {
+  const g = site.gir, P = g.pts, n = P.length;
+  let what = "Trajectoire", dim = `${n} points · ${fmt1(P.slice(1).reduce((a, _, i) => a + girSegLen(i), 0))} m`;
+  if (sel.v != null && P[sel.v]) { const v = P[sel.v]; what = `Point ${sel.v + 1}${g.cusps.includes(sel.v) ? " · rebroussement" : ""}`; dim = `${fmt1(v[0])} ; ${fmt1(v[1])}`; }
+  else if (sel.e != null && sel.e < n - 1) {
+    const i = sel.e, R = girRadius(i), rev = girDirs(g)[i], min = girRmin(rev), tight = R > 0 && R < min, r = $("#sel-r");
+    what = `Segment ${i + 1}`; dim = `${fmt1(girSegLen(i))} m${rev ? " · marche arrière" : ""}${tight ? ` · rayon mini ${fmt1(min)} m` : ""}`;
+    for (const b of $("#sel-arc").children) b.setAttribute("aria-pressed", String((b.dataset.c === "1") === (R > 0)));
+    $("#sel-arc").hidden = false; $("#sel-rwrap").hidden = !R; $("#sel-tan").hidden = !i;
+    if (document.activeElement !== r) r.value = R ? fmt1(R) : "";
+    r.classList.toggle("bad", tight);
+    r.title = tight ? `Trop serré pour le véhicule : ${fmt1(min)} m au moins au milieu de l'essieu ${rev ? "arrière" : "avant"}` : "";
+  }
+  $("#sel-what").textContent = what; $("#sel-dim").textContent = dim;
+}
+const girSelSeg = () => sel && sel.type === "gir" && sel.e != null && site.gir && sel.e < site.gir.pts.length - 1;
+$("#sel-arc").addEventListener("click", (ev) => { const b = ev.target.closest("button[data-c]"); if (b && girSelSeg() && (b.dataset.c === "1") !== (girRadius(sel.e) > 0)) girCurve(sel.e, b.dataset.c === "1"); });
+$("#sel-r").addEventListener("change", (ev) => { if (girSelSeg()) girSetRadius(sel.e, num(ev.target)); });
+$("#sel-r").addEventListener("keydown", (ev) => { if (ev.key === "Enter") ev.target.blur(); });
+$("#sel-tan").addEventListener("click", () => {
+  if (!girSelSeg() || !sel.e) return;
+  const P = site.gir.pts, i = sel.e; P[i] = withK(P[i][0], P[i][1], girTangentK(i)); girEdited();
+  toast(girKink(i) < 0.01 ? "Arc tangent au segment précédent" : "Tangence impossible : l'arc dépasserait le demi-cercle, déplacez un point");
+});
 
 // ---- Lecture du parcours
 function stopGirPlay() { cancelAnimationFrame(girPlay); girPlay = 0; $("#g-play-ico").setAttribute("d", "M5 3.5v9l7-4.5z"); $("#g-play").setAttribute("aria-label", "Lire le parcours"); }
@@ -3027,6 +3163,7 @@ function updateGirUI() {
   $("#g-note").textContent = [
     miss.length ? `Tronçon ${miss.join(", ")} non atteint : trajectoire trop serrée pour le véhicule.` : "",
     dev >= 0.05 ? `Écart maximal à la trajectoire tracée : ${nf2.format(dev)} m.` : "",
+    pl ? "" : "Touchez le trait pour l'éditer : points, segments courbes, rayon.",
     pl ? (pl.entry.status === "feasible" ? "Entrée en marche avant depuis la voie, 10 m en amont, puis sortie en marche arrière." : `Aucune manœuvre sans contact (${pl.reason}) : voici la moins mauvaise trouvée.`) : "Trait plein : marche avant ; tirets : marche arrière.",
   ].filter(Boolean).join(" ");
 }
