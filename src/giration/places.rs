@@ -79,17 +79,16 @@ const LANE_TOL: f64 = 0.3;
 const HEADING_TOL: f64 = 8.0 * PI / 180.0;
 /// Rayon de la zone explorée autour de l'entrée de la place (m).
 const RADIUS: f64 = 16.0;
-/// Approche : la voiture arrive dans le sens de la circulation, alignée sur la voie à cette distance
-/// en amont de l'ouverture (m), en remontant les voies à travers virages et carrefours.
+/// Approche : la voiture arrive dans le sens de la circulation, alignée sur la voie, en amont, à
+/// cette distance à vol d'oiseau de l'ouverture (m), en remontant les voies à travers virages et
+/// carrefours. Faute de pouvoir partir de là, la place n'est pas accessible.
 const APPROACH: f64 = 10.0;
-/// Au droit d'un virage, une voiture alignée sur la voie à `APPROACH` en amont peut chevaucher les
-/// deux voies : l'arrivée est aussi acceptée à cette distance, plus en amont (m).
-const APPROACH_FAR: f64 = 15.0;
 /// Au-delà de cet écart entre la voie, à la distance d'approche en amont, et l'axe d'entrée de la
 /// place, l'entrée revient sur l'approche (place juste après un virage, côté intérieur) : contrôlée
 /// dès la conception du plan.
 const TURN_BACK: f64 = 100.0 * PI / 180.0;
-/// Approche atteinte : centre de la caisse à cette distance du point d'approche, le long de la voie (m).
+/// Approche atteinte : centre de la caisse au point d'approche ou en amont, jusqu'à deux fois cette
+/// distance, le long de la voie (m).
 const APPROACH_TOL: f64 = 1.5;
 /// Budgets de la recherche : d'un seul tenant, puis (budget réglable) avec reprises ; la moins
 /// mauvaise manœuvre, avec contacts, n'est cherchée que pour l'illustrer.
@@ -214,10 +213,11 @@ pub fn motion(v: &Vehicle, profile: Profile, pieces: &[Piece], speed_kmh: f64) -
     run
 }
 
-/// Points d'approche de l'ouverture `mouth` desservie par `lane` : à `dist` en amont le long de la
-/// circulation, en remontant les voies qui arrivent au carrefour quand la voie commence plus près
-/// (toutes les branches ; les deux sens d'une voie à double sens). Point, direction de marche,
-/// largeur de la voie.
+/// Points d'approche de l'ouverture `mouth` desservie par `lane` : premier point de la circulation,
+/// en remontant depuis le pied de l'ouverture, à `dist` au moins à vol d'oiseau de l'ouverture et
+/// qui le reste sur toute la fenêtre d'arrivée en amont ; au-delà du début de la voie, sur les voies
+/// qui arrivent au carrefour (toutes les branches ; les deux sens d'une voie à double sens). Après
+/// un virage, l'approche part donc avant le virage. Point, direction de marche, largeur de la voie.
 fn approaches(lanes: &[Lane], lane: &Lane, mouth: P2, dist: f64) -> Vec<(P2, P2, f64)> {
     // Pied de l'ouverture sur la voie : abscisse curviligne depuis le premier point.
     let (mut best, mut s_foot, mut acc) = (f64::INFINITY, 0.0, 0.0);
@@ -234,24 +234,49 @@ fn approaches(lanes: &[Lane], lane: &Lane, mouth: P2, dist: f64) -> Vec<(P2, P2,
     }
     let mut out = Vec::new();
     // Sens de marche le long des points (`along`), ou à rebours sur une voie à double sens.
-    walk(lanes, &lane.pts, lane.w, s_foot, dist, true, 0, &mut out);
+    walk(lanes, &lane.pts, lane.w, s_foot, (mouth, dist), true, 0, None, &mut out);
     if lane.sens != 1 {
-        walk(lanes, &lane.pts, lane.w, s_foot, dist, false, 0, &mut out);
+        walk(lanes, &lane.pts, lane.w, s_foot, (mouth, dist), false, 0, None, &mut out);
     }
     out
 }
 
-/// Remonte de `left` m la polyligne `pts` depuis l'abscisse `s`, la circulation allant dans l'ordre
-/// des points si `along` ; au début de la voie, continue sur les voies qui arrivent à ce carrefour.
+/// Point d'approche retenu en remontant, et la longueur parcourue depuis.
+type Found = Option<((P2, P2, f64), f64)>;
+
+/// Remonte la polyligne `pts` depuis l'abscisse `s`, la circulation allant dans l'ordre des points si
+/// `along`, jusqu'au premier point à `reach.1` au moins de `reach.0`, à vol d'oiseau, qui le reste
+/// sur `2 × APPROACH_TOL` en amont (`found` : point retenu sur une voie en aval) ; au début de la
+/// voie, continue sur les voies qui arrivent à ce carrefour.
 #[allow(clippy::too_many_arguments)]
-fn walk(lanes: &[Lane], pts: &[P2], w: f64, s: f64, left: f64, along: bool, depth: usize, out: &mut Vec<(P2, P2, f64)>) {
+fn walk(lanes: &[Lane], pts: &[P2], w: f64, s: f64, reach: (P2, f64), along: bool, depth: usize, mut found: Found, out: &mut Vec<(P2, P2, f64)>) {
     let total: f64 = pts.windows(2).map(|w| (w[1][0] - w[0][0]).hypot(w[1][1] - w[0][1])).sum();
     // Distance disponible en amont, et le carrefour d'où vient la circulation.
     let (room, node) = if along { (s, pts[0]) } else { (total - s, pts[pts.len() - 1]) };
-    if room >= left || depth >= 4 {
-        let target = if along { (s - left).max(0.0) } else { (s + left).min(total) };
-        let (p, u) = point_at(pts, target);
-        out.push((p, if along { u } else { [-u[0], -u[1]] }, w));
+    let (from, dist) = reach;
+    let at = |t: f64| {
+        let (p, u) = point_at(pts, if along { s - t } else { s + t });
+        (p, if along { u } else { [-u[0], -u[1]] }, w)
+    };
+    // Pas de 0,2 m : bien en deçà de la tolérance d'arrivée.
+    let mut t = 0.0;
+    while t <= room {
+        let g = at(t);
+        found = match found {
+            _ if (g.0[0] - from[0]).hypot(g.0[1] - from[1]) < dist => None,
+            Some((f, run)) => Some((f, run + 0.2)),
+            None => Some((g, 0.0)),
+        };
+        if let Some((f, run)) = found {
+            if run >= 2.0 * APPROACH_TOL {
+                out.push(f);
+                return;
+            }
+        }
+        t += 0.2;
+    }
+    if depth >= 4 {
+        out.push(found.map_or_else(|| at(room), |f| f.0));
         return;
     }
     let close = |a: P2| (a[0] - node[0]).hypot(a[1] - node[1]) < 1.0;
@@ -261,16 +286,16 @@ fn walk(lanes: &[Lane], pts: &[P2], w: f64, s: f64, left: f64, along: bool, dept
         // Voie dont la circulation arrive au carrefour : par sa fin, ou par son début à double sens.
         if close(l.pts[l.pts.len() - 1]) {
             fed = true;
-            walk(lanes, &l.pts, l.w, len, left - room, true, depth + 1, out);
+            walk(lanes, &l.pts, l.w, len, reach, true, depth + 1, found, out);
         } else if l.sens != 1 && close(l.pts[0]) {
             fed = true;
-            walk(lanes, &l.pts, l.w, 0.0, left - room, false, depth + 1, out);
+            walk(lanes, &l.pts, l.w, 0.0, reach, false, depth + 1, found, out);
         }
     }
     if !fed {
-        // Rien n'arrive (accès depuis la rue, impasse) : l'approche part du carrefour.
-        let (p, u) = point_at(pts, if along { 0.0 } else { total });
-        out.push((p, if along { u } else { [-u[0], -u[1]] }, w));
+        // Rien n'arrive (accès depuis la rue, impasse) : l'approche part du point retenu, sinon du
+        // carrefour.
+        out.push(found.map_or_else(|| at(room), |f| f.0));
     }
 }
 
@@ -349,13 +374,6 @@ fn serving(lanes: &[Lane], mouth: P2) -> Option<&Lane> {
         .filter(|l| nearest(&l.pts, mouth).2 < RADIUS - 4.0)
 }
 
-/// Points d'arrivée de l'entrée : à `APPROACH` et à `APPROACH_FAR` en amont de l'ouverture.
-fn arrivals(lanes: &[Lane], lane: &Lane, mouth: P2) -> Vec<(P2, P2, f64)> {
-    let mut ups = approaches(lanes, lane, mouth, APPROACH);
-    ups.extend(approaches(lanes, lane, mouth, APPROACH_FAR));
-    ups
-}
-
 /// L'entrée, de cap `heading`, revient-elle sur toutes les approches (plus de `TURN_BACK`) ?
 fn turning_back(ups: &[(P2, P2, f64)], heading: P2) -> bool {
     !ups.is_empty() && ups.iter().all(|(_, d, _)| dot(*d, heading).clamp(-1.0, 1.0).acos() > TURN_BACK)
@@ -381,7 +399,7 @@ fn upstream_goal<'a>(v: &'a Vehicle, table: &'a Table, ups: &'a [(P2, P2, f64)])
         ups.iter().any(|&(g, d, w)| {
             let r = sub(c, g);
             let band = (w / 2.0 - v.width / 2.0 - 0.1).max(LANE_TOL);
-            dot(r, d).abs() <= APPROACH_TOL && (r[1] * d[0] - r[0] * d[1]).abs() <= band && wrap(p.heading - d[1].atan2(d[0])).abs() <= HEADING_TOL
+            (dot(r, d) + APPROACH_TOL).abs() <= APPROACH_TOL && (r[1] * d[0] - r[0] * d[1]).abs() <= band && wrap(p.heading - d[1].atan2(d[0])).abs() <= HEADING_TOL
         })
     };
     let h = move |p: &Pose| {
@@ -392,7 +410,7 @@ fn upstream_goal<'a>(v: &'a Vehicle, table: &'a Table, ups: &'a [(P2, P2, f64)])
                 let band = (w / 2.0 - v.width / 2.0 - 0.1).max(LANE_TOL);
                 let left = d[0] * r[1] - d[1] * r[0];
                 let lateral = table.get(left.signum() * (left.abs() - (band - LANE_TOL)).max(0.0), wrap(p.heading - d[1].atan2(d[0])));
-                lateral + (dot(r, d).abs() - APPROACH_TOL).max(0.0) * FORWARD.min(REVERSE)
+                lateral + ((dot(r, d) + APPROACH_TOL).abs() - APPROACH_TOL).max(0.0) * FORWARD.min(REVERSE)
             })
             .fold(f64::INFINITY, f64::min)
     };
@@ -404,7 +422,7 @@ fn upstream_goal<'a>(v: &'a Vehicle, table: &'a Table, ups: &'a [(P2, P2, f64)])
 pub fn enters_in_one_go(ctx: &Ctx, i: usize) -> bool {
     let Prepared { park, scene, lane, mouth } = prepare(ctx, i);
     let Some(lane) = lane else { return false };
-    let ups = arrivals(ctx.lanes, lane, mouth);
+    let ups = approaches(ctx.lanes, lane, mouth, APPROACH);
     let (goal, h) = upstream_goal(ctx.v, ctx.table, &ups);
     let search = Search {
         v: ctx.v,
@@ -509,23 +527,15 @@ pub fn test_stall(ctx: &Ctx, i: usize, illustrate: bool) -> Tested {
     // Entrée : la voiture part 10 m en amont, alignée sur la voie dans le sens de la circulation. Le
     // plus souvent, elle suit la voie d'un seul tenant jusqu'au départ de la sortie parcourue à
     // rebours ; sinon (virage, carrefour), l'entrée est cherchée depuis l'amont.
-    let ups = arrivals(ctx.lanes, lane, mouth);
+    let ups = approaches(ctx.lanes, lane, mouth, APPROACH);
     let (up_goal, up_h) = upstream_goal(v, ctx.table, &ups);
     let mut entry = None;
     if let Some(plan) = &exit {
         let back = reversed(&plan.pieces);
         let first = back[0].states[0];
-        let start = first.pose;
-        let c = centre_of(&start);
-        let u = [start.heading.cos(), start.heading.sin()];
-        // Départ déjà au point d'approche ou en amont : rien à ajouter.
-        let reached = ups.iter().any(|&(g, d, _)| dot(d, u) > 0.0 && dot(sub(c, g), d) <= APPROACH_TOL);
-        entry = if reached {
-            Some(back)
-        } else if let Outcome::Found(lead) = search((first, if back[0].reverse { 0 } else { -1 }), 0, 5.0, None, 1.2, NODES_DIRECT, &up_goal, &up_h) {
-            Some(joined(reversed(&lead.pieces), back))
-        } else {
-            None
+        entry = match search((first, if back[0].reverse { 0 } else { -1 }), 0, 5.0, None, 1.2, NODES_DIRECT, &up_goal, &up_h) {
+            Outcome::Found(lead) => Some(joined(reversed(&lead.pieces), back)),
+            _ => None,
         };
         if entry.is_none() {
             let (found, st, _) = staged(&up_goal, &up_h);

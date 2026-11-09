@@ -1353,3 +1353,57 @@ fn the_tyres_never_run_on_planted_ground() {
     let out = detail.tracks.iter().flatten().filter(|p| p[1] < 20.0 - 0.01 || p[1] > 30.5 + 0.01).count();
     assert_eq!(out, 0, "{out} points de pneus sur la pleine terre");
 }
+
+/// Plan de la capture du 9 novembre 2026, 7 h 32 : plan par défaut sans servitude, places à 75°
+/// (456 places). Test de la place dont le centre est en `at`, avec le détail de sa manœuvre ;
+/// renvoie aussi le milieu de son ouverture.
+fn capture_75_place(at: [f64; 2]) -> (PlacesOut, [f64; 2]) {
+    let path = format!("{}/scenarios/capture45.json", env!("CARGO_MANIFEST_DIR"));
+    let mut raw: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    raw["params"]["slant"] = serde_json::json!(75.0);
+    let lay = trame::solve(&serde_json::from_value(raw.clone()).unwrap());
+    let centre = |q: &[[f64; 2]; 4]| [(q[0][0] + q[1][0] + q[2][0] + q[3][0]) / 4.0, (q[0][1] + q[1][1] + q[2][1] + q[3][1]) / 4.0];
+    let i = lay.stalls.iter().position(|s| { let c = centre(&s.q); (c[0] - at[0]).hypot(c[1] - at[1]) < 0.5 }).expect("place");
+    let layout = serde_json::json!({
+        "paved": lay.paved, "pads": lay.pads, "islands": lay.islands, "entries": lay.entries, "cross": lay.cross, "walks": lay.walks,
+        "stalls": lay.stalls.iter().map(|s| s.q).collect::<Vec<_>>(),
+        "axes": lay.circulation.axes.iter().map(|a| serde_json::json!({ "pts": a.pts, "w": a.w, "sens": a.sens })).collect::<Vec<_>>(),
+    });
+    let input = serde_json::json!({ "site": raw, "layout": layout, "stalls": [i], "detail": i });
+    let q = lay.stalls[i].q;
+    (places(&serde_json::from_value(input).unwrap()), [(q[2][0] + q[3][0]) / 2.0, (q[2][1] + q[3][1]) / 2.0])
+}
+
+#[test]
+fn islands_are_rounded_wider_where_cars_turn() {
+    // Plan à 75° de la capture : en venant de l'est, on tourne à gauche vers le sud autour de
+    // l'angle nord-ouest de l'îlot planté, angle aigu en (38,9 ; 45,6). Arrondi de giration (3 m,
+    // ramené par les côtés) : la pleine terre recule d'au moins 1,5 m ; l'arrondi courant de 1 m
+    // n'en laisserait que 0,6.
+    let path = format!("{}/scenarios/capture45.json", env!("CARGO_MANIFEST_DIR"));
+    let mut raw: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    raw["params"]["slant"] = serde_json::json!(75.0);
+    raw["params"]["turns"] = serde_json::json!(false);
+    let lay = trame::solve(&serde_json::from_value(raw).unwrap());
+    let corner = [38.93, 45.56];
+    let near = lay.planted.iter().flatten().flatten().map(|p| (p[0] - corner[0]).hypot(p[1] - corner[1])).fold(f64::MAX, f64::min);
+    assert!(near >= 1.5, "pleine terre à {near:.2} m de l'angle");
+}
+
+#[test]
+fn the_corner_stall_is_tested_from_ten_metres_upstream() {
+    // Tête de colonne juste après le virage du coin planté : la manœuvre part de la voie, 10 m en
+    // amont, jamais du carrefour au pied de la place. Faute d'une telle manœuvre, la place n'est pas
+    // accessible.
+    let (out, mouth) = capture_75_place([32.7, 39.4]);
+    let p = &out.places[0];
+    if matches!(p.verdict, "vert" | "bleu") {
+        let v = Vehicle::peugeot_3008();
+        let first = out.detail.as_ref().expect("détail").poses[0];
+        let c = (v.wheelbase + v.front_overhang - v.rear_overhang) / 2.0;
+        let centre = [first[0] + c * first[2].cos(), first[1] + c * first[2].sin()];
+        let d = (centre[0] - mouth[0]).hypot(centre[1] - mouth[1]);
+        // Point de la voie à 10 m de l'ouverture ; la caisse peut s'écarter de l'axe dans la voie.
+        assert!(d >= 9.0, "départ à {d:.1} m de l'ouverture, en {centre:?}");
+    }
+}

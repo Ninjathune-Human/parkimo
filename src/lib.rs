@@ -435,13 +435,56 @@ fn solve_flow(site: &Site, flow: Option<(circulation::Flow, circulation::Circula
     stall_pads.extend(acc.pads.iter().copied());
     let mut road = acc.cross.clone();
     road.extend(entries.iter().copied());
-    let pl = planted::build(&z.b, &paved, &stall_pads, &road, &walks, !p.quick);
-    let paved = if pl.cut.0.is_empty() {
-        paved
-    } else {
-        paved.union(&pl.cut)
+    let plant = |flow: Option<&circulation::Flow>| {
+        let pl = planted::build(&z.b, &paved, &stall_pads, &road, &walks, !p.quick, flow);
+        let paved = if pl.cut.0.is_empty() { paved.clone() } else { paved.union(&pl.cut) };
+        let rings = region::rings_of(&paved, 0.5);
+        (pl, paved, rings)
     };
-    let paved_rings = region::rings_of(&paved, 0.5);
+    let (mut pl, mut paved, mut paved_rings) = plant(acc.flow.as_ref());
+
+    // Circulation : sens des voies et flèches au sol, sur la chaussée (voirie, allées
+    // transversales, accès). Calculée au relâchement, pas pendant un glisser.
+    if !p.quick {
+        let mut lanes = acc.cross.clone();
+        lanes.extend(entries.iter().copied());
+        // Repères des allées resserrées : portés au milieu effectif de l'allée pour l'analyse,
+        // puis rendus sur le milieu de la trame régulière, qui ne dépend pas des autres allées
+        // resserrées.
+        let t = rows.angle.to_radians();
+        let ny = v2(-t.sin(), t.cos());
+        let mut rules = site.lanes.clone();
+        for &(i, _, actual) in &rows.narrowed {
+            let r = &mut rules[narrow_rule[i]];
+            let q = v2(r.p[0], r.p[1]);
+            let q = q + ny * (actual - q.dot(ny));
+            r.p = [q.x, q.y];
+        }
+        // Places inclinées : deux allées voisines sont parcourues en sens inverses, chaque rangée
+        // double s'incline vers le sens de l'allée qu'elle borde. Ces sens sont imposés à l'analyse
+        // (sans repère visible pour le concepteur, dont les propres repères restent prioritaires).
+        // Second calcul des places inclinées : réseau et sens du premier, repris tels quels.
+        out.circulation = match kept {
+            Some(c) => c,
+            None => {
+                let hints = if p.oblique() { aisle_hints(&rows, &paved_rings, p, &stalls) } else { Vec::new() };
+                circulation::analyse(&paved_rings, &lanes, &entries, p.aisle, one, &rules, &hints)
+            }
+        };
+        for &(i, regular, actual) in &rows.narrowed {
+            let r = &mut out.circulation.lanes[narrow_rule[i]];
+            if r.fix {
+                let q = v2(r.p[0], r.p[1]) + ny * (regular - actual);
+                r.p = [(q.x * 100.0).round() / 100.0, (q.y * 100.0).round() / 100.0];
+            }
+        }
+    }
+    // Rayons de giration aux angles où l'on tourne : au premier calcul, les sens de circulation ne
+    // sont connus qu'ici ; les espaces plantés sont repris avec eux (le réseau reste celui calculé
+    // sur la chaussée aux arrondis courants).
+    if acc.flow.is_none() && !p.quick {
+        (pl, paved, paved_rings) = plant(Some(&circulation::Flow::new(&out.circulation.axes)));
+    }
 
     // Sorties.
     let parcel_area = signed_area(&z.parcel).abs();
@@ -576,42 +619,6 @@ fn solve_flow(site: &Site, flow: Option<(circulation::Flow, circulation::Circula
         .map(|q| (q[0][0] - q[3][0]).hypot(q[0][1] - q[3][1]) < 1e-6)
         .collect();
     out.noue_ref = acc.noue_ref.clone();
-    // Circulation : sens des voies et flèches au sol, sur la chaussée (voirie, allées
-    // transversales, accès). Calculée au relâchement, pas pendant un glisser.
-    if !p.quick {
-        let mut lanes = acc.cross.clone();
-        lanes.extend(entries.iter().copied());
-        // Repères des allées resserrées : portés au milieu effectif de l'allée pour l'analyse,
-        // puis rendus sur le milieu de la trame régulière, qui ne dépend pas des autres allées
-        // resserrées.
-        let t = rows.angle.to_radians();
-        let ny = v2(-t.sin(), t.cos());
-        let mut rules = site.lanes.clone();
-        for &(i, _, actual) in &rows.narrowed {
-            let r = &mut rules[narrow_rule[i]];
-            let q = v2(r.p[0], r.p[1]);
-            let q = q + ny * (actual - q.dot(ny));
-            r.p = [q.x, q.y];
-        }
-        // Places inclinées : deux allées voisines sont parcourues en sens inverses, chaque rangée
-        // double s'incline vers le sens de l'allée qu'elle borde. Ces sens sont imposés à l'analyse
-        // (sans repère visible pour le concepteur, dont les propres repères restent prioritaires).
-        // Second calcul des places inclinées : réseau et sens du premier, repris tels quels.
-        out.circulation = match kept {
-            Some(c) => c,
-            None => {
-                let hints = if p.oblique() { aisle_hints(&rows, &paved_rings, p, &stalls) } else { Vec::new() };
-                circulation::analyse(&paved_rings, &lanes, &entries, p.aisle, one, &rules, &hints)
-            }
-        };
-        for &(i, regular, actual) in &rows.narrowed {
-            let r = &mut out.circulation.lanes[narrow_rule[i]];
-            if r.fix {
-                let q = v2(r.p[0], r.p[1]) + ny * (regular - actual);
-                r.p = [(q.x * 100.0).round() / 100.0, (q.y * 100.0).round() / 100.0];
-            }
-        }
-    }
     match out.circulation.narrow_two_way {
         0 => {}
         1 => out

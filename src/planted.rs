@@ -1,10 +1,12 @@
 //! Espaces plantés : tout le résiduel de la zone stationnable (angles, têtes de rangée en biais,
 //! interstices entre places, îlots d'extrémité et de bordure).
 //!
-//! Les angles saillants tournés vers la chaussée sont arrondis au rayon `RADIUS` (moins si les côtés
-//! sont trop courts) ; la chaussée prend la place de l'arrondi. Un angle contre une place ou un fond
-//! de rangée reste vif : une bande plantée entre deux places est rectangulaire.
+//! Les angles saillants tournés vers la chaussée sont arrondis au rayon `RADIUS`, au rayon
+//! `TURN_RADIUS` là où l'on tourne d'une voie dans l'autre dans le sens de la circulation (moins si
+//! les côtés sont trop courts) ; la chaussée prend la place de l'arrondi. Un angle contre une place
+//! ou un fond de rangée reste vif : une bande plantée entre deux places est rectangulaire.
 
+use crate::circulation::Flow;
 use crate::geom::{v2, Quad, QuadHash, Region, V2};
 use crate::occupation::{polygon_of, polys_of, PolyRings};
 use crate::region;
@@ -14,6 +16,8 @@ use std::f64::consts::PI;
 
 /// Rayon des arrondis en bordure de chaussée (m).
 pub const RADIUS: f64 = 1.0;
+/// Rayon des angles autour desquels on tourne d'une voie dans l'autre (m) : la giration y gagne.
+pub const TURN_RADIUS: f64 = 3.0;
 
 pub struct Planted {
     pub polys: Vec<PolyRings>,
@@ -35,7 +39,8 @@ enum Side {
 
 /// `b` : zone stationnable ; `paved` : voirie ; `stalls` : places et fonds de rangées ;
 /// `road` : allées transversales et accès ; `clean` : élimination des filets dégénérés (au
-/// relâchement seulement, pendant un glisser le calcul direct reste léger).
+/// relâchement seulement, pendant un glisser le calcul direct reste léger) ; `flow` : sens de
+/// circulation, s'ils sont connus, pour les rayons de giration.
 pub fn build(
     b: &MultiPolygon<f64>,
     paved: &MultiPolygon<f64>,
@@ -43,6 +48,7 @@ pub fn build(
     road: &[Quad],
     walks: &[Quad],
     clean: bool,
+    flow: Option<&Flow>,
 ) -> Planted {
     let mut hard: Vec<Quad> = stalls.to_vec();
     hard.extend_from_slice(road);
@@ -105,11 +111,33 @@ pub fn build(
             .iter()
             .map(|r| r.iter().map(|p| [r2(p.x), r2(p.y)]).collect())
             .collect();
-        if let (Some(p0), Some(p1)) = (polygon_of(poly), polygon_of(&out)) {
-            before.push(p0);
-            after.push(p1);
+        // Angles où l'on tourne d'une voie dans l'autre, dans le sens de la circulation : raccord au
+        // rayon de giration, retiré de l'espace planté.
+        let mut fillets = Vec::new();
+        for r in rings.iter().filter(|_| flow.is_some()) {
+            let n = r.len();
+            let sides: Vec<Side> = (0..n).map(|i| side(r[i], r[(i + 1) % n])).collect();
+            let corners = rounded_corners(r, &sides);
+            for i in 0..n {
+                let (p, q) = (r[(i + n - 1) % n], r[(i + 1) % n]);
+                let road = sides[(i + n - 1) % n] == Side::Road && sides[i] == Side::Road;
+                if corners[i] && road && flow.is_some_and(|f| turns(f, p, r[i], q)) {
+                    fillets.extend(fillet(r, i, TURN_RADIUS, &corners).into_iter().flat_map(|m| m.0));
+                }
+            }
         }
-        polys.push(out);
+        let outs = match polygon_of(&out) {
+            Some(p1) if !fillets.is_empty() => {
+                let left = fillets.into_iter().fold(MultiPolygon::new(vec![p1]), |m, f| m.difference(&MultiPolygon::new(vec![f])));
+                polys_of(&left, 1.0).0
+            }
+            _ => vec![out],
+        };
+        if let Some(p0) = polygon_of(poly) {
+            before.push(p0);
+            after.extend(outs.iter().filter_map(polygon_of));
+        }
+        polys.extend(outs);
     }
     let cut = MultiPolygon::new(before).difference(&MultiPolygon::new(after));
     Planted { polys, cut }
@@ -165,6 +193,126 @@ fn r2(x: f64) -> f64 {
     (x * 100.0).round() / 100.0
 }
 
+/// L'angle `v` d'un contour (précédé de `p`, suivi de `q`, intérieur à gauche, chaussée à droite)
+/// est-il l'intérieur d'un virage permis : arrivée le long d'un côté, départ le long de l'autre, dans
+/// le sens de la circulation ? Voie de chaque côté lue à 1,5 m de la bordure, au plus à 3 m de l'angle.
+fn turns(flow: &Flow, p: V2, v: V2, q: V2) -> bool {
+    let (a, b) = ((v - p).norm(), (q - v).norm());
+    let lane = |at: V2, d: V2| flow.lane_at(at + v2(d.y, -d.x) * 1.5).filter(|(u, _)| u.dot(d).abs() > 0.8);
+    let (Some((u1, one1)), Some((u2, one2))) = (
+        lane(v - a * ((v - p).len() * 0.5).min(3.0), a),
+        lane(v + b * ((q - v).len() * 0.5).min(3.0), b),
+    ) else {
+        return false;
+    };
+    // Sens `d` permis sur une voie de direction `u`.
+    let ok = |u: V2, one: bool, d: V2| !one || u.dot(d) > 0.0;
+    (ok(u1, one1, a) && ok(u2, one2, b)) || (ok(u1, one1, a * -1.0) && ok(u2, one2, b * -1.0))
+}
+
+/// Angle du contour en `i` (intérieur à gauche), positif à gauche.
+fn turn_at(ring: &[V2], i: usize) -> f64 {
+    let n = ring.len();
+    let (p, v, q) = (ring[(i + n - 1) % n], ring[i], ring[(i + 1) % n]);
+    let (a, b) = ((v - p).norm(), (q - v).norm());
+    a.cross(b).atan2(a.dot(b))
+}
+
+/// Angles arrondis : saillants, dont aucun côté ne touche une place ou un cheminement et dont au
+/// moins un côté borde la chaussée.
+fn rounded_corners(ring: &[V2], sides: &[Side]) -> Vec<bool> {
+    let n = ring.len();
+    (0..n)
+        .map(|i| {
+            let (s_in, s_out) = (sides[(i + n - 1) % n], sides[i]);
+            turn_at(ring, i) > 15f64.to_radians()
+                && s_in != Side::Stall
+                && s_out != Side::Stall
+                && s_in != Side::Walk
+                && s_out != Side::Walk
+                && (s_in == Side::Road || s_out == Side::Road)
+        })
+        .collect()
+}
+
+/// Raccord de giration à l'angle `i` du contour (intérieur à gauche) : la partie de l'angle hors du
+/// cercle de rayon `r` tangent à ses deux côtés, à rendre à la chaussée. Un côté est suivi tant
+/// qu'il garde sa direction à 30° près (bordure courbe faite de petits segments) ; la tangente est
+/// bornée à la moitié de sa longueur s'il finit sur un angle arrondi, presque à toute sinon. Sur une
+/// bordure courbe, le cercle est tangent aux cordes menées de l'angle aux points de raccord. Aucun
+/// raccord s'il ne dépasse pas l'arrondi courant.
+fn fillet(ring: &[V2], i: usize, r: f64, corners: &[bool]) -> Option<MultiPolygon<f64>> {
+    let n = ring.len();
+    let v = ring[i];
+    let step = |j: usize, forward: bool| if forward { (j + 1) % n } else { (j + n - 1) % n };
+    let (a, b) = ((v - ring[step(i, false)]).norm(), (ring[step(i, true)] - v).norm());
+    // Longueur disponible le long du côté de direction `d`, vers l'avant ou vers l'arrière.
+    let room = |forward: bool, d: V2| {
+        let (mut len, mut j) = (0.0, i);
+        for _ in 0..n {
+            let k = step(j, forward);
+            let seg = if forward { ring[k] - ring[j] } else { ring[j] - ring[k] };
+            if seg.norm().dot(d) < 30f64.to_radians().cos() {
+                break;
+            }
+            len += seg.len();
+            j = k;
+            if corners[j] || j == i {
+                break;
+            }
+        }
+        len * if corners[j] { 0.5 } else { 0.95 }
+    };
+    // Premier point du côté à `t` de `v` à vol d'oiseau (au plus à `len` le long du côté), précédé
+    // des sommets passés.
+    let reach = |forward: bool, t: f64, len: f64| {
+        let (mut walked, mut j, mut pts) = (0.0, i, Vec::new());
+        for _ in 0..n {
+            let k = step(j, forward);
+            let (p, d) = (ring[j], ring[k] - ring[j]);
+            let l = d.len().max(1e-12);
+            if (ring[k] - v).len() >= t || walked + l >= len {
+                // |p + s d − v| = t, plus grande racine dans [0, 1].
+                let (w, u) = (p - v, d * (1.0 / l));
+                let disc = (w.dot(u)).powi(2) - (w.dot(w) - t * t);
+                let s = (-w.dot(u) + disc.max(0.0).sqrt()).clamp(0.0, (len - walked).clamp(0.0, l));
+                pts.push(p + u * s);
+                return pts;
+            }
+            walked += l;
+            j = k;
+            pts.push(ring[j]);
+        }
+        pts
+    };
+    let half = (PI - turn_at(ring, i)) * 0.5;
+    let (back, ahead) = (room(false, a), room(true, b));
+    let t = (r / half.tan()).min(back).min(ahead);
+    // Points de raccord à même distance de l'angle.
+    let (p1, p2) = (reach(false, t, back), reach(true, t, ahead));
+    let tc = (*p1.last()? - v).len().min((*p2.last()? - v).len());
+    let (mut p1, p2) = (reach(false, tc, back), reach(true, tc, ahead));
+    let (c1, c2) = ((*p1.last()? - v).norm(), (*p2.last()? - v).norm());
+    let half = c1.dot(c2).clamp(-1.0, 1.0).acos() * 0.5;
+    let rr = tc * half.tan();
+    if rr <= RADIUS * 1.05 || half < 1e-3 {
+        return None;
+    }
+    let c = v + (c1 + c2).norm() * (tc / half.cos());
+    let disc: Vec<V2> = (0..64).map(|k| c + v2((k as f64 * PI / 32.0).cos(), (k as f64 * PI / 32.0).sin()) * rr).collect();
+    // Coin : du point de raccord arrière à l'angle, puis au point de raccord avant, par le contour
+    // poussé de 5 cm vers la chaussée (la bordure part entière malgré les arrondis au centimètre).
+    p1.reverse();
+    let rim: Vec<V2> = p1.into_iter().chain(std::iter::once(v)).chain(p2).collect();
+    let m = rim.len();
+    let shifted = (0..m).map(|k| {
+        let d = (rim[(k + 1).min(m - 1)] - rim[k]).norm() + (rim[k] - rim[k.saturating_sub(1)]).norm();
+        rim[k] + v2(d.y, -d.x).norm() * 0.05
+    });
+    let zone: Vec<V2> = std::iter::once(rim[0]).chain(shifted).chain(std::iter::once(rim[m - 1])).collect();
+    Some(MultiPolygon::new(vec![region::to_poly(&zone)]).difference(&MultiPolygon::new(vec![region::to_poly(&disc)])))
+}
+
 /// Arrondit les angles saillants (intérieur à gauche) dont aucun côté ne touche une place et dont
 /// au moins un côté borde la chaussée. Le rayon est réduit si un côté est trop court : la moitié
 /// du côté quand l'angle voisin est aussi arrondi, presque tout le côté sinon.
@@ -174,28 +322,13 @@ fn round_ring(ring: &[V2], r: f64, side: &dyn Fn(V2, V2) -> Side) -> Vec<V2> {
         return ring.to_vec();
     }
     let sides: Vec<Side> = (0..n).map(|i| side(ring[i], ring[(i + 1) % n])).collect();
-    let turn_at = |i: usize| {
-        let (p, v, q) = (ring[(i + n - 1) % n], ring[i], ring[(i + 1) % n]);
-        let (a, b) = ((v - p).norm(), (q - v).norm());
-        a.cross(b).atan2(a.dot(b))
-    };
-    let rounded: Vec<bool> = (0..n)
-        .map(|i| {
-            let (s_in, s_out) = (sides[(i + n - 1) % n], sides[i]);
-            turn_at(i) > 15f64.to_radians()
-                && s_in != Side::Stall
-                && s_out != Side::Stall
-                && s_in != Side::Walk
-                && s_out != Side::Walk
-                && (s_in == Side::Road || s_out == Side::Road)
-        })
-        .collect();
+    let rounded = rounded_corners(ring, &sides);
     let mut out = Vec::with_capacity(n * 2);
     for i in 0..n {
         let (p, v, q) = (ring[(i + n - 1) % n], ring[i], ring[(i + 1) % n]);
         let (la, lb) = ((v - p).len(), (q - v).len());
         let a = (v - p).norm();
-        let turn = turn_at(i);
+        let turn = turn_at(ring, i);
         if !rounded[i] {
             out.push(v);
             continue;
@@ -228,6 +361,8 @@ fn round_ring(ring: &[V2], r: f64, side: &dyn Fn(V2, V2) -> Side) -> Vec<V2> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::circulation::{Axis, Flow};
+    use crate::model::P2;
 
     fn sq(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<V2> {
         vec![v2(x0, y0), v2(x1, y0), v2(x1, y1), v2(x0, y1)]
@@ -304,6 +439,47 @@ mod tests {
         let t = tidy(&r, 0.08);
         assert_eq!(t.len(), 4, "{t:?}");
         assert!(t.iter().any(|p| (*p - v2(10.0, 0.0)).len() < 1e-6), "{t:?}");
+    }
+
+    /// Îlot 4 × 5 m (x 0 → 4, y 0 → 5), place à l'est ; voies de 5 m à l'ouest (axe x = −2,5,
+    /// montante), au sud (axe y = −2,5, vers l'ouest) et au nord (axe y = 7,5, sens `north`).
+    fn junction(north: [P2; 2]) -> Flow {
+        let axis = |pts: Vec<P2>| Axis { pts, w: 5.0, sens: 1, rule: None };
+        Flow::new(&[
+            axis(vec![[10.0, -2.5], [-2.5, -2.5]]),
+            axis(vec![[-2.5, -2.5], [-2.5, 7.5]]),
+            axis(north.to_vec()),
+        ])
+    }
+
+    #[test]
+    fn only_corners_turned_around_in_the_flow_direction_get_the_turning_radius() {
+        // Vers l'est au nord : on tourne à droite autour de l'angle nord-ouest, comme autour de
+        // l'angle sud-ouest en remontant depuis le sud.
+        let east = junction([[-2.5, 7.5], [10.0, 7.5]]);
+        assert!(turns(&east, v2(0.0, 5.0), v2(0.0, 0.0), v2(4.0, 0.0)), "angle sud-ouest");
+        assert!(turns(&east, v2(4.0, 5.0), v2(0.0, 5.0), v2(0.0, 0.0)), "angle nord-ouest");
+        // Vers l'ouest au nord : la voie ouest monte, la voie nord en revient ; personne ne tourne
+        // autour de l'angle nord-ouest.
+        let west = junction([[10.0, 7.5], [-2.5, 7.5]]);
+        assert!(!turns(&west, v2(4.0, 5.0), v2(0.0, 5.0), v2(0.0, 0.0)), "angle nord-ouest");
+        assert!(turns(&west, v2(0.0, 5.0), v2(0.0, 0.0), v2(4.0, 0.0)), "angle sud-ouest");
+    }
+
+    #[test]
+    fn a_turning_corner_is_rounded_wider_within_its_sides() {
+        // Îlot 4 × 5 m, place à l'est ; côté ouest en segments de 1 m (bordure courbe). Angle
+        // nord-ouest tourné, angle sud-ouest arrondi aussi : tangente bornée à la moitié du côté
+        // ouest (2,5 m), rayon 2,5, arc à 2,5 (√2 − 1) du coin. Le côté nord (4 m) finit sur un angle
+        // vif.
+        let island = vec![v2(0.0, 0.0), v2(4.0, 0.0), v2(4.0, 5.0), v2(0.0, 5.0), v2(0.0, 4.0), v2(0.0, 3.0), v2(0.0, 2.0), v2(0.0, 1.0)];
+        let corners = [true, false, false, true, false, false, false, false];
+        let cut = fillet(&island, 3, TURN_RADIUS, &corners).expect("raccord");
+        let left = MultiPolygon::new(vec![region::to_poly(&island)]).difference(&cut);
+        let near = left.0[0].exterior().points().map(|p| (v2(p.x(), p.y()) - v2(0.0, 5.0)).len()).fold(f64::MAX, f64::min);
+        assert!((near - 2.5 * (2f64.sqrt() - 1.0)).abs() < 0.02, "{near}");
+        // Pas plus que l'arrondi courant : aucun raccord.
+        assert!(fillet(&island, 3, RADIUS, &corners).is_none());
     }
 
     #[test]

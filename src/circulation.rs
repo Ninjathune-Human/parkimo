@@ -72,14 +72,20 @@ impl Flow {
     fn along(&self, q: &Quad) -> Option<f64> {
         let (front, back) = ((q.0[2] + q.0[3]) * 0.5, (q.0[0] + q.0[1]) * 0.5);
         let a = (back - front).norm();
-        let p = front - a * 1.0;
+        let (u, one) = self.lane_at(front - a * 1.0)?;
+        one.then(|| u.dot(a))
+    }
+
+    /// Voie la plus proche de `p`, si `p` est sur elle (à sa demi-largeur + 0,5 m de l'axe) :
+    /// direction de l'axe (sens de circulation à sens unique) et sens unique.
+    pub fn lane_at(&self, p: V2) -> Option<(V2, bool)> {
         let dist = |s: &(V2, V2, f64, bool)| {
             let ab = s.1 - s.0;
             let t = ((p - s.0).dot(ab) / ab.dot(ab).max(1e-12)).clamp(0.0, 1.0);
             (s.0 + ab * t - p).len()
         };
         let s = self.segs.iter().min_by(|x, y| dist(x).total_cmp(&dist(y)))?;
-        (s.3 && dist(s) <= s.2 * 0.5 + 0.5).then(|| (s.1 - s.0).norm().dot(a))
+        (dist(s) <= s.2 * 0.5 + 0.5).then(|| ((s.1 - s.0).norm(), s.3))
     }
 }
 
