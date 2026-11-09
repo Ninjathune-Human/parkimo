@@ -190,9 +190,15 @@ impl Search<'_> {
     /// guidée par l'estimation `h`. À l'arrivée, les roues sont presque droites, sauf si la voiture
     /// s'y arrête pour repartir en sens inverse en braquant à l'arrêt.
     pub fn run(&self, start: Pose, goal: impl Fn(&Pose) -> bool, h: impl Fn(&Pose) -> f64) -> Outcome {
+        self.run_from(State { pose: start, steer: 0.0 }, 0, goal, h)
+    }
+
+    /// Recherche qui prolonge une autre manœuvre : roues déjà tournées, et voiture qui roule déjà dans
+    /// le sens `dir` (−1 en marche arrière, 0 à l'arrêt) : pas de braquage à l'arrêt au départ.
+    pub fn run_from(&self, origin: State, dir: i8, goal: impl Fn(&Pose) -> bool, h: impl Fn(&Pose) -> f64) -> Outcome {
+        let start = origin.pose;
         let cell = self.limit() / STEER_BINS;
-        let origin = State { pose: start, steer: 0.0 };
-        let mut nodes = vec![Node { state: origin, dir: 0, cusps: 0, target: 0, g: 0.0, hits: 0, parent: usize::MAX }];
+        let mut nodes = vec![Node { state: origin, dir, cusps: 0, target: 0, g: 0.0, hits: 0, parent: usize::MAX }];
         let mut best: HashMap<Key, f64> = HashMap::new();
         let mut open = BinaryHeap::new();
         open.push(Open { f: h(&start), order: 0, node: 0 });
@@ -256,13 +262,13 @@ impl Search<'_> {
         }
         chain.reverse();
         let mut pieces: Vec<Piece> = Vec::new();
-        let (mut state, mut dir) = (nodes[0].state, 0i8);
+        let (mut state, mut dir) = (nodes[0].state, nodes[0].dir);
         for &i in &chain {
             let nd = nodes[i].dir;
             let mut states = Vec::new();
             let r = self.roll(&state, dir, nd, nodes[i].target, Some(&mut states)).expect("primitive rejouée");
-            if nd == dir {
-                pieces.last_mut().unwrap().states.extend(states.into_iter().skip(1));
+            if let (true, Some(last)) = (nd == dir, pieces.last_mut()) {
+                last.states.extend(states.into_iter().skip(1));
             } else {
                 pieces.push(Piece { reverse: nd < 0, states });
             }

@@ -31,21 +31,24 @@ pub struct Vehicle {
 }
 
 impl Vehicle {
-    /// VL 2026 : enveloppe Peugeot 308 / Renault Austral / Tesla Model Y (voir le plan).
-    /// Diamètre publié 12,10 m lu entre trottoirs (lecture prudente).
-    pub fn vl2026() -> Vehicle {
+    /// Véhicule de référence : Peugeot 3008 (3e génération, 2024). Cotes publiées : longueur
+    /// 4,542 m, largeur hors rétroviseurs 1,895 m, empattement 2,739 m, porte-à-faux 0,940 / 0,863 m,
+    /// voie avant 1,630 m (arrière 1,636 m), garde au sol 0,198 m, pneus 225 ou 235/55 R19.
+    /// Diamètre de braquage publié de 10,6 à 10,9 m selon la version, sans convention : 10,9 m lu
+    /// entre trottoirs (lecture prudente), pneus de 235.
+    pub fn peugeot_3008() -> Vehicle {
         Vehicle {
-            wheelbase: 2.89,
-            front_overhang: 0.95,
-            rear_overhang: 0.99,
-            width: 1.98,
-            track: 1.64,
-            tyre_width: 0.255,
-            ground_clearance: 0.14,
+            wheelbase: 2.739,
+            front_overhang: 0.940,
+            rear_overhang: 0.863,
+            width: 1.895,
+            track: 1.630,
+            tyre_width: 0.235,
+            ground_clearance: 0.198,
             max_steer: 0.0,
             lock_to_lock: 4.0,
         }
-        .with_turning_diameter(12.10, Convention::Kerbs)
+        .with_turning_diameter(10.90, Convention::Kerbs)
     }
 
     /// Fixe l'angle maximal à partir d'un diamètre de braquage publié.

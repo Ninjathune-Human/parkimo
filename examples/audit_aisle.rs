@@ -16,8 +16,8 @@ fn main() {
     // 0,94 / 1,10 m, rayon de giration extérieur 5,85 m (lu entre murs). Voie et pneus : supposés.
     let neufert = Vehicle { wheelbase: 2.70, front_overhang: 0.94, rear_overhang: 1.10, width: 1.76, track: 1.50, tyre_width: 0.205, ground_clearance: 0.14, max_steer: 0.0, lock_to_lock: 4.0 }
         .with_turning_diameter(11.70, Convention::Walls);
-    let vl = Vehicle::vl2026();
-    let vl_walls = Vehicle::vl2026().with_turning_diameter(12.10, Convention::Walls);
+    let vl = Vehicle::peugeot_3008();
+    let vl_walls = Vehicle::peugeot_3008().with_turning_diameter(10.90, Convention::Walls);
     let run = |label: &str, v: &Vehicle, margin: f64, opposite: bool, neighbours: bool| {
         let mut stalls = top.clone();
         if opposite { stalls.extend(bottom.iter().copied()); }
@@ -29,11 +29,11 @@ fn main() {
         println!("{label:52} {:6} {} rep. {:2} alertes, marge mini {:.2} m, {:.1} m dont {:.1} en marche arrière, {ms} ms", p.verdict, p.entry.reprises, p.entry.alerts, p.entry.clearance, p.entry.length, p.entry.reverse);
     };
     println!("Allée de {aisle} m");
-    run("VL 2026, marge 0,10, parking plein (base)", &vl, 0.1, true, true);
-    run("VL 2026, marge 0", &vl, 0.0, true, true);
-    run("VL 2026, rangée d'en face vide", &vl, 0.1, false, true);
-    run("VL 2026, parking vide", &vl, 0.1, false, false);
-    run("VL 2026, 12,10 m lus entre murs", &vl_walls, 0.1, true, true);
+    run("3008, marge 0,10, parking plein (base)", &vl, 0.1, true, true);
+    run("3008, marge 0", &vl, 0.0, true, true);
+    run("3008, rangée d'en face vide", &vl, 0.1, false, true);
+    run("3008, parking vide", &vl, 0.1, false, false);
+    run("3008, 10,90 m lus entre murs", &vl_walls, 0.1, true, true);
     run("Neufert 4,74 × 1,76, parking plein", &neufert, 0.1, true, true);
     run("Neufert, marge 0", &neufert, 0.0, true, true);
 }

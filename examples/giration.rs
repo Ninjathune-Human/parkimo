@@ -1,4 +1,4 @@
-//! Rendu SVG de contrôle : la VL 2026 sort d'une ligne droite et braque à fond à 5 km/h.
+//! Rendu SVG de contrôle : la Peugeot 3008 sort d'une ligne droite et braque à fond à 5 km/h.
 //! Les traces simulées doivent rejoindre les cercles analytiques (en pointillés) une fois
 //! le volant en butée.
 //!
@@ -12,7 +12,7 @@ fn main() {
     let out = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "giration.svg".into());
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let r = v.min_radius();
     let start = State {
         pose: Pose {

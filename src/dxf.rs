@@ -678,7 +678,7 @@ pub fn export(inp: &ExportIn) -> ExportOut {
             w.ring("GIR_MARGE", r);
         }
         // Véhicule tous les 2 m, au départ et à l'arrivée.
-        let v = crate::giration::vehicle::Vehicle::vl2026();
+        let v = crate::giration::vehicle::Vehicle::peugeot_3008();
         let mut last = f64::NEG_INFINITY;
         for (i, p) in g.poses.iter().enumerate() {
             if p[4] - last >= 2.0 || i + 1 == g.poses.len() {

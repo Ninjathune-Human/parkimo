@@ -1,9 +1,11 @@
 //! Test d'une place : pose garée en marche avant, voisines occupées, manœuvre d'entrée depuis
-//! l'allée et manœuvre de sortie en marche arrière, planifiées depuis la pose garée.
+//! la voie, 10 m en amont, et manœuvre de sortie en marche arrière, planifiées depuis la pose garée.
 //!
 //! Le modèle bicyclette est réversible : une entrée rejouée à l'envers est un mouvement possible
-//! depuis la place. On planifie donc depuis la pose garée, connue exactement, vers l'allée, que
-//! l'on atteint avec une tolérance ; l'entrée est cette manœuvre parcourue à rebours.
+//! depuis la place. On planifie donc depuis la pose garée, connue exactement, vers la voie, que
+//! l'on atteint avec une tolérance : l'entrée est la manœuvre qui rejoint le point d'approche,
+//! parcourue à rebours. Les pneus ne passent jamais une bordure : ils restent sur la chaussée et
+//! les places, jamais sur la pleine terre.
 
 use super::epure::{Run, Sample};
 use super::kinematics::{Pose, Profile, State};
@@ -80,9 +82,12 @@ const RADIUS: f64 = 16.0;
 /// Approche : la voiture arrive dans le sens de la circulation, alignée sur la voie à cette distance
 /// en amont de l'ouverture (m), en remontant les voies à travers virages et carrefours.
 const APPROACH: f64 = 10.0;
+/// Au droit d'un virage, une voiture alignée sur la voie à `APPROACH` en amont peut chevaucher les
+/// deux voies : l'arrivée est aussi acceptée à cette distance, plus en amont (m).
+const APPROACH_FAR: f64 = 15.0;
 /// Au-delà de cet écart entre la voie, à la distance d'approche en amont, et l'axe d'entrée de la
-/// place, l'entrée revient sur l'approche (place juste après un virage, côté intérieur) : elle est
-/// cherchée depuis l'amont.
+/// place, l'entrée revient sur l'approche (place juste après un virage, côté intérieur) : contrôlée
+/// dès la conception du plan.
 const TURN_BACK: f64 = 100.0 * PI / 180.0;
 /// Approche atteinte : centre de la caisse à cette distance du point d'approche, le long de la voie (m).
 const APPROACH_TOL: f64 = 1.5;
@@ -93,7 +98,7 @@ const NODES_DIRECT: usize = 5_000;
 /// sans limite.
 const STAGED_REPRISES: usize = 1;
 const NODES_STAGE: usize = 20_000;
-pub const NODES_REPRISES: usize = 40_000;
+pub const NODES_REPRISES: usize = 150_000;
 const NODES_CONTACT: usize = 20_000;
 
 fn sub(a: P2, b: P2) -> P2 {
@@ -284,6 +289,18 @@ fn point_at(pts: &[P2], s: f64) -> (P2, P2) {
     (pts[0], [1.0, 0.0])
 }
 
+/// L'approche `lead` suivie de `rest` : morceaux de même sens de marche réunis à la jonction.
+fn joined(mut lead: Vec<Piece>, mut rest: Vec<Piece>) -> Vec<Piece> {
+    if let (Some(a), Some(b)) = (lead.last_mut(), rest.first_mut()) {
+        if a.reverse == b.reverse {
+            a.states.extend(b.states.drain(1..));
+            rest.remove(0);
+        }
+    }
+    lead.extend(rest);
+    lead
+}
+
 /// La même manœuvre parcourue à rebours : ordre inversé, sens de marche inversé.
 fn reversed(pieces: &[Piece]) -> Vec<Piece> {
     pieces.iter().rev().map(|pc| Piece { reverse: !pc.reverse, states: pc.states.iter().rev().copied().collect() }).collect()
@@ -332,6 +349,13 @@ fn serving(lanes: &[Lane], mouth: P2) -> Option<&Lane> {
         .filter(|l| nearest(&l.pts, mouth).2 < RADIUS - 4.0)
 }
 
+/// Points d'arrivée de l'entrée : à `APPROACH` et à `APPROACH_FAR` en amont de l'ouverture.
+fn arrivals(lanes: &[Lane], lane: &Lane, mouth: P2) -> Vec<(P2, P2, f64)> {
+    let mut ups = approaches(lanes, lane, mouth, APPROACH);
+    ups.extend(approaches(lanes, lane, mouth, APPROACH_FAR));
+    ups
+}
+
 /// L'entrée, de cap `heading`, revient-elle sur toutes les approches (plus de `TURN_BACK`) ?
 fn turning_back(ups: &[(P2, P2, f64)], heading: P2) -> bool {
     !ups.is_empty() && ups.iter().all(|(_, d, _)| dot(*d, heading).clamp(-1.0, 1.0).acos() > TURN_BACK)
@@ -345,8 +369,9 @@ pub fn turns_back(q: &[P2; 4], lanes: &[Lane]) -> bool {
 }
 
 /// Arrivée de l'approche : centre de la caisse près d'un point d'approche, dans la voie, au cap de la
-/// circulation ; et l'estimation qui guide la recherche vers lui.
-fn upstream_goal<'a>(v: &'a Vehicle, ups: &'a [(P2, P2, f64)]) -> (impl Fn(&Pose) -> bool + 'a, impl Fn(&Pose) -> f64 + 'a) {
+/// circulation ; et l'estimation qui guide la recherche vers lui : coût, sans obstacle, pour rejoindre
+/// la bande de la voie d'approche (table), plus la distance restante le long de cette voie.
+fn upstream_goal<'a>(v: &'a Vehicle, table: &'a Table, ups: &'a [(P2, P2, f64)]) -> (impl Fn(&Pose) -> bool + 'a, impl Fn(&Pose) -> f64 + 'a) {
     let centre = move |p: &Pose| {
         let c = (v.wheelbase + v.front_overhang - v.rear_overhang) / 2.0;
         [p.x + c * p.heading.cos(), p.y + c * p.heading.sin()]
@@ -361,7 +386,15 @@ fn upstream_goal<'a>(v: &'a Vehicle, ups: &'a [(P2, P2, f64)]) -> (impl Fn(&Pose
     };
     let h = move |p: &Pose| {
         let c = centre(p);
-        ups.iter().map(|&(g, d, _)| (c[0] - g[0]).hypot(c[1] - g[1]) + wrap(p.heading - d[1].atan2(d[0])).abs()).fold(f64::INFINITY, f64::min)
+        ups.iter()
+            .map(|&(g, d, w)| {
+                let r = sub(c, g);
+                let band = (w / 2.0 - v.width / 2.0 - 0.1).max(LANE_TOL);
+                let left = d[0] * r[1] - d[1] * r[0];
+                let lateral = table.get(left.signum() * (left.abs() - (band - LANE_TOL)).max(0.0), wrap(p.heading - d[1].atan2(d[0])));
+                lateral + (dot(r, d).abs() - APPROACH_TOL).max(0.0) * FORWARD.min(REVERSE)
+            })
+            .fold(f64::INFINITY, f64::min)
     };
     (goal, h)
 }
@@ -371,8 +404,8 @@ fn upstream_goal<'a>(v: &'a Vehicle, ups: &'a [(P2, P2, f64)]) -> (impl Fn(&Pose
 pub fn enters_in_one_go(ctx: &Ctx, i: usize) -> bool {
     let Prepared { park, scene, lane, mouth } = prepare(ctx, i);
     let Some(lane) = lane else { return false };
-    let ups = approaches(ctx.lanes, lane, mouth, APPROACH);
-    let (goal, h) = upstream_goal(ctx.v, &ups);
+    let ups = arrivals(ctx.lanes, lane, mouth);
+    let (goal, h) = upstream_goal(ctx.v, ctx.table, &ups);
     let search = Search {
         v: ctx.v,
         profile: ctx.profile,
@@ -436,7 +469,7 @@ pub fn test_stall(ctx: &Ctx, i: usize, illustrate: bool) -> Tested {
             .map(|&(l, t)| ctx.table.get(l.signum() * (l.abs() - (band - LANE_TOL)).max(0.0), t))
             .fold(f64::INFINITY, f64::min)
     };
-    let search = |max_cusps: usize, cusp: f64, collision: Option<f64>, weight: f64, max_nodes: usize, goal: &dyn Fn(&Pose) -> bool, h: &dyn Fn(&Pose) -> f64| {
+    let search = |from: (State, i8), max_cusps: usize, cusp: f64, collision: Option<f64>, weight: f64, max_nodes: usize, goal: &dyn Fn(&Pose) -> bool, h: &dyn Fn(&Pose) -> f64| {
         Search {
             v,
             profile: ctx.profile,
@@ -452,55 +485,75 @@ pub fn test_stall(ctx: &Ctx, i: usize, illustrate: bool) -> Tested {
             radius: RADIUS,
             max_nodes,
         }
-        .run(park, goal, h)
+        .run_from(from.0, from.1, goal, h)
     };
+    let parked = (State { pose: park, steer: 0.0 }, 0);
     // Le moins de reprises possible : d'un seul tenant, puis 1 reprise au plus (chaque recherche reste
     // petite), puis sans limite. Seule l'exploration complète du domaine sans limite de reprises
     // conclut à l'impossibilité ; un budget épuisé laisse la question ouverte.
     let staged = |goal: &dyn Fn(&Pose) -> bool, h: &dyn Fn(&Pose) -> f64| -> (Option<Plan>, Status, Option<&'static str>) {
         for k in 0..=STAGED_REPRISES {
             let budget = if k == 0 { NODES_DIRECT } else { NODES_STAGE };
-            if let Outcome::Found(plan) = search(k, 5.0, None, 1.2, budget.min(ctx.max_nodes), goal, h) {
+            if let Outcome::Found(plan) = search(parked, k, 5.0, None, 1.2, budget.min(ctx.max_nodes), goal, h) {
                 return (Some(plan), Status::Feasible, None);
             }
         }
-        match search(usize::MAX, 12.0, None, 1.2, ctx.max_nodes, goal, h) {
+        match search(parked, usize::MAX, 12.0, None, 1.2, ctx.max_nodes, goal, h) {
             Outcome::Found(plan) => (Some(plan), Status::Feasible, None),
             Outcome::Exhausted => (None, Status::Infeasible, Some("aucune manœuvre dans le domaine exploré")),
             Outcome::Budget => (None, Status::Unknown, Some("budget de recherche épuisé")),
         }
     };
-    // Sortie : marche arrière, puis dans le sens de la voie. Sans autre contrainte, l'entrée est cette
-    // sortie parcourue à rebours.
+    // Sortie : marche arrière, puis dans le sens de la voie.
     let (mut exit, mut status, mut reason) = staged(&goal, &h);
-    // Entrée qui revient sur l'approche (place juste après un virage, côté intérieur) : cherchée
-    // depuis l'amont, la voiture arrivant alignée sur la voie dans le sens de la circulation.
-    let ups = approaches(ctx.lanes, lane, mouth, APPROACH);
-    let (up_goal, up_h) = upstream_goal(v, &ups);
+    // Entrée : la voiture part 10 m en amont, alignée sur la voie dans le sens de la circulation. Le
+    // plus souvent, elle suit la voie d'un seul tenant jusqu'au départ de la sortie parcourue à
+    // rebours ; sinon (virage, carrefour), l'entrée est cherchée depuis l'amont.
+    let ups = arrivals(ctx.lanes, lane, mouth);
+    let (up_goal, up_h) = upstream_goal(v, ctx.table, &ups);
     let mut entry = None;
-    if turning_back(&ups, [park.heading.cos(), park.heading.sin()]) && exit.is_some() {
-        let (found, st, _) = staged(&up_goal, &up_h);
-        if found.is_none() {
-            status = st;
-            reason = Some(match st {
-                Status::Infeasible => "entrée impossible en arrivant de l'amont (virage ou carrefour)",
-                _ => "entrée depuis l'amont non conclue (budget de recherche épuisé)",
-            });
+    if let Some(plan) = &exit {
+        let back = reversed(&plan.pieces);
+        let first = back[0].states[0];
+        let start = first.pose;
+        let c = centre_of(&start);
+        let u = [start.heading.cos(), start.heading.sin()];
+        // Départ déjà au point d'approche ou en amont : rien à ajouter.
+        let reached = ups.iter().any(|&(g, d, _)| dot(d, u) > 0.0 && dot(sub(c, g), d) <= APPROACH_TOL);
+        entry = if reached {
+            Some(back)
+        } else if let Outcome::Found(lead) = search((first, if back[0].reverse { 0 } else { -1 }), 0, 5.0, None, 1.2, NODES_DIRECT, &up_goal, &up_h) {
+            Some(joined(reversed(&lead.pieces), back))
+        } else {
+            None
+        };
+        if entry.is_none() {
+            let (found, st, _) = staged(&up_goal, &up_h);
+            match found {
+                Some(plan) => entry = Some(reversed(&plan.pieces)),
+                None => {
+                    status = st;
+                    reason = Some(match st {
+                        Status::Infeasible => "entrée impossible en arrivant de l'amont",
+                        _ => "entrée depuis l'amont non conclue (budget de recherche épuisé)",
+                    });
+                }
+            }
         }
-        entry = Some(found);
     }
     let mut collisions = 0;
     if illustrate {
         // Illustration seulement : une reprise au plus suffit à montrer où la place bloque.
         if exit.is_none() {
-            if let Outcome::Found(plan) = search(1, 5.0, Some(5.0), 2.0, NODES_CONTACT, &goal, &h) {
+            if let Outcome::Found(plan) = search(parked, 1, 5.0, Some(5.0), 2.0, NODES_CONTACT, &goal, &h) {
                 collisions = plan.collisions;
+                entry = Some(reversed(&plan.pieces));
                 exit = Some(plan);
             }
-        } else if let Some(None) = entry {
-            if let Outcome::Found(plan) = search(1, 5.0, Some(5.0), 2.0, NODES_CONTACT, &up_goal, &up_h) {
+        } else if entry.is_none() {
+            if let Outcome::Found(plan) = search(parked, 1, 5.0, Some(5.0), 2.0, NODES_CONTACT, &up_goal, &up_h) {
                 collisions = plan.collisions;
-                entry = Some(Some(plan));
+                entry = Some(reversed(&plan.pieces));
             }
         }
     }
@@ -508,11 +561,7 @@ pub fn test_stall(ctx: &Ctx, i: usize, illustrate: bool) -> Tested {
         reason = reason.or(Some("aucune manœuvre trouvée"));
         return Tested { park, scene, entry: Vec::new(), exit: Vec::new(), status, collisions: 0, reason };
     };
-    let entry = match entry {
-        None => reversed(&exit.pieces),
-        Some(Some(plan)) => reversed(&plan.pieces),
-        Some(None) => Vec::new(),
-    };
+    let entry = entry.unwrap_or_default();
     Tested { park, entry, exit: exit.pieces, status, collisions, scene, reason }
 }
 

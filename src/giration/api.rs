@@ -186,7 +186,7 @@ pub fn simulate(inp: &GirIn) -> GirOut {
 /// Même simulation sur un plan déjà calculé.
 pub fn simulate_on(inp: &GirIn, lay: &crate::model::Layout) -> GirOut {
     let scene = Scene::from_layout(&inp.site, lay, &inp.kerb);
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let run: Run = follow(&v, profile_of(&inp.profile), &inp.sections, STEP);
     simulate_run(inp, &v, &scene, &run)
 }
@@ -210,7 +210,7 @@ fn simulate_run(inp: &GirIn, v: &Vehicle, scene: &Scene, run: &Run) -> GirOut {
     let r = v.min_radius();
     GirOut {
         vehicle: VehicleOut {
-            name: "VL 2026".into(),
+            name: "Peugeot 3008".into(),
             length: v.front_overhang + v.wheelbase + v.rear_overhang,
             width: v.width,
             wheelbase: v.wheelbase,
@@ -416,12 +416,12 @@ fn execute(v: &Vehicle, p: Profile, scene: &Scene, pieces: &[Piece], speed: f64,
 }
 
 pub fn places(inp: &PlacesIn) -> PlacesOut {
-    places_with(inp, &Vehicle::vl2026())
+    places_with(inp, &Vehicle::peugeot_3008())
 }
 
 /// Conception du plan : places dont l'entrée revient sur l'approche (juste après un virage, côté
 /// intérieur) et qui ne se prennent pas d'un seul tenant en arrivant de l'amont, avec les hypothèses
-/// par défaut (VL 2026, conducteur habile, 5 km/h, marge de 0,10 m, bordure T2, voisines garées).
+/// par défaut (Peugeot 3008, conducteur habile, 5 km/h, marge de 0,10 m, bordure T2, voisines garées).
 /// Chacune telle qu'elle est posée.
 pub fn unreachable_after_turns(site: &Site, lay: &Layout) -> Vec<[P2; 4]> {
     let stalls: Vec<[P2; 4]> = lay.stalls.iter().map(|s| s.q).collect();
@@ -430,11 +430,11 @@ pub fn unreachable_after_turns(site: &Site, lay: &Layout) -> Vec<[P2; 4]> {
     if suspects.is_empty() {
         return Vec::new();
     }
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let base = Scene::from_layout(site, lay, &KerbProfile::t2());
     // Table d'estimation des hypothèses par défaut : calculée une fois.
     static TABLE: std::sync::OnceLock<super::planner::Table> = std::sync::OnceLock::new();
-    let table = TABLE.get_or_init(|| super::places::table(&Vehicle::vl2026(), Profile::Habile));
+    let table = TABLE.get_or_init(|| super::places::table(&Vehicle::peugeot_3008(), Profile::Habile));
     let ctx = Ctx { table, v: &v, profile: Profile::Habile, margin: margin(), speed: speed(), base: &base, stalls: &stalls, lanes: &lanes, neighbours: true, max_nodes: NODES_REPRISES };
     suspects
         .into_iter()
@@ -443,7 +443,7 @@ pub fn unreachable_after_turns(site: &Site, lay: &Layout) -> Vec<[P2; 4]> {
         .collect()
 }
 
-/// Test des places avec un autre véhicule que le VL 2026.
+/// Test des places avec un autre véhicule que la Peugeot 3008.
 pub fn places_with(inp: &PlacesIn, v: &Vehicle) -> PlacesOut {
     let v = v.clone();
     let profile = profile_of(&inp.profile);

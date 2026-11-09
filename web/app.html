@@ -496,7 +496,7 @@ body:has(#girbar:not([hidden])) #hint { opacity: 0; }
 
   <section id="girmenu" class="menu glass" hidden aria-label="Giration">
     <h3>Giration</h3>
-    <p class="note">VL 2026 · 4,83 × 1,98 m, empattement 2,89 m · diamètre de braquage 12,10 m entre trottoirs, 13,15 m entre murs.</p>
+    <p class="note">Peugeot 3008 (2024) · 4,54 × 1,90 m, empattement 2,74 m · diamètre de braquage 10,90 m entre trottoirs, 11,95 m entre murs.</p>
     <div class="pgroup" id="g-places">
       <button class="tb primary wide" id="g-test">Tester toutes les places</button>
       <div id="g-prog" hidden><div class="bar"><i id="g-prog-bar"></i></div><span class="note num" id="g-prog-txt"></span></div>
@@ -517,7 +517,7 @@ body:has(#girbar:not([hidden])) #hint { opacity: 0; }
       <div class="field"><label>Bordures</label><span class="seg" role="group" aria-label="Type de bordure" id="g-kerb"><button data-k="T2">T2</button><button data-k="T3">T3</button></span></div>
       <div class="field"><label for="g-kh">Hauteur vue des bordures</label><span class="unit"><input id="g-kh" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <p class="note" id="g-prof-note"></p>
-      <p class="note">Garde au sol 0,14 m : une bordure plus haute arrête aussi la carrosserie, sauf celle d'un espace planté jusqu'à 0,20 m (Neufert) : la caisse déborde au-dessus, seuls les pneus butent. La hauteur vue dépend de la pose ; 0,16 m pour un T2 courant (Métropole Aix-Marseille-Provence), à régler pour un T3.</p>
+      <p class="note">Garde au sol 0,198 m : une bordure plus haute arrête aussi la carrosserie, sauf celle d'un espace planté jusqu'à 0,20 m (Neufert) : la caisse déborde au-dessus, seuls les pneus butent. La hauteur vue dépend de la pose ; 0,16 m pour un T2 courant (Métropole Aix-Marseille-Provence), à régler pour un T3.</p>
     </div></details>
   </section>
 
@@ -3010,7 +3010,7 @@ function updateGirUI() {
   $("#g-note").textContent = [
     miss.length ? `Tronçon ${miss.join(", ")} non atteint : trajectoire trop serrée pour le véhicule.` : "",
     dev >= 0.05 ? `Écart maximal à la trajectoire tracée : ${nf2.format(dev)} m.` : "",
-    pl ? (pl.entry.status === "feasible" ? "Entrée en marche avant depuis l'allée, puis sortie en marche arrière." : `Aucune manœuvre sans contact (${pl.reason}) : voici la moins mauvaise trouvée.`) : "Trait plein : marche avant ; tirets : marche arrière.",
+    pl ? (pl.entry.status === "feasible" ? "Entrée en marche avant depuis la voie, 10 m en amont, puis sortie en marche arrière." : `Aucune manœuvre sans contact (${pl.reason}) : voici la moins mauvaise trouvée.`) : "Trait plein : marche avant ; tirets : marche arrière.",
   ].filter(Boolean).join(" ");
 }
 

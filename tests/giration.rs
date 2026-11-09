@@ -51,26 +51,26 @@ fn neufert(conv: Convention) -> Vehicle {
 }
 
 #[test]
-fn vl2026_published_diameter_is_read_between_kerbs() {
-    let v = Vehicle::vl2026();
-    // Bord extérieur du pneu avant extérieur : 12,10 m de diamètre.
-    assert!(close(2.0 * v.kerb_radius(v.min_radius()), 12.10, 0.5 * CM));
-    // R = √((D/2 − P/2)² − E²) − V/2 = 4,3495 m.
+fn peugeot_3008_published_diameter_is_read_between_kerbs() {
+    let v = Vehicle::peugeot_3008();
+    // Bord extérieur du pneu avant extérieur : 10,90 m de diamètre.
+    assert!(close(2.0 * v.kerb_radius(v.min_radius()), 10.90, 0.5 * CM));
+    // R = √((D/2 − P/2)² − E²) − V/2 = 3,7603 m.
     assert!(
-        close(v.min_radius(), 4.3495, 0.5 * CM),
+        close(v.min_radius(), 3.7603, 0.5 * CM),
         "R = {}",
         v.min_radius()
     );
 }
 
 #[test]
-fn vl2026_wall_diameter_exceeds_the_published_figure() {
-    let v = Vehicle::vl2026();
-    // Coin avant extérieur de caisse : 2·√((R + l/2)² + (E + A)²) = 13,154 m.
+fn peugeot_3008_wall_diameter_exceeds_the_published_figure() {
+    let v = Vehicle::peugeot_3008();
+    // Coin avant extérieur de caisse : 2·√((R + l/2)² + (E + A)²) = 11,950 m.
     let d = 2.0 * v.wall_radius(v.min_radius());
-    assert!(close(d, 13.154, CM), "diamètre entre murs = {d}");
-    // Flanc intérieur de caisse au droit de l'essieu arrière : R − l/2 = 3,36 m.
-    assert!(close(v.inner_radius(v.min_radius()), 3.3595, 0.5 * CM));
+    assert!(close(d, 11.950, CM), "diamètre entre murs = {d}");
+    // Flanc intérieur de caisse au droit de l'essieu arrière : R − l/2 = 2,81 m.
+    assert!(close(v.inner_radius(v.min_radius()), 2.8128, 0.5 * CM));
 }
 
 #[test]
@@ -102,15 +102,15 @@ fn reading_between_walls_turns_tighter_than_between_kerbs() {
 
 #[test]
 fn ackermann_inner_wheel_steers_more_and_both_axes_meet_at_the_centre() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let r = v.min_radius();
     let (inner, outer) = v.ackermann(v.max_steer);
     assert!(inner > v.max_steer && v.max_steer > outer);
     assert!(close(inner.tan(), v.wheelbase / (r - v.track / 2.0), 1e-9));
     assert!(close(outer.tan(), v.wheelbase / (r + v.track / 2.0), 1e-9));
-    // VL 2026 : 39,3° à l'intérieur, 29,2° à l'extérieur.
-    assert!(close(inner.to_degrees(), 39.31, 0.05));
-    assert!(close(outer.to_degrees(), 29.21, 0.05));
+    // Peugeot 3008 : 42,9° à l'intérieur, 30,9° à l'extérieur.
+    assert!(close(inner.to_degrees(), 42.92, 0.05), "{}", inner.to_degrees());
+    assert!(close(outer.to_degrees(), 30.91, 0.05), "{}", outer.to_degrees());
 }
 
 // ---------------------------------------------------------------------------
@@ -120,7 +120,7 @@ fn ackermann_inner_wheel_steers_more_and_both_axes_meet_at_the_centre() {
 /// un cercle autour de O = (0, R), avec les rayons de la fiche à 1 cm près.
 #[test]
 fn steady_state_circles_match_the_analytical_radii() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let r = v.min_radius();
     let o = [0.0, r];
     let path = drive(
@@ -170,7 +170,7 @@ fn steady_state_circles_match_the_analytical_radii() {
 
 #[test]
 fn left_and_right_turns_are_mirror_images() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let l = drive(
         &v,
         Profile::Habile,
@@ -199,7 +199,7 @@ fn left_and_right_turns_are_mirror_images() {
 /// Pour un angle de roues fixe, reculer de la distance parcourue ramène au départ.
 #[test]
 fn reversing_retraces_the_same_arc() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let start = State {
         pose: Pose {
             x: 3.0,
@@ -225,7 +225,7 @@ fn reversing_retraces_the_same_arc() {
 /// butée, la voiture parcourt donc vitesse × butée / 15°/s pour le conducteur habile.
 #[test]
 fn reaching_full_lock_takes_the_lock_over_the_driver_steering_rate() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let rate = 15f64.to_radians();
     for speed in [kmh(10.0), kmh(5.0)] {
         let path = drive(&v, Profile::Habile, origin(0.0), speed, 10.0, v.max_steer, STEP);
@@ -238,7 +238,7 @@ fn reaching_full_lock_takes_the_lock_over_the_driver_steering_rate() {
 
 #[test]
 fn each_driver_turns_the_wheels_at_his_own_rate_within_the_vehicle_limit() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let speed = kmh(5.0);
     let change = |v: &Vehicle, p: Profile| {
         let path = drive(v, p, origin(0.0), speed, STEP, v.max_steer, STEP);
@@ -248,13 +248,13 @@ fn each_driver_turns_the_wheels_at_his_own_rate_within_the_vehicle_limit() {
         assert!(close(change(&v, p).to_degrees(), deg, 1e-9), "{p:?}");
     }
     // Direction lente (8 s de butée à butée) : la direction plafonne le conducteur habile.
-    let slow = Vehicle { lock_to_lock: 8.0, ..Vehicle::vl2026() };
+    let slow = Vehicle { lock_to_lock: 8.0, ..Vehicle::peugeot_3008() };
     assert!(close(change(&slow, Profile::Habile), 2.0 * slow.max_steer / 8.0, 1e-12));
 }
 
 #[test]
 fn prudent_driver_keeps_ten_percent_of_the_lock_in_reserve() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let path = drive(
         &v,
         Profile::Prudent,
@@ -272,7 +272,7 @@ fn prudent_driver_keeps_ten_percent_of_the_lock_in_reserve() {
 /// d'AutoTURN et de Mensura), pour les conducteurs habile et courant ; jamais pour le prudent.
 #[test]
 fn stationary_steering_only_at_cusps_and_never_for_a_careful_driver() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let s = origin(0.0);
     let (turned, time) = steer_in_place(&v, Profile::Habile, s, v.max_steer, true).unwrap();
     assert!(close(turned.steer, v.max_steer, 1e-12));
@@ -288,7 +288,7 @@ fn stationary_steering_only_at_cusps_and_never_for_a_careful_driver() {
 /// la même pose finale à 1 mm près, même pendant que le volant tourne.
 #[test]
 fn integration_is_step_independent() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let coarse = drive(
         &v,
         Profile::Habile,
@@ -487,7 +487,7 @@ fn section(pts: Vec<[f64; 2]>, reverse: bool, speed_kmh: f64) -> Section {
 
 #[test]
 fn straight_line_is_followed_to_its_end() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let run = follow(&v, Profile::Habile, &[section(vec![[0.0, 0.0], [20.0, 0.0]], false, 5.0)], STEP);
     assert!(run.reached[0]);
     assert!(run.deviation[0] < 0.01, "{}", run.deviation[0]);
@@ -499,7 +499,7 @@ fn straight_line_is_followed_to_its_end() {
 
 #[test]
 fn a_ten_metre_arc_is_followed_within_two_centimetres() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let mut pts = vec![[-10.0, -10.0], [0.0, -10.0]];
     pts.extend(arc(0.0, 0.0, 10.0, -PI / 2.0, 0.0, 30).into_iter().skip(1));
     pts.push([10.0, 10.0]);
@@ -510,7 +510,7 @@ fn a_ten_metre_arc_is_followed_within_two_centimetres() {
 
 #[test]
 fn reversing_along_an_eight_metre_arc_stays_on_it() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let mut pts = vec![[10.0, -8.0], [0.0, -8.0]];
     pts.extend(arc(0.0, 0.0, 8.0, -PI / 2.0, -PI, 30).into_iter().skip(1));
     let run = follow(&v, Profile::Habile, &[section(pts, true, 3.0)], STEP);
@@ -520,7 +520,7 @@ fn reversing_along_an_eight_metre_arc_stays_on_it() {
 
 #[test]
 fn reversing_along_a_line_keeps_the_nose_forward() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let run = follow(&v, Profile::Habile, &[section(vec![[0.0, 0.0], [-12.0, 0.0]], true, 3.0)], STEP);
     assert!(run.reached[0]);
     let last = run.samples.last().unwrap().state;
@@ -531,7 +531,7 @@ fn reversing_along_a_line_keeps_the_nose_forward() {
 
 #[test]
 fn an_impossible_corner_respects_the_steering_limits_and_is_flagged() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let speed = 10.0;
     let pts = vec![[0.0, 0.0], [15.0, 0.0], [15.0, 15.0]];
     let run = follow(&v, Profile::Habile, &[section(pts, false, speed)], STEP);
@@ -545,7 +545,7 @@ fn an_impossible_corner_respects_the_steering_limits_and_is_flagged() {
 
 #[test]
 fn a_cusp_allows_stationary_steering_only_for_a_skilled_driver() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let sections = [
         section(vec![[0.0, 0.0], [10.0, 0.0]], false, 5.0),
         section(vec![[7.11, 0.0], [4.0, -1.0], [2.0, -4.0]], true, 3.0),
@@ -580,13 +580,13 @@ fn samples(path: &[State]) -> Vec<Sample> {
 }
 
 fn straight(len: f64) -> Vec<Sample> {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     samples(&drive(&v, Profile::Habile, origin(0.0), kmh(5.0), len, 0.0, STEP))
 }
 
 #[test]
 fn tyre_tracks_are_eight_edges_one_tyre_width_apart() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let tracks = tyre_tracks(&v, &straight(5.0));
     assert_eq!(tracks.len(), 8);
     // Roue avant gauche : bord extérieur à V/2 + P/2, bord intérieur à V/2 − P/2.
@@ -598,7 +598,7 @@ fn tyre_tracks_are_eight_edges_one_tyre_width_apart() {
 
 #[test]
 fn an_empty_lane_raises_no_conflict() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let scene = Scene::new(vec![
         line_obstacle(ObstacleKind::Kerb, 0.16, [-5.0, 3.0], [30.0, 3.0]),
         line_obstacle(ObstacleKind::Kerb, 0.16, [-5.0, -3.0], [30.0, -3.0]),
@@ -608,11 +608,12 @@ fn an_empty_lane_raises_no_conflict() {
 
 #[test]
 fn a_kerb_across_the_path_stops_the_bumper_then_the_wheels() {
-    let v = Vehicle::vl2026();
-    let scene = Scene::new(vec![line_obstacle(ObstacleKind::Kerb, 0.16, [10.0, -5.0], [10.0, 5.0])]);
+    let v = Vehicle::peugeot_3008();
+    // Bordure haute (0,25 m), plus haute que la garde au sol (0,198 m).
+    let scene = Scene::new(vec![line_obstacle(ObstacleKind::Kerb, 0.25, [10.0, -5.0], [10.0, 5.0])]);
     let found = conflicts(&v, &scene, &straight(15.0), 0.20);
     let body = found.iter().find(|c| c.part == Part::Body).expect("carrosserie");
-    // Le pare-chocs (E + A = 3,84 m devant l'essieu arrière) atteint la bordure à s = 6,16 m.
+    // Le pare-chocs (E + A = 3,68 m devant l'essieu arrière) atteint la bordure à s = 6,32 m.
     assert!(close(body.s_start, 10.0 - v.wheelbase - v.front_overhang, 0.05), "{}", body.s_start);
     assert_eq!(body.severity, Severity::Conflict);
     for w in 0..4 {
@@ -628,7 +629,7 @@ fn a_kerb_across_the_path_stops_the_bumper_then_the_wheels() {
 
 #[test]
 fn a_kerb_lower_than_the_ground_clearance_lets_the_overhang_pass() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let scene = Scene::new(vec![line_obstacle(ObstacleKind::Kerb, 0.10, [10.0, -5.0], [10.0, 5.0])]);
     let found = conflicts(&v, &scene, &straight(15.0), 0.20);
     assert!(found.iter().all(|c| c.part != Part::Body && c.part != Part::Margin));
@@ -638,7 +639,7 @@ fn a_kerb_lower_than_the_ground_clearance_lets_the_overhang_pass() {
 #[test]
 fn the_overhang_passes_over_a_planted_kerb_but_not_the_wheels() {
     // Bordure T2 d'un espace planté : la caisse déborde au-dessus, sans alerte de marge ; les pneus butent.
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let scene = Scene::new(vec![line_obstacle(ObstacleKind::Planted, 0.16, [10.0, -5.0], [10.0, 5.0])]);
     let found = conflicts(&v, &scene, &straight(15.0), 0.20);
     assert!(found.iter().all(|c| c.part != Part::Body && c.part != Part::Margin), "{found:?}");
@@ -648,14 +649,14 @@ fn the_overhang_passes_over_a_planted_kerb_but_not_the_wheels() {
 #[test]
 fn a_planted_kerb_higher_than_twenty_centimetres_stops_the_overhang() {
     // Neufert p. 272 : débord de caisse au-dessus d'un muret de 0,20 m au plus.
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let scene = Scene::new(vec![line_obstacle(ObstacleKind::Planted, 0.25, [10.0, -5.0], [10.0, 5.0])]);
     assert!(conflicts(&v, &scene, &straight(15.0), 0.20).iter().any(|c| c.part == Part::Body));
 }
 
 #[test]
 fn a_wall_inside_the_margin_warns_and_a_wall_beyond_it_does_not() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let near = Scene::new(vec![line_obstacle(ObstacleKind::Wall, f64::INFINITY, [-5.0, 1.09], [30.0, 1.09])]);
     let found = conflicts(&v, &near, &straight(10.0), 0.20);
     assert!(!found.is_empty() && found.iter().all(|c| c.part == Part::Margin && c.severity == Severity::Warning));
@@ -666,7 +667,7 @@ fn a_wall_inside_the_margin_warns_and_a_wall_beyond_it_does_not() {
 #[test]
 fn a_parked_car_inside_the_margin_does_not_warn_but_still_collides() {
     // Places jointes : la marge de 0,20 m ne vaut pas contre une voiture garée, seul le contact compte.
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let near = Scene::new(vec![line_obstacle(ObstacleKind::Car, 1.5, [-5.0, 1.09], [30.0, 1.09])]);
     assert!(conflicts(&v, &near, &straight(10.0), 0.20).is_empty());
     let hit = Scene::new(vec![line_obstacle(ObstacleKind::Car, 1.5, [-5.0, 0.90], [30.0, 0.90])]);
@@ -675,7 +676,7 @@ fn a_parked_car_inside_the_margin_does_not_warn_but_still_collides() {
 
 #[test]
 fn the_envelope_covers_the_swept_body() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let run = samples(&drive(&v, Profile::Habile, origin(0.0), kmh(5.0), 12.0, v.max_steer, STEP));
     let rings = envelope(&v, &run, 0.0);
     let region = trame::geom::Region::new(
@@ -757,17 +758,17 @@ fn drive_lane_centre(v: &Vehicle, rho: f64) -> Vec<Sample> {
 
 /// NF P 91-100 (§ 3.3) : courbe à sens unique de 4,00 m, rayon extérieur 8,50 m.
 #[test]
-fn vl2026_drives_an_nf_p_91_100_one_way_curve_without_conflict() {
-    let v = Vehicle::vl2026();
+fn the_reference_car_drives_an_nf_p_91_100_one_way_curve_without_conflict() {
+    let v = Vehicle::peugeot_3008();
     let scene = Scene::new(curved_lane(4.50, 8.50, ObstacleKind::Wall, f64::INFINITY));
     let found = conflicts(&v, &scene, &drive_lane_centre(&v, 6.50), 0.20);
     assert!(found.is_empty(), "{found:?}");
 }
 
 #[test]
-fn a_three_metre_curve_catches_the_inner_rear_wheel() {
-    let v = Vehicle::vl2026();
-    let scene = Scene::new(curved_lane(5.50, 8.50, ObstacleKind::Wall, f64::INFINITY));
+fn a_curve_of_two_ninety_catches_the_inner_rear_wheel() {
+    let v = Vehicle::peugeot_3008();
+    let scene = Scene::new(curved_lane(5.60, 8.50, ObstacleKind::Wall, f64::INFINITY));
     let found = conflicts(&v, &scene, &drive_lane_centre(&v, 7.00), 0.20);
     assert!(found.iter().any(|c| c.part == Part::Wheel(2) && c.severity == Severity::Conflict), "{found:?}");
 }
@@ -775,8 +776,8 @@ fn a_three_metre_curve_catches_the_inner_rear_wheel() {
 /// Neufert p. 274-276 : rampe courbe à une voie, voie de 4,00 m entre R 5,00 et R 9,00,
 /// mur plein intérieur à R 4,00.
 #[test]
-fn vl2026_drives_a_neufert_single_lane_curved_ramp_without_conflict() {
-    let v = Vehicle::vl2026();
+fn the_reference_car_drives_a_neufert_single_lane_curved_ramp_without_conflict() {
+    let v = Vehicle::peugeot_3008();
     let mut obstacles = curved_lane(5.00, 9.00, ObstacleKind::Kerb, 0.16);
     obstacles.push(curved_lane(4.00, 4.00, ObstacleKind::Wall, f64::INFINITY).remove(0));
     let scene = Scene::new(obstacles);
@@ -807,7 +808,7 @@ fn entering_from_the_street_is_clean_and_driving_into_a_planted_area_is_not() {
     assert_eq!(out.tracks.len(), 8);
     assert!(out.poses.len() > 50);
     assert!(out.conflicts.is_empty(), "{:?}", out.conflicts);
-    assert_eq!(out.vehicle.name, "VL 2026");
+    assert_eq!(out.vehicle.name, "Peugeot 3008");
     assert_eq!(out.profile, "habile");
 
     // Vers le centre d'un espace planté depuis la place la plus proche.
@@ -873,7 +874,7 @@ fn json_round_trip_names_parts_in_french() {
 /// colinéaires ; leur réunion doit rester un simple rectangle.
 #[test]
 fn a_straight_oblique_drive_sweeps_a_plain_rectangle() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let run = follow(&v, Profile::Habile, &[section(vec![[9.25, 7.5], [5.5, 8.5]], false, 10.0)], STEP);
     let rings = envelope(&v, &run.samples, 0.0);
     assert_eq!(rings.len(), 1);
@@ -886,7 +887,7 @@ fn a_straight_oblique_drive_sweeps_a_plain_rectangle() {
 
 #[test]
 fn straight_drives_in_every_direction_sweep_a_single_polygon() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     for k in 0..52 {
         let a = k as f64 * 7.0_f64.to_radians();
         let start = [3.3 + 1.7 * k as f64, -2.1 + 0.9 * k as f64];
@@ -936,11 +937,13 @@ use trame::giration::api::{places, PlacesOut};
 /// Une rangée de `n` places de `w` × 5 m au-dessus d'une allée de largeur `aisle` à double sens,
 /// sur la parcelle du scénario rect (120 × 80 m), en pleine terre. Les places donnent sur l'allée (q2, q3).
 fn row_case(n: usize, w: f64, aisle: f64, neighbours: bool, detail: Option<usize>) -> PlacesOut {
-    row_with_walks(n, w, aisle, neighbours, detail, false, false)
+    row_with_walks(n, w, aisle, neighbours, detail, false, false, 0.16)
 }
 
 /// La même rangée, avec un trottoir de 2 m en face de l'allée (`facing`) ou derrière les places (`behind`).
-fn row_with_walks(n: usize, w: f64, aisle: f64, neighbours: bool, detail: Option<usize>, facing: bool, behind: bool) -> PlacesOut {
+/// `kerb` : hauteur vue des bordures (0,16 m pour la T2 par défaut).
+#[allow(clippy::too_many_arguments)]
+fn row_with_walks(n: usize, w: f64, aisle: f64, neighbours: bool, detail: Option<usize>, facing: bool, behind: bool, kerb: f64) -> PlacesOut {
     let path = format!("{}/scenarios/rect.json", env!("CARGO_MANIFEST_DIR"));
     let site: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     let (y0, y1) = (20.0, 20.0 + aisle);
@@ -967,6 +970,7 @@ fn row_with_walks(n: usize, w: f64, aisle: f64, neighbours: bool, detail: Option
         },
         "neighbours": neighbours,
         "detail": detail,
+        "kerb": { "name": "essai", "visible_height": kerb },
     });
     places(&serde_json::from_value(input).unwrap())
 }
@@ -989,9 +993,9 @@ fn a_narrow_aisle_is_not_green() {
 
 #[test]
 fn occupied_neighbours_decide_a_tight_stall() {
-    // 2,00 m de large pour 1,98 m de caisse : les voisines garées, décalées de 0,10 m, empiètent.
-    assert_eq!(row_case(9, 2.0, 10.0, true, None).places[4].verdict, "rouge");
-    assert_ne!(row_case(9, 2.0, 10.0, false, None).places[4].verdict, "rouge");
+    // 1,95 m de large pour 1,895 m de caisse : les voisines garées, décalées de 0,10 m, empiètent.
+    assert_eq!(row_case(9, 1.95, 10.0, true, None).places[4].verdict, "rouge");
+    assert_ne!(row_case(9, 1.95, 10.0, false, None).places[4].verdict, "rouge");
 }
 
 #[test]
@@ -1025,13 +1029,13 @@ fn a_full_car_park_needs_a_wider_aisle_to_enter_without_reprise() {
         (out.places[0].verdict, out.places[0].entry.reprises)
     };
     // Volant tourné en roulant (15°/s), braquage à l'arrêt aux seuls rebroussements : d'un seul tenant
-    // à 10 et 8 m ; avec reprises dans la limite (3) à 6 m : bleu ; au-delà à 5 m : orange.
+    // à 10 et 8 m ; avec reprises dans la limite (3) à 6 m : bleu ; au-delà à 4 m : orange.
     assert_eq!(verdict(10.0), ("vert", 0));
     assert_eq!(verdict(8.0), ("vert", 0));
     let (v6, r6) = verdict(6.0);
-    let (v5, r5) = verdict(5.0);
-    assert_eq!((v6, v5), ("bleu", "orange"), "{r6} et {r5} reprises");
-    assert!((1..=3).contains(&r6) && r5 > 3, "{r6} puis {r5} reprises");
+    let (v4, r4) = verdict(4.0);
+    assert_eq!((v6, v4), ("bleu", "orange"), "{r6} et {r4} reprises");
+    assert!((1..=3).contains(&r6) && r4 > 3, "{r6} puis {r4} reprises");
 }
 
 #[test]
@@ -1119,7 +1123,7 @@ fn every_stall_of_the_reference_scenarios_is_rated() {
 fn a_pole_between_two_samples_is_caught() {
     // Deux poses à 0,50 m d'écart, braquage à la butée : le coin avant extérieur décrit un arc
     // qui sort des deux empreintes ; un poteau sur cet arc doit être vu.
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let s0 = State { pose: Pose { x: 0.0, y: 0.0, heading: 0.0 }, steer: v.max_steer };
     let s1 = advance(&v, s0, 0.5);
     let corner = |s: &State| trame::giration::kinematics::body_corners(&v, &s.pose)[1];
@@ -1178,9 +1182,10 @@ fn a_search_cut_short_by_its_budget_is_unknown_not_impossible() {
 
 #[test]
 fn the_minimum_clearance_is_measured() {
-    // Rangée sur allée de 10 m, voisines vides, trottoir derrière les places : le pare-chocs garé est
-    // à 0,12 m de la bordure de fond (marge de 0,10 m + 2 cm), obstacle le plus proche.
-    let p = &row_with_walks(9, 2.5, 10.0, false, None, false, true).places[4];
+    // Rangée sur allée de 10 m, voisines vides, trottoir derrière les places, bordure haute (0,25 m,
+    // au-dessus de la garde au sol) : le pare-chocs garé est à 0,12 m de la bordure de fond (marge de
+    // 0,10 m + 2 cm), obstacle le plus proche.
+    let p = &row_with_walks(9, 2.5, 10.0, false, None, false, true, 0.25).places[4];
     assert_eq!(p.verdict, "vert");
     for m in [&p.entry, &p.exit] {
         assert!(m.clearance > 0.09 && m.clearance <= 0.125, "{}", m.clearance);
@@ -1199,7 +1204,7 @@ fn side_clearance(v: &Vehicle, q: &[[f64; 2]; 4]) -> f64 {
 
 #[test]
 fn a_car_parked_in_a_wedge_stall_stays_between_its_sides() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     // Places n° 8 et 9 du plan ruisseau, à la cassure de la limite : la 8 s'ouvre en coin (fond 3,72 m,
     // ouverture 2,50 m), la 9 est un rectangle de 2,50 × 5,00 m.
     let wedge = [[131.173, 78.067], [127.549, 77.216], [129.073, 72.454], [131.496, 73.077]];
@@ -1224,8 +1229,8 @@ fn only_orange_and_red_places_carry_their_body_and_wheel_tracks() {
         assert!(matches!(p.verdict, "vert" | "bleu"), "{}", p.verdict);
         assert!(p.tracks.is_empty() && p.envelope.is_empty());
     }
-    // Orange (allée de 5,5 m entre deux trottoirs) : enveloppe de caisse et traces des huit flancs de pneus.
-    let p = &row_with_walks(9, 2.5, 5.5, true, None, true, true).places[4];
+    // Orange (allée de 4 m entre deux trottoirs) : enveloppe de caisse et traces des huit flancs de pneus.
+    let p = &row_with_walks(9, 2.5, 4.0, true, None, true, true, 0.16).places[4];
     assert_eq!(p.verdict, "orange");
     assert!(p.tracks.len() == 8 && p.tracks.iter().all(|t| t.len() >= 2) && !p.envelope.is_empty());
     // Rouge, voiture garée qui ne tient pas (place de 1,80 m en pleine terre : les pneus, 1,90 m hors
@@ -1241,7 +1246,7 @@ fn only_orange_and_red_places_carry_their_body_and_wheel_tracks() {
 
 #[test]
 fn a_car_parks_up_to_the_line_of_a_joined_stall_and_short_of_a_kerb() {
-    let v = Vehicle::vl2026();
+    let v = Vehicle::peugeot_3008();
     let path = format!("{}/scenarios/rect.json", env!("CARGO_MANIFEST_DIR"));
     let site: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     // Deux rangées dos à dos (fond commun à y = 35, sans bordure) entre deux allées de 6 m.
@@ -1257,9 +1262,13 @@ fn a_car_parks_up_to_the_line_of_a_joined_stall_and_short_of_a_kerb() {
     // Fond sur la pleine terre : la caisse peut la survoler, nez à 2 cm de la ligne.
     let park = row_case(9, 2.5, 10.0, true, None).places[4].park;
     assert!((park[1] + v.wheelbase + v.front_overhang - (35.0 - 0.02)).abs() < 0.005);
-    // Fond sur un trottoir : marge par défaut de 0,10 m + 2 cm.
-    let park = row_with_walks(9, 2.5, 10.0, true, None, false, true).places[4].park;
+    // Fond sur un trottoir à bordure haute (0,25 m, au-dessus de la garde au sol) : marge par défaut
+    // de 0,10 m + 2 cm.
+    let park = row_with_walks(9, 2.5, 10.0, true, None, false, true, 0.25).places[4].park;
     assert!((park[1] + v.wheelbase + v.front_overhang - (35.0 - 0.12)).abs() < 0.005);
+    // Bordure T2 (0,16 m), sous la garde au sol de la 3008 : la caisse la survole, nez à 2 cm.
+    let park = row_with_walks(9, 2.5, 10.0, true, None, false, true, 0.16).places[4].park;
+    assert!((park[1] + v.wheelbase + v.front_overhang - (35.0 - 0.02)).abs() < 0.005);
 }
 
 /// Rangée de 9 places sur une allée de `aisle` m, place n° 4 détaillée, profil de conducteur choisi.
@@ -1320,4 +1329,27 @@ fn a_careful_driver_never_steers_standing_still() {
     let (excess, _, standing) = steering(&out, 6.0);
     assert!(excess < 1e-4 && standing == 0, "{:.3}° de trop, {standing} braquages à l'arrêt", excess.to_degrees());
     assert!(out.detail.unwrap().stationary_time.abs() < 1e-9);
+}
+
+
+#[test]
+fn every_place_test_starts_ten_metres_upstream_in_the_lane() {
+    // Allée à double sens de 10 m (axe y = 25) : la voiture part alignée dans la voie (caisse à 0,10 m
+    // au moins de ses bords), 10 m en amont du pied de la place n° 4 (x = 60), dans un sens ou l'autre.
+    let v = Vehicle::peugeot_3008();
+    let first = row_case(9, 2.5, 10.0, true, Some(4)).detail.expect("détail").poses[0];
+    let c = (v.wheelbase + v.front_overhang - v.rear_overhang) / 2.0;
+    let centre = [first[0] + c * first[2].cos(), first[1] + c * first[2].sin()];
+    let band = 10.0 / 2.0 - v.width / 2.0 - 0.1;
+    assert!(((centre[0] - 60.0).abs() - 10.0).abs() <= 1.5 && (centre[1] - 25.0).abs() <= band, "départ {centre:?}");
+    assert!(first[2].sin().abs() < 0.15, "cap {}", first[2]);
+}
+
+#[test]
+fn the_tyres_never_run_on_planted_ground() {
+    // Allée de 5,5 m entre deux bandes de pleine terre (y < 20 en face, y > 30,5 derrière les places) :
+    // la caisse peut les survoler, jamais les pneus, du départ à 10 m en amont jusqu'à la sortie.
+    let detail = row_case(9, 2.5, 5.5, true, Some(4)).detail.expect("détail");
+    let out = detail.tracks.iter().flatten().filter(|p| p[1] < 20.0 - 0.01 || p[1] > 30.5 + 0.01).count();
+    assert_eq!(out, 0, "{out} points de pneus sur la pleine terre");
 }
