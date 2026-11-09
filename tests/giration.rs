@@ -1439,3 +1439,200 @@ fn the_corner_stall_is_tested_from_ten_metres_upstream() {
         assert!(d >= 9.0, "départ à {d:.1} m de l'ouverture, en {centre:?}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Trait libre : la trajectoire droite / arcs / droite la plus proche du trait, rayons au-dessus du
+// rayon mini du point guidé, départ fixé au début du trait.
+
+use trame::giration::sketch::{self, Elem, Path};
+
+/// Points tous les `step` mètres le long d'une polyligne.
+fn densify(pts: &[[f64; 2]], step: f64) -> Vec<[f64; 2]> {
+    let mut out = vec![pts[0]];
+    for w in pts.windows(2) {
+        let n = ((w[1][0] - w[0][0]).hypot(w[1][1] - w[0][1]) / step).ceil().max(1.0) as usize;
+        for i in 1..=n {
+            let t = i as f64 / n as f64;
+            out.push([w[0][0] + (w[1][0] - w[0][0]) * t, w[0][1] + (w[1][1] - w[0][1]) * t]);
+        }
+    }
+    out
+}
+
+/// 15 m vers l'est, quart de tour à gauche de rayon `r`, 15 m vers le nord.
+fn l_stroke(r: f64) -> Vec<[f64; 2]> {
+    let mut s = densify(&[[0.0, 0.0], [15.0, 0.0]], 0.2);
+    s.extend(arc(15.0, r, r, -PI / 2.0, 0.0, (r * PI / 2.0 / 0.2) as usize).into_iter().skip(1));
+    s.extend(densify(&[[15.0 + r, r], [15.0 + r, r + 15.0]], 0.2).into_iter().skip(1));
+    s
+}
+
+fn rmin(reverse: bool) -> f64 {
+    sketch::rmin(&Vehicle::peugeot_3008(), Profile::Habile, reverse)
+}
+
+fn arcs(p: &Path) -> Vec<(f64, f64)> {
+    p.elements().iter().filter_map(|e| if let Elem::Arc { r, delta, .. } = e { Some((*r, *delta)) } else { None }).collect()
+}
+
+fn ends_straight(p: &Path) {
+    let el = p.elements();
+    for e in [el.first().unwrap(), el.last().unwrap()] {
+        assert!(matches!(e, Elem::Line { .. }) && e.len() >= 0.5 - 1e-9, "{e:?}");
+    }
+}
+
+#[test]
+fn the_guided_point_turns_no_tighter_than_the_vehicle_allows() {
+    // Marche avant : milieu de l'essieu avant, √(3,76² + 2,74²) ; marche arrière : essieu arrière.
+    assert!(close(rmin(false), 4.652, 0.01), "{}", rmin(false));
+    assert!(close(rmin(true), 3.76, 0.01), "{}", rmin(true));
+}
+
+#[test]
+fn a_straight_stroke_becomes_a_single_straight() {
+    let s = densify(&[[0.0, 0.0], [20.0, 0.5]], 0.2);
+    let p = sketch::fit(&s, rmin(false));
+    assert!(arcs(&p).is_empty(), "{:?}", arcs(&p));
+    assert_eq!(p.start(), s[0]);
+    assert!(sketch::deviation(&s, &p) < 0.05, "{}", sketch::deviation(&s, &p));
+}
+
+#[test]
+fn a_rounded_l_becomes_straight_arc_straight() {
+    let s = l_stroke(8.0);
+    let p = sketch::fit(&s, rmin(false));
+    let a = arcs(&p);
+    assert_eq!(a.len(), 1, "{a:?}");
+    assert!(close(a[0].0, 8.0, 0.3), "rayon {}", a[0].0);
+    assert!(close(a[0].1, PI / 2.0, 3f64.to_radians()), "déviation {}", a[0].1.to_degrees());
+    ends_straight(&p);
+    assert!(sketch::deviation(&s, &p) < 0.15, "{}", sketch::deviation(&s, &p));
+}
+
+#[test]
+fn a_shaky_hand_gives_the_same_pieces() {
+    // Tremblement de ± 10 cm, déterministe.
+    let s: Vec<[f64; 2]> = l_stroke(8.0).iter().enumerate().map(|(i, p)| {
+        let f = i as f64;
+        [p[0] + 0.1 * (f * 1.7).sin() * (f * 0.31).cos(), p[1] + 0.1 * (f * 2.3).cos() * (f * 0.47).sin()]
+    }).collect();
+    let p = sketch::fit(&s, rmin(false));
+    let a = arcs(&p);
+    assert_eq!(a.len(), 1, "{a:?}");
+    assert!(close(a[0].0, 8.0, 0.6), "rayon {}", a[0].0);
+    ends_straight(&p);
+    assert!(sketch::deviation(&s, &p) < 0.3, "{}", sketch::deviation(&s, &p));
+}
+
+#[test]
+fn a_sharp_point_is_rounded_at_the_minimum_radius() {
+    // Aller-retour en pointe, un seul sens de marche : demi-tour au rayon mini, avant comme arrière.
+    let s = densify(&[[0.0, 0.0], [20.0, 0.0], [0.0, 1.5]], 0.2);
+    for reverse in [false, true] {
+        let p = sketch::fit(&s, rmin(reverse));
+        let a = arcs(&p);
+        assert!(!a.is_empty());
+        assert!(a.iter().all(|x| x.0 >= rmin(reverse) - 1e-6), "{a:?}");
+        assert!(a.iter().any(|x| close(x.0, rmin(reverse), 0.05)), "{a:?}");
+        let turn: f64 = a.iter().map(|x| x.1).sum();
+        assert!(close(turn.abs(), PI, 10f64.to_radians()), "{}", turn.to_degrees());
+        ends_straight(&p);
+    }
+}
+
+#[test]
+fn an_s_curve_keeps_both_turns() {
+    let mut s = densify(&[[0.0, 0.0], [10.0, 0.0]], 0.2);
+    s.extend(arc(10.0, 10.0, 10.0, -PI / 2.0, -PI / 4.0, 40).into_iter().skip(1));
+    let m = *s.last().unwrap();
+    // Second virage à droite de même rayon, centre symétrique du premier par rapport au point d'inflexion.
+    let c2 = [2.0 * m[0] - 10.0, 2.0 * m[1] - 10.0];
+    s.extend(arc(c2[0], c2[1], 10.0, 3.0 * PI / 4.0, PI / 2.0, 40).into_iter().skip(1));
+    let e = *s.last().unwrap();
+    s.extend(densify(&[e, [e[0] + 10.0, e[1]]], 0.2).into_iter().skip(1));
+    let p = sketch::fit(&s, rmin(false));
+    let a = arcs(&p);
+    assert_eq!(a.len(), 2, "{a:?}");
+    assert!(a[0].1 > 0.0 && a[1].1 < 0.0, "{a:?}");
+    ends_straight(&p);
+    assert!(sketch::deviation(&s, &p) < 0.2, "{}", sketch::deviation(&s, &p));
+}
+
+#[test]
+fn interface_points_rebuild_the_same_path() {
+    // Convention de l'interface : le point [x, y, k] porte la flèche k (flèche / corde) du segment
+    // qui en part, positive à droite du sens de tracé ; sommet de l'arc = milieu de la corde décalé.
+    let s = l_stroke(8.0);
+    let mut s2 = s.clone();
+    s2.extend(arc(23.0 - 10.0, 23.0, 10.0, 0.0, PI / 2.0, 80).into_iter().skip(1)); // puis à gauche encore
+    for stroke in [s, s2] {
+        let p = sketch::fit(&stroke, rmin(false));
+        let pts = p.points();
+        let el: Vec<Elem> = p.elements().into_iter().filter(|e| e.len() > 1e-6).collect();
+        assert_eq!(pts.len(), el.len() + 1);
+        for (i, e) in el.iter().enumerate() {
+            let (a, b, k) = (pts[i], pts[i + 1], pts[i][2]);
+            assert!(k.abs() <= 0.5);
+            let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+            let l = dx.hypot(dy);
+            let o = [dy / l, -dx / l]; // à droite de la corde
+            let apex = [(a[0] + b[0]) / 2.0 + o[0] * k * l, (a[1] + b[1]) / 2.0 + o[1] * k * l];
+            let m = e.mid();
+            assert!((apex[0] - m[0]).hypot(apex[1] - m[1]) < 1e-6, "{e:?} : {apex:?} / {m:?}");
+            if let Elem::Arc { delta, .. } = e {
+                assert!(*delta > 0.0 && k > 0.0, "virage à gauche, flèche positive");
+            }
+        }
+        assert_eq!(pts.last().unwrap()[2], 0.0);
+    }
+}
+
+#[test]
+fn a_tiny_stroke_is_a_straight() {
+    let s = vec![[1.0, 1.0], [1.3, 1.1], [1.6, 1.0]];
+    let p = sketch::fit(&s, rmin(false));
+    assert!(arcs(&p).is_empty());
+    assert_eq!(p.start(), [1.0, 1.0]);
+}
+
+/// Bloc de mur à l'intérieur du virage, son angle à 4,7 m du centre du quart de tour de 6 m.
+fn corner_wall() -> Scene {
+    let (x, y) = (15.0 + 4.7 * (PI / 4.0).cos(), 6.0 - 4.7 * (PI / 4.0).sin());
+    Scene::new(vec![Obstacle { kind: ObstacleKind::Wall, height: f64::INFINITY, pts: vec![[x, y], [x, 14.0], [8.0, 14.0], [8.0, y], [x, y]] }])
+}
+
+#[test]
+fn a_stroke_that_clips_a_wall_is_moved_off_it() {
+    let v = Vehicle::peugeot_3008();
+    let s = l_stroke(6.0);
+    let raw = sketch::sketch_on(&v, Profile::Habile, &corner_wall(), &s, false, 5.0, 0.10, false);
+    assert!(raw.contacts > 0, "le scénario doit accrocher le mur sans recherche");
+    let moved = sketch::sketch_on(&v, Profile::Habile, &corner_wall(), &s, false, 5.0, 0.10, true);
+    assert_eq!(moved.contacts, 0, "{moved:?}");
+    assert!(moved.deviation < 1.5, "écart au trait {}", moved.deviation);
+    assert_eq!(moved.path.start(), s[0]);
+    ends_straight(&moved.path);
+    assert!(arcs(&moved.path).iter().all(|x| x.0 >= rmin(false) - 1e-6));
+}
+
+#[test]
+fn a_stroke_comes_back_as_interface_points() {
+    use trame::giration::api::{sketch as sketch_api, SketchIn};
+    let (_, lay) = scenario("rect");
+    let inner = centroid(&lay.entries[0]);
+    let path = format!("{}/scenarios/rect.json", env!("CARGO_MANIFEST_DIR"));
+    let site: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    let stroke = densify(&[[60.0, -12.0], [60.0, -4.0], inner], 0.3);
+    let inp: SketchIn = serde_json::from_value(serde_json::json!({ "site": site, "stroke": stroke })).unwrap();
+    let out = serde_json::to_value(sketch_api(&inp)).unwrap();
+    let pts = out["pts"].as_array().unwrap();
+    assert!(pts.len() >= 2);
+    assert_eq!(pts[0][0].as_f64().unwrap(), 60.0);
+    assert_eq!(pts[0][1].as_f64().unwrap(), -12.0);
+    assert_eq!(pts.last().unwrap()[2].as_f64().unwrap(), 0.0);
+    for key in ["contacts", "alerts", "deviation", "searched", "evals"] {
+        assert!(out.get(key).is_some(), "{key}");
+    }
+    assert_eq!(out["contacts"], 0);
+}

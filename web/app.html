@@ -1567,7 +1567,7 @@ function updateSelbar() {
   const bar = $("#selbar");
   if (!sel || (sel.type !== "cadastre" && sel.type !== "building" && !(sel.type === "gir" && girEditable()))) { bar.hidden = true; $("#hint").style.opacity = ""; return; }
   bar.hidden = false; $("#hint").style.opacity = "0";
-  bar.classList.toggle("gir", sel.type === "gir");
+  bar.classList.toggle("gir", sel.type === "gir" && sel.e != null); // segment : sur téléphone, les réglages prennent la place du nom
   for (const id of ["#sel-arc", "#sel-rwrap", "#sel-tan"]) $(id).hidden = true;
   if (sel.type === "gir") { for (const id of ["#sel-study", "#sel-merge", "#sel-shape", "#sel-rot"]) $(id).hidden = true; girSelbar(); return; }
   const shape = $("#sel-shape"), rotb = $("#sel-rot");
@@ -1630,6 +1630,13 @@ canvas.addEventListener("pointermove", (ev) => {
     const wx = (pinch.m[0] - pinch.ox) / pinch.s, wy = (pinch.oy - pinch.m[1]) / pinch.s;
     view.s = s; view.ox = m[0] - wx * s; view.oy = m[1] + wy * s; redraw(); return;
   }
+  // Tracé de giration : glisser dessine un trait libre (toucher pose un point).
+  if (drag && mode === "gir" && (drag.kind === "drawtap" || drag.kind === "stroke")) {
+    if (drag.kind === "drawtap") { if (Math.hypot(sp[0] - drag.sp[0], sp[1] - drag.sp[1]) < 8) return; drag.kind = "stroke"; drag.stroke = [toW(drag.sp[0], drag.sp[1])]; }
+    const w = toW(sp[0], sp[1]), last = drag.stroke[drag.stroke.length - 1];
+    if (Math.hypot(w[0] - last[0], w[1] - last[1]) * view.s >= 3) drag.stroke.push(w);
+    redraw(); return;
+  }
   if (!drag || drag.kind === "drawtap") return;
   const dx = sp[0] - drag.sp[0], dy = sp[1] - drag.sp[1];
   if (!drag.moved && Math.hypot(dx, dy) < 4) return;
@@ -1685,6 +1692,7 @@ function endPointer(ev) {
   if (mode === "map") return;
   const now = performance.now(), dbl = now - lastTap.t < 350 && Math.hypot(sp[0] - lastTap.x, sp[1] - lastTap.y) < 16;
   if (d.kind === "drawtap") { (mode === "gir" ? onGirTap : onDrawTap)(toW(sp[0], sp[1]), dbl, sp); lastTap = { t: now, x: sp[0], y: sp[1] }; return; }
+  if (d.kind === "stroke") { if (girLen(d.stroke) >= 1) girStroke(d.stroke); else onGirTap(toW(sp[0], sp[1]), false, sp); return; }
   if (d.moved) { if (girDrag(d)) girEdited(); else if (d.kind !== "pan") { solve(false); commit(); markMine(); } return; }
   // Toucher simple
   lastTap = { t: dbl ? 0 : now, x: sp[0], y: sp[1] };
@@ -1784,6 +1792,7 @@ function setMode(m) {
   if (mode === "gir" && m !== "gir") $("#girbar").hidden = true;
   mode = m; draft = []; hoverW = null; canvas.classList.toggle("drawing", m === "draw" || m === "gir");
   if (m === "gir") { gdraft = { pts: [], cusps: [], reverse: false }; $("#girbar").hidden = false; syncGirBar(); }
+  gstroke = null;
   updateUndo();
   $("#b-draw").setAttribute("aria-pressed", String(m === "draw")); $("#b-draw").classList.toggle("on", m === "draw");
   $("#hint").textContent = m === "draw" ? "Touchez pour placer les sommets · touchez le premier sommet pour fermer · Échap pour annuler" : "Glissez sommets, reculs, accès et bâtiments · survolez ou touchez un bord pour ajouter un sommet ou l'arrondir";
@@ -2850,6 +2859,7 @@ const GIR_PROFILES = {
 };
 let gir = null, girT = 0, girSel = -1, girPlay = 0;
 let gdraft = { pts: [], cusps: [], reverse: false };
+let gstroke = null, girSketchSeq = 0; // trait libre en attente de la trajectoire proposée
 const girSnap = (w) => [snap(w[0], 0.1), snap(w[1], 0.1)];
 const girSet = () => ({ ...GIR0, ...(site.gir || {}) });
 function ensureGir() { if (!site.gir) site.gir = { ...GIR0, kerb: { ...GIR0.kerb }, pts: [], cusps: [], reverse: false }; return site.gir; }
@@ -2880,14 +2890,14 @@ function girRun() {
   gir = null;
   if (Engine.ex && sec.length && layout && !layout.error) {
     let out;
-    // Le plan affiché est transmis tel quel : le moteur le contrôle sans le recalculer.
-    const lay = { paved: layout.paved, pads: layout.pads, stalls: layout.stalls.map((st) => st.q), islands: layout.islands, entries: layout.entries, cross: layout.cross, walks: layout.walks || [] };
-    try { out = Engine.call("giration_json", { site: engineInput(false), ...girEpure(g), layout: lay }); } catch (e) { out = { error: String(e) }; }
+    try { out = Engine.call("giration_json", { site: engineInput(false), ...girEpure(g), layout: girLayout() }); } catch (e) { out = { error: String(e) }; }
     if (out.error) toast("Giration impossible : " + out.error); else gir = out;
   }
   if (gir) { girT = Math.min(girT, gir.time); if (girSel >= gir.conflicts.length) girSel = -1; } else stopGirPlay();
   updateGirUI(); updateLayersUI(); redraw();
 }
+// Le plan affiché est transmis tel quel : le moteur le contrôle sans le recalculer.
+function girLayout() { return { paved: layout.paved, pads: layout.pads, stalls: layout.stalls.map((st) => st.q), islands: layout.islands, entries: layout.entries, cross: layout.cross, walks: layout.walks || [] }; }
 // Pose interpolée au temps t : [x, y, cap, angle bicyclette, distance, temps, tronçon].
 function girPoseAt(t) {
   const P = gir.poses; let lo = 0, hi = P.length - 1;
@@ -2950,7 +2960,11 @@ function drawGir() {
   });
 }
 function drawGirDraft() {
-  if (mode !== "gir" || !gdraft.pts.length) return;
+  if (mode !== "gir") return;
+  // Trait libre en cours (plein) ou en attente de la trajectoire proposée (tirets).
+  const st = drag && drag.kind === "stroke" ? drag.stroke : gstroke;
+  if (st && st.length > 1) { ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.setLineDash(st === gstroke ? [5, 5] : []); strokeLine(st); ctx.setLineDash([]); }
+  if (!gdraft.pts.length) return;
   drawGirPath(gdraft, hoverW);
   if (hoverW) { const a = gdraft.pts[gdraft.pts.length - 1], q = toS(hoverW); ctx.font = `600 11px ${getComputedStyle(document.body).fontFamily}`; ctx.fillStyle = C.label; ctx.textAlign = "left"; ctx.fillText(fmt1(Math.hypot(hoverW[0] - a[0], hoverW[1] - a[1])) + " m", q[0] + 12, q[1] - 10); }
 }
@@ -2961,7 +2975,7 @@ function girLen(pts) { let L = 0; for (let i = 1; i < pts.length; i++) L += Math
 function syncGirBar() {
   const g = gdraft, r = girRev(g), n = g.pts.length;
   for (const b of $("#gb-dir").children) b.setAttribute("aria-pressed", String((b.dataset.r === "1") === r));
-  $("#gb-dim").textContent = n ? `${n} point${n > 1 ? "s" : ""} · ${fmt1(girLen(g.pts))} m` : "Touchez le départ";
+  $("#gb-dim").textContent = n ? `${n} point${n > 1 ? "s" : ""} · ${fmt1(girLen(g.pts))} m` : "Touchez le départ, ou dessinez d'un trait";
   $("#gb-ok").disabled = n < 2; updateUndo();
 }
 function onGirTap(w, dbl) {
@@ -2990,10 +3004,27 @@ function finishGir() {
   setMode("edit"); girT = 0; girSel = -1; girRun(); commit(); markMine();
   if (gir) { const na = gir.conflicts.filter((k) => k.severity !== "conflit").length; toast(`${girCount()}${na ? `, ${na} alerte${na > 1 ? "s" : ""}` : ""} · ${fmt1(gir.length)} m · détail dans Giration`); }
 }
+// Trait libre : le moteur propose la trajectoire droite / arcs / droite la plus proche du trait,
+// rayons faisables par le véhicule, sans contact si une recherche locale en trouve une. Le trait
+// remplace les points déjà posés ; le sens de marche est celui du bouton Avant / Arrière.
+async function girStroke(stroke) {
+  if (!layout || layout.error) return;
+  const g = girSet(), rev = girRev(gdraft), seq = ++girSketchSeq;
+  gstroke = stroke; redraw(); toast("Recherche de la trajectoire…");
+  const input = { site: engineInput(false), layout: girLayout(), stroke, reverse: rev, profile: g.profile, speed_kmh: g.speed, margin: g.margin, kerb: g.kerb };
+  const out = await workerCall("giration_sketch_json", input, POOL + 1).catch((e) => ({ error: String(e) }));
+  if (seq !== girSketchSeq || mode !== "gir") return; // tracé annulé ou remplacé entre-temps
+  gstroke = null;
+  if (out.error || !out.pts || out.pts.length < 2) { toast("Trajectoire impossible : " + (out.error || "trait trop court")); redraw(); return; }
+  Object.assign(ensureGir(), { pts: out.pts.map(([x, y, k]) => withK(+x.toFixed(3), +y.toFixed(3), k)), cusps: [], reverse: rev });
+  setMode("edit"); girT = 0; girSel = -1; girRun(); commit(); markMine(); setSel({ type: "gir" });
+  const n = out.contacts;
+  toast(`Trajectoire proposée · écart au trait ${fmt1(out.deviation)} m${n ? ` · ${n} contact${n > 1 ? "s" : ""} restant${n > 1 ? "s" : ""}` : out.searched ? " · obstacles évités" : ""}`);
+}
 $("#gb-dir").addEventListener("click", (ev) => { const b = ev.target.closest("button[data-r]"); if (b && (b.dataset.r === "1") !== girRev(gdraft)) girFlip(); });
 $("#gb-ok").addEventListener("click", finishGir);
 $("#gb-x").addEventListener("click", () => setMode("edit"));
-$("#g-draw").addEventListener("click", () => { closeMenus(); stopGirPlay(); setSel(null); setMode("gir"); toast("Touchez le plan : départ, puis les points de passage"); });
+$("#g-draw").addEventListener("click", () => { closeMenus(); stopGirPlay(); setSel(null); setMode("gir"); toast("Touchez le plan point par point, ou dessinez la trajectoire d'un trait"); });
 $("#g-clear").addEventListener("click", girClear);
 
 // ---- Édition de la trajectoire tracée : toucher le trait la sélectionne (segment touché), toucher un

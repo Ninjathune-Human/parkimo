@@ -6,5 +6,6 @@ pub mod kinematics;
 pub mod places;
 pub mod planner;
 pub mod scene;
+pub mod sketch;
 pub mod sweep;
 pub mod vehicle;

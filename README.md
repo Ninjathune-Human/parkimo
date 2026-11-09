@@ -100,6 +100,8 @@ Menu **Modifier**, « Inclinaison des places » : 90° (défaut), 75°, 60°, 45
 
 Menu **Giration** : épure tracée à la main, comme dans Covadis. « Tracer une trajectoire », puis toucher le plan : départ, points de passage ; le bouton Avant / Arrière pose un point de rebroussement (rond) et le tronçon suivant se fait en marche arrière (tirets). Terminer, Entrée ou double toucher lance la simulation ; Annuler retire le dernier point pendant le tracé.
 
+Trait libre : dans le même mode, glisser dessine la trajectoire d'un trait (souris, doigt ou stylet) ; toucher pose toujours un point. Au lâcher, le moteur propose la trajectoire la plus proche du trait, comme un tracé routier : alignements droits et arcs de cercle tangents, une droite au départ et à l'arrivée (aussi courtes que dessinées, 0,5 m au moins), départ au début du trait. Les rayons ne descendent pas sous le rayon mini du point guidé (4,65 m en marche avant, 3,76 m en marche arrière) ; un trait tremblé ne crée pas de virage (un virage qui n'améliore pas l'ajustement de plus de 7 cm d'écart quadratique moyen est retiré) ; un demi-tour plus serré que deux rayons mini s'élargit en raquette (contre-virage, demi-tour, contre-virage). Le sens de marche est celui du bouton Avant / Arrière ; un trait remplace les points déjà posés. Si la trajectoire touche une bordure, un mur ou une limite, une recherche locale (Hooke et Jeeves, 400 simulations au plus, sommets voisins d'un contact écartés s'il le faut) déplace sommets et rayons : zéro contact d'abord, puis le moins d'alertes de marge, puis l'écart au trait le plus petit. Elle ne cherche pas un autre itinéraire ; s'il reste des contacts, le message les compte. Calcul sur un Web Worker, de quelques dixièmes de seconde à quelques secondes ; la trajectoire proposée est simulée, sélectionnée et modifiable comme les autres.
+
 Édition de la trajectoire tracée, avec les gestes des limites de parcelle :
 - toucher le trait sélectionne la trajectoire et le segment touché ; la croix ou Suppr efface la trajectoire (Annuler la rend) ;
 - toucher un point le sélectionne : il se glisse, la croix le retire (deux points au moins) ; double toucher sur un point le retire, sur le trait ajoute un point ;
@@ -175,7 +177,7 @@ src/proj.rs       projections Lambert-93 et CC (RGF93, GRS80)
 src/dxf.rs        export DXF AutoCAD 2010 géoréférencé
 src/giration/     simulateur de giration : véhicule (vehicle.rs), cinématique (kinematics.rs), bordures, murs et
                   limites (scene.rs), suivi de trajectoire (epure.rs), traces, enveloppes et conflits (sweep.rs),
-                  A* hybride (planner.rs), test des places (places.rs), contrat JSON (api.rs)
+                  A* hybride (planner.rs), test des places (places.rs), trait libre (sketch.rs), contrat JSON (api.rs)
 src/dxf_template.dxf squelette AutoCAD (calques, types de ligne, blocs d'habillage)
 src/symbols.json  symboles d'habillage (véhicules, arbres) et flèche au sol, partagés par l'interface et l'export
 src/lib.rs        orchestration, union de parcelles, interface WebAssembly (JSON en entrée, JSON en sortie)

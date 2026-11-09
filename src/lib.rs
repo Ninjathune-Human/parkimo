@@ -857,6 +857,15 @@ pub unsafe extern "C" fn giration_json(ptr: *const u8, n: usize) -> *const u8 {
     json_call(ptr, n, giration::api::simulate)
 }
 
+/// Trait libre : trajectoire droite / arcs / droite la plus proche du trait, sans contact si possible.
+///
+/// # Safety
+/// `ptr` doit pointer vers `n` octets JSON valides alloués par `alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn giration_sketch_json(ptr: *const u8, n: usize) -> *const u8 {
+    json_call(ptr, n, giration::api::sketch)
+}
+
 /// Test des places : entrée en marche avant, sortie en marche arrière, verdict par place.
 #[no_mangle]
 pub unsafe extern "C" fn giration_places_json(ptr: *const u8, n: usize) -> *const u8 {

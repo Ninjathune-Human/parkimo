@@ -292,6 +292,58 @@ fn yes() -> bool {
     true
 }
 
+/// Trait libre : le trait dessiné, le sens de marche et l'épure ; le plan affiché comme pour la simulation.
+#[derive(Clone, Deserialize)]
+pub struct SketchIn {
+    pub site: Site,
+    pub stroke: Vec<P2>,
+    #[serde(default)]
+    pub reverse: bool,
+    #[serde(default = "habile")]
+    pub profile: String,
+    #[serde(default = "speed")]
+    pub speed_kmh: f64,
+    #[serde(default = "margin")]
+    pub margin: f64,
+    #[serde(default = "KerbProfile::t2")]
+    pub kerb: KerbProfile,
+    #[serde(default)]
+    pub layout: Option<Drivable>,
+    /// Recherche d'évitement quand la trajectoire ajustée touche un obstacle.
+    #[serde(default = "yes")]
+    pub avoid: bool,
+}
+
+/// Trajectoire proposée, au format des points de l'interface ([x, y, flèche du segment qui part]).
+#[derive(Serialize)]
+pub struct SketchOut {
+    pub pts: Vec<[f64; 3]>,
+    pub contacts: usize,
+    pub alerts: usize,
+    /// Écart maximal du trait à la trajectoire (m).
+    pub deviation: f64,
+    pub searched: bool,
+    pub evals: usize,
+}
+
+pub fn sketch(inp: &SketchIn) -> SketchOut {
+    if inp.stroke.len() < 2 {
+        return SketchOut { pts: inp.stroke.iter().map(|p| [p[0], p[1], 0.0]).collect(), contacts: 0, alerts: 0, deviation: 0.0, searched: false, evals: 0 };
+    }
+    let lay = match &inp.layout {
+        Some(d) => d.layout(),
+        None => {
+            let mut site = inp.site.clone();
+            site.params.quick = false;
+            crate::solve(&site)
+        }
+    };
+    let scene = Scene::from_layout(&inp.site, &lay, &inp.kerb);
+    let v = Vehicle::peugeot_3008();
+    let o = super::sketch::sketch_on(&v, profile_of(&inp.profile), &scene, &inp.stroke, inp.reverse, inp.speed_kmh, inp.margin, inp.avoid);
+    SketchOut { pts: o.path.points(), contacts: o.contacts, alerts: o.alerts, deviation: o.deviation, searched: o.searched, evals: o.evals }
+}
+
 /// Test des places : toutes, ou celles de `stalls` ; `detail` ajoute la géométrie d'une place.
 #[derive(Clone, Deserialize)]
 pub struct PlacesIn {
