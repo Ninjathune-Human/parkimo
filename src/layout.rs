@@ -52,6 +52,9 @@ pub struct Acc {
     pub flow: Option<crate::circulation::Flow>,
     /// Places retirées à la conception, telles qu'elles étaient posées.
     pub removed: Vec<Quad>,
+    /// Têtes de colonne inclinées : aire de manœuvre prolongée vers l'arrière au-delà de l'angle de
+    /// l'allée, rendue à la chaussée (dans la zone circulable) sans bloquer les places voisines.
+    pub reach: Vec<Quad>,
 }
 
 impl Acc {
@@ -72,6 +75,7 @@ impl Acc {
             noue_ref: Vec::new(),
             flow: None,
             removed: Vec::new(),
+            reach: Vec::new(),
         }
     }
     /// L'emplacement `q` porte-t-il une place retirée à la conception ? Repérée par son centre, qui

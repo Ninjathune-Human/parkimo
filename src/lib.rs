@@ -351,6 +351,7 @@ fn solve_flow(site: &Site, flow: Option<(circulation::Flow, circulation::Circula
             .quads
             .iter()
             .filter(|q| !kept.contains_quad(q, 0.05))
+            .chain(acc.reach.iter())
             .copied()
             .collect();
         if cut.is_empty() {

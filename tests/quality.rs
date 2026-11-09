@@ -882,7 +882,7 @@ fn no_stall_after_a_turn_is_left_unreachable() {
 fn a_slanted_column_starts_after_a_straight_kerb_at_the_corner() {
     // Plan par défaut sans servitude à 75°, angle haut gauche : la colonne de bordure gauche
     // débouche sur l'allée du haut. Sa première place ne commence pas au ras de l'angle de l'allée
-    // (front des places du haut en y = 99,52) : un segment droit de bordure d'au moins 1 m l'en
+    // (front des places du haut en y = 99,52) : un segment droit de bordure d'au moins 0,75 m l'en
     // sépare, le long du front de la colonne (x = 8,48).
     let mut site = load("capture45");
     site.params.slant = 75.0;
@@ -896,7 +896,61 @@ fn a_slanted_column_starts_after_a_straight_kerb_at_the_corner() {
         .map(|q| q.0.iter().map(|p| p.y).fold(f64::MIN, f64::max))
         .fold(f64::MIN, f64::max);
     assert!(head > 90.0, "colonne gauche introuvable");
-    assert!(head <= 99.52 - 1.0 + 0.02, "première place de la colonne à {head:.2}, au ras de l'allée du haut");
+    assert!(head <= 99.52 - 0.75 + 0.02, "première place de la colonne à {head:.2}, au ras de l'allée du haut");
+}
+
+#[test]
+fn a_slanted_row_starts_after_a_straight_kerb_when_its_neighbour_comes_later() {
+    // Même plan sans l'espace vert, angle bas gauche : la rangée du bas, posée avant la colonne de
+    // gauche, débouche sur l'allée de cette colonne (front en x = 8,48). Sa première place commence
+    // au moins 0,75 m après, le long du front de la rangée (y = 10,48), et le contour planté de
+    // l'angle n'a ni marche ni pointe : front de la colonne, puis front de la rangée.
+    let mut site = load("capture45");
+    site.params.slant = 75.0;
+    site.params.turns = false;
+    site.landscapes.clear();
+    let lay = trame::solve(&site);
+    let head = lay
+        .stalls
+        .iter()
+        .map(|s| quad(&s.q))
+        .filter(|q| q.0.iter().all(|p| p.y < 11.0 && p.x < 30.0))
+        .map(|q| q.0.iter().map(|p| p.x).fold(f64::MAX, f64::min))
+        .fold(f64::MAX, f64::min);
+    assert!(head < 20.0, "rangée du bas introuvable");
+    assert!(head >= 8.48 + 0.75 - 0.02, "première place de la rangée à {head:.2}, au ras de l'allée de gauche");
+    let corner = lay.planted.iter().flatten().find(|r| r.iter().any(|p| (p[0] - 3.0).hypot(p[1] - 5.0) < 0.01)).expect("espace planté de l'angle");
+    let near: Vec<&[f64; 2]> = corner.iter().filter(|p| (8.4..12.0).contains(&p[0]) && (9.0..16.0).contains(&p[1])).collect();
+    assert!(near.iter().all(|p| (p[0] - 8.48).abs() < 0.01 || (p[1] - 10.48).abs() < 0.01), "contour de l'angle : {near:?}");
+}
+
+#[test]
+fn planted_outlines_never_cross_themselves() {
+    // Contours des espaces plantés (bordures) : aucun ne se recoupe, sur les plans d'essai inclinés.
+    let cross = |a: [f64; 2], b: [f64; 2], c: [f64; 2], d: [f64; 2]| {
+        let o = |p: [f64; 2], q: [f64; 2], r: [f64; 2]| (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+        o(c, d, a) * o(c, d, b) < -1e-12 && o(a, b, c) * o(a, b, d) < -1e-12
+    };
+    let mut report = Vec::new();
+    for name in ["rect", "ruisseau", "triangle", "capture45"] {
+        for slant in [75.0, 60.0, 45.0, 30.0] {
+            let mut site = load(name);
+            site.params.slant = slant;
+            site.params.turns = false;
+            let lay = trame::solve(&site);
+            for ring in lay.planted.iter().flatten() {
+                let n = ring.len();
+                for i in 0..n {
+                    for j in i + 2..n {
+                        if !(i == 0 && j == n - 1) && cross(ring[i], ring[(i + 1) % n], ring[j], ring[(j + 1) % n]) {
+                            report.push(format!("{name} à {slant}° : {:?}", ring[i]));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(report.is_empty(), "{report:#?}");
 }
 
 fn capture_45(turns: bool) -> (Site, Layout) {

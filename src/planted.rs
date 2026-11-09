@@ -145,7 +145,9 @@ pub fn build(
 
 /// Contour assaini avant l'arrondi : les côtés de moins de `eps` (marches, chanfreins et dents de
 /// quelques centimètres laissés par les opérations booléennes) sont résorbés dans l'angle formé par
-/// les côtés voisins ; les sommets alignés et les demi-tours sont retirés.
+/// les côtés voisins ; les sommets alignés, les demi-tours et les dents (pointe de moins de 30° dont
+/// un côté fait moins de 0,5 m) sont retirés. Une pointe longue, comme l'about d'une bande plantée
+/// le long de places à 30°, reste.
 fn tidy(ring: &[V2], eps: f64) -> Vec<V2> {
     let mut r = ring.to_vec();
     loop {
@@ -174,7 +176,9 @@ fn tidy(ring: &[V2], eps: f64) -> Vec<V2> {
         }
         let flat = (0..n).find(|&i| {
             let (p, v, q) = (r[(i + n - 1) % n], r[i], r[(i + 1) % n]);
-            (v - p).norm().cross((q - v).norm()).abs() < 0.017
+            let (a, b) = ((v - p).norm(), (q - v).norm());
+            let tooth = a.dot(b) < -(30f64.to_radians().cos()) && (v - p).len().min((q - v).len()) < 0.5;
+            a.cross(b).abs() < 0.017 || tooth
         });
         match flat {
             Some(i) => {
@@ -439,6 +443,19 @@ mod tests {
         let t = tidy(&r, 0.08);
         assert_eq!(t.len(), 4, "{t:?}");
         assert!(t.iter().any(|p| (*p - v2(10.0, 0.0)).len() < 1e-6), "{t:?}");
+    }
+
+    #[test]
+    fn tidy_removes_a_sharp_spike() {
+        // Dent de 26° (côté de 0,34 m) laissée par les opérations booléennes au front d'une rangée
+        // (plan rect à 60°) : retirée, le contour ne se recoupe plus une fois arrondi. La pointe
+        // longue d'une bande plantée reste.
+        let r = vec![v2(3.0, 77.0), v2(3.0, 71.42), v2(8.58, 68.2), v2(8.58, 71.5), v2(10.32, 71.52), v2(10.02, 71.37), v2(13.26, 77.0)];
+        let t = tidy(&r, 0.2);
+        assert!(!t.iter().any(|p| (*p - v2(10.32, 71.52)).len() < 1e-6), "{t:?}");
+        assert_eq!(t.len(), 6, "{t:?}");
+        let strip = vec![v2(0.0, 0.0), v2(30.0, 0.0), v2(0.0, 3.0)];
+        assert_eq!(tidy(&strip, 0.2).len(), 3);
     }
 
     /// Îlot 4 × 5 m (x 0 → 4, y 0 → 5), place à l'est ; voies de 5 m à l'ouest (axe x = −2,5,
