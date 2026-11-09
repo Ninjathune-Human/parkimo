@@ -759,7 +759,7 @@ let SKEL = false; // squelette des voies affiché (réglage de présentation, ho
 const PILL = { w: 68, h: 32 }; // pastilles du squelette
 let pills = []; // pastilles posées au dernier dessin (centres écran), pour le toucher
 let hoverEdge = null; // limite de parcelle survolée (ou touchée) : porte les boutons Sommet / Courbe
-const EBTN = { r: 9, gap: 22 };
+const EBTN = { r: 9, gap: 22, out: 16 }; // `out` : décalage vers l'extérieur sur la limite de parcelle
 try { NSKEL = localStorage.getItem("trame.nskel") === "1"; } catch (e) { /* stockage indisponible */ }
 try { SKEL = localStorage.getItem("trame.skel") === "1"; } catch (e) { /* stockage indisponible */ }
 
@@ -1283,10 +1283,11 @@ function entryPoint(en) { return edgeInfo(en.edge).at(en.t); }
 function objCorners(o) { const c = Math.cos(o.rot * Math.PI / 180), s = Math.sin(o.rot * Math.PI / 180), w = o.w / 2, h = o.h / 2; return [[-w, -h], [w, -h], [w, h], [-w, h]].map(([x, y]) => [o.cx + x * c - y * s, o.cy + x * s + y * c]); }
 function rotHandle(o) { const c = Math.cos(o.rot * Math.PI / 180), s = Math.sin(o.rot * Math.PI / 180), d = o.h / 2 + 18 / view.s * 1.6; return [o.cx - d * s, o.cy + d * c]; }
 
-// Boutons au milieu d'une limite survolée : ajouter un sommet, arrondir le segment.
+// Boutons au milieu d'une limite survolée : ajouter un sommet, arrondir le segment. Sur la limite de
+// parcelle, ils passent côté extérieur, hors des poignées de recul et des places.
 function edgeBtns(r) {
   const e = r && edgeRef(r); if (!e || e.L * view.s < 100) return [];
-  const m = toS(e.apex);
+  const a = toS(e.apex), d = r.g === "parcel" ? EBTN.out : 0, m = [a[0] - e.n[0] * d, a[1] + e.n[1] * d];
   // Boutons posés sur le segment, dans son inclinaison (écran) : « + » côté gauche (ou haut), arc côté droit.
   let ux = e.u[0], uy = -e.u[1]; if (ux < -1e-6 || (Math.abs(ux) <= 1e-6 && uy > 0)) { ux = -ux; uy = -uy; }
   const ang = Math.atan2(uy, ux);
