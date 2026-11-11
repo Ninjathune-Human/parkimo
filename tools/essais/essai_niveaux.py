@@ -17,7 +17,7 @@ with sync_playwright() as p:
         pg.wait_for_function("typeof layout !== 'undefined' && layout && layout.stalls && layout.stalls.length > 0", timeout=30000)
         pg.wait_for_timeout(1000)
         r = {"vue": name, "surface": pg.evaluate(ETAT)}
-        pg.evaluate("(params.silo = true, params.silo_niveaux = 4, syncParamsUI(), solve(false), fitView && 0)"); pg.wait_for_timeout(900)
+        pg.evaluate("(params.silo = true, params.silo_niveaux = 4, syncParamsUI(), solve(false), 0)"); pg.wait_for_timeout(900)
         o = pg.evaluate("({n: layout.stalls.length, rdc: layout.ouvrage.places_rdc, niveau: layout.ouvrage.places_niveau, dernier: layout.ouvrage.places_dernier, total: layout.metrics.stalls, epures: layout.ouvrage.girations.map(g => g.bas)})")
         r["silo4"] = [o, pg.evaluate(ETAT)]
         pg.screenshot(path=str(out / f"{name}-niveaux-rdc.png"))
