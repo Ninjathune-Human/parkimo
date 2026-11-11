@@ -9,7 +9,7 @@ pub mod bim;
 pub mod giration;
 pub mod ifc;
 pub mod noyaux;
-pub mod normes;
+pub use crate::normes;
 pub mod plateau;
 pub mod systemes;
 

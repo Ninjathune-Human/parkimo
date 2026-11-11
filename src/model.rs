@@ -128,6 +128,19 @@ pub struct Params {
     /// lance en arrière-plan, après avoir affiché le plan calculé sans lui.
     pub turns: bool,
     pub angle_hint: Option<f64>,
+    /// Programme : il fixe le jeu de règles contrôlé (`conformite`).
+    pub programme: Programme,
+}
+
+/// Programme du parc de stationnement.
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Programme {
+    /// Parc accessible au public : NF P 91-100, accessibilité et sécurité des ERP.
+    #[default]
+    Public,
+    /// Parc privatif (NF P 91-120, non intégrée) : les règles du parc public ne sont pas contrôlées.
+    Privatif,
 }
 
 impl Params {
@@ -234,6 +247,7 @@ impl Default for Params {
             quick: false,
             turns: true,
             angle_hint: None,
+            programme: Programme::Public,
         }
     }
 }
@@ -318,6 +332,8 @@ pub struct Layout {
     pub neufert_aisle: f64,
     pub evals: u32,
     pub warnings: Vec<String>,
+    /// Constats de conformité (vide pendant un calcul rapide).
+    pub constats: Vec<crate::conformite::Constat>,
     /// Parc en ouvrage : trame, poteaux, dalle, niveaux (absent pour un parking de surface).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ouvrage: Option<crate::ouvrage::OuvrageOut>,

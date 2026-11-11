@@ -1,4 +1,4 @@
-//! Valeurs normatives et réglementaires du module ouvrage, chacune avec sa source.
+//! Valeurs normatives et réglementaires communes à la surface et à l'ouvrage, chacune avec sa source.
 //!
 //! Les fonctions de calcul (longueur de rampe, flèche, pente admissible) sont des dérivations
 //! géométriques : elles ne figurent dans aucun texte et sont présentées comme « calculées ».
@@ -199,6 +199,42 @@ pub mod accessibilite {
     }
 }
 
+/// Recharge des véhicules électriques : code de la construction et de l'habitation.
+pub mod irve {
+    use super::{val, Val};
+
+    pub const SEUIL_NEUF: Val = val(10.0, "places", "CCH, art. L. 113-12");
+    pub const PART_PREEQUIPEE: Val = val(0.20, "", "CCH, art. L. 113-12 (bâtiment non résidentiel neuf)");
+    pub const TRANCHE_BORNE: Val = val(20.0, "places", "CCH, art. L. 113-13");
+
+    /// Places à pré-équiper : 20 % arrondis à l'unité supérieure, au-delà de 10 places.
+    pub fn pre_equipees(places: usize) -> usize {
+        if places as f64 <= SEUIL_NEUF.v {
+            return 0;
+        }
+        ((places as f64 * PART_PREEQUIPEE.v) - 1e-9).ceil() as usize
+    }
+
+    /// Points de recharge : un par tranche de 20 places, au-delà de 20 places.
+    pub fn bornes(places: usize) -> usize {
+        let tranche = TRANCHE_BORNE.v as usize;
+        if places <= tranche {
+            return 0;
+        }
+        places / tranche
+    }
+}
+
+/// Parcs de stationnement extérieurs : ombrage, gestion des eaux pluviales, ombrières.
+pub mod urbanisme {
+    use super::{val, Val};
+
+    pub const SEUIL_OMBRAGE: Val = val(500.0, "m²", "Code de l'urbanisme, art. L. 111-19-1");
+    pub const SEUIL_OMBRIERES: Val = val(1500.0, "m²", "Loi du 10 mars 2023 (APER), art. 40");
+    /// Part de la surface du parc à traiter (ombrage, perméabilité, ombrières).
+    pub const PART: Val = val(0.5, "", "Code de l'urbanisme, art. L. 111-19-1 ; loi APER, art. 40");
+}
+
 /// Longueur horizontale d'une rampe entre deux plateaux de dénivelé `h`, de pente `p`, avec des
 /// raccordements circulaires de rayons `rs` (sommet) et `rp` (pied). Calculé :
 /// L = h / p + (rs + rp) · p / 2.
@@ -289,6 +325,24 @@ mod tests {
         assert_eq!(nf::surlargeur_poteau(0.50), Some(0.10));
         assert_eq!(nf::surlargeur_poteau(0.25), Some(0.15));
         assert_eq!(nf::surlargeur_poteau(0.20), None);
+    }
+
+    #[test]
+    fn bornes_de_recharge_par_tranche_de_vingt_places() {
+        // L. 113-13 : au-delà de 20 places, un point de recharge par tranche de 20 places.
+        assert_eq!(irve::bornes(19), 0);
+        assert_eq!(irve::bornes(20), 0);
+        assert_eq!(irve::bornes(21), 1);
+        assert_eq!(irve::bornes(95), 4);
+    }
+
+    #[test]
+    fn places_pre_equipees_au_dela_de_dix_places() {
+        // L. 113-12 : parc de plus de 10 places d'un bâtiment non résidentiel neuf, 20 % des places.
+        assert_eq!(irve::pre_equipees(10), 0);
+        assert_eq!(irve::pre_equipees(11), 3);
+        assert_eq!(irve::pre_equipees(100), 20);
+        assert_eq!(irve::pre_equipees(101), 21);
     }
 
     #[test]

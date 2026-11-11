@@ -5,12 +5,14 @@
 //! optimisées (orientation × décalage) → accès, connectivité, PMR, IRVE → métriques.
 
 pub mod circulation;
+pub mod conformite;
 pub mod dxf;
 pub mod finish;
 pub mod geom;
 pub mod giration;
 pub mod layout;
 pub mod model;
+pub mod normes;
 pub mod occupation;
 pub mod ouvrage;
 pub mod perimeter;
@@ -206,6 +208,15 @@ pub(crate) fn mp_of_quads(qs: &[Quad]) -> MultiPolygon<f64> {
 }
 
 pub fn solve(site: &Site) -> Layout {
+    let mut lay = solve_plan(site);
+    // Le contrôle observe le plan fini ; pendant un glisser (calcul rapide), il attend le relâchement.
+    if !site.params.quick {
+        lay.constats = conformite::controler(site, &lay);
+    }
+    lay
+}
+
+fn solve_plan(site: &Site) -> Layout {
     if let Some(o) = site.ouvrage.as_ref().filter(|o| o.actif) {
         return ouvrage::solve(site, o);
     }
