@@ -18,6 +18,7 @@ pub mod ouvrage;
 pub mod perimeter;
 pub mod planted;
 pub mod proj;
+pub mod projet;
 pub mod region;
 pub mod rows;
 
