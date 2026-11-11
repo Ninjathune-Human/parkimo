@@ -1921,6 +1921,7 @@ mod tests {
             rampe: None,
             rampe_largeur: 3.25,
             implantation: Implantation::Auto,
+            ancres: [None; 2],
             hauteur: 2.9,
         }
     }
