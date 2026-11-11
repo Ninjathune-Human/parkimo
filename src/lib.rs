@@ -23,6 +23,7 @@ pub mod projet;
 pub mod region;
 pub mod resume;
 pub mod rows;
+pub mod scene;
 
 use geo::{Area, BooleanOps, MultiPolygon};
 use geom::{signed_area, v2, Quad, Region, V2};
@@ -215,6 +216,9 @@ pub fn solve(site: &Site) -> Layout {
     // Le contrôle observe le plan fini ; pendant un glisser (calcul rapide), il attend le relâchement.
     if !site.params.quick {
         lay.constats = conformite::controler(site, &lay);
+    }
+    if site.params.scene {
+        lay.scene = Some(scene::construire(site, &lay));
     }
     lay
 }

@@ -128,6 +128,8 @@ pub struct Params {
     /// lance en arrière-plan, après avoir affiché le plan calculé sans lui.
     pub turns: bool,
     pub angle_hint: Option<f64>,
+    /// Joindre au plan sa scène 3D (`scene`) : demandé par l'interface quand la vue 3D est ouverte.
+    pub scene: bool,
     /// Programme : il fixe le jeu de règles contrôlé (`conformite`).
     pub programme: Programme,
 }
@@ -247,6 +249,7 @@ impl Default for Params {
             quick: false,
             turns: true,
             angle_hint: None,
+            scene: false,
             programme: Programme::Public,
         }
     }
@@ -338,4 +341,7 @@ pub struct Layout {
     /// Parc en ouvrage : trame, poteaux, dalle, niveaux (absent pour un parking de surface).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ouvrage: Option<crate::ouvrage::OuvrageOut>,
+    /// Scène 3D du plan, si elle est demandée (`Params::scene`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scene: Option<crate::scene::Scene>,
 }
