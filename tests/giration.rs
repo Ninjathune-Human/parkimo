@@ -1115,7 +1115,12 @@ fn every_stall_of_the_reference_scenarios_is_rated() {
         assert!(out.places.iter().all(|p| ["vert", "bleu", "orange", "rouge", "gris"].contains(&p.verdict)));
         // Angle des roues dans l'état de la recherche : 35 à 45 ms par place en natif, mesurés pendant
         // que les autres tests tournent ; l'application répartit le calcul sur plusieurs Web Workers.
-        assert!(per < 60.0, "{name} : {per:.1} ms par place");
+        // La durée dépend de la machine : elle n'est contrôlée que sur demande (PARKIMO_PERF=1).
+        if std::env::var_os("PARKIMO_PERF").is_some() {
+            assert!(per < 60.0, "{name} : {per:.1} ms par place");
+        } else {
+            eprintln!("{name} : {per:.1} ms par place");
+        }
     }
 }
 
