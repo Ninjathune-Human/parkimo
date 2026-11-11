@@ -6,10 +6,10 @@
 //! hauteur des bâtiments, taille des arbres, hauteur des bordures et profondeur du socle.
 
 use crate::geom::{clean_ring, signed_area, v2, V2};
+use crate::ombrage::{a_trous, poly, reunion};
 use crate::model::{Layout, Site, P2};
 use crate::region;
-use geo::algorithm::bool_ops::unary_union;
-use geo::{BooleanOps, LineString, MultiPolygon, Polygon};
+use geo::{BooleanOps, LineString, MultiPolygon};
 use serde::Serialize;
 
 /// Dessus de l'enrobé, juste au-dessus du terrain.
@@ -128,42 +128,6 @@ fn anneau(ls: &LineString<f64>) -> Vec<P2> {
     clean_ring(&ls.0.iter().map(|c| v2(c.x, c.y)).collect::<Vec<_>>()).iter().map(|p| [r3(p.x), r3(p.y)]).collect()
 }
 
-fn poly(ring: &[P2]) -> Polygon<f64> {
-    region::to_poly(&ring.iter().map(|p| v2(p[0], p[1])).collect::<Vec<_>>())
-}
-
-fn reunion(rings: impl IntoIterator<Item = Vec<P2>>) -> MultiPolygon<f64> {
-    let polys: Vec<Polygon<f64>> = rings.into_iter().filter(|r| r.len() >= 3).map(|r| poly(&r)).collect();
-    unary_union(polys.iter())
-}
-
-/// Polygones d'une liste d'anneaux orientés (extérieur CCW, suivi de ses trous CW).
-fn polygones(rings: &[Vec<P2>]) -> MultiPolygon<f64> {
-    let mut out: Vec<(Vec<P2>, Vec<Vec<P2>>)> = Vec::new();
-    for r in rings {
-        let aire = signed_area(&r.iter().map(|p| v2(p[0], p[1])).collect::<Vec<_>>());
-        if aire >= 0.0 || out.is_empty() {
-            out.push((r.clone(), Vec::new()));
-        } else {
-            out.last_mut().unwrap().1.push(r.clone());
-        }
-    }
-    a_trous(out.iter().map(|(e, t)| std::iter::once(e).chain(t).cloned().collect::<Vec<_>>()))
-}
-
-/// Polygones donnés chacun par son contour puis ses trous.
-fn a_trous(polys: impl IntoIterator<Item = Vec<Vec<P2>>>) -> MultiPolygon<f64> {
-    let mut mp = MultiPolygon::new(Vec::new());
-    for p in polys {
-        if p.is_empty() || p[0].len() < 3 {
-            continue;
-        }
-        let trous = reunion(p[1..].iter().cloned());
-        mp = mp.union(&MultiPolygon::new(vec![poly(&p[0])]).difference(&trous));
-    }
-    mp
-}
-
 impl Scene {
     fn prismes(&mut self, mp: &MultiPolygon<f64>, matiere: Matiere, z0: f64, z1: f64, niveau: u32) {
         for p in &mp.0 {
@@ -225,8 +189,7 @@ pub fn construire(site: &Site, lay: &Layout) -> Scene {
 
     // Enrobé : voirie, fonds de rangées, allées transversales, accès et places, d'un seul tenant.
     // Sous un parc en ouvrage, la dalle basse le remplace.
-    let quads = lay.pads.iter().chain(&lay.cross).chain(&lay.entries).chain(lay.stalls.iter().map(|st| &st.q)).map(|q| q.to_vec());
-    let mut enrobe = polygones(&lay.paved).union(&reunion(quads));
+    let mut enrobe = crate::ombrage::parc(lay);
     if let Some(o) = &lay.ouvrage {
         enrobe = enrobe.difference(&MultiPolygon::new(vec![poly(&o.dalle)]));
     }

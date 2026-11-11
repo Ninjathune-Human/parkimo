@@ -101,6 +101,32 @@ function drawNoues() {
 }
 // Bassin de rétention : zone verte en creux. Haut de talus (trait fort), pied de talus (trait fin, fond
 // plus sombre) et barbules, du haut vers le bas, alternativement longues et courtes pour figurer la pente.
+// Ombre des arbres à maturité, telle que le contrôle d'ombrage la compte : houppiers réunis.
+function drawCanopies() {
+  const r = (params.canopy || 0) / 2 * view.s;
+  if (!(r > 1) || !layout.trees.length) return;
+  ctx.beginPath();
+  for (const t of layout.trees) { const [x, y] = toS(t); ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 2 * Math.PI); }
+  ctx.fillStyle = C.tree; ctx.globalAlpha = 0.16; ctx.fill(); ctx.globalAlpha = 1;
+}
+// Ombrières photovoltaïques : toiture des rangées couvertes, faîtage et trame des panneaux.
+function drawOmbrieres() {
+  const L = layout.ombrieres;
+  if (!L || !L.length) return;
+  ctx.fillStyle = "rgba(38, 52, 78, .8)";
+  ctx.beginPath(); for (const q of L) pathPoly(q); ctx.fill();
+  if (view.s < 1.5) return;
+  ctx.strokeStyle = "rgba(255, 255, 255, .3)"; ctx.lineWidth = Math.max(0.5, 0.05 * view.s); ctx.beginPath();
+  const mix = (p, r, t) => toS([p[0] + (r[0] - p[0]) * t, p[1] + (r[1] - p[1]) * t]);
+  for (const q of L) {
+    const d01 = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]), d12 = Math.hypot(q[2][0] - q[1][0], q[2][1] - q[1][1]);
+    // a → b : grand côté, le long de la rangée.
+    const [a, b, c, d] = d01 >= d12 ? q : [q[1], q[2], q[3], q[0]], n = Math.max(1, Math.round(Math.max(d01, d12) / 2.5));
+    for (let i = 1; i < n; i++) { const p = mix(a, b, i / n), r = mix(d, c, i / n); ctx.moveTo(p[0], p[1]); ctx.lineTo(r[0], r[1]); }
+    const m0 = mix(a, d, 0.5), m1 = mix(b, c, 0.5); ctx.moveTo(m0[0], m0[1]); ctx.lineTo(m1[0], m1[1]);
+  }
+  ctx.stroke();
+}
 function drawBasins() {
   const list = site.basins || [];
   list.forEach((P, bi) => {
@@ -203,8 +229,10 @@ function draw() {
       ctx.beginPath(); for (const q of layout.islands) pathPoly(q); ctx.fill();
       drawNoues();
     }
+    if (VIS.arbres && !layout.ouvrage) drawCanopies();
     // Couche Habillage : véhicules sous les arbres
     drawDressing();
+    drawOmbrieres();
     if (SKEL) { drawSkeleton(); drawTraverses(); }
     if (NSKEL) drawNoueSkeleton(); else noueBtns = [];
   }

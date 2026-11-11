@@ -49,7 +49,10 @@ fn le_resume_porte_le_bilan_et_les_constats_du_plan() {
     assert_eq!(constats.len(), plan.constats.len());
     let c = constats.iter().find(|c| c["code"] == "nf.place.largeur").unwrap();
     assert_eq!((c["statut"].as_str(), c["mesure"].as_f64(), c["exige"].as_f64()), (Some("conforme"), Some(2.5), Some(2.3)));
-    assert_eq!(r["ecarts"].as_u64(), Some(0));
+    // Par défaut, seul l'ombrage du parc extérieur est en écart (ombrage et ombrières).
+    let ecarts: Vec<&str> = constats.iter().filter(|c| c["statut"] == "ecart").map(|c| c["code"].as_str().unwrap()).collect();
+    assert_eq!(ecarts, ["urba.ombrage", "urba.ombrieres"]);
+    assert_eq!(r["ecarts"].as_u64(), Some(2));
     assert!(r.get("ouvrage").is_none());
 }
 

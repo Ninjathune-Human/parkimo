@@ -231,8 +231,17 @@ pub mod urbanisme {
 
     pub const SEUIL_OMBRAGE: Val = val(500.0, "m²", "Code de l'urbanisme, art. L. 111-19-1");
     pub const SEUIL_OMBRIERES: Val = val(1500.0, "m²", "Loi du 10 mars 2023 (APER), art. 40");
-    /// Part de la surface du parc à traiter (ombrage, perméabilité, ombrières).
+    /// Part de la superficie du parc à ombrager, ou à traiter pour les eaux pluviales.
     pub const PART: Val = val(0.5, "", "Code de l'urbanisme, art. L. 111-19-1 ; loi APER, art. 40");
+    /// Superficie du parc : emplacements, voies et cheminements, hors espaces verts.
+    pub const SUPERFICIE: &str = "Code de l'urbanisme, art. R. 111-25-7";
+    /// Ombrage par des arbres à canopée large répartis sur le parc : un arbre pour tant d'emplacements.
+    pub const PLACES_PAR_ARBRE: Val = val(3.0, "places", "Code de l'urbanisme, art. R. 111-25-8");
+    /// Procédé mixte : part minimale d'ombrières dans la moitié à ombrager, le reste revenant à des
+    /// dispositifs végétalisés (art. 40, I, dans sa rédaction issue de la loi du 26 novembre 2025).
+    pub const PART_OMBRIERES_MIXTE: Val = val(0.35, "", "Loi du 10 mars 2023 (APER), art. 40, I");
+    /// Exonération d'ombrières : parc ombragé par des arbres sur au moins la moitié de sa superficie.
+    pub const EXONERATION_ARBRES: &str = "Loi du 10 mars 2023 (APER), art. 40, II";
 }
 
 /// Longueur horizontale d'une rampe entre deux plateaux de dénivelé `h`, de pente `p`, avec des

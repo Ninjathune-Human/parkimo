@@ -128,6 +128,10 @@ pub struct Params {
     /// lance en arrière-plan, après avoir affiché le plan calculé sans lui.
     pub turns: bool,
     pub angle_hint: Option<f64>,
+    /// Diamètre de houppier des arbres à maturité (m) : mesure de l'ombre portée sur le parc.
+    pub canopy: f64,
+    /// Ombrières photovoltaïques sur les rangées intérieures ; leurs arbres disparaissent.
+    pub ombrieres: bool,
     /// Joindre au plan sa scène 3D (`scene`) : demandé par l'interface quand la vue 3D est ouverte.
     pub scene: bool,
     /// Programme : il fixe le jeu de règles contrôlé (`conformite`).
@@ -249,6 +253,8 @@ impl Default for Params {
             quick: false,
             turns: true,
             angle_hint: None,
+            canopy: 8.0,
+            ombrieres: false,
             scene: false,
             programme: Programme::Public,
         }
@@ -336,6 +342,10 @@ pub struct Layout {
     pub neufert_aisle: f64,
     pub evals: u32,
     pub warnings: Vec<String>,
+    /// Ombrières : une emprise par rangée couverte.
+    pub ombrieres: Vec<[P2; 4]>,
+    /// Ombrage du parc extérieur (vide pendant un calcul rapide et en ouvrage).
+    pub ombrage: crate::ombrage::Ombrage,
     /// Constats de conformité (vide pendant un calcul rapide).
     pub constats: Vec<crate::conformite::Constat>,
     /// Parc en ouvrage : trame, poteaux, dalle, niveaux (absent pour un parking de surface).

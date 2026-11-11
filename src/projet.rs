@@ -63,6 +63,8 @@ pub const REGLAGES: &[Reglage] = &[
     nombre("door_w", "Largeur d'entrée du bâtiment", "m", 3.0, 0.5, 10.0),
     Reglage { cle: "planter_every", libelle: "Îlot planté toutes les", unite: "places", defaut: Defaut::N(8.0), genre: Genre::Entier { min: 0.0, max: 100.0 } },
     nombre("cap", "Îlot en bout de rangée", "m", 1.5, 0.0, 10.0),
+    nombre("canopy", "Houppier des arbres à maturité (diamètre)", "m", 8.0, 0.0, 20.0),
+    Reglage { cle: "ombrieres", libelle: "Ombrières photovoltaïques sur les rangées", unite: "", defaut: Defaut::B(false), genre: Genre::Bool },
     nombre("pmr_ratio", "Places PMR", "%", 2.0, 0.0, 100.0),
     nombre("irve_ratio", "Pré-équipement IRVE", "%", 20.0, 0.0, 100.0),
     nombre("irve_equip_ratio", "Équipement IRVE (bornes)", "%", 5.0, 0.0, 100.0),
@@ -412,6 +414,7 @@ impl Projet {
                 "irve_ratio": self.reglage("irve_ratio") / 100.0,
                 "irve_equip_ratio": self.reglage("irve_equip_ratio") / 100.0,
                 "angle": v("angle"), "quick": false, "angle_hint": null, "turns": false, "programme": v("programme"),
+                "canopy": v("canopy"), "ombrieres": p.get("ombrieres").and_then(Value::as_bool) == Some(true),
             },
             "ouvrage": ouvrage,
         })

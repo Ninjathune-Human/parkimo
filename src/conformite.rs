@@ -212,31 +212,78 @@ fn recharge(out: &mut Vec<Constat>, lay: &Layout) {
     }
 }
 
-/// Parc extérieur : obligations déclenchées par la surface, que le plan ne permet pas de trancher.
+/// Parc extérieur : ombrage, ombrières et eaux pluviales, selon la superficie du parc (R. 111-25-7).
+/// L'ombre est mesurée par `ombrage` ; les exonérations pour contraintes techniques, patrimoniales
+/// ou économiques ne se lisent pas sur un plan et restent à faire valoir par le concepteur.
 fn parc_exterieur(out: &mut Vec<Constat>, lay: &Layout) {
-    let surface = lay.metrics.paved_area;
-    for (code, libelle, seuil, detail) in [
-        (
-            "urba.ombrage",
-            "Ombrage et eaux pluviales",
-            urbanisme::SEUIL_OMBRAGE,
-            "Surface enrobée de plus de 500 m² : ombrage et gestion des eaux pluviales sur la moitié de la surface du parc, à justifier",
-        ),
-        (
-            "urba.ombrieres",
-            "Ombrières à énergie renouvelable",
-            urbanisme::SEUIL_OMBRIERES,
-            "Surface enrobée de plus de 1 500 m² : ombrières à énergie renouvelable sur la moitié de la surface du parc, à justifier",
-        ),
-    ] {
-        if surface > seuil.v {
-            let mut c = info(code, libelle, seuil.source, detail);
-            c.mesure = Some(r3(surface));
-            c.exige = Some(seuil.v);
-            c.unite = seuil.unite.into();
-            out.push(c);
-        }
+    let o = &lay.ombrage;
+    if o.surface <= urbanisme::SEUIL_OMBRAGE.v {
+        return;
     }
+    let pct = |x: f64| (1000.0 * x / o.surface).round() / 10.0;
+    let moitie = 100.0 * urbanisme::PART.v;
+    let (arbres, ombrieres, total) = (pct(o.arbres), pct(o.ombrieres), pct(o.total));
+    let places = lay.metrics.stalls;
+    let composition = format!(
+        "Arbres {} % (houppiers de {} m à maturité, {} arbres pour {} places), ombrières {} %",
+        fr1(arbres), fr1(o.houppier), o.nb_arbres, places, fr1(ombrieres)
+    );
+    let constat = |code: &str, libelle: &str, source: String, ok: bool, mesure: f64, exige: f64, detail: String| Constat {
+        code: code.into(),
+        libelle: libelle.into(),
+        source,
+        statut: if ok { Statut::Conforme } else { Statut::Ecart },
+        mesure: Some(mesure),
+        exige: Some(exige),
+        unite: "%".into(),
+        detail,
+    };
+
+    // Ombrage sur la moitié du parc : arbres, ombrières, ou un arbre pour trois emplacements.
+    let un_pour_trois = o.nb_arbres as f64 * urbanisme::PLACES_PAR_ARBRE.v >= places as f64;
+    let (source, detail) = if total < moitie && un_pour_trois {
+        (
+            format!("{} ; {}", urbanisme::SEUIL_OMBRAGE.source, urbanisme::PLACES_PAR_ARBRE.source),
+            format!("{composition}. Obligation remplie par un arbre pour trois emplacements, à canopée large et répartis sur le parc"),
+        )
+    } else {
+        (format!("{} ; {}", urbanisme::SEUIL_OMBRAGE.source, urbanisme::SUPERFICIE), format!("{composition}. Ombre prise à la verticale des houppiers et des ombrières"))
+    };
+    out.push(constat("urba.ombrage", "Ombrage du parc", source, total >= moitie || un_pour_trois, total, moitie, detail));
+
+    // Ombrières à énergie renouvelable : moitié du parc, procédé mixte, ou exonération par les arbres.
+    if o.surface > urbanisme::SEUIL_OMBRIERES.v {
+        let mixte = (1000.0 * urbanisme::PART.v * urbanisme::PART_OMBRIERES_MIXTE.v).round() / 10.0;
+        let source = urbanisme::SEUIL_OMBRIERES.source.to_string();
+        out.push(if ombrieres >= moitie {
+            constat("urba.ombrieres", "Ombrières à énergie renouvelable", source, true, ombrieres, moitie, String::new())
+        } else if ombrieres >= mixte && total >= moitie {
+            let detail = format!("Procédé mixte : ombrières sur au moins {} % du parc, complétées par des arbres jusqu'à la moitié ({} % à l'ombre)", fr1(mixte), fr1(total));
+            constat("urba.ombrieres", "Ombrières à énergie renouvelable", source, true, ombrieres, mixte, detail)
+        } else if arbres >= moitie {
+            let detail = format!("Exonération à faire valoir : les arbres ombragent {} % du parc ({})", fr1(arbres), urbanisme::EXONERATION_ARBRES);
+            constat("urba.ombrieres", "Ombrières à énergie renouvelable", source, true, ombrieres, moitie, detail)
+        } else {
+            let detail = format!(
+                "Ombrières sur la moitié du parc, ou sur {} % au moins avec des arbres jusqu'à la moitié ({} % à l'ombre), sauf exonération",
+                fr1(mixte), fr1(total)
+            );
+            constat("urba.ombrieres", "Ombrières à énergie renouvelable", source, false, ombrieres, moitie, detail)
+        });
+    }
+
+    out.push(info(
+        "urba.eaux_pluviales",
+        "Gestion des eaux pluviales",
+        urbanisme::SEUIL_OMBRAGE.source,
+        "Revêtements perméables, noues ou espaces verts d'infiltration sur la moitié de la superficie du parc, à justifier",
+    ));
+}
+
+/// Nombre à une décimale au plus, virgule française.
+fn fr1(x: f64) -> String {
+    let s = format!("{:.1}", x);
+    s.strip_suffix(".0").unwrap_or(&s).replace('.', ",")
 }
 
 /// Parc en ouvrage : poteaux en tête de place, hauteur d'étage, évacuation, compartimentage.

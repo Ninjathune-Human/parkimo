@@ -5,7 +5,7 @@ from playwright.sync_api import sync_playwright
 CAS = {
   "ruisseau": "site = normSite(EXAMPLES.ruisseau()); params = { ...DEFAULT_PARAMS };",
   "courbe": "site = normSite(EXAMPLES.courbe()); params = { ...DEFAULT_PARAMS };",
-  "arcs_et_objets": """site = normSite(EXAMPLES.ruisseau()); params = { ...DEFAULT_PARAMS, slant: 60, pmr_ratio: 3, door_w: 4, building_margin: 1.5, planter_every: 6.4 };
+  "arcs_et_objets": """site = normSite(EXAMPLES.ruisseau()); params = { ...DEFAULT_PARAMS, slant: 60, pmr_ratio: 3, door_w: 4, building_margin: 1.5, planter_every: 6.4, canopy: 10, ombrieres: true };
     site.arcs[1] = 0.2; site.arcs[3] = -0.1;
     site.landscapes[0][1] = [30, 8, 0.12];
     site.basins.push([[60, 10], [80, 10, -0.2], [80, 30], [60, 30]]);

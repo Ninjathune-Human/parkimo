@@ -44,7 +44,8 @@ fn les_reglages_par_defaut_ne_donnent_aucun_ecart() {
     ] {
         assert_eq!(trouve(&cs, code).statut, Statut::Conforme, "{code}");
     }
-    assert!(cs.iter().all(|c| c.statut != Statut::Ecart), "{:?}", cs);
+    // Seul l'ombrage du parc extérieur reste à traiter : il dépend des arbres et des ombrières choisis.
+    assert!(cs.iter().all(|c| c.statut != Statut::Ecart || c.code.starts_with("urba.")), "{:?}", cs);
     // Chaque constat cite sa source.
     assert!(cs.iter().all(|c| !c.source.is_empty() && !c.libelle.is_empty()));
 }
@@ -141,18 +142,74 @@ fn sans_pre_equipement_la_recharge_est_en_ecart() {
     assert_eq!((c.statut, c.exige), (Statut::Ecart, Some(parkimo::normes::irve::bornes(n) as f64)));
 }
 
+/// Plan du rectangle de référence après réglage des plantations, du houppier et des ombrières.
+fn ombrage(ilot: u32, houppier: f64, ombrieres: bool) -> parkimo::model::Layout {
+    plan("rect", |v| {
+        v["params"]["planter_every"] = json!(ilot);
+        v["params"]["canopy"] = json!(houppier);
+        v["params"]["ombrieres"] = json!(ombrieres);
+    })
+}
+
 #[test]
-fn un_grand_parc_exterieur_signale_l_ombrage_et_les_ombrieres() {
-    let lay = plan("rect", |_| {});
-    assert!(lay.metrics.paved_area > 1500.0);
-    for code in ["urba.ombrage", "urba.ombrieres"] {
-        let c = trouve(&lay.constats, code);
-        assert_eq!((c.statut, c.mesure), (Statut::Info, Some(lay.metrics.paved_area)), "{code}");
-    }
-    // Petit parc : sous les deux seuils, rien à signaler.
+fn l_ombrage_est_mesure_et_en_ecart_sous_la_moitie_du_parc() {
+    let lay = ombrage(8, 8.0, false);
+    let o = &lay.ombrage;
+    assert!(o.surface > 1500.0 && o.total < 0.5 * o.surface);
+    let c = trouve(&lay.constats, "urba.ombrage");
+    assert_eq!((c.statut, c.exige, c.unite.as_str()), (Statut::Ecart, Some(50.0), "%"));
+    assert!((c.mesure.unwrap() - 100.0 * o.total / o.surface).abs() < 0.06, "{:?}", c);
+    assert!(c.detail.contains("houppiers de 8 m") && c.source.contains("L. 111-19-1"), "{:?}", c);
+    // Sans ombrière, l'obligation de la loi APER n'est pas remplie non plus.
+    let c = trouve(&lay.constats, "urba.ombrieres");
+    assert_eq!((c.statut, c.mesure, c.exige), (Statut::Ecart, Some(0.0), Some(50.0)));
+    // La gestion des eaux pluviales reste à justifier.
+    assert_eq!(trouve(&lay.constats, "urba.eaux_pluviales").statut, Statut::Info);
+}
+
+#[test]
+fn des_arbres_ombrageant_la_moitie_du_parc_satisfont_l_ombrage_et_exonerent_des_ombrieres() {
+    let lay = ombrage(3, 8.0, false);
+    assert!(lay.ombrage.arbres >= 0.5 * lay.ombrage.surface, "{:?}", lay.ombrage);
+    assert_eq!(trouve(&lay.constats, "urba.ombrage").statut, Statut::Conforme);
+    let c = trouve(&lay.constats, "urba.ombrieres");
+    assert_eq!(c.statut, Statut::Conforme);
+    assert!(c.detail.contains("Exonération"), "{:?}", c);
+}
+
+#[test]
+fn un_arbre_pour_trois_places_satisfait_l_ombrage_meme_avec_de_petits_houppiers() {
+    let lay = ombrage(2, 3.0, false);
+    assert!(lay.ombrage.total < 0.5 * lay.ombrage.surface && 3 * lay.trees.len() >= lay.stalls.len());
+    let c = trouve(&lay.constats, "urba.ombrage");
+    assert_eq!(c.statut, Statut::Conforme);
+    assert!(c.detail.contains("un arbre pour trois") && c.source.contains("R. 111-25-8"), "{:?}", c);
+    // La loi APER, elle, demande une ombre effective : pas d'exonération.
+    assert_eq!(trouve(&lay.constats, "urba.ombrieres").statut, Statut::Ecart);
+}
+
+#[test]
+fn des_ombrieres_completees_par_des_arbres_forment_un_procede_mixte() {
+    // Ombrières sur les rangées (plus de 17,5 % du parc) : il manque de l'ombre avec de petits arbres.
+    let lay = ombrage(8, 8.0, true);
+    let o = &lay.ombrage;
+    assert!(o.ombrieres > 0.175 * o.surface && o.ombrieres < 0.5 * o.surface && o.total < 0.5 * o.surface);
+    assert_eq!(trouve(&lay.constats, "urba.ombrieres").statut, Statut::Ecart);
+    assert_eq!(trouve(&lay.constats, "urba.ombrage").statut, Statut::Ecart);
+    // Avec des houppiers plus larges, arbres et ombrières ombragent la moitié du parc.
+    let lay = ombrage(8, 12.0, true);
+    assert!(lay.ombrage.total >= 0.5 * lay.ombrage.surface);
+    let c = trouve(&lay.constats, "urba.ombrieres");
+    assert_eq!((c.statut, c.exige), (Statut::Conforme, Some(17.5)));
+    assert!(c.detail.contains("mixte"), "{:?}", c);
+    assert_eq!(trouve(&lay.constats, "urba.ombrage").statut, Statut::Conforme);
+}
+
+#[test]
+fn un_petit_parc_n_est_pas_soumis_a_l_ombrage() {
     let petit = json!({ "parcel": [[0, 0], [22, 0], [22, 18], [0, 18]], "entries": [{ "edge": 0, "t": 0.5 }] });
     let lay = plan_de(petit, |_| {});
-    assert!(lay.metrics.paved_area < 500.0, "{} m²", lay.metrics.paved_area);
+    assert!(lay.ombrage.surface < 500.0, "{} m²", lay.ombrage.surface);
     assert!(!codes(&lay.constats).iter().any(|c| c.starts_with("urba.")));
 }
 
