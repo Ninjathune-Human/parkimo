@@ -4,9 +4,11 @@ import base64
 import pathlib
 import sys
 
+from page import source
+
 root = pathlib.Path(__file__).resolve().parent.parent
 wasm = pathlib.Path(sys.argv[1]).read_bytes()
-page = (root / "web" / "app.html").read_text(encoding="utf-8")
+page = source(root)
 assert "__WASM_BASE64__" in page and "__SYMBOLS__" in page
 # Symboles d'habillage (tools/symbols.py), partagés avec les blocs DXF.
 symbols = (root / "src" / "symbols.json").read_text(encoding="utf-8")

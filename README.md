@@ -213,6 +213,10 @@ src/giration/     simulateur de giration : véhicule (vehicle.rs), cinématique 
 src/ouvrage/      parking en ouvrage : normes sourcées, plateau et densité de trame, systèmes constructifs, modèle BIM, écriture IFC4
 src/dxf_template.dxf squelette AutoCAD (calques, types de ligne, blocs d'habillage)
 src/symbols.json  symboles d'habillage (véhicules, arbres) et flèche au sol, partagés par l'interface et l'export
+src/normes.rs     référentiel de règles commun : chaque valeur avec son unité et sa source
+src/conformite.rs contrôle du plan fini : constats (conforme, écart, information) par règle
+src/projet.rs     projet au format de l'interface, conversion en entrée du moteur, table des réglages
+src/commandes.rs  commandes sur le projet (JSON), en transaction ; catalogue pour une IA
 src/lib.rs        orchestration, union de parcelles, interface WebAssembly (JSON en entrée, JSON en sortie)
 tests/quality.rs  invariants : aucun chevauchement, aucune place hors zone ou sans accès, quotas, 60 parcelles aléatoires,
                   flèches dans la chaussée, sens unique fortement connexe, bascule des voies par le squelette,
@@ -228,8 +232,17 @@ examples/dxf.rs   export d'un scénario en DXF
 examples/ifc.rs   export d'un scénario en IFC (scenarios/silo.json)
 tests/ouvrage.rs  plateaux sans chevauchement ni poteau dans les allées (trois densités), identifiants stables, export IFC
 tools/check_ifc.py validation d'un fichier IFC (ifcopenshell)
-web/app.html      interface (canvas, poignées, panneaux, mode carte, couches et calques, export)
+tests/conformite.rs constats de conformité, surface et ouvrage
+tests/projet.rs   projet : même entrée du moteur et même nombre de places que l'interface (tests/fixtures/projets.json)
+tests/commandes.rs commandes : effets, refus, transaction, catalogue
+web/app.html      squelette de la page (panneaux, menus)
+web/style.css     styles
+web/js/           scripts, assemblés dans l'ordre de leur numéro (moteur, données, historique, vue, rendu, calcul,
+                  interaction, menus, paramètres, habillage, carte IGN, giration, export, nouveau projet, démarrage)
+tools/page.py     source de la page : squelette, styles et scripts réunis
 tools/bundle.py   assemble dist/index.html avec le moteur embarqué
+tools/essais/     essais de la page dans Chrome : page locale (interface courante, moteur de la dernière page
+                  compilée), projets de référence
 tools/wrap_w2j.py repli JavaScript du moteur (wasm2js)
 tools/symbols.py  génère src/symbols.json
 tools/dxf_template.py génère src/dxf_template.dxf (ezdxf) avec les blocs de src/symbols.json

@@ -1,10 +1,12 @@
 """Assemble une page d'essai locale : interface courante (web/app.html) et moteur WebAssembly tiré
 de la dernière page compilée par l'intégration continue (dist/index.html). Usage : localpage.py depot sortie.html"""
 import pathlib, re, sys
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from page import source
 root = pathlib.Path(sys.argv[1])
 built = (root / "dist" / "index.html").read_text(encoding="utf-8")
 wasm = re.search(r'<script id="engine-wasm" type="application/octet-stream">(.*?)</script>', built, re.S).group(1)
-page = (root / "web" / "app.html").read_text(encoding="utf-8")
+page = source(root)
 symbols = (root / "src" / "symbols.json").read_text(encoding="utf-8")
 body = page.replace("__WASM_BASE64__", wasm).replace("__SYMBOLS__", symbols).replace("__ENGINE_JS__", "")
 head, rest = body.split("<style>", 1)
