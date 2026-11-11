@@ -14,10 +14,9 @@
 - **Les gestes de l'interface ne passent pas encore par les commandes.** `appliquer(commandes)` existe dans la page (et `window.parkimo`), s'annule comme un geste, mais glisser un sommet modifie toujours le projet directement. Migration geste par geste, quand un geste est repris.
 - **Interface en fichiers** : squelette, styles, quinze scripts par section, assemblés par `tools/page.py` ; page identique à l'octet près au moment du découpage.
 - **Tests longs à part** : deux tests marqués `#[ignore]`, lancés par la tâche `tests-longs`.
-- **Tag `deploye`** : flux `tag-deploye.yml`, déclenché par la fin du déploiement GitHub Pages.
+- **Publication par l'intégration continue** (source GitHub Pages réglée sur « GitHub Actions » le 11 novembre) : les pages compilées sortent du dépôt ; une branche de travail reçoit sa page sur `compile/<branche>`, `main` est publié puis le tag `deploye` est déplacé sur le commit publié. Les anciennes adresses `essai/` et `giration/` renvoient vers l'application.
 
 ## Reste ouvert
 
-- Sortir les pages compilées du dépôt demande de régler GitHub Pages sur « GitHub Actions » (réglage du dépôt, hors de portée d'ici).
 - Commandes absentes : voies du squelette (sens, nombre de voies), noues, noyaux du silo, trajectoires de giration, objets à sommets courbes.
 - Lecture pour une IA : le plan complet est volumineux ; prévoir un résumé (bilan, constats, objets et leurs rangs).

@@ -1,11 +1,12 @@
-# Compile le moteur en WebAssembly et la page (dist/index.html, dist/trame.html, index.html)
-# sur chaque branche de travail, puis enregistre la page compilée sur la branche.
-# La branche main n'est pas concernée : la version publiée ne change qu'à la fusion.
-name: Compiler la page
+# Compile le moteur en WebAssembly et assemble la page (dist/index.html).
+# - Branche de travail : la page compilée est poussée sur la branche `compile/<branche>` (un seul
+#   commit, réécrit à chaque fois), pour être essayée sans entrer dans l'historique du projet.
+# - main : la page est publiée sur GitHub Pages, puis le tag `deploye` est déplacé sur le commit publié.
+name: Compiler et publier
 
 on:
   push:
-    branches-ignore: [main]
+    branches-ignore: ["compile/**"]
   workflow_dispatch:
 
 permissions:
@@ -13,7 +14,8 @@ permissions:
 
 concurrency:
   group: compiler-${{ github.ref }}
-  cancel-in-progress: true
+  # Une publication en cours va à son terme.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   compiler:
@@ -35,21 +37,61 @@ jobs:
         run: |
           wasm-opt --version
           ./build.sh
-          cp dist/index.html index.html
 
       - uses: actions/upload-artifact@v4
         with:
           name: parkimo-${{ github.ref_name }}
           path: dist/index.html
 
-      - name: Enregistrer la page compilée sur la branche
+      - name: Page compilée de la branche (compile/<branche>)
+        if: github.ref != 'refs/heads/main'
         run: |
+          mkdir "$RUNNER_TEMP/compile"
+          cp dist/index.html dist/trame.html "$RUNNER_TEMP/compile/"
+          cd "$RUNNER_TEMP/compile"
+          git init -q -b page
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add dist/index.html dist/trame.html index.html
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m "Page compilée (${GITHUB_SHA::7})"
-          git push
+          git add -A
+          git commit -q -m "Page compilée de ${GITHUB_REF_NAME} (${GITHUB_SHA::7})"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" "page:refs/heads/compile/${GITHUB_REF_NAME}"
+
+      - name: Site à publier
+        if: github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p site/essai site/giration
+          cp dist/index.html site/index.html
+          # Anciennes pages d'essai des modules, désormais réunis : renvoi vers l'application.
+          for d in essai giration; do
+            printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=../"><title>Parkimo</title><a href="../">Parkimo</a>\n' > "site/$d/index.html"
+          done
+
+      - uses: actions/upload-pages-artifact@v5
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: site
+
+  publier:
+    if: github.ref == 'refs/heads/main'
+    needs: compiler
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - id: deploiement
+        uses: actions/deploy-pages@v5
+
+      - uses: actions/checkout@v4
+
+      - name: Déplacer le tag deploye sur le commit publié
+        run: |
+          git tag -f deploye "$GITHUB_SHA"
+          git push -f origin deploye
 
   # Tests longs (places inclinées sur des parcelles aléatoires) : à part, pour ne pas retarder la page.
   tests-longs:
