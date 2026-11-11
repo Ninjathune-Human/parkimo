@@ -30,6 +30,34 @@ __STYLE__
   </div>
 
   <button class="glass fab" id="b-fit" aria-label="Zoom sur les zones travaillées" title="Zoom sur les zones travaillées (F)"><svg width="18" height="18" viewBox="0 0 20 20"><path d="M3 7.5V3h4.5M12.5 3H17v4.5M17 12.5V17h-4.5M7.5 17H3v-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="7" y="7" width="6" height="6" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+  <button class="glass fab" id="b-ia" aria-label="Assistant" title="Assistant" aria-expanded="false" aria-controls="ia"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5 11.7 7a2.2 2.2 0 0 0 1.3 1.3l4.5 1.7-4.5 1.7a2.2 2.2 0 0 0-1.3 1.3L10 17.5 8.3 13A2.2 2.2 0 0 0 7 11.7L2.5 10 7 8.3A2.2 2.2 0 0 0 8.3 7z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
+  <section id="ia" class="glass" hidden aria-label="Assistant">
+    <header id="ia-head">
+      <h3>Assistant</h3>
+      <button class="tb icon" id="ia-new" aria-label="Nouvelle conversation" title="Nouvelle conversation"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 9a5.5 5.5 0 1 0 1.8-4.1M3.2 2.8v2.6h2.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="tb icon" id="ia-close" aria-label="Fermer l'assistant"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="m3 3 8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+    </header>
+    <div id="ia-body">
+    <div id="ia-log" aria-live="polite"></div>
+    <div id="ia-vide">
+      <p class="note">Décrivez la modification : l'assistant agit sur le plan, puis rend compte des places et de la conformité. Chaque action s'annule.</p>
+      <button class="ia-s" data-q="Passe les places à 60° et dis-moi ce que j'y gagne ou j'y perds.">Passer les places à 60°</button>
+      <button class="ia-s" data-q="Le parc est-il conforme ? Corrige les écarts s'il y en a.">Vérifier et corriger la conformité</button>
+      <button class="ia-s" data-q="Ajoute un bassin de rétention d'environ 300 m² là où il coûte le moins de places.">Ajouter un bassin de 300 m²</button>
+    </div>
+    <details id="ia-cfg">
+      <summary><span>Clé d'API et modèle</span><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
+      <div class="field"><label for="ia-key">Clé d'API</label><input id="ia-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></div>
+      <div class="field"><label for="ia-model">Modèle</label><input id="ia-model" type="text" autocomplete="off" spellcheck="false" list="ia-models"><datalist id="ia-models"><option value="claude-sonnet-5-5"></option><option value="claude-opus-5-5"></option><option value="claude-haiku-5-5"></option><option value="claude-fable-5-2"></option></datalist></div>
+      <label class="field" for="ia-keep"><span>Mémoriser sur cet appareil</span><input type="checkbox" class="switch" role="switch" id="ia-keep"></label>
+      <p class="note">La clé reste dans ce navigateur. Les demandes partent directement vers l'API d'Anthropic, avec un résumé du projet : géométrie, réglages, bilan. <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">Obtenir une clé</a></p>
+    </details>
+    </div>
+    <form id="ia-form">
+      <textarea id="ia-q" rows="1" placeholder="Demander une modification" aria-label="Demande à l'assistant"></textarea>
+      <button class="tb primary icon" id="ia-go" aria-label="Envoyer"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3.5M3.8 7.5 8 3.3l4.2 4.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </form>
+  </section>
 
   <div id="side">
     <section id="stats" class="glass" data-open="true">

@@ -261,7 +261,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 32px
 .sw-ico { flex: none; color: var(--label-2); margin: 0 -2px; }
 
 /* Mode carte */
-body.mapmode #b-fit, body.mapmode #empty, body.mapmode #side, body.mapmode #toolbar, body.mapmode #selbar, body.mapmode #hint, body.mapmode .menu { display: none !important; }
+body.mapmode #b-fit, body.mapmode #b-ia, body.mapmode #ia, body.mapmode #empty, body.mapmode #side, body.mapmode #toolbar, body.mapmode #selbar, body.mapmode #hint, body.mapmode .menu { display: none !important; }
 #search { position: absolute; top: calc(16px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); border-radius: var(--r-xl); overflow: hidden; }
 .search-field { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 8px 0 16px; color: var(--label-2); }
 .search-field input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font: inherit; font-size: 17px; color: var(--label); }
@@ -380,3 +380,44 @@ body:has(.menu:not([hidden])) #hint, body:has(#empty:not([hidden])) #hint { opac
 #g-hyp summary { cursor: pointer; color: var(--label-2); font-size: 13px; padding: 4px 0; }
 body:has(#girbar:not([hidden])) #hint { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* Assistant : bouton flottant sous le cadrage, panneau ancré à droite ; feuille basse sur téléphone. */
+#b-ia { top: calc(68px + env(safe-area-inset-top, 0px)); }
+#b-ia[aria-expanded="true"] { color: var(--accent); }
+#ia {
+  position: absolute; z-index: 4; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(120px + env(safe-area-inset-top, 0px));
+  width: min(360px, calc(100vw - 32px)); max-height: calc(100% - 216px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; border-radius: var(--r-xl); overflow: hidden; animation: pop var(--medium) var(--ease);
+}
+#ia-head { display: flex; align-items: center; gap: 2px; padding: 6px 6px 2px 16px; }
+#ia-head h3 { margin: 0 auto 0 0; font-size: 17px; font-weight: 600; }
+/* Le corps défile ; l'en-tête et la demande restent en place. */
+#ia-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+#ia-log { padding: 4px 16px 8px; display: grid; gap: 8px; align-content: start; }
+#ia-log:empty { display: none; }
+.ia-m { max-width: 94%; font-size: 14px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ia-m.moi { justify-self: end; padding: 8px 12px; border-radius: 16px 16px 4px 16px; background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.ia-m.act, .ia-m.attente { font-size: 12px; color: var(--label-2); }
+.ia-m.act::before { content: "→ "; }
+.ia-m.bad, .ia-m.err { color: var(--bad); }
+#ia-vide { padding: 2px 16px 10px; display: grid; gap: 6px; }
+#ia-vide .note { margin: 0 0 4px; }
+.ia-s { min-height: 44px; padding: 0 12px; border: 0; border-radius: var(--r-md); background: var(--field); color: var(--label); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.ia-s:hover { background: var(--field-strong); }
+#ia-cfg { padding: 0 16px; border-top: .5px solid var(--sep); }
+#ia-cfg summary { list-style: none; display: flex; align-items: center; justify-content: space-between; min-height: 44px; color: var(--label-2); font-size: 13px; cursor: pointer; }
+#ia-cfg summary::-webkit-details-marker { display: none; }
+#ia-cfg summary svg { transition: transform var(--fast) var(--ease); }
+#ia-cfg[open] summary svg { transform: rotate(180deg); }
+#ia-cfg .field input[type="text"], #ia-cfg .field input[type="password"] { width: 190px; min-height: 34px; padding: 0 10px; border: 0; border-radius: var(--r-sm); background: var(--field); color: var(--label); font: inherit; font-size: 14px; text-align: left; }
+#ia-cfg .note { margin: 8px 0 12px; }
+#ia-cfg .note a { color: var(--accent); }
+#ia-form { display: flex; align-items: flex-end; gap: 8px; padding: 8px 12px 12px; border-top: .5px solid var(--sep); }
+#ia-q { flex: 1; min-width: 0; min-height: 44px; max-height: 120px; resize: none; padding: 11px 14px; border: 0; border-radius: 22px; background: var(--field); color: var(--label); font: inherit; font-size: 16px; line-height: 1.35; }
+#ia-go { width: 44px; padding: 0; flex: none; }
+@media (max-width: 760px) {
+  #b-ia { top: auto; right: calc(max(16px, env(safe-area-inset-right, 0px)) + 52px); }
+  #ia { top: auto; left: 16px; right: 16px; width: auto; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); max-height: 62vh; }
+  /* La feuille couvre les boutons flottants : ils s'effacent, la croix de l'en-tête la referme. */
+  body:has(#ia:not([hidden])) .fab { visibility: hidden; }
+}

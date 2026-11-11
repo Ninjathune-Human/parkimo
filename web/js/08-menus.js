@@ -100,7 +100,7 @@ function setPanel(name, open) {
 $("#stats-head").addEventListener("click", () => setPanel("stats", $("#stats-head").getAttribute("aria-expanded") !== "true"));
 
 window.addEventListener("keydown", (ev) => {
-  if (ev.target.tagName === "INPUT" || ev.target.tagName === "SELECT") return;
+  if (ev.target.tagName === "INPUT" || ev.target.tagName === "SELECT" || ev.target.tagName === "TEXTAREA") return;
   if (mode === "map") { if (ev.key === "Escape") exitMap(); return; }
   const mod = ev.metaKey || ev.ctrlKey;
   if (mod && ev.key.toLowerCase() === "z") { ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }

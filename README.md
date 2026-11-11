@@ -217,6 +217,7 @@ src/normes.rs     référentiel de règles commun : chaque valeur avec son unit�
 src/conformite.rs contrôle du plan fini : constats (conforme, écart, information) par règle
 src/projet.rs     projet au format de l'interface, conversion en entrée du moteur, table des réglages
 src/commandes.rs  commandes sur le projet (JSON), en transaction ; catalogue pour une IA
+src/resume.rs     résumé du projet pour une IA : bilan, constats, objets désignés par leur rang, réglages
 src/lib.rs        orchestration, union de parcelles, interface WebAssembly (JSON en entrée, JSON en sortie)
 tests/quality.rs  invariants : aucun chevauchement, aucune place hors zone ou sans accès, quotas, 60 parcelles aléatoires,
                   flèches dans la chaussée, sens unique fortement connexe, bascule des voies par le squelette,
@@ -235,10 +236,11 @@ tools/check_ifc.py validation d'un fichier IFC (ifcopenshell)
 tests/conformite.rs constats de conformité, surface et ouvrage
 tests/projet.rs   projet : même entrée du moteur et même nombre de places que l'interface (tests/fixtures/projets.json)
 tests/commandes.rs commandes : effets, refus, transaction, catalogue
+tests/resume.rs   résumé : rangs des objets, bilan et constats du plan, plan passé par l'interface
 web/app.html      squelette de la page (panneaux, menus)
 web/style.css     styles
 web/js/           scripts, assemblés dans l'ordre de leur numéro (moteur, données, historique, vue, rendu, calcul,
-                  interaction, menus, paramètres, habillage, carte IGN, giration, export, nouveau projet, démarrage)
+                  interaction, menus, paramètres, habillage, carte IGN, giration, export, nouveau projet, assistant, démarrage)
 tools/page.py     source de la page : squelette, styles et scripts réunis
 tools/bundle.py   assemble dist/index.html avec le moteur embarqué
 tools/essais/     essais de la page dans Chrome : page locale (interface courante, moteur de la dernière page
@@ -257,6 +259,14 @@ cargo test --release          # invariants de qualité
 ```
 
 Ouvrir `dist/index.html` dans un navigateur, ou le publier tel quel sur GitHub Pages.
+
+## Assistant
+
+Le bouton flottant sous le cadrage ouvre l'assistant : on décrit une modification, un modèle Claude l'applique par les commandes du moteur, puis rend compte des places et de la conformité. Chaque action s'annule comme un geste.
+
+- La clé d'API est celle de l'utilisateur. Elle reste dans le navigateur (mémorisée sur demande seulement) et les demandes partent directement vers l'API d'Anthropic, avec le résumé du projet.
+- Trois outils sont donnés au modèle : `lire_projet` (résumé du moteur), `appliquer_commandes` (transaction), `annuler`. Le catalogue des commandes accompagne chaque demande.
+- `tools/essais/essai_assistant.py` rejoue la boucle dans Chrome avec une API simulée.
 
 ## Publication
 
