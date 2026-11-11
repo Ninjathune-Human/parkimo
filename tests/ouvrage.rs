@@ -36,7 +36,10 @@ fn plateaux_sur_les_scenarios() {
         let Some(o) = lay.ouvrage.as_ref() else {
             panic!("{nom} : pas de plateau ({:?})", lay.warnings);
         };
-        assert!(ms < 500.0, "{nom} : {ms:.0} ms");
+        // La durée dépend de la machine et des tests voisins : contrôlée sur demande (PARKIMO_PERF=1).
+        if std::env::var_os("PARKIMO_PERF").is_some() {
+            assert!(ms < 500.0, "{nom} : {ms:.0} ms");
+        }
         assert!(!lay.stalls.is_empty(), "{nom}");
         assert_eq!(o.places_cles.len(), lay.stalls.len());
         assert_eq!(lay.metrics.stalls, lay.stalls.len());

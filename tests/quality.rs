@@ -108,7 +108,8 @@ fn scenarios_respect_invariants() {
             "{name}: rendement anormalement bas ({})",
             lay.metrics.stalls
         );
-        if !cfg!(debug_assertions) {
+        // La durée dépend de la machine et des tests voisins : contrôlée sur demande (PARKIMO_PERF=1).
+        if !cfg!(debug_assertions) && std::env::var_os("PARKIMO_PERF").is_some() {
             assert!(ms < 60.0, "{name}: {ms:.1} ms");
         }
     }
