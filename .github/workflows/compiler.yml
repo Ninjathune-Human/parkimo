@@ -1,0 +1,52 @@
+# Compile le moteur en WebAssembly et la page (dist/index.html, dist/trame.html, index.html)
+# sur chaque branche de travail, puis enregistre la page compilée sur la branche.
+# La branche main n'est pas concernée : la version publiée ne change qu'à la fusion.
+name: Compiler la page
+
+on:
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: compiler-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compiler:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Outils (cible wasm32, binaryen, terser)
+        run: |
+          rustup target add wasm32-unknown-unknown
+          curl -sSfL https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-linux.tar.gz | tar xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/binaryen-version_133/bin" >> "$GITHUB_PATH"
+          npm install -g terser
+
+      - name: Tests
+        run: cargo test --release
+
+      - name: Compilation
+        run: |
+          wasm-opt --version
+          ./build.sh
+          cp dist/index.html index.html
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: parkimo-${{ github.ref_name }}
+          path: dist/index.html
+
+      - name: Enregistrer la page compilée sur la branche
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist/index.html dist/trame.html index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Page compilée (${GITHUB_SHA::7})"
+          git push

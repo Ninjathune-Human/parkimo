@@ -19,6 +19,7 @@
   --building: #394045;
   --building-edge: #1B1F21;
   --building-label: #E9EDEB;
+  --slab: #D4DAD7;
   --excl: #8B5A87;
   --setback: #DE7428;
   --pmr: #2F6ED4;
@@ -63,7 +64,7 @@
   :root:not([data-theme="light"]) {
     --ground: #111514; --grid: rgba(214, 232, 222, .045); --grid-strong: rgba(214, 232, 222, .09);
     --parcel: #26342B; --parcel-edge: #8EA595; --asphalt: #4B5154; --stripe: #DCE2DF;
-    --island: #3E6235; --tree: #5D9250; --tree-edge: #9CC78F; --building: #C7CECA; --building-edge: #F1F4F2;
+    --island: #3E6235; --tree: #5D9250; --tree-edge: #9CC78F; --building: #C7CECA; --building-edge: #F1F4F2; --slab: #343A3D;
     --building-label: #18201C; --excl: #A974A4; --setback: #F08A3C; --pmr: #4C8BF0; --irve: #3DB878; --pmr-irve: #2EA9CF;
     --accent: #0A84FF; --label: #EEF3F0; --label-2: rgba(238, 243, 240, .64); --label-3: rgba(238, 243, 240, .36);
     --sep: rgba(238, 243, 240, .10); --glass: rgba(30, 36, 33, .74); --glass-solid: #1E2421; --glass-edge: rgba(238, 243, 240, .12);
@@ -76,7 +77,7 @@
 :root[data-theme="dark"] {
   --ground: #111514; --grid: rgba(214, 232, 222, .045); --grid-strong: rgba(214, 232, 222, .09);
   --parcel: #26342B; --parcel-edge: #8EA595; --asphalt: #4B5154; --stripe: #DCE2DF;
-  --island: #3E6235; --tree: #5D9250; --tree-edge: #9CC78F; --building: #C7CECA; --building-edge: #F1F4F2;
+  --island: #3E6235; --tree: #5D9250; --tree-edge: #9CC78F; --building: #C7CECA; --building-edge: #F1F4F2; --slab: #343A3D;
   --building-label: #18201C; --excl: #A974A4; --setback: #F08A3C; --pmr: #4C8BF0; --irve: #3DB878; --pmr-irve: #2EA9CF;
   --accent: #0A84FF; --label: #EEF3F0; --label-2: rgba(238, 243, 240, .64); --label-3: rgba(238, 243, 240, .36);
   --sep: rgba(238, 243, 240, .10); --glass: rgba(30, 36, 33, .74); --glass-solid: #1E2421; --glass-edge: rgba(238, 243, 240, .12);
@@ -124,13 +125,13 @@ body {
 .chev { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--field); flex: none; }
 .chev svg { transition: transform var(--fast) var(--ease); }
 [aria-expanded="false"] .chev svg { transform: rotate(180deg); }
-#stats-body { padding: 0 16px 14px; display: grid; gap: 2px; }
+#stats-body { padding: 0 16px 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 30px; border-top: .5px solid var(--sep); font-size: 14px; }
 .row:first-child { border-top: 0; }
-.row .k { color: var(--label-2); display: flex; align-items: center; gap: 7px; min-width: 0; }
-.row .v { font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
+.row .k { color: var(--label-2); display: flex; align-items: center; gap: 7px; flex: 0 100 auto; min-width: min-content; }
+.row .v { font-variant-numeric: tabular-nums; font-weight: 500; text-align: right; flex: 0 1 auto; min-width: 0; }
 .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
-.chip { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 99px; margin-left: 6px; }
+.chip { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 99px; margin-left: 6px; white-space: nowrap; display: inline-block; }
 .chip.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
 .chip.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
 #warn { font-size: 12px; color: var(--warn); padding-top: 6px; }
@@ -197,6 +198,13 @@ body {
 .seg { display: inline-flex; background: var(--field); border-radius: 10px; padding: 2px; }
 .seg button { min-height: 32px; border: 0; background: none; color: var(--label-2); font: inherit; font-size: 13px; font-weight: 550; border-radius: 8px; padding: 0 12px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--glass-solid); color: var(--label); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.seg button:disabled { opacity: .35; cursor: default; }
+.pop { position: relative; display: inline-flex; }
+.pop select {
+  appearance: none; -webkit-appearance: none; min-height: 34px; font: inherit; font-size: 15px; color: var(--label);
+  background: var(--field); border: 0; border-radius: var(--r-sm); padding: 0 32px 0 12px; cursor: pointer;
+}
+.pop::after { content: ""; position: absolute; right: 12px; top: 50%; width: 7px; height: 7px; margin-top: -5px; border: solid var(--label-2); border-width: 0 1.6px 1.6px 0; transform: rotate(45deg); pointer-events: none; }
 input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 32px; }
 .note { font-size: 12px; color: var(--label-2); line-height: 1.4; }
 
@@ -402,7 +410,13 @@ body:has(#girbar:not([hidden])) #hint { opacity: 0; }
         <div class="row"><span class="k"><i class="sw" style="background:var(--irve)"></i>IRVE équipées (bornes)</span><span class="v" id="s-irve-eq"></span></div>
         <div class="row"><span class="k">En bordure / au cœur</span><span class="v" id="s-split"></span></div>
         <div class="row"><span class="k"><i class="sw" style="background:var(--tree)"></i>Arbres</span><span class="v" id="s-trees"></span></div>
-        <div class="row"><span class="k">Enrobé par place</span><span class="v" id="s-eff"></span></div>
+        <div class="row" id="r-dalle" hidden><span class="k">Dalle</span><span class="v" id="s-dalle"></span></div>
+        <div class="row" id="r-trame" hidden><span class="k">Trame</span><span class="v" id="s-trame"></span></div>
+        <div class="row" id="r-niveaux" hidden><span class="k">Niveaux</span><span class="v" id="s-niveaux"></span></div>
+        <div class="row" id="r-rampes" hidden><span class="k">Rampes</span><span class="v" id="s-rampes"></span></div>
+        <div class="row" id="r-noyaux" hidden><span class="k">Escaliers</span><span class="v" id="s-noyaux"></span></div>
+        <div class="row" id="r-plancher" hidden><span class="k">Plancher</span><span class="v" id="s-plancher"></span></div>
+        <div class="row"><span class="k" id="k-eff">Enrobé par place</span><span class="v" id="s-eff"></span></div>
         <div class="row"><span class="k">Parcelle</span><span class="v" id="s-parcel"></span></div>
         <div class="row"><span class="k">Espaces verts</span><span class="v" id="s-green"></span></div>
         <div class="row"><span class="k">Orientation des rangées</span><span class="v" id="s-angle"></span></div>
@@ -417,6 +431,9 @@ body:has(#girbar:not([hidden])) #hint { opacity: 0; }
           <div class="eyebrow">Projet</div>
           <label class="lrow"><span><span class="sws"><i class="sw" style="background:var(--asphalt)"></i><i class="sw" style="background:var(--pmr)"></i><i class="sw" style="background:var(--irve)"></i></span>Places</span><input type="checkbox" class="switch" role="switch" data-lay="places"></label>
           <label class="lrow"><span><i class="sw" style="background:var(--asphalt)"></i>Voirie</span><input type="checkbox" class="switch" role="switch" data-lay="pvoirie"></label>
+          <label class="lrow" id="lay-girations" hidden><span><i class="sw" style="background:color-mix(in srgb, var(--accent) 22%, transparent);box-shadow:inset 0 0 0 1.5px var(--accent)"></i>Girations des rampes</span><input type="checkbox" class="switch" role="switch" data-lay="girations"></label>
+          <label class="lrow" id="lay-noyaux" hidden><span><i class="sw" style="background:color-mix(in srgb, var(--building) 18%, transparent);box-shadow:inset 0 0 0 1.5px var(--building)"></i>Escaliers et ascenseurs</span><input type="checkbox" class="switch" role="switch" data-lay="noyaux"></label>
+          <label class="lrow" id="lay-structure" hidden><span><i class="sw" style="background:var(--slab);box-shadow:inset 0 0 0 2px var(--building)"></i>Structure (dalle, poutres, poteaux, trame)</span><input type="checkbox" class="switch" role="switch" data-lay="structure"></label>
           <label class="lrow"><span><svg class="sw-ico" width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><path d="M1 3h8.5M8 1l2.5 2L8 5M13 7H4.5M6 5 3.5 7 6 9" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Sens de circulation</span><input type="checkbox" class="switch" role="switch" data-lay="sens"></label>
           <label class="lrow"><span><i class="sw" style="background:var(--island)"></i>Îlots plantés</span><input type="checkbox" class="switch" role="switch" data-lay="ilots"></label>
           <label class="lrow"><span><i class="sw" style="background:var(--building)"></i>Bâtiments et espaces verts</span><input type="checkbox" class="switch" role="switch" data-lay="pbati"></label>
@@ -468,6 +485,7 @@ body:has(#girbar:not([hidden])) #hint { opacity: 0; }
     <button class="tb" id="sel-merge" hidden>Ajouter à l'étude</button>
     <button class="tb" id="sel-shape" hidden>Forme en L</button>
     <button class="tb" id="sel-rot" hidden>Pivoter 90°</button>
+    <button class="tb" id="sel-auto" hidden>Emprise automatique</button>
   </div>
 
   <div id="girbar" class="glass" hidden>
@@ -483,6 +501,9 @@ body:has(#girbar:not([hidden])) #hint { opacity: 0; }
     <button class="mi" role="menuitem" data-add="landscape"><span class="glyph" style="background:var(--island)"></span><span>Espace vert<small>Zone plantée imposée</small></span></button>
     <button class="mi" role="menuitem" data-add="basin"><span class="glyph" style="background:var(--island);box-shadow:inset 0 0 0 2px var(--tree-edge)"><svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3v3.2M8.5 3v1.8M12 3v3.2M15.5 3v1.8M5 17v-3.2M8.5 17v-1.8M12 17v-3.2M15.5 17v-1.8" fill="none" stroke="var(--tree-edge)" stroke-width="1.3" stroke-linecap="round"/></svg></span><span>Bassin de rétention<small>Zone verte en creux, talus haut et bas</small></span></button>
     <button class="mi" role="menuitem" data-add="exclusion"><span class="glyph" style="background:var(--excl);opacity:.8"></span><span>Zone non aedificandi<small>Zone inondable, réseau, emprise interdite</small></span></button>
+    <button class="mi" role="menuitem" data-add="escalier" hidden><span class="glyph" style="background:color-mix(in srgb, var(--building) 18%, transparent);box-shadow:inset 0 0 0 1.5px var(--building)"></span><span>Escalier<small>Cage dans une place, porte sur l'allée</small></span></button>
+    <button class="mi" role="menuitem" data-add="ascenseur" hidden><span class="glyph" style="background:color-mix(in srgb, var(--building) 18%, transparent);box-shadow:inset 0 0 0 1.5px var(--building)"></span><span>Ascenseur<small>Gaine dans une place</small></span></button>
+    <button class="mi" role="menuitem" data-add="liaison" hidden><span class="glyph" style="background:color-mix(in srgb, var(--building) 18%, transparent);box-shadow:inset 0 0 0 1.5px var(--building)"></span><span>Escalier de liaison<small>Entre les deux demi-plateaux</small></span></button>
     <button class="mi" role="menuitem" data-add="entry"><span class="glyph" style="background:var(--asphalt)"></span><span>Accès véhicules<small>Sur la limite de parcelle</small></span></button>
   </div>
 
@@ -550,6 +571,27 @@ body:has(#girbar:not([hidden])) #hint { opacity: 0; }
   <section id="params" class="menu glass" hidden aria-label="Paramètres">
     <h3>Paramètres</h3>
     <div class="pgroup">
+      <div class="eyebrow">Type d'étude</div>
+      <div class="field"><span class="seg" role="group" aria-label="Type d'étude" id="t-seg"><button data-t="surface" aria-pressed="true">Surface</button><button data-t="silo" aria-pressed="false">Silo</button></span></div>
+      <div id="silo-fields" hidden>
+        <div class="field"><span class="seg" role="group" aria-label="Système constructif" id="sy-seg"><button data-s="coule" aria-pressed="true">Béton coulé</button><button data-s="prefa" aria-pressed="false">Préfabriqué</button><button data-s="mixte" aria-pressed="false">Acier-béton</button></span></div>
+        <div class="field"><label id="d-lab">Portée</label><span class="seg" role="group" aria-labelledby="d-lab" id="d-seg"><button data-d="longue" aria-pressed="true">Longue</button><button data-d="moyenne" aria-pressed="false">Moyenne</button><button data-d="courte" aria-pressed="false">Courte</button></span></div>
+        <div class="field"><label for="p-silo_niveaux">Niveaux</label><span class="unit"><input id="p-silo_niveaux" type="text" inputmode="numeric" autocomplete="off">niv.</span></div>
+        <div class="field"><label for="p-silo_etage">Hauteur d'étage</label><span class="unit"><input id="p-silo_etage" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+        <div class="field"><label for="p-silo_pente">Pente des rampes</label><span class="unit"><input id="p-silo_pente" type="text" inputmode="decimal" autocomplete="off">%</span></div>
+        <div class="field" id="ra-field"><label for="ra-sel">Rampes</label><span class="pop"><select id="ra-sel"><option value="auto">Auto</option><option value="rangee">En rangée</option><option value="pignon">En pignon</option><option value="demi">Demi-niveaux</option><option value="helice">Hélice</option><option value="helice_ext">Hélices hors dalle</option><option value="helice_double">Hélice à double sens</option><option value="helice_centre">Double sens au centre</option><option value="helice_anneau">Double sens en anneau</option><option value="helice_facade">Double sens en façade</option><option value="inclines">Plateaux inclinés</option></select></span></div>
+        <div class="field" id="asc-field" hidden><label for="asc-sel">Ascenseurs</label><span class="pop"><select id="asc-sel"><option value="deux">Un par demi-niveau</option><option value="liaison">Un, escalier de liaison</option></select></span></div>
+        <div class="field" id="pslv-field"><label for="p-silo_ventile">Largement ventilé (PS 3)</label><input id="p-silo_ventile" type="checkbox" class="switch" role="switch"></div>
+        <div class="field"><label for="p-silo_pu">Poteau le long des allées</label><span class="unit"><input id="p-silo_pu" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+        <div class="field"><label for="p-silo_pv">Poteau en travers</label><span class="unit"><input id="p-silo_pv" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+        <div class="field"><label for="p-silo_retrait">Retrait en tête de place</label><span class="unit"><input id="p-silo_retrait" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+        <div class="field"><label for="p-silo_travee">Places entre poteaux, au plus</label><span class="unit"><input id="p-silo_travee" type="text" inputmode="decimal" autocomplete="off">pl</span></div>
+        <div class="field"><label for="p-silo_facade">Rive de façade</label><span class="unit"><input id="p-silo_facade" type="text" inputmode="decimal" autocomplete="off">m</span></div>
+        <div class="field"><label for="p-silo_rives">Places le long des pignons</label><input id="p-silo_rives" type="checkbox" class="switch" role="switch"></div>
+        <p class="note">Le système fixe le plancher : béton coulé (dalle post-contrainte, poutres et dalle, plancher-dalle), préfabriqué (dalles alvéolées de 1,20 m sur poutres précontraintes, places de 2,40 m), acier-béton (solives IPE et dalle mixte, portée longue). Portée longue : poteaux en façade et en dos à dos ; moyenne : en tête des rangées dos à dos ; courte : en tête de chaque rangée, le nu à 0,65 m au moins de l'allée (NF P 91-100, tab. 3). Au-delà d'un niveau, rampes droites à sens unique, montée à un bout, descente à l'autre : en rangée, le long des allées dans les rangées de façade (deux modules au moins) ; en pignon, en travers des allées (trois modules au moins) ; demi-niveaux, deux demi-plateaux d'un module décalés d'un demi-étage et reliés à chaque bout par une demi-rampe en U à double sens (voie intérieure de 3,50 m pour monter, extérieure de 3,00 m pour descendre, allées à double sens) ; hélice, deux tours hélicoïdales à sens unique (montée à un bout, descente à l'autre, un tour par niveau, voie de 4,00 m entre 5,00 et 9,00 m du centre, Neufert), la porte de chaque niveau sur l'allée transversale (trois modules au moins) ; plateaux inclinés, les deux modules eux-mêmes en pente de sens opposés, un demi-étage chacun sur la longueur des rangées (7,5 % au plus pour les places, NF P 91-100 ; 6 % conseillés, Neufert), reliés par des demi-tours horizontaux à double sens ; Auto garde celle qui laisse le plus de places. Épures de giration vérifiées à l'entrée et à la sortie (voie de 4,00 m en courbe, rayon extérieur 8,50 m ; pente de 18 % au plus, raccords R 10 et R 15, NF P 91-100 ; voie de rampe de 3,25 m, Neufert). Escaliers et ascenseur placés dans l'emprise d'une place, en façade de préférence, au même endroit à chaque niveau : toute place à 40 m au plus d'un escalier quand elle est entre deux escaliers opposés, 25 m sinon, dans l'axe des circulations (ERP, PS 13) ; 50 et 30 m dans un parc largement ventilé (PS 3 : deux façades opposées ouvertes à 50 % au moins, à moins de 75 m l'une de l'autre) ; un ascenseur contre le premier escalier ; en demi-niveaux, un second ascenseur sur l'autre demi-plateau (chacun dessert un demi-niveau sur deux), ou un escalier de liaison entre les deux. Hypothèses d'esquisse à confirmer par le bureau d'études et le fabricant.</p>
+      </div>
+    </div>
+    <div class="pgroup">
       <div class="eyebrow">Places</div>
       <div class="field"><label for="p-stall_w">Largeur de place</label><span class="unit"><input id="p-stall_w" type="text" inputmode="decimal" autocomplete="off">m</span></div>
       <div class="field"><label for="p-stall_d">Longueur de place</label><span class="unit"><input id="p-stall_d" type="text" inputmode="decimal" autocomplete="off">m</span></div>
@@ -589,6 +631,11 @@ body:has(#girbar:not([hidden])) #hint { opacity: 0; }
     </div>
     <p class="note" id="x-note"></p>
     <button class="tb primary wide" id="x-go">Télécharger le DXF</button>
+    <div class="pgroup" id="x-bim" hidden>
+      <div class="eyebrow">Maquette BIM</div>
+      <p class="note">IFC4 : niveaux, dalles, poteaux, places et allées, types, propriétés, identifiants stables d'un export à l'autre.</p>
+      <button class="tb wide" id="x-ifc">Télécharger la maquette IFC</button>
+    </div>
     <div class="pgroup">
       <div class="eyebrow">Tableur</div>
       <p class="note">Ratios du parking, surfaces, hypothèses, estimation financière, emplacement et dates du projet.</p>
@@ -725,7 +772,8 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((res) => setTimeout(
 // ============================================================================
 // Données : sites d'exemple (mètres, repère local, y vers le haut).
 // ============================================================================
-const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, basin_margin: 2, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null, slant: 90 };
+const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, basin_margin: 2, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null, slant: 90,
+  silo: false, silo_etage: 2.9, silo_niveaux: 1, silo_pente: 18, silo_systeme: "coule", silo_pu: 0.3, silo_pv: 0.6, silo_travee: 3, silo_facade: 0.2, silo_rives: true, silo_densite: "longue", silo_retrait: 0.65, silo_rampes: "auto", silo_ventile: true, silo_asc: "deux" };
 
 function arc(cx, cy, r, a0, a1, n) {
   const pts = [];
@@ -807,6 +855,7 @@ function engineInput(quick, turns = false) {
       pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100, irve_equip_ratio: p.irve_equip_ratio / 100,
       angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle, turns: !!turns,
     },
+    ouvrage: p.silo ? { actif: true, facade: p.silo_facade, poteau: [p.silo_pu, p.silo_pv], travee: Math.max(1, Math.round(p.silo_travee)), rives: !!p.silo_rives, densite: p.silo_densite, retrait: p.silo_retrait, systeme: p.silo_systeme, angle: p.angle, hauteur_etage: p.silo_etage, niveaux: Math.max(1, Math.round(p.silo_niveaux)), implantation: p.silo_rampes, largement_ventile: p.silo_ventile !== false, ascenseurs_demi: p.silo_asc || "deux", noyaux: site.noyaux || null, pente_rampe: p.silo_pente / 100, emprise: site.slab ? { cx: site.slab.cx, cy: site.slab.cy, w: site.slab.w, h: site.slab.h, rot: site.slab.rot, fixe: site.slab.fixe || [0, 0] } : null } : null,
   };
 }
 
@@ -822,7 +871,7 @@ function commit() {
   try { localStorage.setItem("trame.v1", JSON.stringify({ site, params, exampleName, mineSite, meta })); } catch (e) { /* stockage indisponible */ }
   updateUndo();
 }
-function restore(s) { const o = JSON.parse(s); site = o.site; params = o.params; exampleName = o.exampleName; sel = null; syncParamsUI(); syncExample(); updateLayersUI(); solve(false); }
+function restore(s) { const o = JSON.parse(s); site = o.site; params = o.params; exampleName = o.exampleName; sel = null; updateSelbar(); syncParamsUI(); syncExample(); updateLayersUI(); solve(false); }
 function undo() { if (mode === "gir") { girPop(); return; } if (hist.past.length < 2) return; hist.future.push(hist.past.pop()); restore(hist.past[hist.past.length - 1]); updateUndo(); }
 function redo() { if (!hist.future.length) return; const s = hist.future.pop(); hist.past.push(s); restore(s); updateUndo(); }
 function updateUndo() { $("#b-undo").disabled = mode === "gir" ? !gdraft.pts.length : hist.past.length < 2; $("#b-redo").disabled = !hist.future.length; }
@@ -918,7 +967,7 @@ function fit(animate) {
 let C = {};
 function readColors() {
   const cs = getComputedStyle(document.documentElement);
-  for (const k of ["glass-solid", "sep", "ground", "grid", "grid-strong", "parcel", "parcel-edge", "asphalt", "stripe", "island", "tree", "tree-edge", "building", "building-edge", "building-label", "excl", "setback", "pmr", "irve", "pmr-irve", "accent", "label", "label-2", "cad", "cad-halo", "cad-label", "cad-bati", "cad-bati-edge", "cad-sheet", "cad-commune", "veg", "veg-tint", "occ-voirie", "label-3", "ok", "warn", "bad", "gir-wheel", "gir-body", "gir-body-edge"]) C[k] = cs.getPropertyValue("--" + k).trim();
+  for (const k of ["glass-solid", "sep", "ground", "grid", "grid-strong", "parcel", "parcel-edge", "asphalt", "stripe", "island", "tree", "tree-edge", "building", "building-edge", "building-label", "slab", "excl", "setback", "pmr", "irve", "pmr-irve", "accent", "label", "label-2", "cad", "cad-halo", "cad-label", "cad-bati", "cad-bati-edge", "cad-sheet", "cad-commune", "veg", "veg-tint", "occ-voirie", "label-3", "ok", "warn", "bad", "gir-wheel", "gir-body", "gir-body-edge"]) C[k] = cs.getPropertyValue("--" + k).trim();
   hatch = null; vegPat = null;
 }
 let hatch = null;
@@ -1079,11 +1128,14 @@ function draw() {
   if (VIS.pbati) drawBasins();
 
   if (layout && !layout.error) {
+    // Calque Structure : dalle du parc en ouvrage
+    if (layout.ouvrage && VIS.structure) { ctx.beginPath(); pathPoly(layout.ouvrage.dalle); ctx.fillStyle = C.slab; ctx.fill(); }
     // Calque Voirie
     if (VIS.pvoirie) {
       ctx.fillStyle = C.asphalt;
       ctx.beginPath(); for (const r of layout.paved) pathPoly(r); ctx.fill("evenodd");
       ctx.beginPath(); for (const q of layout.pads) pathPoly(q); for (const q of layout.cross) pathPoly(q); for (const q of layout.entries) pathPoly(q); ctx.fill();
+      if (layout.ouvrage) drawRampes(layout.ouvrage.rampes);
     }
     // Calque Places
     if (VIS.places) {
@@ -1100,6 +1152,9 @@ function draw() {
       for (const st of layout.stalls) { const q = st.q.map(toS); ctx.moveTo(q[3][0], q[3][1]); ctx.lineTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.lineTo(q[2][0], q[2][1]); }
       ctx.stroke();
     }
+    if (layout.ouvrage && VIS.noyaux) drawNoyaux(layout.ouvrage.noyaux);
+    if (layout.ouvrage && VIS.structure) drawStructure(layout.ouvrage);
+    if (layout.ouvrage && VIS.girations) drawGirations(layout.ouvrage.girations);
     // Calque Sens de circulation : flèches peintes sur la chaussée
     if (VIS.sens && view.s > 1.0 && layout.circulation && layout.circulation.arrows.length) {
       planTransform(ctx, DPR, view.s, view.ox, view.oy); ctx.fillStyle = C.stripe; ctx.fill(arrowsPath(layout)); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -1154,6 +1209,7 @@ function draw() {
 
   drawPlaces();
   drawGir();
+  drawCoreDrag();
   drawCadSel();
   drawHandles();
   drawEdgeBtns();
@@ -1161,6 +1217,216 @@ function draw() {
   drawScale(view.s);
   drawDraft();
   drawGirDraft();
+}
+
+// Rampes du silo : dalle en enrobé, axe fléché dans le sens de la montée (ou de la descente), sens et
+// pente au milieu de l'axe.
+function drawRampes(rs) {
+  if (!rs.length) return;
+  const font = getComputedStyle(document.body).fontFamily;
+  // Un plateau incliné n'est pas une emprise de rampe : seulement sa flèche de pente.
+  ctx.fillStyle = C.asphalt; ctx.beginPath(); for (const r of rs) if (r.forme !== "plateau") { pathPoly(r.contour); pathPoly(r.trou || []); } ctx.fill("evenodd");
+  ctx.strokeStyle = C.stripe; ctx.lineWidth = 1; ctx.stroke();
+  for (const r of rs) {
+    const a = r.axe.map(toS), n = a.length;
+    ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); for (let i = 1; i < n; i++) ctx.lineTo(a[i][0], a[i][1]); ctx.lineWidth = 1.5; ctx.stroke();
+    const B = a[n - 1], P = a[n - 2], L = Math.hypot(B[0] - P[0], B[1] - P[1]) || 1, ux = (B[0] - P[0]) / L, uy = (B[1] - P[1]) / L;
+    ctx.beginPath(); ctx.moveTo(B[0] - ux * 7 - uy * 4, B[1] - uy * 7 + ux * 4); ctx.lineTo(B[0], B[1]); ctx.lineTo(B[0] - ux * 7 + uy * 4, B[1] - uy * 7 - ux * 4); ctx.stroke();
+    if (view.s > 2.5) {
+      ctx.save();
+      ctx.font = `600 11px ${font}`; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.fillStyle = C.stripe;
+      const nom = { u: "Demi-rampe", virage: "Demi-tour", plateau: "Pente" }[r.forme] || (r.montee ? "Montée" : "Descente");
+      const txt = r.forme === "virage" ? nom : `${nom} ${(r.pente * 100).toFixed(r.forme === "droite" ? 0 : 1).replace(".", ",")} %`;
+      if (r.forme === "helice") arcText(txt, a, toS(r.de), font);
+      else {
+        const k = Math.floor((n - 1) / 2), M = [(a[k][0] + a[k + 1][0]) / 2, (a[k][1] + a[k + 1][1]) / 2];
+        let t = Math.atan2(a[k + 1][1] - a[k][1], a[k + 1][0] - a[k][0]); if (t > Math.PI / 2 || t < -Math.PI / 2) t += Math.PI;
+        ctx.translate(M[0], M[1]); ctx.rotate(t); ctx.fillText(txt, 0, -4);
+      }
+      ctx.restore();
+    }
+  }
+}
+
+// Libellé d'une tour hélicoïdale : texte courbe le long de l'axe de sa voie (cercle passant par
+// trois points de l'axe a, repère écran), centré sur le point opposé à la porte D, dans l'axe du
+// parking, juste au-delà de l'axe, à la taille de la tour jusqu'à 11 px. Lettres tête vers
+// l'extérieur, ou vers l'intérieur quand elles seraient à l'envers ; texte vertical lu de bas en
+// haut.
+function arcText(txt, a, D, font) {
+  const [A, B, E] = [a[0], a[Math.floor(a.length / 3)], a[Math.floor((2 * a.length) / 3)]];
+  const d = 2 * (A[0] * (B[1] - E[1]) + B[0] * (E[1] - A[1]) + E[0] * (A[1] - B[1]));
+  if (Math.abs(d) < 1e-9) return;
+  const q = (P) => P[0] * P[0] + P[1] * P[1];
+  const C = [(q(A) * (B[1] - E[1]) + q(B) * (E[1] - A[1]) + q(E) * (A[1] - B[1])) / d, (q(A) * (E[0] - B[0]) + q(B) * (A[0] - E[0]) + q(E) * (B[0] - A[0])) / d];
+  const phi = Math.atan2(C[1] - D[1], C[0] - D[0]), t = phi + Math.PI / 2;
+  const fs = Math.min(11, 2 * view.s), s = Math.cos(t) > 0.01 || (Math.cos(t) > -0.01 && Math.sin(t) < 0) ? 1 : -1;
+  const rb = Math.hypot(A[0] - C[0], A[1] - C[1]) + 3 + fs / 2;
+  ctx.font = `600 ${fs}px ${font}`; ctx.textBaseline = "middle";
+  const ws = [...txt].map((ch) => ctx.measureText(ch).width);
+  let ang = phi - (s * ws.reduce((x, y) => x + y, 0)) / (2 * rb);
+  [...txt].forEach((ch, i) => {
+    const m = ang + (s * ws[i]) / (2 * rb);
+    ctx.save(); ctx.translate(C[0] + rb * Math.cos(m), C[1] + rb * Math.sin(m)); ctx.rotate(m + (s * Math.PI) / 2); ctx.fillText(ch, 0, 0); ctx.restore();
+    ang += (s * ws[i]) / rb;
+  });
+}
+
+// Épures de giration des rampes (NF P 91-100, § 3.3) : bande balayée, trajectoire en tirets
+// terminée d'une pointe ; en rouge quand un obstacle s'y trouve.
+function drawGirations(gs) {
+  for (const g of gs) {
+    const col = g.conflits.length ? C.bad : C.accent;
+    ctx.beginPath(); pathPoly(g.contour); ctx.fillStyle = col; ctx.globalAlpha = 0.14; ctx.fill();
+    ctx.globalAlpha = 0.85; ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.stroke();
+    const a = g.axe.map(toS), n = a.length;
+    ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); for (let i = 1; i < n; i++) ctx.lineTo(a[i][0], a[i][1]);
+    ctx.setLineDash([6, 4]); ctx.lineWidth = 1.3; ctx.stroke(); ctx.setLineDash([]);
+    const B = a[n - 1], P = a[n - 2], L = Math.hypot(B[0] - P[0], B[1] - P[1]) || 1, ux = (B[0] - P[0]) / L, uy = (B[1] - P[1]) / L;
+    ctx.beginPath(); ctx.moveTo(B[0] - ux * 7 - uy * 4, B[1] - uy * 7 + ux * 4); ctx.lineTo(B[0], B[1]); ctx.lineTo(B[0] - ux * 7 + uy * 4, B[1] - uy * 7 - ux * 4); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// Escaliers et ascenseurs (PS 13) dans l'emprise d'une place : cage d'escalier à deux volées
+// (marches de 0,28 m entre deux paliers, mur d'échiffre au milieu), gaine d'ascenseur barrée d'une
+// croix ; la porte, sur l'allée, en trait épais.
+function drawNoyaux(ns) {
+  ctx.save();
+  const moving = coreMoving();
+  for (const n of ns) {
+    if (moving && moving.n === n) { ctx.beginPath(); pathPoly(n.q); ctx.setLineDash([4, 3]); ctx.strokeStyle = C.building; ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]); continue; }
+    drawCore(n, n.q, sel && sel.type === "core" && layout.ouvrage.noyaux[sel.i] === n);
+  }
+  ctx.restore();
+}
+function drawCore(n, q, on) {
+  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  const fond = [q[0], q[1]], av = [q[3], q[2]];
+  const larg = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]), prof = Math.hypot(q[3][0] - q[0][0], q[3][1] - q[0][1]);
+  ctx.beginPath(); pathPoly(q); ctx.fillStyle = C.building; ctx.globalAlpha = 0.18; ctx.fill(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = on ? C.accent : C.building; ctx.lineWidth = on ? 2.5 : 1.5; ctx.stroke();
+  ctx.beginPath(); ctx.lineWidth = 0.8; ctx.strokeStyle = C.building;
+  const seg = (a, b) => { const A = toS(a), B = toS(b); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); };
+  if (n.ascenseur) { seg(q[0], q[2]); seg(q[1], q[3]); }
+  else if (n.liaison) {
+    // Liaison : deux demi-volées côte à côte (montée et descente d'une demi-hauteur) au droit du
+    // joint, paliers de part et d'autre.
+    const t0 = 0.5 - 1.25 / prof, t1 = 0.5 + 1.25 / prof, pas = 0.28 / prof;
+    seg(lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t0), lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t1));
+    for (let t = t0; t <= t1 + 1e-9; t += view.s * 0.28 > 2.5 ? pas : t1 - t0) seg(lerp(fond[0], av[0], t), lerp(fond[1], av[1], t));
+  } else {
+    // Paliers de 1,00 m à chaque bout, volées entre les deux, échiffre au milieu de la largeur.
+    const t0 = Math.min(0.45, 1 / prof), t1 = 1 - t0, pas = 0.28 / prof;
+    seg(lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t0), lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t1));
+    if (view.s * 0.28 > 2.5) for (let t = t0; t <= t1 + 1e-9; t += pas) seg(lerp(fond[0], av[0], t), lerp(fond[1], av[1], t));
+    else { seg(lerp(fond[0], av[0], t0), lerp(fond[1], av[1], t0)); seg(lerp(fond[0], av[0], t1), lerp(fond[1], av[1], t1)); }
+  }
+  ctx.stroke();
+  const d = Math.min(0.45, 0.9 / 2 / larg);
+  ctx.beginPath(); seg(lerp(av[0], av[1], 0.5 - d), lerp(av[0], av[1], 0.5 + d));
+  if (n.liaison) seg(lerp(fond[0], fond[1], 0.5 - d), lerp(fond[0], fond[1], 0.5 + d));
+  ctx.lineWidth = 3; ctx.strokeStyle = C.accent; ctx.stroke();
+}
+
+// Escaliers et ascenseurs déplacés à la main. La cage se soulève et suit le doigt ; la place visée
+// s'ouvre (marquage effacé, contour pointillé) ; à la dépose, la cage se cale dans la place et le
+// moteur refait le bilan. Les positions vont dans site.noyaux (points du site, recalés par le moteur
+// sur la place la plus proche) ; sans saisie, placement automatique.
+const LIFT = 1.06, OPEN_MS = 160, SETTLE_MS = 180;
+let coreAnim = null;
+const qCentre = (q) => [(q[0][0] + q[2][0]) / 2, (q[0][1] + q[2][1]) / 2];
+const natureOf = (n) => (n.ascenseur ? "ascenseur" : n.liaison ? "liaison" : "escalier");
+const CORE_NAME = { escalier: "Escalier", ascenseur: "Ascenseur", liaison: "Escalier de liaison" };
+const coresOn = () => !!(layout && layout.ouvrage && layout.ouvrage.evacuation);
+function coreMoving() { return drag && drag.kind === "core" && drag.moved ? drag.core : coreAnim; }
+function ensureCores() { if (!site.noyaux) site.noyaux = layout.ouvrage.noyaux.map((n) => ({ nature: natureOf(n), p: qCentre(n.q).map((v) => +v.toFixed(3)) })); }
+function coreEntry(n) {
+  const c = qCentre(n.q), nat = natureOf(n); let best = -1, bd = Infinity;
+  site.noyaux.forEach((e, k) => { const d = dist2(e.p, c); if (e.nature === nat && d < bd) { bd = d; best = k; } });
+  return best;
+}
+function coreNear(p, nat) {
+  const N = layout && layout.ouvrage ? layout.ouvrage.noyaux : []; let best = -1, bd = Infinity;
+  N.forEach((n, k) => { const d = dist2(qCentre(n.q), p); if ((!nat || natureOf(n) === nat) && d < bd) { bd = d; best = k; } });
+  return best;
+}
+// Emplacements possibles : places libres (deux places dos à dos de part et d'autre du joint pour
+// l'escalier de liaison), et la place d'origine.
+function coreTargets(n) {
+  const others = layout.ouvrage.noyaux.filter((m) => m !== n), busy = (c) => others.some((m) => pointInPoly(c, m.q)), S = layout.stalls, T = [];
+  if (n.liaison) {
+    for (let a = 0; a < S.length; a++) for (let b = a + 1; b < S.length; b++) {
+      const ca = qCentre(S[a].q), cb = qCentre(S[b].q), dx = cb[0] - ca[0], dy = cb[1] - ca[1], L = Math.hypot(dx, dy);
+      if (L < 5.05 || L > 7.5) continue;
+      const ax = [S[a].q[3][0] - S[a].q[0][0], S[a].q[3][1] - S[a].q[0][1]];
+      if (Math.abs(ax[0] * dy - ax[1] * dx) / Math.hypot(ax[0], ax[1]) > 0.15) continue;
+      const c = [(ca[0] + cb[0]) / 2, (ca[1] + cb[1]) / 2];
+      if (!busy(c)) T.push({ c, q: [S[a].q, S[b].q] });
+    }
+  } else for (const st of S) { const c = qCentre(st.q); if (!busy(c)) T.push({ c, q: [st.q] }); }
+  T.push({ c: qCentre(n.q), q: [n.q], home: true });
+  return T;
+}
+const easeOut = (t) => 1 - (1 - t) ** 3;
+function drawCoreDrag() {
+  const m = coreMoving(); if (!m) return;
+  const now = performance.now(), c0 = qCentre(m.n.q);
+  let cur = m.cur || c0, s = LIFT, lift = 1, again = false;
+  if (m === coreAnim) { const k = Math.min(1, (now - m.t0) / SETTLE_MS), e = easeOut(k); cur = [m.from[0] + (m.to[0] - m.from[0]) * e, m.from[1] + (m.to[1] - m.from[1]) * e]; s = LIFT + (1 - LIFT) * e; lift = 1 - e; again = k < 1; }
+  // Place visée : le marquage s'efface, contour pointillé.
+  const t = m.target;
+  if (t && !t.home) {
+    const k = Math.min(1, (now - (m.tt || 0)) / OPEN_MS); again = again || k < 1;
+    for (const q of t.q) { ctx.beginPath(); pathPoly(q); ctx.globalAlpha = 0.85 * easeOut(k); ctx.fillStyle = C.asphalt; ctx.fill(); ctx.globalAlpha = 1; }
+    ctx.beginPath(); for (const q of t.q) pathPoly(q); ctx.setLineDash([5, 4]); ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+  }
+  // Cage soulevée : agrandie autour de son centre, ombre portée.
+  const q = m.n.q.map((p) => [cur[0] + (p[0] - c0[0]) * s, cur[1] + (p[1] - c0[1]) * s]);
+  ctx.save();
+  ctx.shadowColor = `rgba(0, 0, 0, ${0.3 * lift})`; ctx.shadowBlur = 16 * lift; ctx.shadowOffsetY = 6 * lift;
+  ctx.beginPath(); pathPoly(q); ctx.fillStyle = C.slab; ctx.fill();
+  ctx.restore();
+  drawCore(m.n, q, true);
+  if (again) redraw();
+}
+function dropCore(c) {
+  const t = c.target && !c.target.home ? c.target : null, c0 = qCentre(c.n.q);
+  coreAnim = { n: c.n, from: c.cur || c0, to: t ? t.c : c0, t0: performance.now(), target: c.target, tt: c.tt };
+  redraw();
+  setTimeout(() => {
+    if (t) {
+      ensureCores(); const k = coreEntry(c.n);
+      if (k >= 0) site.noyaux[k].p = t.c.map((v) => +v.toFixed(3));
+      coreAnim = null; solve(false);
+      const i = coreNear(t.c, natureOf(c.n)); setSel(i >= 0 ? { type: "core", i } : null);
+      commit(); markMine();
+    } else { coreAnim = null; redraw(); }
+  }, SETTLE_MS);
+}
+
+// Parc en ouvrage : contour de dalle, poutres et solives (sous la dalle : tirets), files de la trame
+// (trait mixte, repère au bout), poteaux.
+function drawStructure(o) {
+  const font = getComputedStyle(document.body).fontFamily;
+  ctx.beginPath(); pathPoly(o.dalle); ctx.strokeStyle = C.building; ctx.lineWidth = 1.5; ctx.stroke();
+  if (o.poutres.length) {
+    ctx.save(); ctx.beginPath(); for (const q of o.poutres) pathPoly(q);
+    ctx.globalAlpha = 0.12; ctx.fillStyle = C.building; ctx.fill(); ctx.globalAlpha = 1;
+    ctx.setLineDash([5, 3]); ctx.strokeStyle = C.building; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+  }
+  if (view.s > 0.8) {
+    ctx.save(); ctx.strokeStyle = C.accent; ctx.globalAlpha = 0.55; ctx.lineWidth = 1; ctx.setLineDash([10, 3, 2, 3]);
+    ctx.beginPath(); for (const a of o.axes) { const A = toS(a.a), B = toS(a.b); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); } ctx.stroke(); ctx.restore();
+    const r = 9;
+    ctx.font = `600 10px ${font}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (const a of o.axes) {
+      const A = toS(a.a), B = toS(a.b), L = Math.hypot(A[0] - B[0], A[1] - B[1]) || 1, c = [A[0] + (A[0] - B[0]) / L * r, A[1] + (A[1] - B[1]) / L * r];
+      ctx.beginPath(); ctx.arc(c[0], c[1], r, 0, Math.PI * 2); ctx.fillStyle = C.ground; ctx.fill(); ctx.strokeStyle = C.accent; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.fillStyle = C.accent; ctx.fillText(a.nom, c[0], c[1] + 0.5);
+    }
+  }
+  ctx.fillStyle = C.building; ctx.beginPath(); for (const q of o.poteaux) pathPoly(q); ctx.fill();
 }
 
 // Point d'étiquette : centre de l'emprise, ou de la plus longue aile pour un L.
@@ -1287,6 +1553,22 @@ function setbackHandle(i) { const e = edgeInfo(i), s = Math.max(site.setbacks[i]
 function entryPoint(en) { return edgeInfo(en.edge).at(en.t); }
 function objCorners(o) { const c = Math.cos(o.rot * Math.PI / 180), s = Math.sin(o.rot * Math.PI / 180), w = o.w / 2, h = o.h / 2; return [[-w, -h], [w, -h], [w, h], [-w, h]].map(([x, y]) => [o.cx + x * c - y * s, o.cy + x * s + y * c]); }
 function rotHandle(o) { const c = Math.cos(o.rot * Math.PI / 180), s = Math.sin(o.rot * Math.PI / 180), d = o.h / 2 + 18 / view.s * 1.6; return [o.cx - d * s, o.cy + d * c]; }
+// Angle aimanté au degré et aux directions des limites de la parcelle (à 2,5° près).
+function snapRot(a) { a = snap(((a % 360) + 360) % 360, 1); for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); const ea = Math.atan2(e.u[1], e.u[0]) * 180 / Math.PI; for (const k of [0, 90, 180, 270]) { const t = ((ea + k) % 360 + 360) % 360; if (Math.abs(t - a) < 2.5) a = +t.toFixed(2); } } return a; }
+// Dalle du silo telle que calculée, au format des bâtiments : w le long des allées, h en travers, rot = direction des allées.
+// site.slab (emprise dessinée) est absent tant que l'emprise est automatique.
+function slabObj() {
+  const ov = layout && layout.ouvrage; if (!ov) return null;
+  const d = ov.dalle;
+  return { cx: (d[0][0] + d[1][0] + d[2][0] + d[3][0]) / 4, cy: (d[0][1] + d[1][1] + d[2][1] + d[3][1]) / 4, w: ov.longueur, h: ov.largeur, rot: site.slab ? site.slab.rot : ov.angle };
+}
+const slabOn = () => !!(layout && layout.ouvrage && VIS.structure && mode === "edit");
+// Rotation : pastille dans le prolongement du coin opposé aux repères de la trame (toujours dégagé).
+function slabRotHandle() { const o = slabObj(), d = layout.ouvrage.dalle[2], v = [d[0] - o.cx, d[1] - o.cy], k = 34 / view.s / (Math.hypot(v[0], v[1]) || 1); return [d[0] + v[0] * k, d[1] + v[1] * k]; }
+// Milieux des côtés : 0 et 2 en travers (−h, +h), 1 et 3 en long (+w, −w).
+function slabMids(o) { const cs = objCorners(o); return cs.map((c, k) => [(c[0] + cs[(k + 1) % 4][0]) / 2, (c[1] + cs[(k + 1) % 4][1]) / 2]); }
+// Après une modification, l'emprise enregistrée prend les dimensions retenues par le moteur.
+function syncSlab() { const o = slabObj(); if (site.slab && o) site.slab = { cx: +o.cx.toFixed(3), cy: +o.cy.toFixed(3), w: o.w, h: o.h, rot: site.slab.rot }; }
 
 // Boutons au milieu d'une limite survolée : ajouter un sommet, arrondir le segment. Sur la limite de
 // parcelle, ils passent côté extérieur, hors des poignées de recul et des places.
@@ -1307,6 +1589,7 @@ function selAnchor() {
   if (sel.type === "entry") { const en = site.entries[sel.i]; return en && en.edge < site.parcel.length ? entryPoint(en) : null; }
   if (sel.type === "building") { const b = site.buildings[sel.i]; return b ? [b.cx, b.cy] : null; }
   if (sel.type === "gir") { const P = girEditable() && site.gir.pts; return !P ? null : sel.v != null ? P[sel.v] || null : girEdge(sel.e != null ? sel.e : 0).apex; }
+  if (sel.type === "core") { const n = coresOn() && layout.ouvrage.noyaux[sel.i]; return n && !coreMoving() ? qCentre(n.q) : null; }
   if (POLY[sel.type]) {
     const e = site[POLY[sel.type]][sel.i]; if (!e) return null;
     if (sel.v != null && e[sel.v]) return e[sel.v];
@@ -1418,6 +1701,25 @@ function drawHandles() {
     if (sel.e != null && sel.e < P.length - 1) { ctx.lineWidth = 4; strokeLine(girDense(P, sel.e, sel.e + 1)); }
     P.forEach((v, k) => squareHandle(toS(v), sel.v === k, sel.v === k ? null : 6));
   }
+  if (sel.type === "slab" && slabOn()) {
+    const o = slabObj(), cs = objCorners(o), S = cs.map(toS), M = slabMids(o).map(toS), r = toS(slabRotHandle()), q = toS(layout.ouvrage.dalle[2]);
+    const act = drag && drag.moved && drag.hit ? drag.hit : null;
+    ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]); ctx.beginPath(); S.forEach((c, k) => (k ? ctx.lineTo(c[0], c[1]) : ctx.moveTo(c[0], c[1]))); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+    // Rotation : pastille reliée à son coin.
+    ctx.beginPath(); ctx.moveTo(q[0], q[1]); ctx.lineTo(r[0], r[1]); ctx.stroke();
+    ctx.beginPath(); ctx.arc(r[0], r[1], 8, 0, Math.PI * 2); ctx.fillStyle = act && act.kind === "srotate" ? C.accent : C.ground; ctx.fill(); ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.stroke();
+    // Étirement : une barrette au milieu de chaque côté, dans son alignement.
+    M.forEach((m, k) => {
+      const a = S[k], b = S[(k + 1) % 4];
+      ctx.save(); ctx.translate(m[0], m[1]); ctx.rotate(Math.atan2(b[1] - a[1], b[0] - a[0]));
+      ctx.beginPath(); ctx.roundRect(-12, -4, 24, 8, 4); ctx.fillStyle = act && act.kind === "sresize" && act.k === k ? C.accent : C.ground; ctx.fill(); ctx.strokeStyle = C.accent; ctx.lineWidth = 1.8; ctx.stroke();
+      ctx.restore();
+    });
+    // Cotes au quart des côtés, pour laisser les barrettes libres.
+    const mw = slabMids(o);
+    dimLabel(mw[3], cs[0], fmt1(o.h) + " m", font);
+    dimLabel(cs[0], mw[0], fmt1(o.w) + " m", font);
+  }
 }
 function squareHandle(p, on, size) {
   const s = size || (on ? 9 : 7);
@@ -1459,6 +1761,7 @@ function solve(quick) {
   const ln = !quick && layout && layout.circulation && layout.circulation.lanes;
   if (ln && site.lanes && ln.length === site.lanes.length) site.lanes = ln;
   if (!quick) { placesReset(); girRun(); refine(); }
+  if (sel && sel.type === "slab") { if (!(layout && layout.ouvrage)) sel = null; updateSelbar(); }
   updateStats(quick); redraw();
 }
 // Places au sortir des virages : le contrôle (recherche de giration, quelques secondes) tourne en
@@ -1493,6 +1796,24 @@ function updateStats(quick) {
     return;
   }
   $("#s-total").textContent = fmtInt(m.stalls); updateCost();
+  const ov = layout.ouvrage;
+  $("#r-dalle").hidden = !ov; $("#lay-structure").hidden = !ov; $("#k-eff").textContent = ov ? "Dalle par place" : "Enrobé par place";
+  // Tours hors de la dalle : longueur de la dalle seule (l'emprise les comprend).
+  if (ov) $("#s-dalle").textContent = `${fmt1(ov.largeur)} × ${fmt1(Math.hypot(ov.dalle[1][0] - ov.dalle[0][0], ov.dalle[1][1] - ov.dalle[0][1]))} m · ${ov.modules}${ov.demi_module ? ",5" : ""} module${ov.modules + (ov.demi_module ? 0.5 : 0) >= 2 ? "s" : ""}`;
+  $("#r-trame").hidden = !ov; if (ov) $("#s-trame").textContent = `${DENSITE[params.silo_densite]} · portée ${fmt1(ov.portee)} m`;
+  $("#r-niveaux").hidden = !ov || ov.niveaux < 2; if (ov && ov.niveaux > 1) $("#s-niveaux").textContent = ov.demi_niveaux ? `${ov.niveaux} en ${2 * ov.niveaux} demi-niveaux · ${fmtInt(ov.places_niveau)} places par niveau` : ov.plateaux_inclines ? `${ov.niveaux} · ${fmtInt(ov.places_niveau)} places par niveau, plateaux inclinés` : `${ov.niveaux} · ${fmtInt(ov.places_rdc)} places au rez, ${ov.niveaux > 2 ? fmtInt(ov.places_niveau) + " par niveau courant, " : ""}${fmtInt(ov.places_dernier)} au dernier`;
+  $("#r-rampes").hidden = !ov || ov.niveaux < 2; $("#lay-girations").hidden = !ov || !ov.girations.length;
+  if (ov && ov.niveaux > 1) { const k = ov.girations.filter((g) => g.conflits.length).length; $("#s-rampes").innerHTML = ov.rampes.length ? `${IMPLANTATION[ov.implantation]}<span class="chip ${k ? "bad" : "ok"}">${k ? (k > 1 ? k + " girations gênées" : "giration gênée") : "girations conformes"}</span>` : `aucune<span class="chip bad">impossible</span>`; }
+  const ev = ov && ov.evacuation;
+  $("#r-noyaux").hidden = !ev; $("#lay-noyaux").hidden = !ov || !ov.noyaux.length;
+  $("#asc-field").hidden = !(ev && ov.demi_niveaux);
+  for (const k of ["escalier", "ascenseur"]) $(`[data-add="${k}"]`).hidden = !ev;
+  $('[data-add="liaison"]').hidden = !(ev && ov.demi_niveaux);
+  if (ev) {
+    $("#s-noyaux").innerHTML = `${ev.escaliers}${ev.ascenseurs ? ` · ${ev.ascenseurs} ascenseur${ev.ascenseurs > 1 ? "s" : ""}` : ""}${ev.liaisons ? " · liaison" : ""}${ev.manuel ? " · à la main" : ""}<span class="chip ${ev.hors ? "bad" : "ok"}">${ev.hors ? `${ev.hors} place${ev.hors > 1 ? "s" : ""} trop loin` : `${fmt1(ev.distance_max)} m au plus`}</span>`;
+    $("#r-noyaux").title = `PS 13 : ${ev.limite_deux} m entre deux escaliers opposés, ${ev.limite_un} m sinon${ev.largement_ventile ? " (parc largement ventilé)" : ""}, dans l'axe des circulations`;
+  }
+  $("#r-plancher").hidden = !ov; if (ov) { $("#s-plancher").textContent = `${ov.plancher.court} · étage ≥ ${ov.plancher.hauteur_min.toFixed(2).replace(".", ",")} m`; $("#r-plancher").title = ov.plancher.libelle + " (" + ov.plancher.source + ")"; }
   $("#s-pmr").innerHTML = `${m.pmr} / ${m.pmr_required}${chip(m.pmr >= m.pmr_required)}`;
   $("#s-irve").innerHTML = `${m.irve} / ${m.irve_required}${chip(m.irve >= m.irve_required)}`;
   $("#s-irve-eq").innerHTML = `${m.irve_equipped} / ${m.irve_equipped_required}${chip(m.irve_equipped >= m.irve_equipped_required)}`;
@@ -1500,7 +1821,7 @@ function updateStats(quick) {
   $("#s-trees").textContent = fmtInt(m.trees);
   $("#s-eff").textContent = m.stalls ? fmt1(m.m2_paved_per_stall) + " m²" : "–";
   $("#s-parcel").textContent = m.parcel_area >= 10000 ? fmt1(m.parcel_area / 10000).replace(/,0$/, "") + " ha" : fmtInt(m.parcel_area) + " m²";
-  $("#s-green").textContent = m.parcel_area ? fmtInt(100 * m.green_area / m.parcel_area) + " %" : "–";
+  $("#s-green").textContent = m.parcel_area && !ov ? fmtInt(100 * m.green_area / m.parcel_area) + " %" : "–";
   $("#s-angle").textContent = fmt1(layout.angle) + "°" + (params.angle === null ? "" : " imposé");
   const w = layout.warnings || [];
   $("#warn").hidden = !w.length; $("#warn").textContent = w.join(" · ");
@@ -1546,6 +1867,12 @@ function hitTest(w) {
   if (sel && POLY[sel.type]) {
     const e = site[POLY[sel.type]][sel.i]; for (let k = 0; k < e.length; k++) if (dist2(w, e[k]) < h2) return { kind: "evertex", type: sel.type, i: sel.i, k };
   }
+  if (sel && sel.type === "slab" && slabOn()) {
+    const o = slabObj();
+    if (dist2(w, slabRotHandle()) < h2 * 2) return { kind: "srotate" };
+    const m = slabMids(o); for (let k = 0; k < 4; k++) if (dist2(w, m[k]) < h2 * 2) return { kind: "sresize", k };
+  }
+  if (VIS.noyaux && coresOn()) { const N = layout.ouvrage.noyaux; for (let i = N.length - 1; i >= 0; i--) if (pointInPoly(w, N[i].q)) return { kind: "core", i }; }
   if (VIS.pbati) for (let i = site.buildings.length - 1; i >= 0; i--) if (dist2(w, doorGeom(site.buildings[i]).p) < h2 * 1.2) return { kind: "door", i };
   for (let i = 0; i < site.entries.length; i++) if (site.entries[i].edge < site.parcel.length && dist2(w, entryPoint(site.entries[i])) < h2 * 1.3) return { kind: "entry", i };
   for (let i = 0; i < site.parcel.length; i++) if (dist2(w, site.parcel[i]) < h2) return { kind: "vertex", i };
@@ -1558,6 +1885,8 @@ function hitTest(w) {
   if (VIS.pbati) for (let i = (site.basins || []).length - 1; i >= 0; i--) { const e = polyOutline(site.basins[i]); if (pointInPoly(w, e)) return { kind: "move", type: "basin", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "basin", i }; }
   if (VIS.servitudes) for (let i = site.exclusions.length - 1; i >= 0; i--) { const e = polyOutline(site.exclusions[i]); if (pointInPoly(w, e)) return { kind: "move", type: "exclusion", i }; for (let k = 0; k < e.length; k++) if (distSeg(w, e[k], e[(k + 1) % e.length])[0] < h * 0.6) return { kind: "move", type: "exclusion", i }; }
   { const nb = nearEdge(w); if (nb && nb.d < h * 0.7) return { kind: "pedge", i: nb.i, t: nb.t }; }
+  // Dalle du silo : un toucher la sélectionne ; sélectionnée, elle se déplace (sinon le geste fait glisser le plan).
+  if (slabOn() && pointInPoly(w, layout.ouvrage.dalle)) return { kind: sel && sel.type === "slab" ? "smove" : "slab" };
   const ci = cadParcelAt(w); if (ci >= 0) return { kind: "cadastre", i: ci };
   return null;
 }
@@ -1565,13 +1894,31 @@ function hitTest(w) {
 function setSel(s) { sel = s; updateSelbar(); redraw(); }
 function updateSelbar() {
   const bar = $("#selbar");
-  if (!sel || (sel.type !== "cadastre" && sel.type !== "building" && !(sel.type === "gir" && girEditable()))) { bar.hidden = true; $("#hint").style.opacity = ""; return; }
+  if (sel && sel.type === "core" && !(coresOn() && layout.ouvrage.noyaux[sel.i])) sel = null;
+  if (!sel || (sel.type !== "cadastre" && sel.type !== "building" && sel.type !== "core" && !(sel.type === "slab" && slabObj()) && !(sel.type === "gir" && girEditable()))) { bar.hidden = true; $("#hint").style.opacity = ""; return; }
   bar.hidden = false; $("#hint").style.opacity = "0";
   bar.classList.toggle("gir", sel.type === "gir" && sel.e != null); // segment : sur téléphone, les réglages prennent la place du nom
   for (const id of ["#sel-arc", "#sel-rwrap", "#sel-tan"]) $(id).hidden = true;
   if (sel.type === "gir") { for (const id of ["#sel-study", "#sel-merge", "#sel-shape", "#sel-rot"]) $(id).hidden = true; girSelbar(); return; }
   const shape = $("#sel-shape"), rotb = $("#sel-rot");
-  shape.hidden = sel.type !== "building"; rotb.hidden = sel.type !== "building";
+  shape.hidden = sel.type !== "building"; rotb.hidden = sel.type !== "building" && sel.type !== "slab";
+  rotb.textContent = sel.type === "slab" ? "Tourner les allées" : "Pivoter 90°";
+  $("#sel-auto").hidden = sel.type === "slab" ? !site.slab : sel.type !== "core" || !site.noyaux;
+  $("#sel-auto").textContent = sel.type === "core" ? "Placement automatique" : "Emprise automatique";
+  if (sel.type === "core") {
+    const n = layout.ouvrage.noyaux[sel.i], ev = layout.ouvrage.evacuation;
+    $("#sel-study").hidden = $("#sel-merge").hidden = true;
+    $("#sel-what").textContent = `${CORE_NAME[natureOf(n)]} ${n.cle.replace("NY/", "")}`;
+    $("#sel-dim").textContent = site.noyaux ? "glissez-le vers une place" : "placement automatique · glissez-le pour le déplacer";
+    if (ev.hors) $("#sel-dim").textContent = `${ev.hors} place${ev.hors > 1 ? "s" : ""} trop loin d'un escalier`;
+    return;
+  }
+  if (sel.type === "slab") {
+    const o = slabObj();
+    $("#sel-what").textContent = site.slab ? "Dalle" : "Dalle · emprise automatique";
+    $("#sel-dim").textContent = `${fmt1(o.h)} × ${fmt1(o.w)} m · allées à ${fmt1(((o.rot % 180) + 180) % 180)}°`;
+    return;
+  }
   $("#sel-study").hidden = sel.type !== "cadastre"; $("#sel-merge").hidden = sel.type !== "cadastre" || site.parcel.length < 3;
   if (sel.type === "cadastre") { const f = basemap.layers.parcelles[sel.i]; $("#sel-what").textContent = "Parcelle " + cadName(f); $("#sel-dim").textContent = [f.p.contenance ? fmtInt(f.p.contenance) + " m²" : "", f.p.nom_com].filter(Boolean).join(" · "); return; }
   let what = "", dim = "";
@@ -1597,11 +1944,14 @@ canvas.addEventListener("pointerdown", (ev) => {
   if (mode === "draw" || mode === "gir") { drag = { kind: "drawtap", sp }; return; }
   const hit = hitTest(w);
   drag = { kind: hit ? hit.kind : "pan", hit, sp, w0: w, moved: false, orig: JSON.stringify(site) };
+  if (hit && (hit.kind === "smove" || hit.kind === "srotate" || hit.kind === "sresize")) { drag.slab0 = slabObj(); drag.noy0 = site.noyaux ? JSON.parse(JSON.stringify(site.noyaux)) : null; }
+  if (hit && hit.kind === "core") { coreAnim = null; drag.core = { n: layout.ouvrage.noyaux[hit.i] }; }
   if (hit) {
     if (hit.kind === "move") setSel({ type: hit.type, i: hit.i });
     else if (hit.kind === "vertex") setSel({ type: "vertex", i: hit.i });
     else if (hit.kind === "entry") setSel({ type: "entry", i: hit.i });
     else if (hit.kind === "door") setSel({ type: "building", i: hit.i });
+    else if (hit.kind === "core") setSel({ type: "core", i: hit.i });
     else if (hit.kind === "evertex") setSel({ type: hit.type, i: hit.i, v: hit.k });
     else if (hit.kind === "gvert") setSel({ type: "gir", v: hit.k });
     else if (hit.kind === "gpath") setSel({ type: "gir", e: hit.i });
@@ -1644,6 +1994,13 @@ canvas.addEventListener("pointermove", (ev) => {
   const w = toW(sp[0], sp[1]), h = drag.hit;
   switch (drag.kind) {
     case "pan": view.ox += dx; view.oy += dy; drag.sp = sp; redraw(); return;
+    case "core": {
+      const c = drag.core, c0 = qCentre(c.n.q); if (!c.T) c.T = coreTargets(c.n);
+      c.cur = [c0[0] + w[0] - drag.w0[0], c0[1] + w[1] - drag.w0[1]];
+      let best = null, bd = 3.5 * 3.5; for (const t of c.T) { const d = dist2(t.c, c.cur); if (d < bd) { bd = d; best = t; } }
+      if (best !== c.target) { c.target = best; c.tt = performance.now(); }
+      redraw(); return;
+    }
     case "vertex": site.parcel[h.i] = [snap(w[0], 0.1), snap(w[1], 0.1)]; break;
     case "setback": { const e = edgeInfo(h.i); const s = (w[0] - e.apex[0]) * e.n[0] + (w[1] - e.apex[1]) * e.n[1]; site.setbacks[h.i] = Math.max(0, Math.min(40, snap(s, 0.5))); break; }
     case "arc": { const e = edgeRef(h.ref); let sg = -((w[0] - e.mid[0]) * e.n[0] + (w[1] - e.mid[1]) * e.n[1]); sg -= h.s * KNOB / view.s; let k = Math.max(-ARC_MAX, Math.min(ARC_MAX, snap(sg / e.L, 0.005))); if (Math.abs(k) < 0.01) k = 0; setK(h.ref, k); break; }
@@ -1656,7 +2013,22 @@ canvas.addEventListener("pointermove", (ev) => {
     }
     case "door": { const b = site.buildings[h.i], P = rectPoly(b); let best = null; for (let i = 0; i < P.length; i++) { const [dd, t] = distSeg(w, P[i], P[(i + 1) % P.length]); if (!best || dd < best.d) best = { d: dd, e: i, t }; } b.door = { e: best.e, t: +best.t.toFixed(4) }; break; }
     case "evertex": { const P = site[POLY[h.type]][h.i]; P[h.k] = withK(snap(w[0], 0.1), snap(w[1], 0.1), vk(P[h.k])); break; }
-    case "rotate": { const o = site.buildings[h.i]; let a = Math.atan2(w[1] - o.cy, w[0] - o.cx) * 180 / Math.PI - 90; a = snap(((a % 360) + 360) % 360, 1); for (let i = 0; i < site.parcel.length; i++) { const e = edgeInfo(i); const ea = Math.atan2(e.u[1], e.u[0]) * 180 / Math.PI; for (const k of [0, 90, 180, 270]) { const t = ((ea + k) % 360 + 360) % 360; if (Math.abs(t - a) < 2.5) a = +t.toFixed(2); } } o.rot = a; break; }
+    case "rotate": { const o = site.buildings[h.i]; o.rot = snapRot(Math.atan2(w[1] - o.cy, w[0] - o.cx) * 180 / Math.PI - 90); break; }
+    case "smove": case "srotate": case "sresize": {
+      const o0 = drag.slab0, o = site.slab = { ...o0, fixe: [0, 0] };
+      if (drag.kind === "smove") { o.cx = snap(o0.cx + w[0] - drag.w0[0], 0.1); o.cy = snap(o0.cy + w[1] - drag.w0[1], 0.1); }
+      else if (drag.kind === "srotate") o.rot = snapRot(o0.rot + (Math.atan2(w[1] - o0.cy, w[0] - o0.cx) - Math.atan2(drag.w0[1] - o0.cy, drag.w0[0] - o0.cx)) * 180 / Math.PI);
+      else {
+        // Côté étiré, côté opposé fixe : le moteur ramène la dimension à des modules (en travers) et des places (en long) entiers.
+        const d = rot([w[0] - o0.cx, w[1] - o0.cy], -o0.rot), long = h.k % 2 === 1, s = h.k === 1 || h.k === 2 ? 1 : -1;
+        const half = (long ? o0.w : o0.h) / 2, size = Math.max(1, s * d[long ? 0 : 1] + half), c = -s * half + s * size / 2;
+        const cw = rot(long ? [c, 0] : [0, c], o0.rot);
+        o.cx = o0.cx + cw[0]; o.cy = o0.cy + cw[1]; o[long ? "w" : "h"] = size; o.fixe = long ? [-s, 0] : [0, -s];
+      }
+      // Les escaliers placés à la main suivent la dalle déplacée ou tournée.
+      if (drag.noy0 && drag.kind !== "sresize") site.noyaux = drag.noy0.map((e) => { const r = rot([e.p[0] - o0.cx, e.p[1] - o0.cy], o.rot - o0.rot); return { ...e, p: [+(o.cx + r[0]).toFixed(3), +(o.cy + r[1]).toFixed(3)] }; });
+      break;
+    }
     case "resize": {
       const o = site.buildings[h.i];
       const signs = [[-1, -1], [1, -1], [1, 1], [-1, 1]], [sx, sy] = signs[h.k];
@@ -1676,7 +2048,7 @@ canvas.addEventListener("pointermove", (ev) => {
     }
     case "tend": site.traverses[h.i][h.k] = [snap(w[0], 0.1), snap(w[1], 0.1)]; break;
     case "gvert": { const P = site.gir.pts, q = girSnap(w); P[h.k] = withK(q[0], q[1], vk(P[h.k])); break; }
-    case "pedge": case "cadastre": case "pill": case "ebtn": case "nbtn": case "tbtn": case "sdel": case "gpath": drag.kind = "pan"; return;
+    case "pedge": case "cadastre": case "pill": case "ebtn": case "nbtn": case "tbtn": case "sdel": case "gpath": case "slab": drag.kind = "pan"; return;
   }
   // La trajectoire ne touche pas au plan : simulation relancée au lâcher seulement.
   if (girDrag(drag)) { updateSelbar(); redraw(); return; }
@@ -1690,10 +2062,11 @@ function endPointer(ev) {
   canvas.classList.remove("dragging");
   const d = drag; drag = null; if (!d) return;
   if (mode === "map") return;
+  if (d.kind === "core") { if (d.moved) dropCore(d.core); return; }
   const now = performance.now(), dbl = now - lastTap.t < 350 && Math.hypot(sp[0] - lastTap.x, sp[1] - lastTap.y) < 16;
   if (d.kind === "drawtap") { (mode === "gir" ? onGirTap : onDrawTap)(toW(sp[0], sp[1]), dbl, sp); lastTap = { t: now, x: sp[0], y: sp[1] }; return; }
   if (d.kind === "stroke") { if (girLen(d.stroke) >= 1) girStroke(d.stroke); else onGirTap(toW(sp[0], sp[1]), false, sp); return; }
-  if (d.moved) { if (girDrag(d)) girEdited(); else if (d.kind !== "pan") { solve(false); commit(); markMine(); } return; }
+  if (d.moved) { if (girDrag(d)) girEdited(); else if (d.kind !== "pan") { solve(false); if (d.slab0) { syncSlab(); updateSelbar(); } commit(); markMine(); } return; }
   // Toucher simple
   lastTap = { t: dbl ? 0 : now, x: sp[0], y: sp[1] };
   const h = d.hit;
@@ -1711,6 +2084,7 @@ function endPointer(ev) {
     if (h.kind === "move" && POLY[h.type]) { const P = site[POLY[h.type]][h.i], nb = nearRing(P, (i) => vk(P[i]), toW(sp[0], sp[1])); if (nb && nb.d < HIT()) { insertPolyVertex(h.type, h.i, nb.i, nb.t); return; } }
   }
   if (h && h.kind === "cadastre") { setSel({ type: "cadastre", i: h.i }); return; }
+  if (h && h.kind === "slab") { setSel({ type: "slab" }); return; }
   { const nb = nearAnyEdge(toW(sp[0], sp[1])); setHoverEdge(nb && nb.d * view.s < 12 && edgeRef(nb.ref).L * view.s >= 100 ? nb.ref : null); }
   if ((!h || h.kind === "pedge" || h.kind === "setback") && places.res && VIS.girplaces) { const k = stallAt(toW(sp[0], sp[1])); if (k >= 0) { openPlace(k); return; } }
   if (!h || h.kind === "pedge" || h.kind === "setback") setSel(null);
@@ -1805,6 +2179,15 @@ function setMode(m) {
 function viewCenter() { const narrow = W < 760; return toW(narrow ? W / 2 : (W + 190 - 300) / 2, H / 2); }
 function addObject(kind) {
   const c = viewCenter().map((v) => snap(v, 0.5));
+  if (CORE_NAME[kind]) {
+    // Ajouté au milieu de la vue s'il tombe sur la dalle, sinon au milieu de la dalle ; le moteur le cale sur la place la plus proche.
+    if (!coresOn()) return;
+    const D = layout.ouvrage.dalle, p = pointInPoly(c, D) ? c : [D.reduce((a, q) => a + q[0], 0) / D.length, D.reduce((a, q) => a + q[1], 0) / D.length];
+    ensureCores(); site.noyaux.push({ nature: kind, p: p.map((v) => +v.toFixed(3)) });
+    solve(false); const i = coreNear(p, kind); setSel(i >= 0 ? { type: "core", i } : null); commit(); markMine();
+    toast(`${CORE_NAME[kind]} ajouté : glissez-le à sa place`);
+    return;
+  }
   if (kind === "building" || kind === "buildingL") { site.buildings.push({ cx: c[0], cy: c[1], w: kind === "buildingL" ? 36 : 30, h: kind === "buildingL" ? 30 : 18, rot: 0, shape: kind === "buildingL" ? "L" : "rect" }); setSel({ type: "building", i: site.buildings.length - 1 }); }
   if (kind === "landscape") {
     site.landscapes.push([[-10, -6], [2, -7], [10, -4], [9, 6], [-1, 7], [-10, 5]].map(([x, y]) => [c[0] + x, c[1] + y]));
@@ -1841,10 +2224,19 @@ function deleteSel() {
   else if (sel.type === "basin") site.basins.splice(sel.i, 1);
   else if (sel.type === "exclusion") site.exclusions.splice(sel.i, 1);
   else if (sel.type === "entry") site.entries.splice(sel.i, 1);
+  else if (sel.type === "core") { const n = layout.ouvrage.noyaux[sel.i]; ensureCores(); site.noyaux.splice(coreEntry(n), 1); toast(`${CORE_NAME[natureOf(n)]} retiré`); }
   else if (sel.type === "vertex") { if (site.parcel.length > 3) { removeParcelVertex(sel.i); return; } toast("Une parcelle garde au moins trois sommets"); return; }
   setSel(null); solve(false); commit(); markMine();
 }
-$("#sel-rot").addEventListener("click", () => { const o = site.buildings[sel.i]; o.rot = (o.rot + 90) % 360; updateSelbar(); solve(false); commit(); });
+$("#sel-rot").addEventListener("click", () => {
+  // Dalle : même emprise, allées perpendiculaires.
+  if (sel.type === "slab") { const o = slabObj(); site.slab = { cx: o.cx, cy: o.cy, w: o.h, h: o.w, rot: (o.rot + 90) % 360 }; solve(false); syncSlab(); updateSelbar(); commit(); markMine(); return; }
+  const o = site.buildings[sel.i]; o.rot = (o.rot + 90) % 360; updateSelbar(); solve(false); commit();
+});
+$("#sel-auto").addEventListener("click", () => {
+  if (sel && sel.type === "core") { site.noyaux = null; setSel(null); solve(false); commit(); markMine(); toast("Escaliers et ascenseurs replacés automatiquement"); return; }
+  site.slab = null; solve(false); updateSelbar(); commit(); markMine();
+});
 $("#sel-shape").addEventListener("click", () => { const o = site.buildings[sel.i]; o.shape = o.shape === "L" ? "rect" : "L"; updateSelbar(); solve(false); commit(); });
 
 function closeMenus(except) {
@@ -1903,7 +2295,17 @@ window.addEventListener("keydown", (ev) => {
 // ============================================================================
 // Paramètres.
 // ============================================================================
-const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "pmr_ratio", "irve_ratio", "irve_equip_ratio"];
+const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "pmr_ratio", "irve_ratio", "irve_equip_ratio", "silo_niveaux", "silo_etage", "silo_pente", "silo_pu", "silo_pv", "silo_retrait", "silo_travee", "silo_facade"];
+// Densité de la trame du silo : libellés du bilan et du tableur.
+const DENSITE = { longue: "Longue", moyenne: "Moyenne", courte: "Courte" };
+const IMPLANTATION = { rangee: "En rangée", pignon: "En pignon", demi: "Demi-niveaux", helice: "Hélice", helice_ext: "Hélices hors dalle", helice_double: "Hélice à double sens", helice_centre: "Double sens au centre", helice_anneau: "Double sens en anneau", helice_facade: "Double sens en façade", inclines: "Plateaux inclinés" };
+// Systèmes constructifs du silo : libellé, poteau par défaut [le long des allées, en travers], largeur de place,
+// places au plus entre poteaux (acier-béton : solives sur les poteaux, 5,00 m au plus).
+const SYSTEMES = {
+  coule: { nom: "Béton coulé en place", pu: 0.3, pv: 0.6, w: 2.5, travee: 3 },
+  prefa: { nom: "Préfabriqué béton", pu: 0.3, pv: 0.6, w: 2.4, travee: 3 },
+  mixte: { nom: "Mixte acier-béton", pu: 0.18, pv: 0.171, w: 2.5, travee: 2, densite: "longue" },
+};
 // Estimation au ratio (parking de surface, métropole niçoise) : barème par tranche de places, en € HT/place.
 const BAREME_0 = [
   { a: 20, b: 50, t: [2300, 3800], e: [2700, 4400] },
@@ -1950,6 +2352,12 @@ function updateSlantNote() {
 }
 function syncParamsUI() {
   for (const k of PKEYS) $("#p-" + k).value = String(params[k]).replace(".", ",");
+  for (const b of $("#t-seg").children) b.setAttribute("aria-pressed", String((b.dataset.t === "silo") === !!params.silo));
+  $("#silo-fields").hidden = !params.silo; $("#p-silo_rives").checked = !!params.silo_rives;
+  for (const b of $("#sy-seg").children) b.setAttribute("aria-pressed", String(b.dataset.s === params.silo_systeme));
+  for (const b of $("#d-seg").children) { b.setAttribute("aria-pressed", String(b.dataset.d === params.silo_densite)); b.disabled = !!SYSTEMES[params.silo_systeme].densite && b.dataset.d !== SYSTEMES[params.silo_systeme].densite; }
+  $("#ra-sel").value = params.silo_rampes; $("#asc-sel").value = params.silo_asc || "deux"; $("#p-silo_ventile").checked = params.silo_ventile !== false;
+  $("#ra-field").hidden = $("#pslv-field").hidden = Math.round(params.silo_niveaux) < 2;
   for (const b of $("#sl-seg").children) b.setAttribute("aria-pressed", String(+b.dataset.sl === params.slant));
   updateSlantNote();
   const auto = params.angle === null;
@@ -1960,7 +2368,34 @@ function syncParamsUI() {
 let paramTimer = null;
 for (const k of PKEYS) $("#p-" + k).addEventListener("input", (ev) => {
   const v = parseFloat(ev.target.value.replace(",", ".")); if (!isFinite(v)) return;
-  params[k] = v; clearTimeout(paramTimer); paramTimer = setTimeout(() => { lastAngle = null; solve(false); commit(); }, 120);
+  params[k] = v; if (k === "silo_niveaux") $("#ra-field").hidden = $("#pslv-field").hidden = Math.round(v) < 2; clearTimeout(paramTimer); paramTimer = setTimeout(() => { lastAngle = null; solve(false); commit(); }, 120);
+});
+$("#t-seg").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-t]"); if (!b || (b.dataset.t === "silo") === !!params.silo) return;
+  params.silo = b.dataset.t === "silo"; syncParamsUI(); lastAngle = null; solve(false); commit();
+  if (!$("#params").hidden) placeMenu("#b-params", "#params");
+});
+$("#p-silo_rives").addEventListener("change", (ev) => { params.silo_rives = ev.target.checked; lastAngle = null; solve(false); commit(); });
+$("#p-silo_ventile").addEventListener("change", (ev) => { params.silo_ventile = ev.target.checked; lastAngle = null; solve(false); commit(); });
+// Choisir un système applique ses valeurs par défaut (poteau, largeur de place, portée imposée).
+$("#sy-seg").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-s]"); if (!b || b.dataset.s === params.silo_systeme) return;
+  const S = SYSTEMES[b.dataset.s];
+  params.silo_systeme = b.dataset.s; params.silo_pu = S.pu; params.silo_pv = S.pv; params.stall_w = S.w; params.silo_travee = S.travee;
+  if (S.densite) params.silo_densite = S.densite;
+  syncParamsUI(); lastAngle = null; solve(false); commit();
+});
+$("#ra-sel").addEventListener("change", (ev) => {
+  params.silo_rampes = ev.target.value; lastAngle = null; solve(false); commit();
+});
+$("#asc-sel").addEventListener("change", (ev) => {
+  params.silo_asc = ev.target.value;
+  if (site.noyaux) { site.noyaux = null; toast("Escaliers et ascenseurs replacés automatiquement"); }
+  solve(false); commit();
+});
+$("#d-seg").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-d]"); if (!b || b.dataset.d === params.silo_densite) return;
+  params.silo_densite = b.dataset.d; syncParamsUI(); lastAngle = null; solve(false); commit();
 });
 $("#sl-seg").addEventListener("click", (ev) => {
   const b = ev.target.closest("button[data-sl]"); if (!b || +b.dataset.sl === params.slant) return;
@@ -2293,7 +2728,7 @@ const CADR = { layer: "CADASTRALPARCELS.PARCELLAIRE_EXPRESS", style: "PCI vecteu
 const CAD_TYPES = { parcelles: "parcelle", bati: "batiment", feuilles: "feuille", communes: "commune" };
 // Calques : ce que l'on affiche ou masque. Chacun devient un calque AutoCAD à l'export.
 const LAYER_DEFAULTS = {
-  places: true, pvoirie: true, sens: true, ilots: true, pbati: true, servitudes: true, recul: true, vehicules: true, arbres: true,
+  places: true, pvoirie: true, girations: true, noyaux: true, structure: true, sens: true, ilots: true, pbati: true, servitudes: true, recul: true, vehicules: true, arbres: true,
   ovoirie: true, bati: true, vegetation: true,
   photo: true, parcelles: true, numeros: true, feuilles: false, communes: true,
   girroues: true, girenv: true, girmarge: true, girconf: true, girplaces: true,
@@ -3327,7 +3762,7 @@ $("#g-test").addEventListener("click", () => { closeMenus(); testPlaces(); });
 // ============================================================================
 // Calque de l'interface → calques AutoCAD correspondants.
 const DXF_LAYERS = {
-  places: ["PRJ_PLACES", "PRJ_PLACES_PMR", "PRJ_PLACES_IRVE", "PRJ_PLACES_IRVE_EQ"], pvoirie: ["PRJ_VOIRIE"], sens: ["PRJ_SIGNALISATION"], ilots: ["PRJ_ILOTS", "PRJ_NOUES"],
+  places: ["PRJ_PLACES", "PRJ_PLACES_PMR", "PRJ_PLACES_IRVE", "PRJ_PLACES_IRVE_EQ"], pvoirie: ["PRJ_VOIRIE", "PRJ_RAMPES"], girations: ["PRJ_GIRATIONS"], noyaux: ["PRJ_NOYAUX"], structure: ["STR_DALLE", "STR_POUTRES", "STR_POTEAUX", "STR_AXES", "STR_REPERES"], sens: ["PRJ_SIGNALISATION"], ilots: ["PRJ_ILOTS", "PRJ_NOUES"],
   vehicules: ["HAB_VEHICULES"], arbres: ["HAB_ARBRES"],
   pbati: ["PRJ_BATIMENTS", "PRJ_ESPACES_VERTS", "PRJ_BASSIN_TALUS_HAUT", "PRJ_BASSIN_TALUS_BAS"], servitudes: ["PRJ_SERVITUDES"], recul: ["PRJ_RECUL"],
   ovoirie: ["OCC_VOIRIE"], bati: ["OCC_BATI"], vegetation: ["OCC_VEGETATION"],
@@ -3350,10 +3785,12 @@ function updateExportUI() {
     $("#x-note").textContent = "Plan non géoréférencé : coordonnées locales en mètres. Importez un fond de carte pour exporter en Lambert-93. Les calques masqués sont exportés éteints.";
   }
   $("#x-go").disabled = site.parcel.length < 3 && !geo; $("#x-xls").disabled = !(layout && layout.metrics);
+  $("#x-bim").hidden = !(layout && layout.ouvrage);
 }
 $("#x-l93").addEventListener("click", () => { XCRS = "L93"; try { localStorage.setItem("trame.crs", XCRS); } catch (e) { /* stockage indisponible */ } updateExportUI(); });
 $("#x-cc").addEventListener("click", () => { XCRS = "CC"; try { localStorage.setItem("trame.crs", XCRS); } catch (e) { /* stockage indisponible */ } updateExportUI(); });
 $("#x-go").addEventListener("click", exportDxf);
+$("#x-ifc").addEventListener("click", exportIfc);
 
 function slug(t) { return normTxt(t || "plan").replace(/ /g, "-") || "plan"; }
 async function exportDxf() {
@@ -3391,6 +3828,19 @@ async function exportDxf() {
   const name = `trame-${slug(commune || (exampleName === "mine" ? "mon site" : exampleName))}-${crs.toLowerCase()}-${day}.dxf`;
   closeMenus();
   await saveFile(name, out.dxf, `${fmtInt(out.entities)} entités · ${out.crs}${out.epsg ? " (EPSG:" + out.epsg + ")" : ""}`, "application/dxf", "DXF");
+}
+
+// Maquette IFC4 du parc en ouvrage : graine des identifiants propre au projet (date de création).
+async function exportIfc() {
+  if (!Engine.ex || !(layout && layout.ouvrage)) return;
+  const geo = baseShown(), crs = geo ? (XCRS === "CC" ? "CC" + ccZone() : "L93") : "LOCAL";
+  const input = { site: engineInput(false), georef: geo ? { o: basemap.O, k: basemap.k } : null, crs, date: new Date().toISOString().slice(0, 19), projet: "parkimo-" + meta.created };
+  const out = Engine.call("export_ifc_json", input);
+  if (out.error || out.erreur) { toast("Export impossible : " + (out.error || out.erreur)); return; }
+  const commune = geo ? ((basemap.layers.parcelles.find((f) => f.p.nom_com) || { p: {} }).p.nom_com || "") : "";
+  const name = `parkimo-${slug(commune || (exampleName === "mine" ? "mon site" : exampleName))}-silo-${new Date().toISOString().slice(0, 10)}.ifc`;
+  closeMenus();
+  await saveFile(name, out.ifc, `${fmtInt(out.elements)} éléments · ${out.crs}${out.epsg ? " (EPSG:" + out.epsg + ")" : ""}`, "application/x-step", "IFC");
 }
 
 // Export tableur : classeur XML Spreadsheet 2003 (.xls), lu par Excel, LibreOffice et Numbers, sans bibliothèque.
@@ -3440,6 +3890,33 @@ function buildXls() {
   row("Densité", n && pa ? n / (pa / 10000) : "", "places / ha", "N1"); row("Constructible par place", n ? m.buildable_area / n : "", "m² / place", "N1");
   sec("Hypothèses de calcul");
   for (const k of PKEYS) { const lab = $(`label[for="p-${k}"]`), u = $("#p-" + k).parentElement.textContent.trim(); if (lab) row(lab.textContent, params[k], u, "N2"); }
+  if (layout.ouvrage) {
+    const pl = layout.ouvrage.plancher;
+    const ov = layout.ouvrage;
+    if (ov.niveaux > 1) {
+      row("Niveaux", ov.niveaux, ov.demi_niveaux ? `niveaux (${2 * ov.niveaux} demi-niveaux)` : "niveaux"); row("Places au rez", ov.places_rdc, "places"); if (ov.niveaux > 2) row("Places par niveau courant", ov.places_niveau, "places"); row("Places au dernier niveau", ov.places_dernier, "places");
+      row("Implantation des rampes", ov.rampes.length ? IMPLANTATION[ov.implantation] : "aucune");
+      const pc = (r) => `${(r.pente * 100).toFixed(1).replace(".", ",")} %`, m2 = (x) => x.toFixed(2).replace(".", ",");
+      for (const r of ov.rampes) {
+        if (r.forme === "u") row("Demi-rampe en U à double sens", `${pc(r)}, ${m2(r.longueur)} m dans l'axe de la voie intérieure, un demi-étage`);
+        else if (r.forme === "helice") row(r.montee ? "Tour hélicoïdale de montée" : "Tour hélicoïdale de descente", `${pc(r)}, ${m2(r.longueur)} m par tour dans l'axe de la voie, un tour par niveau`);
+        else if (r.forme === "virage") row("Demi-tour horizontal à double sens", `${m2(r.longueur)} m dans l'axe de la voie intérieure`);
+        else if (r.forme === "plateau") row("Plateau incliné", `${pc(r)} sur ${m2(r.longueur)} m, un demi-étage`);
+        else row(r.montee ? "Rampe de montée" : "Rampe de descente", `${Math.round(r.pente * 100)} %, ${m2(r.longueur)} m (raccords R 10 et R 15 compris)`);
+      }
+      for (const g of ov.girations) row(`Giration : ${g.libelle.toLowerCase()}`, g.conflits.length ? `gênée par ${g.conflits.join(", ")}` : "conforme (voie de 4,00 m, rayon extérieur 8,50 m, NF P 91-100 § 3.3)");
+      const ev = ov.evacuation;
+      if (ev) {
+        row("Escaliers", ev.escaliers, "cages, dans l'emprise d'une place"); row("Ascenseurs", ev.ascenseurs, ov.demi_niveaux && ev.ascenseurs > 1 ? "gaines, une par demi-plateau" : "gaines, contre le premier escalier");
+        if (ev.liaisons) row("Escaliers de liaison", ev.liaisons, "entre les deux demi-plateaux, places PMR du côté de l'ascenseur");
+        row("Parc largement ventilé (PS 3)", ev.largement_ventile ? "oui" : "non");
+        row("Distance admise à un escalier", `${ev.limite_deux} m entre deux escaliers opposés, ${ev.limite_un} m sinon (PS 13, dans l'axe des circulations)`);
+        row("Plus grande distance à un escalier", ev.distance_max, "m", "N1"); row("Places au-delà", ev.hors, "places");
+      }
+    }
+    row("Système constructif (silo)", SYSTEMES[params.silo_systeme].nom); row("Portée de la trame (silo)", DENSITE[params.silo_densite]); row("Portée en travers", layout.ouvrage.portee, "m", "N2");
+    row("Plancher", pl.libelle); if (pl.ossature) row(pl.ossature.solive ? "Solives" : "Poutres", `${pl.ossature.profil.replace("_", " ")} : ${layout.ouvrage.poutres.length}`); row("Épaisseur du plancher", pl.epaisseur, "m", "N2"); row("Retombée", pl.retombee, "m", "N2"); row("Hauteur d'étage minimale", pl.hauteur_min, "m (NF P 91-100, § 3.2)", "N2"); row("Source du plancher", pl.source);
+  }
   sec("Estimation financière (€ HT, métropole niçoise)");
   row("Tranche du barème", `${br.a} à ${br.b} places`);
   row("Travaux seuls : ratio mini", T[0], "€ / place"); row("Travaux seuls : ratio maxi", T[1], "€ / place");

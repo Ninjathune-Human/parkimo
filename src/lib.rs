@@ -12,6 +12,7 @@ pub mod giration;
 pub mod layout;
 pub mod model;
 pub mod occupation;
+pub mod ouvrage;
 pub mod perimeter;
 pub mod planted;
 pub mod proj;
@@ -205,6 +206,9 @@ pub(crate) fn mp_of_quads(qs: &[Quad]) -> MultiPolygon<f64> {
 }
 
 pub fn solve(site: &Site) -> Layout {
+    if let Some(o) = site.ouvrage.as_ref().filter(|o| o.actif) {
+        return ouvrage::solve(site, o);
+    }
     let first = solve_flow(site, None, Vec::new());
     if site.params.quick || first.stalls.is_empty() {
         return first;
@@ -870,6 +874,15 @@ pub unsafe extern "C" fn giration_sketch_json(ptr: *const u8, n: usize) -> *cons
 #[no_mangle]
 pub unsafe extern "C" fn giration_places_json(ptr: *const u8, n: usize) -> *const u8 {
     json_call(ptr, n, giration::api::places)
+}
+
+/// Export IFC4 du parc en ouvrage.
+///
+/// # Safety
+/// `ptr` doit pointer vers `n` octets JSON valides alloués par `alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn export_ifc_json(ptr: *const u8, n: usize) -> *const u8 {
+    json_call(ptr, n, ouvrage::ifc::export)
 }
 
 #[no_mangle]

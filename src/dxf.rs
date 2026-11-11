@@ -628,6 +628,100 @@ pub fn export(inp: &ExportIn) -> ExportOut {
         }
         w.ring(layer, &s.q);
     }
+    // Parc en ouvrage : dalle, poteaux, files de la trame et leurs repères (cercle et nom).
+    if let Some(o) = &lay.ouvrage {
+        w.ring("STR_DALLE", &o.dalle);
+        for q in &o.poutres {
+            w.ring("STR_POUTRES", q);
+        }
+        for q in &o.poteaux {
+            let l = vec![w.map(q)];
+            w.hatch("STR_POTEAUX", &l, &Fill::Solid);
+            w.ring("STR_POTEAUX", q);
+        }
+        for a in &o.axes {
+            let pts = w.map(&[a.a, a.b]);
+            w.lwpoly("STR_AXES", &pts, false);
+            let ((ax, ay), (bx, by)) = (pts[0], pts[1]);
+            let l = ((ax - bx).hypot(ay - by)).max(1e-9);
+            let (r, ux, uy) = (0.8, (ax - bx) / l, (ay - by) / l);
+            let (cx, cy) = (ax + ux * r, ay + uy * r);
+            let cercle: Vec<(f64, f64)> = (0..24)
+                .map(|k| {
+                    let t = k as f64 * std::f64::consts::TAU / 24.0;
+                    (cx + r * t.cos(), cy + r * t.sin())
+                })
+                .collect();
+            w.lwpoly("STR_REPERES", &cercle, true);
+            w.text("STR_REPERES", cx, cy, 0.6, &a.nom, true);
+        }
+    }
+    // Rampes : voie, axe dans le sens de parcours avec sa pointe, pente au milieu.
+    if let Some(o) = &lay.ouvrage {
+        for r in &o.rampes {
+            // Un plateau incliné garde ses places : pas de contour, la flèche de pente seulement.
+            if r.forme != "plateau" {
+                w.ring("PRJ_RAMPES", &r.contour);
+            }
+            if !r.trou.is_empty() {
+                w.ring("PRJ_RAMPES", &r.trou);
+            }
+            let pts = w.map(&r.axe);
+            w.lwpoly("PRJ_RAMPES", &pts, false);
+            let n = pts.len();
+            let ((ax, ay), (bx, by)) = (pts[n - 2], pts[n - 1]);
+            let l = ((bx - ax).hypot(by - ay)).max(1e-9);
+            let (ux, uy) = ((bx - ax) / l, (by - ay) / l);
+            let pointe = [(bx - ux * 1.2 - uy * 0.6, by - uy * 1.2 + ux * 0.6), (bx, by), (bx - ux * 1.2 + uy * 0.6, by - uy * 1.2 - ux * 0.6)];
+            w.lwpoly("PRJ_RAMPES", &pointe, false);
+            let quoi = match r.forme.as_str() {
+                "u" => "Demi-rampe",
+                "virage" => "Demi-tour",
+                "plateau" => "Pente",
+                _ if r.montee => "Montée",
+                _ => "Descente",
+            };
+            let pc = if r.forme == "droite" { format!("{}", (r.pente * 100.0).round()) } else { format!("{:.1}", r.pente * 100.0).replace('.', ",") };
+            let txt = if r.forme == "virage" { quoi.to_string() } else { format!("{quoi} {pc} %") };
+            let k = (n - 1) / 2;
+            let (mx, my) = ((pts[k].0 + pts[k + 1].0) / 2.0, (pts[k].1 + pts[k + 1].1) / 2.0);
+            w.text("PRJ_RAMPES", mx, my, 0.5, &txt, true);
+        }
+        // Épures de giration : contour de la bande balayée, trajectoire.
+        for gi in &o.girations {
+            w.ring("PRJ_GIRATIONS", &gi.contour);
+            let pts = w.map(&gi.axe);
+            w.lwpoly("PRJ_GIRATIONS", &pts, false);
+        }
+        // Escaliers et ascenseurs : cage ; escalier à deux volées (échiffre au milieu, marches de
+        // 0,28 m entre deux paliers de 1,00 m) ; ascenseur barré d'une croix ; escalier de liaison
+        // des demi-niveaux ; repère au palier du fond.
+        for n in &o.noyaux {
+            let q = n.q;
+            w.ring("PRJ_NOYAUX", &q);
+            let lerp = |a: P2, b: P2, t: f64| -> P2 { [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t] };
+            let prof = (q[3][0] - q[0][0]).hypot(q[3][1] - q[0][1]).max(1e-9);
+            if n.ascenseur {
+                for d in [[q[0], q[2]], [q[1], q[3]]] {
+                    let pts = w.map(&d);
+                    w.lwpoly("PRJ_NOYAUX", &pts, false);
+                }
+            } else {
+                // Liaison : demi-volées au droit du joint (2,50 m de part et d'autre du milieu).
+                let (t0, pas) = if n.liaison { (0.5 - 1.25 / prof, 0.28 / prof) } else { ((1.0 / prof).min(0.45), 0.28 / prof) };
+                let pts = w.map(&[lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), t0), lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), 1.0 - t0)]);
+                w.lwpoly("PRJ_NOYAUX", &pts, false);
+                let mut t = t0;
+                while t <= 1.0 - t0 + 1e-9 {
+                    let pts = w.map(&[lerp(q[0], q[3], t), lerp(q[1], q[2], t)]);
+                    w.lwpoly("PRJ_NOYAUX", &pts, false);
+                    t += pas;
+                }
+            }
+            let c = w.map(&[lerp(lerp(q[0], q[1], 0.5), lerp(q[3], q[2], 0.5), 0.1)]);
+            w.text("PRJ_NOYAUX", c[0].0, c[0].1, 0.4, n.cle.trim_start_matches("NY/"), true);
+        }
+    }
     // Signalisation horizontale : flèches de sens de circulation.
     for a in &lay.circulation.arrows {
         w.insert("PRJ_SIGNALISATION", "SIG_FLECHE", a.p, a.a, 1.0);
