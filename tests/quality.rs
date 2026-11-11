@@ -159,6 +159,7 @@ fn random_parcels_never_break_invariants() {
 }
 
 #[test]
+#[ignore = "long (plusieurs minutes) : lancé à part, cargo test --release -- --ignored"]
 fn random_parcels_with_oblique_stalls_never_break_invariants() {
     let mut seed: u64 = 42;
     let mut rnd = || {
@@ -724,6 +725,7 @@ fn neufert_aisle(slant: f64) -> f64 {
 }
 
 #[test]
+#[ignore = "long (plusieurs minutes) : lancé à part, cargo test --release -- --ignored"]
 fn oblique_stalls_follow_neufert_aisles_and_keep_the_plan_valid() {
     for name in ["rect", "courbe", "ruisseau", "triangle"] {
         for slant in [75.0, 60.0, 45.0, 30.0] {

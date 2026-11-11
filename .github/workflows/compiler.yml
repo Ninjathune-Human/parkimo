@@ -28,7 +28,7 @@ jobs:
           echo "$RUNNER_TEMP/binaryen-version_133/bin" >> "$GITHUB_PATH"
           npm install -g terser
 
-      - name: Tests
+      - name: Tests rapides
         run: cargo test --release
 
       - name: Compilation
@@ -50,3 +50,11 @@ jobs:
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "Page compilée (${GITHUB_SHA::7})"
           git push
+
+  # Tests longs (places inclinées sur des parcelles aléatoires) : à part, pour ne pas retarder la page.
+  tests-longs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tests longs
+        run: cargo test --release -- --ignored
