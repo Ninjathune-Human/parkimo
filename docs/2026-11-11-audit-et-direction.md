@@ -9,7 +9,11 @@
 - Un test corrigé : il mêlait un contrôle fonctionnel et un seuil de durée (60 ms par place), et échouait sur une machine à deux cœurs (89,7 ms) sans défaut du moteur. La durée n'est plus vérifiée que sur demande (`PARKIMO_PERF=1`).
 - `main` et l'application en ligne ne sont pas touchés.
 
-Non vérifié ici : le rendu dans un navigateur. La cible WebAssembly ne peut pas être installée dans cet environnement ; la page est compilée par l'intégration continue de la branche.
+- Page compilée par l'intégration continue de la branche (tests verts sur GitHub), puis essayée dans Chrome en format PC (1440 x 900) et iPhone (390 x 844) : plan de surface (247 places), test de giration de toutes les places (247 vertes), silo à trois niveaux (368 places, rampes, noyaux, poteaux), aucune erreur en console.
+
+Relevé pendant l'essai : le bandeau de résultat du test des places reste affiché après le passage en silo. Les deux modules cohabitent mais ne se connaissent pas encore.
+
+Non vérifié : fond de carte IGN, exports DXF et IFC depuis l'interface, gestes tactiles réels.
 
 ## 2. État du dépôt
 
@@ -95,7 +99,7 @@ Lecture d'ensemble : le module ouvrage a le bon principe (chaque valeur porte sa
 
 Ces décisions sont prises ; elles se corrigent à la relecture.
 
-1. **Un seul tronc.** `unification` devient `main` une fois la page vérifiée dans un navigateur. Les pages compilées sortent du dépôt : publication par l'intégration continue, tag `deploye` déplacé sur le commit publié.
+1. **Un seul tronc.** `unification` devient `main` une fois la page vérifiée dans un navigateur et la bascule acceptée (§ 7). Les pages compilées sortent du dépôt : publication par l'intégration continue, tag `deploye` déplacé sur le commit publié.
 2. **Parkimo partout.** Caisse `parkimo`, modules `surface`, `ouvrage`, `giration`, `normes`, `commandes`, `scene3d`. Une seule caisse et un seul fichier WebAssembly tant que rien n'impose de la diviser.
 3. **Un référentiel de règles commun.** Chaque valeur avec son unité et sa source, comme dans `normes.rs`. Un programme choisit le jeu applicable : parc public (NF P 91-100 et règles ERP), privatif (NF P 91-120), habitation. Le moteur rend des constats (règle, source, valeur mesurée, valeur exigée, éléments concernés) affichés dans un panneau Conformité, à la place des avertissements en texte libre.
 4. **Tout passe par des commandes.** Chaque action (déplacer un sommet, changer l'angle, poser une traverse, passer en silo) devient une commande sérialisable appliquée au projet par le moteur Rust. L'interface, l'annulation, l'IA et le serveur MCP utilisent les mêmes commandes. C'est la condition pour qu'une IA agisse sur l'aménagement sans code particulier.
@@ -115,7 +119,7 @@ Ces décisions sont prises ; elles se corrigent à la relecture.
 
 ## 7. Ce qui vous revient
 
-- **Mise en ligne.** Remplacer `main` par `unification` change l'application publiée. Je le fais après contrôle dans un navigateur, sauf avis contraire.
+- **Mise en ligne.** Remplacer `main` par `unification` change l'application publiée. Contrôle dans un navigateur d'abord, puis bascule sur votre accord.
 - **Programme par défaut.** Parc public (NF P 91-100 et ERP) retenu. À changer si vos projets sont surtout privatifs.
 - **IA dans l'application.** Elle demande une clé d'API saisie par l'utilisateur dans le navigateur ; le serveur MCP n'en demande pas.
 
