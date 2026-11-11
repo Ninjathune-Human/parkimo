@@ -21,6 +21,7 @@ pub mod planted;
 pub mod proj;
 pub mod projet;
 pub mod region;
+pub mod resume;
 pub mod rows;
 
 use geo::{Area, BooleanOps, MultiPolygon};
@@ -914,6 +915,15 @@ pub unsafe extern "C" fn commandes_json(ptr: *const u8, n: usize) -> *const u8 {
 #[no_mangle]
 pub unsafe extern "C" fn catalogue_json(ptr: *const u8, n: usize) -> *const u8 {
     json_call(ptr, n, |_: &serde_json::Value| commandes::catalogue())
+}
+
+/// Résumé du projet pour une IA (`resume::Demande`).
+///
+/// # Safety
+/// `ptr` doit pointer vers `n` octets JSON valides alloués par `alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn resume_json(ptr: *const u8, n: usize) -> *const u8 {
+    json_call(ptr, n, resume::repondre)
 }
 
 #[no_mangle]

@@ -270,7 +270,8 @@ pub struct BasinOut {
     pub outer: Vec<Vec<P2>>,
 }
 
-#[derive(Serialize, Default)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[serde(default)]
 pub struct Metrics {
     pub parcel_area: f64,
     pub buildable_area: f64,

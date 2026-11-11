@@ -6,9 +6,9 @@ use crate::model::{Layout, Programme, Site, P2};
 use crate::normes::{accessibilite, irve, nf, ps, urbanisme, Val};
 use crate::ouvrage::plateau::Densite;
 use crate::ouvrage::{Ouvrage, OuvrageOut};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Statut {
     Conforme,
@@ -18,7 +18,7 @@ pub enum Statut {
 }
 
 /// Résultat d'une règle : ce qui est mesuré sur le plan, ce que le texte exige, et sa source.
-#[derive(Serialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Constat {
     /// Identifiant stable de la règle (`nf.place.largeur`).
     pub code: String,
