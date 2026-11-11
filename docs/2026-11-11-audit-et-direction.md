@@ -17,7 +17,7 @@ Non vérifié ici : le rendu dans un navigateur. La cible WebAssembly ne peut pa
 | --- | --- | --- |
 | Trois branches divergentes | `main` : surface seule (publiée). `giration` : +12 500 lignes. `ouvrage-lot1` : +9 300 lignes. Aucune ne contenait tout | Corrigé par `unification` |
 | Pages compilées versionnées | `index.html`, `dist/index.html`, `dist/trame.html` (3,3 à 4,3 Mo chacune), plus `essai/` et `giration/` : 20 Mo sur les 23 Mo suivis | Conflit garanti à chaque fusion, historique alourdi |
-| Interface en un fichier | `web/app.html` : 4 000 lignes, 260 Ko, environ 250 fonctions sur un état global, dessin Canvas 2D | Difficile à faire évoluer ; aucune couche de commandes, donc rien qu'une IA puisse piloter |
+| Interface en un fichier | `web/app.html` : 4 000 lignes, 310 Ko, environ 260 fonctions sur un état global, dessin Canvas 2D | Difficile à faire évoluer ; aucune couche de commandes, donc rien qu'une IA puisse piloter |
 | Aucune 3D | Zéro occurrence de three.js, alors que le module ouvrage la prévoyait | À construire entièrement |
 | Nom | La caisse Rust et le README s'appellent encore « Trame » | À renommer en Parkimo |
 | `solve_flow` | Une fonction d'environ 450 lignes dans `src/lib.rs` | À découper par étape du pipeline |
