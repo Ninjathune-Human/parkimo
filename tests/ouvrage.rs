@@ -3,13 +3,13 @@
 //! Aucune place qui se chevauche ou sort de la zone stationnable, toute place donne sur une allée,
 //! aucun poteau dans une allée, identifiants BIM stables, IFC produit.
 
-use trame::geom::{v2, Quad, QuadHash, Region};
-use trame::model::Site;
-use trame::ouvrage::plateau::{Densite, Implantation};
-use trame::ouvrage::systemes::Systeme;
-use trame::ouvrage::noyaux::AscenseursDemi;
-use trame::ouvrage::{bim, ifc, EmpriseIn, Ouvrage};
-use trame::region;
+use parkimo::geom::{v2, Quad, QuadHash, Region};
+use parkimo::model::Site;
+use parkimo::ouvrage::plateau::{Densite, Implantation};
+use parkimo::ouvrage::systemes::Systeme;
+use parkimo::ouvrage::noyaux::AscenseursDemi;
+use parkimo::ouvrage::{bim, ifc, EmpriseIn, Ouvrage};
+use parkimo::region;
 
 fn quad(q: &[[f64; 2]; 4]) -> Quad {
     Quad([v2(q[0][0], q[0][1]), v2(q[1][0], q[1][1]), v2(q[2][0], q[2][1]), v2(q[3][0], q[3][1])])
@@ -31,7 +31,7 @@ fn plateaux_sur_les_scenarios() {
         let mut s = site(nom);
         s.ouvrage.as_mut().unwrap().densite = densite;
         let t = std::time::Instant::now();
-        let lay = trame::solve(&s);
+        let lay = parkimo::solve(&s);
         let ms = t.elapsed().as_secs_f64() * 1e3;
         let Some(o) = lay.ouvrage.as_ref() else {
             panic!("{nom} : pas de plateau ({:?})", lay.warnings);
@@ -88,9 +88,9 @@ fn emprise_dessinee_a_la_main() {
     let avec = |cx: f64, cy: f64, w: f64, h: f64, rot: f64, fixe: [f64; 2]| {
         let mut s = site("rect");
         s.ouvrage.as_mut().unwrap().emprise = Some(EmpriseIn { cx, cy, w, h, rot, fixe });
-        trame::solve(&s)
+        parkimo::solve(&s)
     };
-    let centre = |o: &trame::ouvrage::OuvrageOut| {
+    let centre = |o: &parkimo::ouvrage::OuvrageOut| {
         let c = o.dalle.iter().fold([0.0, 0.0], |a, p| [a[0] + p[0] / 4.0, a[1] + p[1] / 4.0]);
         v2(c[0], c[1])
     };
@@ -123,9 +123,9 @@ fn emprise_dessinee_a_la_main() {
 #[test]
 fn identifiants_stables() {
     let s = site("rect");
-    let lay = trame::solve(&s);
+    let lay = parkimo::solve(&s);
     let m1 = bim::modele(&lay, "projet", 2.5, 5.0, 6.0).unwrap();
-    let m2 = bim::modele(&trame::solve(&s), "projet", 2.5, 5.0, 6.0).unwrap();
+    let m2 = bim::modele(&parkimo::solve(&s), "projet", 2.5, 5.0, 6.0).unwrap();
     let g1: Vec<&String> = m1.elements.iter().map(|e| &e.guid).collect();
     let g2: Vec<&String> = m2.elements.iter().map(|e| &e.guid).collect();
     assert_eq!(g1, g2);
@@ -139,7 +139,7 @@ fn identifiants_stables() {
         p[0] += 13.0;
         p[1] += 7.0;
     }
-    let m3 = bim::modele(&trame::solve(&t), "projet", 2.5, 5.0, 6.0).unwrap();
+    let m3 = bim::modele(&parkimo::solve(&t), "projet", 2.5, 5.0, 6.0).unwrap();
     let mut a: Vec<&String> = m1.elements.iter().map(|e| &e.guid).collect();
     let mut b: Vec<&String> = m3.elements.iter().map(|e| &e.guid).collect();
     a.sort();
@@ -150,7 +150,7 @@ fn identifiants_stables() {
 #[test]
 fn export_ifc() {
     let s = site("rect");
-    let n = trame::solve(&s).stalls.len();
+    let n = parkimo::solve(&s).stalls.len();
     let out = ifc::export(&ifc::IfcIn {
         site: s,
         georef: None,
@@ -173,7 +173,7 @@ fn export_ifc() {
 fn systemes_constructifs() {
     // Chaque système porte un plancher ; épaisseur reprise par la dalle ; hauteur d'étage contrôlée
     // (NF P 91-100, § 3.2) ; module des dalles alvéolées contrôlé en préfabriqué.
-    let avertit = |lay: &trame::model::Layout, mot: &str| lay.warnings.iter().any(|w| w.contains(mot));
+    let avertit = |lay: &parkimo::model::Layout, mot: &str| lay.warnings.iter().any(|w| w.contains(mot));
     for (systeme, densites) in [
         (Systeme::Coule, vec![Densite::Longue, Densite::Moyenne, Densite::Courte]),
         (Systeme::Prefa, vec![Densite::Longue, Densite::Moyenne, Densite::Courte]),
@@ -189,7 +189,7 @@ fn systemes_constructifs() {
             if systeme == Systeme::Mixte {
                 o.travee = 2;
             }
-            let lay = trame::solve(&s);
+            let lay = parkimo::solve(&s);
             let ov = lay.ouvrage.as_ref().expect("plateau");
             assert!(ov.plancher.epaisseur > 0.0 && (ov.dalle_ep - ov.plancher.epaisseur).abs() < 1e-9);
             assert!(ov.plancher.hauteur_min > 2.2 && ov.plancher.hauteur_min < 2.9, "{systeme:?} {densite:?}");
@@ -211,17 +211,17 @@ fn systemes_constructifs() {
             );
             // Étage trop bas : signalé.
             s.ouvrage.as_mut().unwrap().hauteur_etage = 2.3;
-            assert!(avertit(&trame::solve(&s), "Hauteur d'étage"));
+            assert!(avertit(&parkimo::solve(&s), "Hauteur d'étage"));
         }
     }
     // Préfabriqué avec des places de 2,50 m : 3 × 2,50 = 7,50 m, pas un multiple de 1,20 m.
     let mut s = site("rect");
     s.ouvrage.as_mut().unwrap().systeme = Systeme::Prefa;
-    assert!(avertit(&trame::solve(&s), "démoduler"));
+    assert!(avertit(&parkimo::solve(&s), "démoduler"));
     // Acier-béton en portée courte : signalé.
     let o = s.ouvrage.as_mut().unwrap();
     (o.systeme, o.densite) = (Systeme::Mixte, Densite::Courte);
-    assert!(avertit(&trame::solve(&s), "portée longue seulement"));
+    assert!(avertit(&parkimo::solve(&s), "portée longue seulement"));
 }
 
 #[test]
@@ -231,7 +231,7 @@ fn niveaux_et_rampes() {
     // contrôlée ; dalle trop étroite signalée.
     let mut s = site("rect");
     s.ouvrage.as_mut().unwrap().niveaux = 3;
-    let lay = trame::solve(&s);
+    let lay = parkimo::solve(&s);
     let o = lay.ouvrage.as_ref().unwrap();
     assert_eq!(o.niveaux, 3);
     assert_eq!(o.places_niveau, lay.stalls.len());
@@ -252,16 +252,16 @@ fn niveaux_et_rampes() {
         let q = quad(po).shrink(0.01);
         assert!(!rampes.iter().any(|r| r.overlaps(&q)), "poteau {} dans une rampe", o.poteaux_cles[k]);
     }
-    let pas = |lay: &trame::model::Layout, mot: &str| !lay.warnings.iter().any(|w| w.contains(mot));
+    let pas = |lay: &parkimo::model::Layout, mot: &str| !lay.warnings.iter().any(|w| w.contains(mot));
     assert!(pas(&lay, "Rampes") && pas(&lay, "Giration") && pas(&lay, "Hauteur libre sur rampe"), "{:?}", lay.warnings);
     // Étage de 2,40 m : (2,40 − 0,40) × cos(atan 0,18) = 1,97 < 2,00 + 0,11.
     s.ouvrage.as_mut().unwrap().hauteur_etage = 2.4;
-    assert!(!pas(&trame::solve(&s), "Hauteur libre sur rampe"));
+    assert!(!pas(&parkimo::solve(&s), "Hauteur libre sur rampe"));
     // Dalle d'un module (16,40 m) : ni le long des allées (pas d'autre allée pour aborder la rampe)
     // ni en pignon.
     s.ouvrage.as_mut().unwrap().hauteur_etage = 2.9;
     s.ouvrage.as_mut().unwrap().emprise = Some(EmpriseIn { cx: 60.0, cy: 40.0, w: 60.0, h: 16.4, rot: 0.0, fixe: [0.0, 0.0] });
-    let lay = trame::solve(&s);
+    let lay = parkimo::solve(&s);
     assert!(lay.ouvrage.as_ref().unwrap().rampes.is_empty(), "{:?}", lay.warnings);
     assert!(!pas(&lay, "Rampes le long des allées") && !pas(&lay, "Rampes en pignon"), "{:?}", lay.warnings);
 }
@@ -276,7 +276,7 @@ fn implantations_sur_les_scenarios() {
             let o = s.ouvrage.as_mut().unwrap();
             o.niveaux = 3;
             o.implantation = imp;
-            let lay = trame::solve(&s);
+            let lay = parkimo::solve(&s);
             let ov = lay.ouvrage.as_ref().unwrap();
             let n_rampes = if imp == Implantation::Inclines { 4 } else { 2 };
             assert_eq!(ov.rampes.len(), n_rampes, "{nom} {imp:?} : {:?}", lay.warnings);
@@ -318,7 +318,7 @@ fn implantations_sur_les_scenarios() {
     o.niveaux = 3;
     o.implantation = Implantation::Inclines;
     o.emprise = Some(EmpriseIn { cx: 60.0, cy: 40.0, w: 46.0, h: 33.0, rot: 0.0, fixe: [0.0, 0.0] });
-    let lay = trame::solve(&s);
+    let lay = parkimo::solve(&s);
     assert_eq!(lay.ouvrage.as_ref().unwrap().rampes.len(), 4, "{:?}", lay.warnings);
     assert!(lay.warnings.iter().any(|w| w.starts_with("Plateaux inclinés à 6,44 %")), "{:?}", lay.warnings);
     // Site étroit : aucune rampe le long des allées possible, le motif est donné.
@@ -326,7 +326,7 @@ fn implantations_sur_les_scenarios() {
     let o = s.ouvrage.as_mut().unwrap();
     o.niveaux = 3;
     o.implantation = Implantation::Rangee;
-    let lay = trame::solve(&s);
+    let lay = parkimo::solve(&s);
     assert!(lay.ouvrage.as_ref().unwrap().rampes.is_empty());
     assert!(lay.warnings.iter().any(|w| w.starts_with("Rampes le long des allées")), "{:?}", lay.warnings);
 }
@@ -349,7 +349,7 @@ fn escaliers_et_ascenseur() {
                 if liaison {
                     o.ascenseurs_demi = AscenseursDemi::Liaison;
                 }
-                let lay = trame::solve(&s);
+                let lay = parkimo::solve(&s);
                 let ov = lay.ouvrage.as_ref().unwrap();
                 let cas = format!("{nom} {imp:?} PSLV {pslv} liaison {liaison}");
                 let ev = ov.evacuation.as_ref().expect("bilan d'évacuation");
@@ -412,7 +412,7 @@ fn escaliers_et_ascenseur() {
         }
     }
     assert!(demis >= 6, "{demis} cas en demi-niveaux");
-    let lay = trame::solve(&site("rect"));
+    let lay = parkimo::solve(&site("rect"));
     let ov = lay.ouvrage.as_ref().unwrap();
     assert!(ov.noyaux.is_empty() && ov.evacuation.is_none());
 }
@@ -421,25 +421,25 @@ fn escaliers_et_ascenseur() {
 fn noyaux_deplaces_a_la_main() {
     // Les centres des noyaux automatiques, renvoyés comme saisie, redonnent les mêmes cages ; un
     // escalier lâché sur le centre d'une place la prend.
-    use trame::ouvrage::noyaux::Nature;
-    use trame::ouvrage::NoyauIn;
+    use parkimo::ouvrage::noyaux::Nature;
+    use parkimo::ouvrage::NoyauIn;
     for imp in [Implantation::Rangee, Implantation::DemiNiveaux] {
         let mut s = site("ruisseau");
         let o = s.ouvrage.as_mut().unwrap();
         o.niveaux = 3;
         o.implantation = imp;
         o.ascenseurs_demi = AscenseursDemi::Liaison;
-        let lay = trame::solve(&s);
+        let lay = parkimo::solve(&s);
         let ov = lay.ouvrage.as_ref().unwrap();
         let centre = |q: &[[f64; 2]; 4]| [(q[0][0] + q[2][0]) / 2.0, (q[0][1] + q[2][1]) / 2.0];
-        let nature = |n: &trame::ouvrage::NoyauOut| if n.ascenseur { Nature::Ascenseur } else if n.liaison { Nature::Liaison } else { Nature::Escalier };
+        let nature = |n: &parkimo::ouvrage::NoyauOut| if n.ascenseur { Nature::Ascenseur } else if n.liaison { Nature::Liaison } else { Nature::Escalier };
         let mut saisis: Vec<NoyauIn> = ov.noyaux.iter().map(|n| NoyauIn { nature: nature(n), p: centre(&n.q) }).collect();
         s.ouvrage.as_mut().unwrap().noyaux = Some(saisis.clone());
-        let lay2 = trame::solve(&s);
+        let lay2 = parkimo::solve(&s);
         let ov2 = lay2.ouvrage.as_ref().unwrap();
         let ev2 = ov2.evacuation.as_ref().unwrap();
         assert!(ev2.manuel);
-        let q = |o: &trame::ouvrage::OuvrageOut| {
+        let q = |o: &parkimo::ouvrage::OuvrageOut| {
             let mut v: Vec<String> = o.noyaux.iter().map(|n| format!("{:?}", n.q.map(|p| p.map(|x| (x * 100.0).round() as i64)))).collect();
             v.sort();
             v
@@ -452,7 +452,7 @@ fn noyaux_deplaces_a_la_main() {
         let k = saisis.iter().position(|n| n.nature == Nature::Escalier).unwrap();
         saisis[k].p = centre(&cible);
         s.ouvrage.as_mut().unwrap().noyaux = Some(saisis);
-        let lay3 = trame::solve(&s);
+        let lay3 = parkimo::solve(&s);
         let ov3 = lay3.ouvrage.as_ref().unwrap();
         assert!(ov3.noyaux.iter().any(|n| !n.ascenseur && !n.liaison && n.q == cible), "{imp:?}");
         assert_eq!(lay3.stalls.len(), lay.stalls.len());

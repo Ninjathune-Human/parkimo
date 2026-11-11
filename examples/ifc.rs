@@ -2,20 +2,20 @@
 //! `cargo run --release --example ifc -- in.json out.ifc [L93|CC44|LOCAL]`
 fn main() {
     let a: Vec<String> = std::env::args().collect();
-    let mut site: trame::model::Site = serde_json::from_slice(&std::fs::read(&a[1]).unwrap()).unwrap();
+    let mut site: parkimo::model::Site = serde_json::from_slice(&std::fs::read(&a[1]).unwrap()).unwrap();
     if site.ouvrage.is_none() {
-        site.ouvrage = Some(trame::ouvrage::Ouvrage { actif: true, ..Default::default() });
+        site.ouvrage = Some(parkimo::ouvrage::Ouvrage { actif: true, ..Default::default() });
     }
     let crs = a.get(3).cloned().unwrap_or_else(|| "L93".into());
     let georef = if crs == "LOCAL" {
         None
     } else {
-        Some(trame::proj::Georef {
+        Some(parkimo::proj::Georef {
             o: [808_399.0, 5_418_700.0],
             k: (43.7f64).to_radians().cos(),
         })
     };
-    let inp = trame::ouvrage::ifc::IfcIn {
+    let inp = parkimo::ouvrage::ifc::IfcIn {
         site,
         georef,
         crs,
@@ -23,7 +23,7 @@ fn main() {
         projet: "exemple".into(),
     };
     let t = std::time::Instant::now();
-    let out = trame::ouvrage::ifc::export(&inp);
+    let out = parkimo::ouvrage::ifc::export(&inp);
     if let Some(e) = out.erreur {
         eprintln!("{e}");
         std::process::exit(1);

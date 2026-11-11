@@ -806,7 +806,7 @@ pub fn export(inp: &ExportIn) -> ExportOut {
             }
         ),
         format!(
-            "Trame - {} places dont {} PMR, {} IRVE pré-équipées et {} équipées",
+            "Parkimo - {} places dont {} PMR, {} IRVE pré-équipées et {} équipées",
             m.stalls, m.pmr, m.irve, m.irve_equipped
         ),
     ];
@@ -852,7 +852,7 @@ pub fn export(inp: &ExportIn) -> ExportOut {
     let comment = format!(
         "999\n{}\n",
         dxf_text(&format!(
-            "Trame - {crs}{}",
+            "Parkimo - {crs}{}",
             if epsg > 0 {
                 format!(" (EPSG:{epsg})")
             } else {

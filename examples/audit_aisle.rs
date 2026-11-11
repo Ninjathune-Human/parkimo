@@ -1,7 +1,7 @@
 // Audit : rangées de 15 places à 90° (2,50 × 5,00 m) face à face, allée de 6 m à double sens.
 // Place au milieu de la rangée du haut, sous plusieurs hypothèses (véhicule, marge, occupation).
-use trame::giration::api::places_with;
-use trame::giration::vehicle::{Convention, Vehicle};
+use parkimo::giration::api::places_with;
+use parkimo::giration::vehicle::{Convention, Vehicle};
 
 fn main() {
     let path = format!("{}/scenarios/rect.json", env!("CARGO_MANIFEST_DIR"));

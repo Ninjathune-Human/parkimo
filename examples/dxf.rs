@@ -1,17 +1,17 @@
 //! Exporte un scénario en DXF : `cargo run --release --example dxf -- in.json out.dxf [L93|CC44|LOCAL]`
 fn main() {
     let a: Vec<String> = std::env::args().collect();
-    let site: trame::model::Site = serde_json::from_slice(&std::fs::read(&a[1]).unwrap()).unwrap();
+    let site: parkimo::model::Site = serde_json::from_slice(&std::fs::read(&a[1]).unwrap()).unwrap();
     let crs = a.get(3).cloned().unwrap_or_else(|| "L93".into());
     let georef = if crs == "LOCAL" {
         None
     } else {
-        Some(trame::proj::Georef {
+        Some(parkimo::proj::Georef {
             o: [808_399.0, 5_418_700.0],
             k: (43.7f64).to_radians().cos(),
         })
     };
-    let inp = trame::dxf::ExportIn {
+    let inp = parkimo::dxf::ExportIn {
         site,
         georef,
         crs,
@@ -22,7 +22,7 @@ fn main() {
         giration: None,
     };
     let t = std::time::Instant::now();
-    let out = trame::dxf::export(&inp);
+    let out = parkimo::dxf::export(&inp);
     eprintln!(
         "{} entités, {} octets, {} (EPSG:{}), {:.1} ms",
         out.entities,

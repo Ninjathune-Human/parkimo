@@ -334,7 +334,7 @@ pub fn ecrire(m: &Modele, date: &str, geo: Option<(&str, u32, &dyn Fn(f64, f64) 
     out.push_str("FILE_DESCRIPTION(('ViewDefinition [ReferenceView_V1.2]'),'2;1');\n");
     let _ = writeln!(
         out,
-        "FILE_NAME({},{},(''),(''),'Parkimo (moteur Trame, Rust)','Parkimo','');",
+        "FILE_NAME({},{},(''),(''),'Parkimo (moteur Rust)','Parkimo','');",
         s(&format!("{}.ifc", m.nom)),
         s(date)
     );

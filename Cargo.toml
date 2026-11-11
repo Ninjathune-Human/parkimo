@@ -1,5 +1,5 @@
 [package]
-name = "trame"
+name = "parkimo"
 version = "0.1.0"
 edition = "2021"
 description = "Moteur d'étude de capacité (parking) : géométrie robuste et optimisation en temps réel"

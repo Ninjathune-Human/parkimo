@@ -1,9 +1,9 @@
 //! Invariants de qualité du plan : aucune place qui se chevauche, aucune place hors zone,
 //! toute place donne sur une voie circulable, temps de calcul compatible avec le direct.
 
-use trame::geom::{v2, Quad, QuadHash, Region, V2};
-use trame::model::{Layout, Site};
-use trame::region;
+use parkimo::geom::{v2, Quad, QuadHash, Region, V2};
+use parkimo::model::{Layout, Site};
+use parkimo::region;
 
 fn quad(q: &[[f64; 2]; 4]) -> Quad {
     Quad([
@@ -98,10 +98,10 @@ fn scenarios_respect_invariants() {
         let mut ms = f64::INFINITY;
         for _ in 0..3 {
             let t = std::time::Instant::now();
-            trame::solve(&direct);
+            parkimo::solve(&direct);
             ms = ms.min(t.elapsed().as_secs_f64() * 1000.0);
         }
-        let lay = trame::solve(&site);
+        let lay = parkimo::solve(&site);
         check(&site, &lay, name);
         assert!(
             lay.metrics.stalls > 150,
@@ -117,7 +117,7 @@ fn scenarios_respect_invariants() {
 #[test]
 fn rectangle_yield_is_dense() {
     // 120 × 80 m, reculs 5/3 m : un bon plan dépasse 300 places à moins de 26 m² d'enrobé par place.
-    let lay = trame::solve(&load("rect"));
+    let lay = parkimo::solve(&load("rect"));
     assert!(lay.metrics.stalls >= 300, "{} places", lay.metrics.stalls);
     assert!(
         lay.metrics.m2_paved_per_stall < 26.0,
@@ -152,7 +152,7 @@ fn random_parcels_never_break_invariants() {
             "exclusions": if case % 4 == 1 { serde_json::json!([[[-200,-6],[200,-2],[200,6],[-200,3]]]) } else { serde_json::json!([]) }
         });
         let site: Site = serde_json::from_value(json).unwrap();
-        let lay = trame::solve(&site);
+        let lay = parkimo::solve(&site);
         check(&site, &lay, &format!("aléatoire {case}"));
     }
 }
@@ -184,7 +184,7 @@ fn random_parcels_with_oblique_stalls_never_break_invariants() {
         });
         let mut site: Site = serde_json::from_value(json).unwrap();
         site.params.slant = [75.0, 60.0, 45.0, 30.0][case % 4];
-        let lay = trame::solve(&site);
+        let lay = parkimo::solve(&site);
         check(&site, &lay, &format!("aléatoire oblique {case} ({}°)", site.params.slant));
     }
 }
@@ -199,7 +199,7 @@ fn degenerate_inputs_do_not_panic() {
         r#"{"parcel":[[0,0],[100,0],[100,60],[0,60]],"exclusions":[[[0,0],[100,0],[100,60],[0,60]]]}"#,
     ] {
         let site: Site = serde_json::from_str(json).unwrap();
-        let _ = trame::solve(&site);
+        let _ = parkimo::solve(&site);
     }
 }
 
@@ -209,7 +209,7 @@ fn adjacent_parcels_merge_into_one_outline() {
     let a = vec![[0.0, 0.0], [20.0, 0.0], [20.0, 30.0], [0.0, 30.0]];
     let b = vec![[20.02, 0.0], [45.0, 0.0], [45.0, 30.0], [20.02, 30.0]];
     let c = vec![[100.0, 0.0], [110.0, 0.0], [110.0, 10.0], [100.0, 10.0]];
-    let rings = trame::union_rings(&[a, b, c]);
+    let rings = parkimo::union_rings(&[a, b, c]);
     assert_eq!(rings.len(), 2, "{rings:?}");
     let area = |r: &Vec<[f64; 2]>| {
         let n = r.len();
@@ -228,7 +228,7 @@ fn adjacent_parcels_merge_into_one_outline() {
 
 /// Flèches au sol : dans la chaussée, hors des places ; sens unique fortement connexe.
 fn check_circulation(lay: &Layout, name: &str) {
-    use trame::circulation::{ARROW_L, ARROW_W};
+    use parkimo::circulation::{ARROW_L, ARROW_W};
     let c = &lay.circulation;
     assert!(!c.arrows.is_empty(), "{name}: aucune flèche");
     let mut rings: Vec<Vec<V2>> = lay
@@ -356,7 +356,7 @@ fn check_circulation(lay: &Layout, name: &str) {
 #[test]
 fn circulation_marks_every_scenario() {
     for name in ["rect", "courbe", "ruisseau", "triangle", "etroit"] {
-        let lay = trame::solve(&load(name));
+        let lay = parkimo::solve(&load(name));
         assert!(
             lay.circulation.axes.iter().all(|a| a.sens == 2),
             "{name}: allées de 6 m à double sens"
@@ -370,7 +370,7 @@ fn narrow_aisles_become_one_way_and_stay_connected() {
     for name in ["rect", "courbe", "ruisseau"] {
         let mut site = load(name);
         site.params.aisle = 4.0;
-        let lay = trame::solve(&site);
+        let lay = parkimo::solve(&site);
         let one = lay.circulation.axes.iter().filter(|a| a.sens == 1).count();
         assert!(
             one > 0,
@@ -383,7 +383,7 @@ fn narrow_aisles_become_one_way_and_stay_connected() {
 #[test]
 fn interstitial_spaces_are_planted_without_covering_stalls_or_lanes() {
     for name in ["rect", "courbe", "ruisseau", "triangle", "etroit"] {
-        let lay = trame::solve(&load(name));
+        let lay = parkimo::solve(&load(name));
         let planted = Region::new(
             lay.planted
                 .iter()
@@ -411,10 +411,10 @@ fn interstitial_spaces_are_planted_without_covering_stalls_or_lanes() {
 fn entries_get_a_three_metre_turning_radius_free_of_stalls() {
     for name in ["rect", "courbe", "ruisseau", "triangle", "etroit"] {
         let site = load(name);
-        let lay = trame::solve(&site);
+        let lay = parkimo::solve(&site);
         let z = region::build(&site).expect("zones");
         let entries: Vec<Quad> = lay.entries.iter().map(quad).collect();
-        let (keep, fillets) = trame::entry_turns(&site, &z.parcel, &entries);
+        let (keep, fillets) = parkimo::entry_turns(&site, &z.parcel, &entries);
         assert_eq!(keep.len(), 2 * entries.len(), "{name}");
         let paved = Region::new(
             lay.paved
@@ -441,7 +441,7 @@ fn entries_get_a_three_metre_turning_radius_free_of_stalls() {
 
 #[test]
 fn skeleton_toggles_lane_typology_and_keeps_the_site_connected() {
-    use trame::model::LaneRule;
+    use parkimo::model::LaneRule;
     fn mid(pts: &[[f64; 2]]) -> [f64; 2] {
         let len: f64 = pts
             .windows(2)
@@ -461,7 +461,7 @@ fn skeleton_toggles_lane_typology_and_keeps_the_site_connected() {
     }
     for name in ["rect", "ruisseau", "courbe"] {
         let site = load(name);
-        let base = trame::solve(&site);
+        let base = parkimo::solve(&site);
         let mut tried = 0;
         for a in base.circulation.axes.iter().filter(|a| a.pts.len() >= 2) {
             if tried == 6 {
@@ -479,13 +479,13 @@ fn skeleton_toggles_lane_typology_and_keeps_the_site_connected() {
                 d: None,
                 fix: false,
             }];
-            let lay = trame::solve(&s);
+            let lay = parkimo::solve(&s);
             let c = &lay.circulation;
             let touched = c
                 .axes
                 .iter()
                 .min_by(|x, y| {
-                    let d = |ax: &trame::circulation::Axis| {
+                    let d = |ax: &parkimo::circulation::Axis| {
                         let q = v2(p[0], p[1]);
                         ax.pts
                             .windows(2)
@@ -547,7 +547,7 @@ fn mid_dir(pts: &[[f64; 2]]) -> ([f64; 2], [f64; 2]) {
 }
 
 /// Traverses verticales (tracées par le concepteur) qui remplacent les anciennes coupures automatiques.
-fn with_traverses(site: &mut trame::model::Site, name: &str) {
+fn with_traverses(site: &mut parkimo::model::Site, name: &str) {
     let (xs, h): (&[f64], f64) = match name {
         "rect" => (&[40.0, 80.0], 80.0),
         "courbe" => (&[47.0, 93.0], 115.0),
@@ -556,8 +556,8 @@ fn with_traverses(site: &mut trame::model::Site, name: &str) {
     site.traverses = xs.iter().map(|&x| [[x, 0.0], [x, h]]).collect();
 }
 
-fn one_way(p: [f64; 2], d: [f64; 2], fix: bool) -> trame::model::LaneRule {
-    trame::model::LaneRule {
+fn one_way(p: [f64; 2], d: [f64; 2], fix: bool) -> parkimo::model::LaneRule {
+    parkimo::model::LaneRule {
         p,
         sens: 1,
         d: Some(d),
@@ -571,14 +571,14 @@ fn one_way_lanes_take_their_width_and_stay_put() {
         let mut site = load(name);
         with_traverses(&mut site, name);
         site.params.aisle_one = 4.0;
-        let base = trame::solve(&site);
+        let base = parkimo::solve(&site);
         let mut narrowed = 0;
         let mut tried = 0;
         for a in base.circulation.axes.iter().filter(|a| a.sens == 2) {
             let (p, d) = mid_dir(&a.pts);
             let mut s = site.clone();
             s.lanes = vec![one_way(p, d, false)];
-            let lay = trame::solve(&s);
+            let lay = parkimo::solve(&s);
             if lay.circulation.refused > 0 {
                 continue;
             }
@@ -599,7 +599,7 @@ fn one_way_lanes_take_their_width_and_stay_put() {
             let re = lay.circulation.lanes[0];
             assert!(re.fix, "{name}: sens de parcours inscrit");
             s.lanes = vec![re];
-            let again = trame::solve(&s);
+            let again = parkimo::solve(&s);
             assert_eq!(
                 again.stalls.len(),
                 lay.stalls.len(),
@@ -624,7 +624,7 @@ fn successive_one_way_lanes_add_up() {
     let mut site = load("rect");
     with_traverses(&mut site, "rect");
     site.params.aisle_one = 4.0;
-    let mut lay = trame::solve(&site);
+    let mut lay = parkimo::solve(&site);
     let n0 = lay.stalls.len();
     // Trois allées entre rangées, l'une après l'autre, avec le recalage de l'interface.
     for _ in 0..3 {
@@ -641,7 +641,7 @@ fn successive_one_way_lanes_add_up() {
         let (p, d) = mid_dir(&next.pts);
         site.lanes = lay.circulation.lanes.clone();
         site.lanes.push(one_way(p, d, false));
-        lay = trame::solve(&site);
+        lay = parkimo::solve(&site);
         site.lanes = lay.circulation.lanes.clone();
     }
     let narrowed: Vec<_> = lay
@@ -660,7 +660,7 @@ fn successive_one_way_lanes_add_up() {
     assert!(lay.stalls.len() >= n0, "{} < {n0}", lay.stalls.len());
     check(&site, &lay, "rect");
     check_circulation(&lay, "rect");
-    let again = trame::solve(&site);
+    let again = parkimo::solve(&site);
     assert_eq!(again.stalls.len(), lay.stalls.len());
     assert_eq!(again.circulation.lanes, lay.circulation.lanes);
 }
@@ -668,7 +668,7 @@ fn successive_one_way_lanes_add_up() {
 #[test]
 fn imposed_direction_is_kept_or_refused() {
     let site = load("rect");
-    let base = trame::solve(&site);
+    let base = parkimo::solve(&site);
     let mut flipped = 0;
     for a in base.circulation.axes.iter().filter(|a| a.sens == 2).take(8) {
         let (p, d) = mid_dir(&a.pts);
@@ -676,7 +676,7 @@ fn imposed_direction_is_kept_or_refused() {
             let want = [d[0] * sign, d[1] * sign];
             let mut s = site.clone();
             s.lanes = vec![one_way(p, want, true)];
-            let lay = trame::solve(&s);
+            let lay = parkimo::solve(&s);
             if lay.circulation.refused > 0 {
                 continue;
             }
@@ -701,15 +701,15 @@ fn imposed_direction_is_kept_or_refused() {
 #[test]
 fn traverse_cuts_rows_and_removing_it_restores_them() {
     let mut site = load("rect");
-    let base = trame::solve(&site);
+    let base = parkimo::solve(&site);
     assert!(base.cross.is_empty(), "plus de coupure automatique");
     site.traverses = vec![[[60.0, 0.0], [60.0, 80.0]]];
-    let cut = trame::solve(&site);
+    let cut = parkimo::solve(&site);
     assert!(!cut.cross.is_empty(), "la traverse crée des allées transversales");
     assert!(cut.stalls.len() < base.stalls.len());
     check(&site, &cut, "rect");
     site.traverses.clear();
-    assert_eq!(trame::solve(&site).stalls.len(), base.stalls.len());
+    assert_eq!(parkimo::solve(&site).stalls.len(), base.stalls.len());
 }
 
 /// Largeur de voie de Neufert (p. 272) pour des places de 2,50 m.
@@ -728,7 +728,7 @@ fn oblique_stalls_follow_neufert_aisles_and_keep_the_plan_valid() {
         for slant in [75.0, 60.0, 45.0, 30.0] {
             let mut site = load(name);
             site.params.slant = slant;
-            let lay = trame::solve(&site);
+            let lay = parkimo::solve(&site);
             let tag = format!("{name} à {slant}°");
             assert!(lay.metrics.interior_stalls > 0, "{tag}: aucune place intérieure");
             check(&site, &lay, &tag);
@@ -774,7 +774,7 @@ fn neufert_aisle_table_is_fully_integrated() {
     ];
     for (slant, cols) in table {
         for (w, want) in [2.30, 2.40, 2.50].into_iter().zip(cols) {
-            let mut p = trame::model::Params::default();
+            let mut p = parkimo::model::Params::default();
             p.slant = slant;
             p.stall_w = w;
             assert!((p.neufert_aisle() - want).abs() < 1e-9, "{slant}° à {w} m : {}", p.neufert_aisle());
@@ -784,7 +784,7 @@ fn neufert_aisle_table_is_fully_integrated() {
         }
     }
     // Valeurs intermédiaires interpolées, hors table bornées.
-    let mut p = trame::model::Params::default();
+    let mut p = parkimo::model::Params::default();
     p.slant = 60.0;
     p.stall_w = 2.35;
     assert!((p.neufert_aisle() - 4.375).abs() < 1e-9);
@@ -846,7 +846,7 @@ fn oblique_stalls_lean_with_the_traffic_of_their_lane() {
     }
     let mut report = Vec::new();
     for (tag, site) in cases {
-        let lay = trame::solve(&site);
+        let lay = parkimo::solve(&site);
         let bad = against_flow(&lay);
         if !bad.is_empty() {
             report.push(format!("{tag} : {} places à contresens sur {}, dont {:?}", bad.len(), lay.stalls.len(), &bad[..bad.len().min(3)]));
@@ -867,8 +867,8 @@ fn no_stall_after_a_turn_is_left_unreachable() {
             site.exclusions.clear();
         }
         site.params.slant = slant;
-        let lay = trame::solve(&site);
-        let bad = trame::giration::api::unreachable_after_turns(&site, &lay);
+        let lay = parkimo::solve(&site);
+        let bad = parkimo::giration::api::unreachable_after_turns(&site, &lay);
         if !bad.is_empty() {
             report.push(format!("{name} à {slant}° : {} places, dont {:?}", bad.len(), bad.first()));
         }
@@ -887,7 +887,7 @@ fn a_slanted_column_starts_after_a_straight_kerb_at_the_corner() {
     let mut site = load("capture45");
     site.params.slant = 75.0;
     site.params.turns = false;
-    let lay = trame::solve(&site);
+    let lay = parkimo::solve(&site);
     let head = lay
         .stalls
         .iter()
@@ -909,7 +909,7 @@ fn a_slanted_row_starts_after_a_straight_kerb_when_its_neighbour_comes_later() {
     site.params.slant = 75.0;
     site.params.turns = false;
     site.landscapes.clear();
-    let lay = trame::solve(&site);
+    let lay = parkimo::solve(&site);
     let head = lay
         .stalls
         .iter()
@@ -937,7 +937,7 @@ fn planted_outlines_never_cross_themselves() {
             let mut site = load(name);
             site.params.slant = slant;
             site.params.turns = false;
-            let lay = trame::solve(&site);
+            let lay = parkimo::solve(&site);
             for ring in lay.planted.iter().flatten() {
                 let n = ring.len();
                 for i in 0..n {
@@ -956,7 +956,7 @@ fn planted_outlines_never_cross_themselves() {
 fn capture_45(turns: bool) -> (Site, Layout) {
     let mut site = load("capture45");
     site.params.turns = turns;
-    let lay = trame::solve(&site);
+    let lay = parkimo::solve(&site);
     (site, lay)
 }
 

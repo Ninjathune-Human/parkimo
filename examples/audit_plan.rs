@@ -2,8 +2,8 @@
 // de places sous plusieurs hypothèses, et obstacles en cause pour la première.
 // Usage : cargo run --release --example audit_plan -- plan.json
 use std::collections::BTreeMap;
-use trame::giration::api::{places_with, PlacesIn};
-use trame::giration::vehicle::{Convention, Vehicle};
+use parkimo::giration::api::{places_with, PlacesIn};
+use parkimo::giration::vehicle::{Convention, Vehicle};
 
 fn main() {
     let path = std::env::args().nth(1).expect("chemin du JSON");

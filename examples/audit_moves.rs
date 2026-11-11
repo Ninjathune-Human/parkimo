@@ -1,6 +1,6 @@
 // Audit des manœuvres d'entrée d'un plan exporté : sens du premier tronçon, tronçons, changements
 // d'angle de roues à l'arrêt. Usage : cargo run --release --example audit_moves -- plan.json
-use trame::giration::api::{places, PlacesIn};
+use parkimo::giration::api::{places, PlacesIn};
 
 fn main() {
     let path = std::env::args().nth(1).expect("chemin du JSON");

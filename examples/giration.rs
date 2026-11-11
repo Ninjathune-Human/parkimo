@@ -5,8 +5,8 @@
 //! cargo run --release --example giration -- sortie.svg
 
 use std::fmt::Write as _;
-use trame::giration::kinematics::{body_corners, drive, wheels, Pose, Profile, State};
-use trame::giration::vehicle::Vehicle;
+use parkimo::giration::kinematics::{body_corners, drive, wheels, Pose, Profile, State};
+use parkimo::giration::vehicle::Vehicle;
 
 fn main() {
     let out = std::env::args()

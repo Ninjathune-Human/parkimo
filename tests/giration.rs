@@ -3,10 +3,10 @@
 //! analytiques (régime permanent, centre de rotation sur l'axe de l'essieu arrière).
 
 use std::f64::consts::PI;
-use trame::giration::kinematics::{
+use parkimo::giration::kinematics::{
     advance, body_corners, drive, steer_in_place, wheels, Pose, Profile, State,
 };
-use trame::giration::vehicle::{Convention, Vehicle};
+use parkimo::giration::vehicle::{Convention, Vehicle};
 
 const CM: f64 = 0.01;
 const STEP: f64 = 0.02;
@@ -317,13 +317,13 @@ fn integration_is_step_independent() {
 // ---------------------------------------------------------------------------
 // Scène : obstacles typés extraits du plan
 
-use trame::giration::scene::{KerbProfile, ObstacleKind, Scene};
-use trame::model::{Layout, Site};
+use parkimo::giration::scene::{KerbProfile, ObstacleKind, Scene};
+use parkimo::model::{Layout, Site};
 
 fn scenario(name: &str) -> (Site, Layout) {
     let path = format!("{}/scenarios/{name}.json", env!("CARGO_MANIFEST_DIR"));
     let site: Site = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
-    let lay = trame::solve(&site);
+    let lay = parkimo::solve(&site);
     (site, lay)
 }
 
@@ -386,10 +386,10 @@ fn buildings_are_walls_behind_a_kerbed_planted_strip_and_planted_areas_are_kerbe
     let scene = Scene::from_layout(&site, &lay, &KerbProfile::t2());
     // Un point intérieur au bâtiment (en L : le barycentre des sommets tombe dans l'encoche).
     let poly = &site.buildings[0].poly;
-    let region = trame::geom::Region::new(vec![poly.iter().map(|p| trame::geom::v2(p[0], p[1])).collect()]);
+    let region = parkimo::geom::Region::new(vec![poly.iter().map(|p| parkimo::geom::v2(p[0], p[1])).collect()]);
     let b = (0..poly.len())
         .map(|i| centroid(&[poly[i], poly[(i + 1) % poly.len()], poly[(i + 2) % poly.len()]]))
-        .find(|c| region.contains(trame::geom::v2(c[0], c[1])))
+        .find(|c| region.contains(parkimo::geom::v2(c[0], c[1])))
         .unwrap();
     let hits = scene.crossings(b, nearest_stall(&lay, b));
     let kinds: Vec<ObstacleKind> = hits.iter().map(|h| scene.obstacles[h.obstacle].kind).collect();
@@ -399,8 +399,8 @@ fn buildings_are_walls_behind_a_kerbed_planted_strip_and_planted_areas_are_kerbe
     let mut checked = 0;
     for poly in &lay.planted {
         let c = centroid(&poly[0]);
-        if !trame::geom::Region::new(vec![poly[0].iter().map(|p| trame::geom::v2(p[0], p[1])).collect()])
-            .contains(trame::geom::v2(c[0], c[1]))
+        if !parkimo::geom::Region::new(vec![poly[0].iter().map(|p| parkimo::geom::v2(p[0], p[1])).collect()])
+            .contains(parkimo::geom::v2(c[0], c[1]))
         {
             continue;
         }
@@ -430,7 +430,7 @@ fn row_islands_and_noues_are_kerbed() {
     // Noues entre demi-rangées.
     let (mut site, _) = scenario("rect");
     site.params.noue_w = 2.0;
-    let lay = trame::solve(&site);
+    let lay = parkimo::solve(&site);
     let scene = Scene::from_layout(&site, &lay, &KerbProfile::t2());
     assert!(!lay.noues.is_empty());
     for q in &lay.noues {
@@ -461,7 +461,7 @@ fn sharp_corners_of_slanted_stalls_leave_no_sidewalk_kerb_on_planted_ground() {
     // vifs laissent des bouts de bordure de quelques millimètres, tous le long de la pleine terre.
     let (mut site, _) = scenario("rect");
     site.params.slant = 45.0;
-    let lay = trame::solve(&site);
+    let lay = parkimo::solve(&site);
     let scene = Scene::from_layout(&site, &lay, &KerbProfile::t2());
     let sidewalk: Vec<[f64; 2]> = scene.obstacles.iter().filter(|o| o.kind == ObstacleKind::Kerb).map(|o| o.pts[0]).collect();
     assert!(sidewalk.is_empty(), "{} bordures de trottoir, la première en {:?}", sidewalk.len(), sidewalk.first());
@@ -470,7 +470,7 @@ fn sharp_corners_of_slanted_stalls_leave_no_sidewalk_kerb_on_planted_ground() {
 // ---------------------------------------------------------------------------
 // Épure : le véhicule suit une polyligne tracée, en marche avant ou arrière
 
-use trame::giration::epure::{follow, Section};
+use parkimo::giration::epure::{follow, Section};
 
 fn arc(cx: f64, cy: f64, r: f64, a0: f64, a1: f64, n: usize) -> Vec<[f64; 2]> {
     (0..=n)
@@ -564,9 +564,9 @@ fn a_cusp_allows_stationary_steering_only_for_a_skilled_driver() {
 // ---------------------------------------------------------------------------
 // Traces, enveloppe et conflits
 
-use trame::giration::epure::Sample;
-use trame::giration::scene::Obstacle;
-use trame::giration::sweep::{conflicts, envelope, tyre_tracks, Part, Severity};
+use parkimo::giration::epure::Sample;
+use parkimo::giration::scene::Obstacle;
+use parkimo::giration::sweep::{conflicts, envelope, tyre_tracks, Part, Severity};
 
 fn line_obstacle(kind: ObstacleKind, height: f64, a: [f64; 2], b: [f64; 2]) -> Obstacle {
     Obstacle { kind, height, pts: vec![a, b] }
@@ -679,8 +679,8 @@ fn the_envelope_covers_the_swept_body() {
     let v = Vehicle::peugeot_3008();
     let run = samples(&drive(&v, Profile::Habile, origin(0.0), kmh(5.0), 12.0, v.max_steer, STEP));
     let rings = envelope(&v, &run, 0.0);
-    let region = trame::geom::Region::new(
-        rings.iter().flatten().map(|r| r.iter().map(|p| trame::geom::v2(p[0], p[1])).collect()).collect(),
+    let region = parkimo::geom::Region::new(
+        rings.iter().flatten().map(|r| r.iter().map(|p| parkimo::geom::v2(p[0], p[1])).collect()).collect(),
     );
     for s in run.iter().step_by(25) {
         for c in body_corners(&v, &s.state.pose) {
@@ -688,7 +688,7 @@ fn the_envelope_covers_the_swept_body() {
             let mid = [s.state.pose.x + 1.42 * s.state.pose.heading.cos(), s.state.pose.y + 1.42 * s.state.pose.heading.sin()];
             let d = dist(c, mid);
             let p = [mid[0] + (c[0] - mid[0]) * (d - 0.01) / d, mid[1] + (c[1] - mid[1]) * (d - 0.01) / d];
-            assert!(region.contains(trame::geom::v2(p[0], p[1])), "{p:?}");
+            assert!(region.contains(parkimo::geom::v2(p[0], p[1])), "{p:?}");
         }
     }
 }
@@ -788,7 +788,7 @@ fn the_reference_car_drives_a_neufert_single_lane_curved_ramp_without_conflict()
 // ---------------------------------------------------------------------------
 // Contrat JSON de l'épure (entrée giration_json)
 
-use trame::giration::api::{simulate, GirIn};
+use parkimo::giration::api::{simulate, GirIn};
 
 fn epure_json(name: &str, pts: &[[f64; 2]]) -> GirIn {
     let path = format!("{}/scenarios/{name}.json", env!("CARGO_MANIFEST_DIR"));
@@ -817,8 +817,8 @@ fn entering_from_the_street_is_clean_and_driving_into_a_planted_area_is_not() {
         .iter()
         .map(|p| centroid(&p[0]))
         .find(|c| {
-            trame::geom::Region::new(vec![lay.planted.iter().flat_map(|p| p[0].iter()).map(|p| trame::geom::v2(p[0], p[1])).collect()])
-                .contains(trame::geom::v2(c[0], c[1]))
+            parkimo::geom::Region::new(vec![lay.planted.iter().flat_map(|p| p[0].iter()).map(|p| parkimo::geom::v2(p[0], p[1])).collect()])
+                .contains(parkimo::geom::v2(c[0], c[1]))
         })
         .unwrap();
     let from = nearest_stall(&lay, green);
@@ -847,7 +847,7 @@ fn the_displayed_layout_is_checked_without_solving_again() {
         simulate(&inp)
     };
     let given = with(true);
-    let names = |o: &trame::giration::api::GirOut| o.conflicts.iter().map(|k| (k.part, k.obstacle.clone())).collect::<Vec<_>>();
+    let names = |o: &parkimo::giration::api::GirOut| o.conflicts.iter().map(|k| (k.part, k.obstacle.clone())).collect::<Vec<_>>();
     assert_eq!(given.poses.len(), solved.poses.len());
     assert_eq!(names(&given), names(&solved));
     assert!(names(&given).iter().any(|(_, o)| o == "bordure T2 d'espace planté"));
@@ -878,8 +878,8 @@ fn a_straight_oblique_drive_sweeps_a_plain_rectangle() {
     let run = follow(&v, Profile::Habile, &[section(vec![[9.25, 7.5], [5.5, 8.5]], false, 10.0)], STEP);
     let rings = envelope(&v, &run.samples, 0.0);
     assert_eq!(rings.len(), 1);
-    let ring: Vec<trame::geom::V2> = rings[0][0].iter().map(|p| trame::geom::v2(p[0], p[1])).collect();
-    let area = trame::geom::signed_area(&ring).abs();
+    let ring: Vec<parkimo::geom::V2> = rings[0][0].iter().map(|p| parkimo::geom::v2(p[0], p[1])).collect();
+    let area = parkimo::geom::signed_area(&ring).abs();
     let travelled = run.samples.last().unwrap().s;
     let expected = (v.front_overhang + v.wheelbase + v.rear_overhang + travelled) * v.width;
     assert!(close(area, expected, 0.01), "{area} / {expected}");
@@ -903,36 +903,36 @@ fn straight_drives_in_every_direction_sweep_a_single_polygon() {
 #[test]
 fn dxf_export_draws_the_epure_on_declared_gir_layers() {
     let (_, lay) = scenario("rect");
-    let all: Vec<trame::geom::V2> = lay.planted.iter().flat_map(|p| p[0].iter()).map(|p| trame::geom::v2(p[0], p[1])).collect();
+    let all: Vec<parkimo::geom::V2> = lay.planted.iter().flat_map(|p| p[0].iter()).map(|p| parkimo::geom::v2(p[0], p[1])).collect();
     let green = lay
         .planted
         .iter()
         .map(|p| centroid(&p[0]))
-        .find(|c| trame::geom::Region::new(vec![all.clone()]).contains(trame::geom::v2(c[0], c[1])))
+        .find(|c| parkimo::geom::Region::new(vec![all.clone()]).contains(parkimo::geom::v2(c[0], c[1])))
         .unwrap();
     let from = nearest_stall(&lay, green);
     let path = format!("{}/scenarios/rect.json", env!("CARGO_MANIFEST_DIR"));
     let site: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
-    let inp: trame::dxf::ExportIn = serde_json::from_value(serde_json::json!({
+    let inp: parkimo::dxf::ExportIn = serde_json::from_value(serde_json::json!({
         "site": site,
         "crs": "LOCAL",
         "giration": { "sections": [{ "pts": [from, green], "speed_kmh": 10.0 }] }
     }))
     .unwrap();
-    let dxf = trame::dxf::export(&inp).dxf;
+    let dxf = parkimo::dxf::export(&inp).dxf;
     for layer in ["GIR_TRAJECTOIRE", "GIR_ROUES", "GIR_CARROSSERIE", "GIR_MARGE", "GIR_VEHICULE", "GIR_CONFLITS"] {
         assert!(dxf.contains(&format!("  2\n{layer}\n")), "calque {layer} absent de la table");
         assert!(dxf.contains(&format!("  8\n{layer}\n")), "aucune entité sur {layer}");
     }
     // Sans épure, rien sur ces calques.
-    let plain: trame::dxf::ExportIn = serde_json::from_value(serde_json::json!({ "site": serde_json::from_slice::<serde_json::Value>(&std::fs::read(format!("{}/scenarios/rect.json", env!("CARGO_MANIFEST_DIR"))).unwrap()).unwrap(), "crs": "LOCAL" })).unwrap();
-    assert!(!trame::dxf::export(&plain).dxf.contains("  8\nGIR_ROUES\n"));
+    let plain: parkimo::dxf::ExportIn = serde_json::from_value(serde_json::json!({ "site": serde_json::from_slice::<serde_json::Value>(&std::fs::read(format!("{}/scenarios/rect.json", env!("CARGO_MANIFEST_DIR"))).unwrap()).unwrap(), "crs": "LOCAL" })).unwrap();
+    assert!(!parkimo::dxf::export(&plain).dxf.contains("  8\nGIR_ROUES\n"));
 }
 
 // ---------------------------------------------------------------------------
 // Phase 2 : chaque place testée en entrée (marche avant) puis en sortie (marche arrière)
 
-use trame::giration::api::{places, PlacesOut};
+use parkimo::giration::api::{places, PlacesOut};
 
 /// Une rangée de `n` places de `w` × 5 m au-dessus d'une allée de largeur `aisle` à double sens,
 /// sur la parcelle du scénario rect (120 × 80 m), en pleine terre. Les places donnent sur l'allée (q2, q3).
@@ -1048,18 +1048,18 @@ fn a_row_facing_planted_ground_needs_no_alert_on_a_narrow_aisle() {
 
 /// Places d'un scénario résolu à l'inclinaison `slant`, plan transmis tel quel ; seule la place la
 /// plus proche de `near` est testée.
-fn slanted_place(name: &str, slant: f64, near: [f64; 2]) -> trame::giration::api::PlaceOut {
+fn slanted_place(name: &str, slant: f64, near: [f64; 2]) -> parkimo::giration::api::PlaceOut {
     let path = format!("{}/scenarios/{name}.json", env!("CARGO_MANIFEST_DIR"));
     let mut raw: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     raw["params"] = serde_json::json!({ "slant": slant });
-    let lay = trame::solve(&serde_json::from_value(raw.clone()).unwrap());
+    let lay = parkimo::solve(&serde_json::from_value(raw.clone()).unwrap());
     let i = (0..lay.stalls.len()).min_by(|&a, &b| dist(centroid(&lay.stalls[a].q), near).total_cmp(&dist(centroid(&lay.stalls[b].q), near))).unwrap();
     let layout = serde_json::json!({
         "paved": lay.paved, "pads": lay.pads, "islands": lay.islands, "entries": lay.entries, "cross": lay.cross, "walks": lay.walks,
         "stalls": lay.stalls.iter().map(|s| s.q).collect::<Vec<_>>(),
         "axes": lay.circulation.axes.iter().map(|a| serde_json::json!({ "pts": a.pts, "w": a.w, "sens": a.sens })).collect::<Vec<_>>(),
     });
-    let input: trame::giration::api::PlacesIn = serde_json::from_value(serde_json::json!({ "site": raw, "layout": layout, "stalls": [i] })).unwrap();
+    let input: parkimo::giration::api::PlacesIn = serde_json::from_value(serde_json::json!({ "site": raw, "layout": layout, "stalls": [i] })).unwrap();
     places(&input).places.remove(0)
 }
 
@@ -1074,7 +1074,7 @@ fn a_planned_manoeuvre_keeps_its_tyres_off_the_kerbs_at_the_check() {
 /// Voie à sens unique de 6 m qui file vers l'est puis tourne à angle droit vers le sud (coin
 /// intérieur en (34, 50)) ; une place à 90° sur le côté ouest de la branche sud, fond à x = 29,
 /// entre les ordonnées `y` et `y + 2,5`.
-fn corner_case(y: f64) -> trame::giration::api::PlaceOut {
+fn corner_case(y: f64) -> parkimo::giration::api::PlaceOut {
     let path = format!("{}/scenarios/rect.json", env!("CARGO_MANIFEST_DIR"));
     let site: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     let input = serde_json::json!({ "site": site, "layout": {
@@ -1101,13 +1101,13 @@ fn every_stall_of_the_reference_scenarios_is_rated() {
     for name in ["rect", "ruisseau"] {
         let path = format!("{}/scenarios/{name}.json", env!("CARGO_MANIFEST_DIR"));
         let raw: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
-        let lay = trame::solve(&serde_json::from_value(raw.clone()).unwrap());
+        let lay = parkimo::solve(&serde_json::from_value(raw.clone()).unwrap());
         let layout = serde_json::json!({
             "paved": lay.paved, "pads": lay.pads, "islands": lay.islands, "entries": lay.entries, "cross": lay.cross,
             "stalls": lay.stalls.iter().map(|s| s.q).collect::<Vec<_>>(),
             "axes": lay.circulation.axes.iter().map(|a| serde_json::json!({ "pts": a.pts, "w": a.w, "sens": a.sens })).collect::<Vec<_>>(),
         });
-        let input: trame::giration::api::PlacesIn = serde_json::from_value(serde_json::json!({ "site": raw, "layout": layout })).unwrap();
+        let input: parkimo::giration::api::PlacesIn = serde_json::from_value(serde_json::json!({ "site": raw, "layout": layout })).unwrap();
         let t0 = std::time::Instant::now();
         let out = places(&input);
         let per = t0.elapsed().as_secs_f64() * 1000.0 / out.places.len() as f64;
@@ -1131,12 +1131,12 @@ fn a_pole_between_two_samples_is_caught() {
     let v = Vehicle::peugeot_3008();
     let s0 = State { pose: Pose { x: 0.0, y: 0.0, heading: 0.0 }, steer: v.max_steer };
     let s1 = advance(&v, s0, 0.5);
-    let corner = |s: &State| trame::giration::kinematics::body_corners(&v, &s.pose)[1];
+    let corner = |s: &State| parkimo::giration::kinematics::body_corners(&v, &s.pose)[1];
     let (a, b) = (corner(&s0), corner(&s1));
     let mid = advance(&v, s0, 0.25);
     let c = corner(&mid);
     // Poteau de 2 mm, 5 mm à l'intérieur de l'arc du coin, à mi-chemin.
-    let centre = trame::giration::kinematics::advance(&v, s0, 0.0).pose;
+    let centre = parkimo::giration::kinematics::advance(&v, s0, 0.0).pose;
     let r = v.wheelbase / v.max_steer.tan();
     let o = [centre.x, centre.y + r];
     let k = 1.0 - 0.005 / ((c[0] - o[0]).hypot(c[1] - o[1]));
@@ -1145,7 +1145,7 @@ fn a_pole_between_two_samples_is_caught() {
     let scene = Scene::new(vec![ob]);
     // Précondition : le poteau est hors des deux empreintes extrêmes.
     for q in [&s0, &s1] {
-        let f = trame::giration::sweep::footprint(&v, &q.pose, 0.0);
+        let f = parkimo::giration::sweep::footprint(&v, &q.pose, 0.0);
         let inside = (0..4).all(|i| {
             let (p, n) = (f[i], f[(i + 1) % 4]);
             (n[0] - p[0]) * (pole[1] - p[1]) - (n[1] - p[1]) * (pole[0] - p[0]) <= 0.0
@@ -1197,7 +1197,7 @@ fn the_minimum_clearance_is_measured() {
     }
 }
 
-use trame::giration::places::park_pose;
+use parkimo::giration::places::park_pose;
 
 /// Plus petit écart, en mètres, entre la caisse garée et les deux côtés de la place (négatif : elle déborde).
 fn side_clearance(v: &Vehicle, q: &[[f64; 2]; 4]) -> f64 {
@@ -1366,7 +1366,7 @@ fn capture_75_place(at: [f64; 2]) -> (PlacesOut, [f64; 2]) {
     let path = format!("{}/scenarios/capture45.json", env!("CARGO_MANIFEST_DIR"));
     let mut raw: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     raw["params"]["slant"] = serde_json::json!(75.0);
-    let lay = trame::solve(&serde_json::from_value(raw.clone()).unwrap());
+    let lay = parkimo::solve(&serde_json::from_value(raw.clone()).unwrap());
     let centre = |q: &[[f64; 2]; 4]| [(q[0][0] + q[1][0] + q[2][0] + q[3][0]) / 4.0, (q[0][1] + q[1][1] + q[2][1] + q[3][1]) / 4.0];
     let i = lay.stalls.iter().position(|s| { let c = centre(&s.q); (c[0] - at[0]).hypot(c[1] - at[1]) < 0.5 }).expect("place");
     let layout = serde_json::json!({
@@ -1388,11 +1388,11 @@ fn design_retires_exactly_the_turn_stalls_the_test_finds_unreachable() {
     let path = format!("{}/scenarios/capture45.json", env!("CARGO_MANIFEST_DIR"));
     let mut raw: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     raw["params"]["turns"] = serde_json::json!(false);
-    let site: trame::model::Site = serde_json::from_value(raw.clone()).unwrap();
-    let lay = trame::solve(&site);
-    let retired = trame::giration::api::unreachable_after_turns(&site, &lay);
-    let lanes: Vec<trame::giration::places::Lane> = lay.circulation.axes.iter().map(|a| trame::giration::places::Lane { pts: a.pts.clone(), w: a.w, sens: a.sens }).collect();
-    let suspects: Vec<usize> = (0..lay.stalls.len()).filter(|&i| trame::giration::places::turns_back(&lay.stalls[i].q, &lanes)).collect();
+    let site: parkimo::model::Site = serde_json::from_value(raw.clone()).unwrap();
+    let lay = parkimo::solve(&site);
+    let retired = parkimo::giration::api::unreachable_after_turns(&site, &lay);
+    let lanes: Vec<parkimo::giration::places::Lane> = lay.circulation.axes.iter().map(|a| parkimo::giration::places::Lane { pts: a.pts.clone(), w: a.w, sens: a.sens }).collect();
+    let suspects: Vec<usize> = (0..lay.stalls.len()).filter(|&i| parkimo::giration::places::turns_back(&lay.stalls[i].q, &lanes)).collect();
     assert!(!suspects.is_empty());
     let layout = serde_json::json!({
         "paved": lay.paved, "pads": lay.pads, "islands": lay.islands, "entries": lay.entries, "cross": lay.cross, "walks": lay.walks,
@@ -1421,7 +1421,7 @@ fn islands_are_rounded_wider_where_cars_turn() {
     let mut raw: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     raw["params"]["slant"] = serde_json::json!(75.0);
     raw["params"]["turns"] = serde_json::json!(false);
-    let lay = trame::solve(&serde_json::from_value(raw).unwrap());
+    let lay = parkimo::solve(&serde_json::from_value(raw).unwrap());
     let corner = [38.93, 45.56];
     let near = lay.planted.iter().flatten().flatten().map(|p| (p[0] - corner[0]).hypot(p[1] - corner[1])).fold(f64::MAX, f64::min);
     assert!(near >= 1.5, "pleine terre à {near:.2} m de l'angle");
@@ -1449,7 +1449,7 @@ fn the_corner_stall_is_tested_from_ten_metres_upstream() {
 // Trait libre : la trajectoire droite / arcs / droite la plus proche du trait, rayons au-dessus du
 // rayon mini du point guidé, départ fixé au début du trait.
 
-use trame::giration::sketch::{self, Elem, Path};
+use parkimo::giration::sketch::{self, Elem, Path};
 
 /// Points tous les `step` mètres le long d'une polyligne.
 fn densify(pts: &[[f64; 2]], step: f64) -> Vec<[f64; 2]> {
@@ -1623,7 +1623,7 @@ fn a_stroke_that_clips_a_wall_is_moved_off_it() {
 
 #[test]
 fn a_stroke_comes_back_as_interface_points() {
-    use trame::giration::api::{sketch as sketch_api, SketchIn};
+    use parkimo::giration::api::{sketch as sketch_api, SketchIn};
     let (_, lay) = scenario("rect");
     let inner = centroid(&lay.entries[0]);
     let path = format!("{}/scenarios/rect.json", env!("CARGO_MANIFEST_DIR"));

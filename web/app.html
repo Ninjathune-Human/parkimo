@@ -1,4 +1,4 @@
-<title>Trame Parking</title>
+<title>Parkimo</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Étude de capacité de stationnement en temps réel : moteur Rust compilé en WebAssembly, normes françaises.">
 <style>
@@ -700,7 +700,7 @@ body:has(#girbar:not([hidden])) #hint { opacity: 0; }
   <div id="toast" class="glass" role="status" aria-live="polite"></div>
 </div>
 
-<noscript><div style="position:fixed;inset:0;display:grid;place-items:center;padding:24px;text-align:center">Trame a besoin de JavaScript pour fonctionner.</div></noscript>
+<noscript><div style="position:fixed;inset:0;display:grid;place-items:center;padding:24px;text-align:center">Parkimo a besoin de JavaScript pour fonctionner.</div></noscript>
 <script>
 // Diagnostic de démarrage : toute erreur avant la fin du chargement s'affiche à l'écran.
 (function () {
@@ -3825,7 +3825,7 @@ async function exportDxf() {
   const out = Engine.call("export_dxf_json", input);
   if (out.error) { toast("Export impossible : " + out.error); return; }
   const day = new Date().toISOString().slice(0, 10);
-  const name = `trame-${slug(commune || (exampleName === "mine" ? "mon site" : exampleName))}-${crs.toLowerCase()}-${day}.dxf`;
+  const name = `parkimo-${slug(commune || (exampleName === "mine" ? "mon site" : exampleName))}-${crs.toLowerCase()}-${day}.dxf`;
   closeMenus();
   await saveFile(name, out.dxf, `${fmtInt(out.entities)} entités · ${out.crs}${out.epsg ? " (EPSG:" + out.epsg + ")" : ""}`, "application/dxf", "DXF");
 }
@@ -3940,7 +3940,7 @@ function buildXls() {
 }
 async function exportXls() {
   if (!layout || !layout.metrics) { toast("Aucun plan calculé à exporter"); return; }
-  const I = projectInfo(), name = `trame-${slug(I.commune || (exampleName === "mine" ? "mon site" : exampleName))}-${new Date().toISOString().slice(0, 10)}.xls`;
+  const I = projectInfo(), name = `parkimo-${slug(I.commune || (exampleName === "mine" ? "mon site" : exampleName))}-${new Date().toISOString().slice(0, 10)}.xls`;
   closeMenus();
   await saveFile(name, buildXls(), `${fmtInt(layout.metrics.stalls)} places`, "application/vnd.ms-excel", "Tableur");
 }

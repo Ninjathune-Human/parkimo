@@ -3,13 +3,13 @@ use std::time::Instant;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let site: trame::model::Site =
+    let site: parkimo::model::Site =
         serde_json::from_slice(&std::fs::read(&args[1]).unwrap()).unwrap();
     let t = Instant::now();
     let reps = 5;
-    let mut lay = trame::solve(&site);
+    let mut lay = parkimo::solve(&site);
     for _ in 1..reps {
-        lay = trame::solve(&site);
+        lay = parkimo::solve(&site);
     }
     let ms = t.elapsed().as_secs_f64() * 1000.0 / reps as f64;
     let m = &lay.metrics;

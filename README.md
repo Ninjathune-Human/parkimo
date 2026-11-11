@@ -1,6 +1,6 @@
-# Trame
+# Parkimo
 
-![Trame, étude de capacité de stationnement](docs/banniere.png)
+![Parkimo, étude de capacité de stationnement](docs/banniere.png)
 
 **[Ouvrir l'application](https://ninjathune-human.github.io/parkimo/)**
 

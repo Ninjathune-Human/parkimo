@@ -1,7 +1,7 @@
 // Test de toutes les places d'un plan exporté de l'application (entrée du test des places, JSON) :
 // répartition des verdicts, reprises, durée par place. Usage : cargo run --release --example plan_bench -- plan.json
 use std::collections::BTreeMap;
-use trame::giration::api::{places, PlacesIn};
+use parkimo::giration::api::{places, PlacesIn};
 
 fn main() {
     let path = std::env::args().nth(1).expect("chemin du JSON");

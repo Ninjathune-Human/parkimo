@@ -1,4 +1,4 @@
-//! Trame : moteur d'étude de capacité de stationnement.
+//! Parkimo : moteur d'étude de capacité de stationnement.
 //!
 //! Pipeline : parcelle → reculs par arête → servitudes, bâtiments, espaces verts → zone B
 //! → places périphériques (bords droits et courbes) → anneau de circulation → rangées doubles
