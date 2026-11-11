@@ -5,6 +5,7 @@
 //! optimisées (orientation × décalage) → accès, connectivité, PMR, IRVE → métriques.
 
 pub mod circulation;
+pub mod commandes;
 pub mod conformite;
 pub mod dxf;
 pub mod finish;
@@ -895,6 +896,24 @@ pub unsafe extern "C" fn giration_places_json(ptr: *const u8, n: usize) -> *cons
 #[no_mangle]
 pub unsafe extern "C" fn export_ifc_json(ptr: *const u8, n: usize) -> *const u8 {
     json_call(ptr, n, ouvrage::ifc::export)
+}
+
+/// Commandes : applique une liste de commandes à un projet (`commandes::Demande`), en transaction.
+///
+/// # Safety
+/// `ptr` doit pointer vers `n` octets JSON valides alloués par `alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn commandes_json(ptr: *const u8, n: usize) -> *const u8 {
+    json_call(ptr, n, commandes::executer)
+}
+
+/// Catalogue des commandes (l'entrée, un JSON quelconque, est ignorée).
+///
+/// # Safety
+/// `ptr` doit pointer vers `n` octets JSON valides alloués par `alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn catalogue_json(ptr: *const u8, n: usize) -> *const u8 {
+    json_call(ptr, n, |_: &serde_json::Value| commandes::catalogue())
 }
 
 #[no_mangle]
