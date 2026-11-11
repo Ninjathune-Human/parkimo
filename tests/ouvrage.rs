@@ -583,3 +583,42 @@ fn le_rez_payant_suit_le_nombre_de_voies_et_reste_facultatif() {
     let o = libre.ouvrage.as_ref().unwrap();
     assert!(o.controle.is_none() && o.places_rdc_retirees.is_empty());
 }
+
+fn milieu(q: &[[f64; 2]; 4]) -> [f64; 2] {
+    [(q[0][0] + q[2][0]) / 2.0, (q[0][1] + q[2][1]) / 2.0]
+}
+
+/// Rampe placée à la main : elle vient au point demandé le long de sa rangée, on l'aborde alors en S
+/// depuis l'allée, et les places se réorganisent autour d'elle. L'autre rampe ne bouge pas.
+#[test]
+fn une_rampe_se_place_a_la_main_le_long_de_sa_rangee() {
+    let mut s = site("rect");
+    let o = s.ouvrage.as_mut().unwrap();
+    (o.niveaux, o.implantation) = (3, Implantation::Rangee);
+    let auto = parkimo::solve(&s);
+    let ra = auto.ouvrage.as_ref().unwrap().rampes.clone();
+    assert_eq!(ra.len(), 2);
+    // Dix mètres plus loin, dans le sens de la montée.
+    let (c0, de, a) = (milieu(&ra[0].q), ra[0].de, ra[0].a);
+    let l = (a[0] - de[0]).hypot(a[1] - de[1]);
+    let cible = [c0[0] + 10.0 * (a[0] - de[0]) / l, c0[1] + 10.0 * (a[1] - de[1]) / l];
+    s.ouvrage.as_mut().unwrap().rampes = Some(vec![Some(cible), None]);
+    let lay = parkimo::solve(&s);
+    let o = lay.ouvrage.as_ref().unwrap();
+    let c1 = milieu(&o.rampes[0].q);
+    assert!((c1[0] - cible[0]).hypot(c1[1] - cible[1]) < 0.05, "rampe en {c1:?}, demandée en {cible:?}");
+    assert!((o.rampes[0].longueur - ra[0].longueur).abs() < 1e-6 && o.rampes[0].montee);
+    let (d0, d1) = (milieu(&ra[1].q), milieu(&o.rampes[1].q));
+    assert!((d0[0] - d1[0]).hypot(d0[1] - d1[1]) < 1e-6, "la descente a bougé");
+    // Le plateau s'adapte : aucune place sous la rampe, quatre épures, un nombre de places voisin.
+    for st in &lay.stalls {
+        assert!(!quad(&o.rampes[0].q).contains(quad(&st.q).center()), "place sous la rampe");
+    }
+    assert_eq!(o.girations.len(), 4);
+    assert!((lay.stalls.len() as i64 - auto.stalls.len() as i64).abs() <= 8, "{} places au lieu de {}", lay.stalls.len(), auto.stalls.len());
+    // Un point hors du plateau ramène la rampe au plus près, dans la dalle.
+    s.ouvrage.as_mut().unwrap().rampes = Some(vec![Some([c0[0] + 500.0 * (a[0] - de[0]) / l, c0[1] + 500.0 * (a[1] - de[1]) / l]), None]);
+    let loin = parkimo::solve(&s);
+    let o = loin.ouvrage.as_ref().unwrap();
+    assert!(o.rampes[0].q.iter().all(|p| quad(&o.dalle).contains(v2(p[0], p[1]))), "rampe hors de la dalle");
+}

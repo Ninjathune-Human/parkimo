@@ -698,6 +698,7 @@ mod tests {
             rampe: Some(18.36),
             rampe_largeur: 3.25,
             implantation: Implantation::Rangee,
+            ancres: [None; 2],
             hauteur: 2.9,
         }
     }

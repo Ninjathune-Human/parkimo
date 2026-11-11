@@ -41,6 +41,8 @@ function hitTest(w) {
     if (dist2(w, slabRotHandle()) < h2 * 2) return { kind: "srotate" };
     const m = slabMids(o); for (let k = 0; k < 4; k++) if (dist2(w, m[k]) < h2 * 2) return { kind: "sresize", k };
   }
+  // Rampe le long des allées : elle se glisse le long de sa rangée ou vers une autre.
+  if (VIS.pvoirie && layout && !layout.error && layout.ouvrage && layout.ouvrage.implantation === "rangee") { const R = layout.ouvrage.rampes; for (let i = 0; i < R.length; i++) if (pointInPoly(w, R[i].q)) return { kind: "ramp", i }; }
   if (VIS.noyaux && coresOn()) { const N = layout.ouvrage.noyaux; for (let i = N.length - 1; i >= 0; i--) if (pointInPoly(w, N[i].q)) return { kind: "core", i }; }
   if (VIS.pbati) for (let i = site.buildings.length - 1; i >= 0; i--) if (dist2(w, doorGeom(site.buildings[i]).p) < h2 * 1.2) return { kind: "door", i };
   for (let i = 0; i < site.entries.length; i++) if (site.entries[i].edge < site.parcel.length && dist2(w, entryPoint(site.entries[i])) < h2 * 1.3) return { kind: "entry", i };
@@ -115,6 +117,7 @@ canvas.addEventListener("pointerdown", (ev) => {
   drag = { kind: hit ? hit.kind : "pan", hit, sp, w0: w, moved: false, orig: JSON.stringify(site) };
   if (hit && (hit.kind === "smove" || hit.kind === "srotate" || hit.kind === "sresize")) { drag.slab0 = slabObj(); drag.noy0 = site.noyaux ? JSON.parse(JSON.stringify(site.noyaux)) : null; }
   if (hit && hit.kind === "core") { coreAnim = null; drag.core = { n: layout.ouvrage.noyaux[hit.i] }; }
+  if (hit && hit.kind === "ramp") { const q = layout.ouvrage.rampes[hit.i].q; drag.r0 = [(q[0][0] + q[2][0]) / 2, (q[0][1] + q[2][1]) / 2]; }
   if (hit) {
     if (hit.kind === "move") setSel({ type: hit.type, i: hit.i });
     else if (hit.kind === "vertex") setSel({ type: "vertex", i: hit.i });
@@ -163,6 +166,13 @@ canvas.addEventListener("pointermove", (ev) => {
   const w = toW(sp[0], sp[1]), h = drag.hit;
   switch (drag.kind) {
     case "pan": view.ox += dx; view.oy += dy; drag.sp = sp; redraw(); return;
+    case "ramp": {
+      // Rampe placée à la main : son centre suit le pointeur, le moteur la recale dans une rangée
+      // et réorganise les places autour d'elle.
+      if (!site.rampes) site.rampes = [null, null];
+      site.rampes[h.i] = [drag.r0[0] + w[0] - drag.w0[0], drag.r0[1] + w[1] - drag.w0[1]].map((v) => +v.toFixed(3));
+      solve(true); return;
+    }
     case "core": {
       const c = drag.core, c0 = qCentre(c.n.q); if (!c.T) c.T = coreTargets(c.n);
       c.cur = [c0[0] + w[0] - drag.w0[0], c0[1] + w[1] - drag.w0[1]];
@@ -238,6 +248,12 @@ function endPointer(ev) {
   if (d.moved) { if (girDrag(d)) girEdited(); else if (d.kind !== "pan") { solve(false); if (d.slab0) { syncSlab(); updateSelbar(); } commit(); markMine(); } return; }
   // Toucher simple
   lastTap = { t: dbl ? 0 : now, x: sp[0], y: sp[1] };
+  // Double appui sur une rampe placée à la main : elle reprend sa place d'office.
+  if (d.kind === "ramp") {
+    if (dbl && site.rampes && site.rampes[d.hit.i]) { site.rampes[d.hit.i] = null; if (!site.rampes.some(Boolean)) delete site.rampes; solve(false); commit(); markMine(); toast("Rampe replacée d'office"); }
+    else toast(site.rampes && site.rampes[d.hit.i] ? "Rampe placée à la main · double appui pour la replacer d'office" : "Glissez la rampe pour la déplacer");
+    return;
+  }
   const h = d.hit;
   if (h && h.kind === "sdel") { deleteHandle(); return; }
   if (h && h.kind === "nbtn") { toggleNoue(h.i); return; }

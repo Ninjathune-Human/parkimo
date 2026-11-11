@@ -148,6 +148,8 @@ pub struct Gabarit {
     /// Largeur de la voie de rampe à sens unique.
     pub rampe_largeur: f64,
     pub implantation: Implantation,
+    /// Rampes placées à la main (montée, descente) : centre voulu, en repère du plateau.
+    pub ancres: [Option<V2>; 2],
     /// Hauteur d'étage (plancher à plancher).
     pub hauteur: f64,
 }
@@ -639,15 +641,31 @@ const AMORCE: f64 = 3.0;
 /// Rampe le long des allées, dans la plus basse rangée qui a une allée juste au-dessus ; voie contre
 /// l'allée. On l'aborde par l'allée transversale en venant d'une allée plus haute (deux quarts de
 /// tour), on en sort en S dans l'allée voisine.
-fn en_rangee(c: &Cadre, g: &Gabarit, lr: f64) -> Result<Esquisse, String> {
+///
+/// Placée à la main (`ancre`, centre voulu dans le repère du cadre) : dans la rangée la plus proche
+/// qui peut la recevoir, au plus près du point ; on l'aborde alors en S depuis l'allée voisine,
+/// comme on en sort. Sans rangée possible, la rampe reprend sa place d'office.
+fn en_rangee(c: &Cadre, g: &Gabarit, lr: f64, ancre: Option<V2>) -> Result<Esquisse, String> {
+    if let Some(p) = ancre {
+        let mut rangees: Vec<(f64, f64)> = c.rangees.iter().filter(|x| x.2).map(|x| (x.0, x.1)).collect();
+        rangees.sort_by(|a, b| ((a.0 + a.1) / 2.0 - p.y).abs().total_cmp(&((b.0 + b.1) / 2.0 - p.y).abs()));
+        if let Some(e) = rangees.into_iter().find_map(|r| en_rangee_dans(c, g, lr, r, Some(p.x)).ok()) {
+            return Ok(e);
+        }
+    }
+    let Some(&(r0, r1, _)) = c.rangees.iter().find(|x| x.2) else {
+        return Err("Rampes le long des allées : pas de rangée contre une allée".into());
+    };
+    en_rangee_dans(c, g, lr, (r0, r1), None)
+}
+
+/// Rampe dans la rangée `(r0, r1)` ; `centre` : position voulue de son milieu le long de la rangée.
+fn en_rangee_dans(c: &Cadre, g: &Gabarit, lr: f64, (r0, r1): (f64, f64), centre: Option<f64>) -> Result<Esquisse, String> {
     let (r, mg, hs, wr) = (giration::rayon(), giration::marge(), giration::demi_droite(), g.rampe_largeur);
     let pre = "Rampes le long des allées";
     if c.x1 - c.x0 < mg + hs - 1e-9 {
         return Err(format!("{pre} : allée transversale de {} m, il en faut {} pour tourner", super::fr2(c.x1 - c.x0), super::fr2(mg + hs)));
     }
-    let Some(&(r0, r1, _)) = c.rangees.iter().find(|x| x.2) else {
-        return Err(format!("{pre} : pas de rangée contre une allée"));
-    };
     if r1 - r0 < wr - 1e-9 {
         return Err(format!("{pre} : rangée de {} m, voie de rampe de {} m", super::fr2(r1 - r0), super::fr2(wr)));
     }
@@ -676,11 +694,24 @@ fn en_rangee(c: &Cadre, g: &Gabarit, lr: f64) -> Result<Esquisse, String> {
         .tourne(FRAC_PI_2)
         .droit(um - uc)
         .troncons;
-    let haut = um + lr;
     // Sortie en S jusqu'à 1,50 m du bord de l'allée.
     let vt = r1 + hs;
     let phi = (1.0 - (vt - vl) / (2.0 * r)).acos();
     let s = 2.0 * r * phi.sin();
+    // À la main : au plus près du point voulu, entre l'entrée d'office et la fin de la rangée ;
+    // au-delà d'un S après le début de la rangée, on entre en S depuis l'allée voisine.
+    let (um, entree, zone0) = match centre {
+        Some(x) if c.fin - s - lr > um => {
+            let u = (x - lr / 2.0).clamp(um, c.fin - s - lr);
+            if u - s >= c.x1 - 1e-9 && u > um + 1e-9 {
+                (u, Trace::depuis(v2(u - s - AMORCE, vt), 0.0).droit(AMORCE).tourne(-phi).tourne(phi).troncons, u - s)
+            } else {
+                (um, entree, c.x1)
+            }
+        }
+        _ => (um, entree, c.x1),
+    };
+    let haut = um + lr;
     if haut + s > c.fin + 1e-9 {
         return Err(format!(
             "{pre} : {} m de rangée nécessaires (giration d'entrée, rampe de {} m, giration de sortie), {} m disponibles",
@@ -701,7 +732,7 @@ fn en_rangee(c: &Cadre, g: &Gabarit, lr: f64) -> Result<Esquisse, String> {
         forme: Forme::Droite,
         entree,
         sortie,
-        zone: rect(c.x1, r1 - wr, haut + s, r1),
+        zone: rect(zone0, r1 - wr, haut + s, r1),
     })
 }
 
@@ -1453,10 +1484,12 @@ pub fn construire(g: &Gabarit, larg: f64, l: f64) -> Option<Plan> {
         } else {
             cadres(g, &t, &lo)
             .iter()
-            .map(|c| match imp {
+            .enumerate()
+            .map(|(i, c)| match imp {
                 Implantation::Pignon => en_pignon(c, g, lr),
                 Implantation::Helice | Implantation::HeliceExt => en_helice(c, g),
-                _ => en_rangee(c, g, lr),
+                // La descente se construit sur le plateau tourné d'un demi-tour : son ancre aussi.
+                _ => en_rangee(c, g, lr, g.ancres[i].map(|p| if i == 1 { v2(lo.longueur - p.x, t.largeur - p.y) } else { p })),
             })
             .collect()
         };

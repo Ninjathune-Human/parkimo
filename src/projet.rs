@@ -388,6 +388,7 @@ impl Projet {
                 "voies_controle": arrondi(self.reglage("silo_voies")).clamp(1.0, 4.0) as u64,
                 "ascenseurs_demi": p.get("silo_asc").and_then(Value::as_str).filter(|s| !s.is_empty()).unwrap_or("deux"),
                 "noyaux": site.get("noyaux").filter(|x| x.is_array()).cloned().unwrap_or(Value::Null),
+                "rampes": site.get("rampes").filter(|x| x.is_array()).cloned().unwrap_or(Value::Null),
                 "pente_rampe": self.reglage("silo_pente") / 100.0,
                 "emprise": dalle.map(|s| json!({
                     "cx": s["cx"], "cy": s["cy"], "w": s["w"], "h": s["h"], "rot": s["rot"],

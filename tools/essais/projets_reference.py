@@ -13,7 +13,7 @@ CAS = {
     site.traverses = [[[40, 20], [40, 60]]];
     site.entries.push({ edge: 1, t: 0.4 });""",
   "silo": """site = normSite(EXAMPLES.ruisseau()); params = { ...DEFAULT_PARAMS, silo: true, silo_niveaux: 3, silo_rampes: "helice", angle: 12, silo_densite: "courte", silo_ventile: false, silo_controle: true, silo_voies: 2 };
-    site.slab = { cx: 80, cy: 25, w: 90, h: 32, rot: 12, fixe: [1, 0] };""",
+    site.slab = { cx: 80, cy: 25, w: 90, h: 32, rot: 12, fixe: [1, 0] }; site.rampes = [[70, 20], null];""",
   "sans_batiment": "site = normSite({ parcel: [[0, 0], [60, 0], [60, 40], [0, 40]], setbacks: [3], exclusions: [], buildings: [], landscapes: [], entries: [{ edge: 2, t: 0.25 }] }); params = { ...DEFAULT_PARAMS, programme: 'privatif' };",
 }
 out = []

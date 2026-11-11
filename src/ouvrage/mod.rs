@@ -58,6 +58,9 @@ pub struct Ouvrage {
     pub pente_rampe: f64,
     /// Parc largement ventilé (PS 3) : distances aux escaliers de 50 et 30 m au lieu de 40 et 25.
     pub largement_ventile: bool,
+    /// Rampes placées à la main : centre voulu de la montée puis de la descente (points du site),
+    /// `null` pour une rampe laissée à sa place d'office. Rampes le long des allées seulement.
+    pub rampes: Option<Vec<Option<P2>>>,
     /// Rez payant : voies à barrière, îlots et local d'accueil dans une rangée de façade.
     pub controle: bool,
     /// Nombre de voies du contrôle d'accès (1 à 4) : entrée, sortie, et réversibles entre les deux.
@@ -90,6 +93,7 @@ impl Default for Ouvrage {
             implantation: Implantation::Auto,
             pente_rampe: 0.18,
             largement_ventile: true,
+            rampes: None,
             controle: false,
             voies_controle: 3,
             ascenseurs_demi: noyaux::AscenseursDemi::Deux,
@@ -165,6 +169,7 @@ impl Ouvrage {
             rampe: (self.niveaux > 1).then(|| self.longueur_rampe()),
             rampe_largeur: neufert::RAMPE_SENS_UNIQUE.v,
             implantation: self.implantation,
+            ancres: [None; 2],
             hauteur: self.hauteur_etage,
         }
     }
@@ -449,6 +454,14 @@ pub fn solve(site: &Site, o: &Ouvrage) -> Layout {
         e
     };
     let e = repere_usuel(e);
+    // Rampes placées à la main : points du site ramenés dans le repère du plateau.
+    let mut g = g;
+    for (i, p) in o.rampes.iter().flatten().take(2).enumerate() {
+        g.ancres[i] = p.map(|p| {
+            let d = v2(p[0], p[1]) - e.o;
+            v2(d.dot(e.u), d.dot(e.v))
+        });
+    }
     let Some(mut plan) = plateau::construire(&g, e.largeur, e.longueur) else {
         out.warnings.push("Emprise trop petite pour une rangée de places et son allée".into());
         return out;
