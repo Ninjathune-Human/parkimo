@@ -462,3 +462,26 @@ fn noyaux_deplaces_a_la_main() {
         assert!(!lay3.stalls.iter().any(|st| st.q == cible));
     }
 }
+
+/// RDC, étage courant et dernier niveau : le plan affiché est l'étage courant ; les places propres
+/// au rez et au dernier niveau sont rendues à part, avec les épures de giration de chaque extrémité.
+#[test]
+fn le_rez_et_le_dernier_niveau_ont_leurs_places_en_plus() {
+    let mut s = site("rect");
+    s.ouvrage.as_mut().unwrap().niveaux = 3;
+    let lay = parkimo::solve(&s);
+    let o = lay.ouvrage.as_ref().unwrap();
+    assert!(!o.girations.is_empty());
+    assert_eq!(o.places_niveau, lay.stalls.len());
+    assert_eq!(o.places_rdc, lay.stalls.len() + o.places_rdc_seul.len());
+    assert_eq!(o.places_dernier, lay.stalls.len() + o.places_dernier_seul.len());
+    assert!(!o.places_rdc_seul.is_empty() && !o.places_dernier_seul.is_empty(), "rez {} dernier {}", o.places_rdc_seul.len(), o.places_dernier_seul.len());
+    // Ces places ne recouvrent aucune place de l'étage courant.
+    let centre = |q: &[[f64; 2]; 4]| [(q[0][0] + q[2][0]) / 2.0, (q[0][1] + q[2][1]) / 2.0];
+    for q in o.places_rdc_seul.iter().chain(&o.places_dernier_seul) {
+        let c = centre(q);
+        assert!(lay.stalls.iter().all(|st| { let d = centre(&st.q); (c[0] - d[0]).hypot(c[1] - d[1]) > 1.0 }));
+    }
+    // Chaque épure dit à quelle extrémité de rampe elle sert : le bas (absent du dernier niveau) ou le haut (absent du rez).
+    assert!(o.girations.iter().any(|g| g.bas) && o.girations.iter().any(|g| !g.bas));
+}

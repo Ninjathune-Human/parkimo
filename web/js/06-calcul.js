@@ -12,7 +12,7 @@ function solve(quick) {
   if (ln && site.lanes && ln.length === site.lanes.length) site.lanes = ln;
   if (!quick) { placesReset(); girRun(); refine(); }
   if (sel && sel.type === "slab") { if (!(layout && layout.ouvrage)) sel = null; updateSelbar(); }
-  updateStats(quick); redraw();
+  updateStats(quick); updateNiv(); redraw();
 }
 // Places au sortir des virages : le contrôle (recherche de giration, quelques secondes) tourne en
 // arrière-plan, sur un Web Worker à part de ceux du test des places ; le plan affiché tout de suite
@@ -26,7 +26,7 @@ function refine() {
   workerCall("solve_json", engineInput(false, true), POOL).then((out) => {
     if (rev !== refineRev || !out || out.error || !layout || layout.error || out.stalls.length === layout.stalls.length) return;
     layout = out;
-    placesReset(); girRun(); updateStats(false); redraw();
+    placesReset(); girRun(); updateStats(false); updateNiv(); redraw();
   }).catch(() => {}).finally(() => { refining = false; if (rev !== refineRev) refine(); });
 }
 let solveQueued = false, solveQuick = false;

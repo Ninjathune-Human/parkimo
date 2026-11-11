@@ -202,8 +202,10 @@ function draw() {
     }
     // Calque Places
     if (VIS.places) {
+      // Parc en ouvrage : places propres au niveau affiché (rez ou dernier niveau), en plus de l'étage courant.
+      const plus = layout.ouvrage ? nivPlaces() : [];
       ctx.fillStyle = C.asphalt;
-      ctx.beginPath(); for (const st of layout.stalls) pathPoly(st.q); ctx.fill();
+      ctx.beginPath(); for (const st of layout.stalls) pathPoly(st.q); for (const q of plus) pathPoly(q); ctx.fill();
       const kinds = [null, C.pmr, C.irve, C["pmr-irve"]];
       for (let k = 1; k <= 3; k++) { ctx.beginPath(); for (const st of layout.stalls) if (st.k === k) pathPoly(st.q); ctx.fillStyle = kinds[k]; ctx.fill(); }
       // Borne installée : repère clair au fond de la place (sinon la place IRVE est seulement pré-équipée).
@@ -212,12 +214,12 @@ function draw() {
       ctx.fill();
       ctx.strokeStyle = C.stripe; ctx.lineWidth = Math.max(0.6, 0.12 * view.s); ctx.lineCap = "butt";
       ctx.beginPath();
-      for (const st of layout.stalls) { const q = st.q.map(toS); ctx.moveTo(q[3][0], q[3][1]); ctx.lineTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.lineTo(q[2][0], q[2][1]); }
+      for (const q0 of [...layout.stalls.map((st) => st.q), ...plus]) { const q = q0.map(toS); ctx.moveTo(q[3][0], q[3][1]); ctx.lineTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.lineTo(q[2][0], q[2][1]); }
       ctx.stroke();
     }
     if (layout.ouvrage && VIS.noyaux) drawNoyaux(layout.ouvrage.noyaux);
     if (layout.ouvrage && VIS.structure) drawStructure(layout.ouvrage);
-    if (layout.ouvrage && VIS.girations) drawGirations(layout.ouvrage.girations);
+    if (layout.ouvrage && VIS.girations) drawGirations(nivGirations());
     // Calque Sens de circulation : flèches peintes sur la chaussée
     if (VIS.sens && view.s > 1.0 && layout.circulation && layout.circulation.arrows.length) {
       planTransform(ctx, DPR, view.s, view.ox, view.oy); ctx.fillStyle = C.stripe; ctx.fill(arrowsPath(layout)); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);

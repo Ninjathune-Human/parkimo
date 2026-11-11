@@ -152,10 +152,9 @@ fn le_silo_empile_ses_niveaux() {
     let o = lay.ouvrage.as_ref().unwrap();
     let h = o.hauteur_etage;
     assert_eq!(s.niveaux.iter().map(|n| n.z).collect::<Vec<_>>(), vec![0.0, h, 2.0 * h]);
-    assert_eq!(s.places.len(), 3 * lay.stalls.len());
-    for k in 0..3u32 {
-        let n = s.places.iter().filter(|p| p.niveau == k).count();
-        assert_eq!(n, lay.stalls.len());
+    assert_eq!(s.places.len(), o.places_rdc + o.places_niveau + o.places_dernier);
+    for (k, n) in [(0u32, o.places_rdc), (1, o.places_niveau), (2, o.places_dernier)] {
+        assert_eq!(s.places.iter().filter(|p| p.niveau == k).count(), n, "niveau {k}");
         assert!(s.places.iter().filter(|p| p.niveau == k).all(|p| (p.z - k as f64 * h).abs() < 0.05));
     }
     // Une dalle par niveau ; poteaux et poutres sous chaque dalle d'étage.

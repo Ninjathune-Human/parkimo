@@ -49,7 +49,7 @@ function workBounds() {
 // Plus grand rectangle de l'écran libre de tout panneau, choisi pour la forme des zones à cadrer.
 function freeArea(bw, bh, m) {
   const cr = canvas.getBoundingClientRect();
-  const obst = ["#stats", "#layers", "#toolbar", "#selbar", "#girmenu", "#ia"].map((q) => $(q))
+  const obst = ["#stats", "#layers", "#toolbar", "#selbar", "#girmenu", "#ia", "#niv"].map((q) => $(q))
     .filter((el) => el && !el.hidden && el.getClientRects().length)
     .map((el) => { const r = el.getBoundingClientRect(); return [r.left - cr.left - 8, r.top - cr.top - 8, r.right - cr.left + 8, r.bottom - cr.top + 8]; });
   const xs0 = [0, ...obst.map((r) => r[2])], xs1 = [W, ...obst.map((r) => r[0])], ys0 = [0, ...obst.map((r) => r[3])], ys1 = [H, ...obst.map((r) => r[1])];

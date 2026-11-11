@@ -261,7 +261,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 32px
 .sw-ico { flex: none; color: var(--label-2); margin: 0 -2px; }
 
 /* Mode carte */
-body.mapmode #b-fit, body.mapmode #b-ia, body.mapmode #ia, body.mapmode #empty, body.mapmode #side, body.mapmode #toolbar, body.mapmode #selbar, body.mapmode #hint, body.mapmode .menu { display: none !important; }
+body.mapmode #b-fit, body.mapmode #b-ia, body.mapmode #niv, body.mapmode #ia, body.mapmode #empty, body.mapmode #side, body.mapmode #toolbar, body.mapmode #selbar, body.mapmode #hint, body.mapmode .menu { display: none !important; }
 #search { position: absolute; top: calc(16px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); border-radius: var(--r-xl); overflow: hidden; }
 .search-field { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 8px 0 16px; color: var(--label-2); }
 .search-field input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font: inherit; font-size: 17px; color: var(--label); }
@@ -419,5 +419,14 @@ body:has(#girbar:not([hidden])) #hint { opacity: 0; }
   #b-ia { top: auto; right: calc(max(16px, env(safe-area-inset-right, 0px)) + 52px); }
   #ia { top: auto; left: 16px; right: 16px; width: auto; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); max-height: 62vh; }
   /* La feuille couvre les boutons flottants : ils s'effacent, la croix de l'en-tête la referme. */
-  body:has(#ia:not([hidden])) .fab { visibility: hidden; }
+  body:has(#ia:not([hidden])) .fab, body:has(#ia:not([hidden])) #niv { visibility: hidden; }
 }
+
+/* Niveaux du parc en ouvrage : pile de niveaux sous les boutons flottants, le plus haut en tête. */
+#niv { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(120px + env(safe-area-inset-top, 0px)); display: flex; flex-direction: column; gap: 2px; padding: 4px; border-radius: 26px; }
+#niv[hidden] { display: none; }
+#niv button { min-width: 44px; min-height: 44px; padding: 4px 10px; border: 0; border-radius: 22px; background: none; color: var(--label); font: inherit; font-size: 13px; font-weight: 600; line-height: 1.15; display: flex; flex-direction: column; align-items: center; justify-content: center; white-space: nowrap; cursor: pointer; transition: background var(--fast) var(--ease), color var(--fast) var(--ease); }
+#niv button small { font-size: 11px; font-weight: 400; color: var(--label-2); font-variant-numeric: tabular-nums; }
+#niv button[aria-checked="true"] { background: var(--accent); color: #fff; }
+#niv button[aria-checked="true"] small { color: rgba(255, 255, 255, .85); }
+@media (max-width: 760px) { #niv { top: auto; bottom: calc(202px + env(safe-area-inset-bottom, 0px)); } }

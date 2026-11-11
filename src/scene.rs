@@ -267,8 +267,8 @@ pub fn construire(site: &Site, lay: &Layout) -> Scene {
     s
 }
 
-/// Parc en ouvrage : les niveaux empilés. Chaque niveau reprend le plateau courant ; le dernier
-/// est à ciel ouvert. Demi-niveaux et plateaux inclinés sont montrés en niveaux plans.
+/// Parc en ouvrage : les niveaux empilés. Chaque niveau reprend le plateau courant, le rez et le
+/// dernier niveau avec leurs places en plus ; le dernier est à ciel ouvert. Demi-niveaux et plateaux inclinés sont montrés en niveaux plans.
 fn ouvrage(s: &mut Scene, lay: &Layout, o: &crate::ouvrage::OuvrageOut) {
     let (h, ep, niv) = (o.hauteur_etage, o.dalle_ep, o.niveaux.max(1));
     let dalle = MultiPolygon::new(vec![poly(&o.dalle)]);
@@ -284,6 +284,11 @@ fn ouvrage(s: &mut Scene, lay: &Layout, o: &crate::ouvrage::OuvrageOut) {
             s.prismes(&dalle.difference(&region::erode(&dalle, 0.15)), Matiere::GardeCorps, r3(z), r3(z + GARDE_CORPS), k);
         }
         s.places.extend(lay.stalls.iter().map(|st| Place { q: st.q, z: cote(k), k: st.k, borne: st.e, niveau: k }));
+        // Places propres au rez et au dernier niveau.
+        if niv > 1 {
+            let seules = if k == 0 { &o.places_rdc_seul[..] } else if k + 1 == niv { &o.places_dernier_seul[..] } else { &[] };
+            s.places.extend(seules.iter().map(|&q| Place { q, z: cote(k), k: 0, borne: false, niveau: k }));
+        }
         // Escaliers et ascenseurs : un tronçon par niveau, un édicule au-dessus du dernier.
         if niv > 1 {
             for n in &o.noyaux {

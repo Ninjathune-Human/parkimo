@@ -192,6 +192,8 @@ pub struct GirationOut {
     pub axe: Vec<P2>,
     pub contour: Vec<P2>,
     pub conflits: Vec<String>,
+    /// Épure au bas d'une rampe (absente du dernier niveau) ; sinon en haut (absente du rez).
+    pub bas: bool,
 }
 
 /// Escalier ou ascenseur : emprise, porte sur l'axe de l'allée.
@@ -282,6 +284,10 @@ pub struct OuvrageOut {
     pub places_niveau: usize,
     pub places_rdc: usize,
     pub places_dernier: usize,
+    /// Places propres au rez et au dernier niveau, en plus de celles de l'étage courant
+    /// (`Layout::stalls`) : là où l'épure de giration d'un bout de rampe n'a pas lieu d'être.
+    pub places_rdc_seul: Vec<[P2; 4]>,
+    pub places_dernier_seul: Vec<[P2; 4]>,
     /// Implantation des rampes retenue : "rangee", "pignon", "demi", ou vide sans rampe.
     pub implantation: String,
     /// Demi-niveaux décalés : chaque niveau compte deux demi-plateaux.
@@ -691,6 +697,8 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         places_niveau: n_niv,
         places_rdc: n_rdc,
         places_dernier: n_dernier,
+        places_rdc_seul: plan.places_rdc.iter().map(|pl| quad(&pl.q)).collect(),
+        places_dernier_seul: plan.places_dernier.iter().map(|pl| quad(&pl.q)).collect(),
         implantation: plan.implantation.map_or(String::new(), |i| i.nom().into()),
         demi_niveaux: plan.implantation == Some(Implantation::DemiNiveaux),
         plateaux_inclines: plan.implantation == Some(Implantation::Inclines),
@@ -724,6 +732,7 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
                 axe: gi.axe.iter().map(|&q| p2(w(q))).collect(),
                 contour: gi.contour.iter().map(|&q| p2(w(q))).collect(),
                 conflits: gi.conflits.clone(),
+                bas: gi.bas(),
             })
             .collect(),
         noyaux: plan
