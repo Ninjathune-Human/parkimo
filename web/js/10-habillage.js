@@ -34,10 +34,12 @@ let dressCache = { layout: null, key: "", v: null };
 const NO_DRESS = { cars: [], trees: [], batch: null };
 function dressing() {
   if (!layout || layout.error) return NO_DRESS;
-  const key = `${DRESS.cars}|${DRESS.tree}|${DRESS.seed}`;
+  // Parc en ouvrage : véhicules sur les places du niveau affiché.
+  const places = layout.ouvrage ? nivStalls() : layout.stalls;
+  const key = `${DRESS.cars}|${DRESS.tree}|${DRESS.seed}|${layout.ouvrage ? nivActif() : ""}`;
   if (dressCache.layout === layout && dressCache.key === key) return dressCache.v;
   const cars = [], trees = [], rate = DRESS.cars / 100;
-  for (const st of layout.stalls) {
+  for (const st of places) {
     const q = st.q, bx = (q[0][0] + q[1][0]) / 2, by = (q[0][1] + q[1][1]) / 2, fx = (q[2][0] + q[3][0]) / 2, fy = (q[2][1] + q[3][1]) / 2;
     const ix = Math.round((bx + fx) * 5), iy = Math.round((by + fy) * 5);
     if (rnd(ix, iy, 0) >= rate) continue;

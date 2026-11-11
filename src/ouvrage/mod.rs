@@ -6,6 +6,7 @@
 //! courte (poteaux en tête de place), plancher du système constructif retenu (`systemes`).
 
 pub mod bim;
+pub mod controle;
 pub mod giration;
 pub mod ifc;
 pub mod noyaux;
@@ -57,6 +58,10 @@ pub struct Ouvrage {
     pub pente_rampe: f64,
     /// Parc largement ventilé (PS 3) : distances aux escaliers de 50 et 30 m au lieu de 40 et 25.
     pub largement_ventile: bool,
+    /// Rez payant : voies à barrière, îlots et local d'accueil dans une rangée de façade.
+    pub controle: bool,
+    /// Nombre de voies du contrôle d'accès (1 à 4) : entrée, sortie, et réversibles entre les deux.
+    pub voies_controle: u32,
     /// Demi-niveaux : "deux" ascenseurs (un par demi-plateau) ou un seul et un escalier de "liaison".
     pub ascenseurs_demi: noyaux::AscenseursDemi,
     /// Escaliers et ascenseurs placés à la main (coordonnées du site) ; absents = placement
@@ -85,6 +90,8 @@ impl Default for Ouvrage {
             implantation: Implantation::Auto,
             pente_rampe: 0.18,
             largement_ventile: true,
+            controle: false,
+            voies_controle: 3,
             ascenseurs_demi: noyaux::AscenseursDemi::Deux,
             noyaux: None,
             cote: 0.0,
@@ -196,6 +203,33 @@ pub struct GirationOut {
     pub bas: bool,
 }
 
+/// Voie du contrôle d'accès : emprise, sens ("entree", "sortie" ou "reversible").
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct VoieOut {
+    pub q: [P2; 4],
+    pub sens: String,
+}
+
+/// Local d'accueil : emprise murs compris, nu intérieur, surface intérieure (m²).
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct LocalOut {
+    pub q: [P2; 4],
+    pub interieur: [P2; 4],
+    pub surface: f64,
+}
+
+/// Contrôle d'accès du rez payant (`controle`).
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct ControleOut {
+    pub voies: Vec<VoieOut>,
+    pub ilots: Vec<[P2; 4]>,
+    pub barrieres: Vec<[P2; 2]>,
+    pub bornes: Vec<P2>,
+    pub local: Option<LocalOut>,
+    /// Places que le dispositif et son local prennent au rez.
+    pub places_prises: usize,
+}
+
 /// Escalier ou ascenseur : emprise, porte sur l'axe de l'allée.
 #[derive(Serialize, Clone, Debug, Default)]
 pub struct NoyauOut {
@@ -288,6 +322,12 @@ pub struct OuvrageOut {
     /// (`Layout::stalls`) : là où l'épure de giration d'un bout de rampe n'a pas lieu d'être.
     pub places_rdc_seul: Vec<[P2; 4]>,
     pub places_dernier_seul: Vec<[P2; 4]>,
+    /// Places de l'étage courant (indices dans `Layout::stalls`) absentes du rez : prises par le
+    /// contrôle d'accès et son local.
+    pub places_rdc_retirees: Vec<usize>,
+    /// Rez payant : contrôle d'accès, s'il est demandé et qu'une rangée de façade peut le recevoir.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub controle: Option<ControleOut>,
     /// Implantation des rampes retenue : "rangee", "pignon", "demi", ou vide sans rampe.
     pub implantation: String,
     /// Demi-niveaux décalés : chaque niveau compte deux demi-plateaux.
@@ -487,7 +527,26 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
     };
     let rives = |v: &[plateau::PlaceLoc]| v.iter().filter(|pl| pl.rive).count();
     let n_niv = out.stalls.len();
-    let (n_rdc, n_dernier) = (n_niv + plan.places_rdc.len(), n_niv + plan.places_dernier.len());
+    // Rez payant : contrôle d'accès au plus près de l'accès du site.
+    let ctrl = o.controle.then(|| {
+        let vers = site
+            .entries
+            .first()
+            .filter(|en| en.edge < site.parcel.len())
+            .map(|en| {
+                let (a, b) = (site.parcel[en.edge], site.parcel[(en.edge + 1) % site.parcel.len()]);
+                let p = v2(a[0] + (b[0] - a[0]) * en.t, a[1] + (b[1] - a[1]) * en.t) - e.o;
+                v2(p.dot(e.u), p.dot(e.v))
+            })
+            .unwrap_or(v2(long / 2.0, 0.0));
+        controle::placer(plan, o.poteau, vers, o.voies_controle)
+    });
+    let ctrl = ctrl.flatten();
+    if o.controle && ctrl.is_none() {
+        out.warnings.push("Rez payant : aucune rangée de façade ne peut recevoir le contrôle d'accès et son local".into());
+    }
+    let moins = ctrl.as_ref().map_or(0, |c| c.retirees.len() - c.elargies.len());
+    let (n_rdc, n_dernier) = (n_niv + plan.places_rdc.len() - moins, n_niv + plan.places_dernier.len());
     let rive_niv = rives(&plan.places);
     let (n, rive) = if niv > 1 {
         (
@@ -495,7 +554,7 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
             niv * rive_niv + rives(&plan.places_rdc) + rives(&plan.places_dernier),
         )
     } else {
-        (n_niv, rive_niv)
+        (n_niv - moins, rive_niv)
     };
 
     // Chaussée : réunion des allées.
@@ -697,7 +756,28 @@ fn remplir(out: &mut Layout, site: &Site, o: &Ouvrage, g: &Gabarit, e: &Emprise,
         places_niveau: n_niv,
         places_rdc: n_rdc,
         places_dernier: n_dernier,
-        places_rdc_seul: plan.places_rdc.iter().map(|pl| quad(&pl.q)).collect(),
+        places_rdc_seul: plan.places_rdc.iter().map(|pl| quad(&pl.q)).chain(ctrl.iter().flat_map(|c| c.elargies.iter().map(&quad))).collect(),
+        places_rdc_retirees: ctrl.as_ref().map(|c| c.retirees.clone()).unwrap_or_default(),
+        controle: ctrl.as_ref().map(|c| ControleOut {
+            voies: c
+                .voies
+                .iter()
+                .map(|(q, sens)| VoieOut {
+                    q: quad(q),
+                    sens: match sens {
+                        controle::Sens::Entree => "entree",
+                        controle::Sens::Sortie => "sortie",
+                        controle::Sens::Reversible => "reversible",
+                    }
+                    .into(),
+                })
+                .collect(),
+            ilots: c.ilots.iter().map(&quad).collect(),
+            barrieres: c.barrieres.iter().map(|s| [p2(w(s[0])), p2(w(s[1]))]).collect(),
+            bornes: c.bornes.iter().map(|&b| p2(w(b))).collect(),
+            local: c.local.as_ref().map(|l| LocalOut { q: quad(&l.q), interieur: quad(&l.interieur), surface: r3(l.surface) }),
+            places_prises: moins,
+        }),
         places_dernier_seul: plan.places_dernier.iter().map(|pl| quad(&pl.q)).collect(),
         implantation: plan.implantation.map_or(String::new(), |i| i.nom().into()),
         demi_niveaux: plan.implantation == Some(Implantation::DemiNiveaux),

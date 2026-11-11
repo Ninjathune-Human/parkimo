@@ -203,19 +203,20 @@ function draw() {
     // Calque Places
     if (VIS.places) {
       // Parc en ouvrage : places propres au niveau affiché (rez ou dernier niveau), en plus de l'étage courant.
-      const plus = layout.ouvrage ? nivPlaces() : [];
+      const places = layout.ouvrage ? nivStalls() : layout.stalls;
       ctx.fillStyle = C.asphalt;
-      ctx.beginPath(); for (const st of layout.stalls) pathPoly(st.q); for (const q of plus) pathPoly(q); ctx.fill();
+      ctx.beginPath(); for (const st of places) pathPoly(st.q); ctx.fill();
       const kinds = [null, C.pmr, C.irve, C["pmr-irve"]];
-      for (let k = 1; k <= 3; k++) { ctx.beginPath(); for (const st of layout.stalls) if (st.k === k) pathPoly(st.q); ctx.fillStyle = kinds[k]; ctx.fill(); }
+      for (let k = 1; k <= 3; k++) { ctx.beginPath(); for (const st of places) if (st.k === k) pathPoly(st.q); ctx.fillStyle = kinds[k]; ctx.fill(); }
       // Borne installée : repère clair au fond de la place (sinon la place IRVE est seulement pré-équipée).
       ctx.fillStyle = C.stripe; ctx.beginPath();
-      for (const st of layout.stalls) if (st.e) { const q = st.q.map(toS), x = (q[0][0] + q[1][0]) / 2, y = (q[0][1] + q[1][1]) / 2, cx = (q[0][0] + q[1][0] + q[2][0] + q[3][0]) / 4, cy = (q[0][1] + q[1][1] + q[2][1] + q[3][1]) / 4, r = 0.3 * view.s; const px = x + (cx - x) * 0.45, py = y + (cy - y) * 0.45; ctx.moveTo(px + r, py); ctx.arc(px, py, r, 0, 6.2832); }
+      for (const st of places) if (st.e) { const q = st.q.map(toS), x = (q[0][0] + q[1][0]) / 2, y = (q[0][1] + q[1][1]) / 2, cx = (q[0][0] + q[1][0] + q[2][0] + q[3][0]) / 4, cy = (q[0][1] + q[1][1] + q[2][1] + q[3][1]) / 4, r = 0.3 * view.s; const px = x + (cx - x) * 0.45, py = y + (cy - y) * 0.45; ctx.moveTo(px + r, py); ctx.arc(px, py, r, 0, 6.2832); }
       ctx.fill();
       ctx.strokeStyle = C.stripe; ctx.lineWidth = Math.max(0.6, 0.12 * view.s); ctx.lineCap = "butt";
       ctx.beginPath();
-      for (const q0 of [...layout.stalls.map((st) => st.q), ...plus]) { const q = q0.map(toS); ctx.moveTo(q[3][0], q[3][1]); ctx.lineTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.lineTo(q[2][0], q[2][1]); }
+      for (const st of places) { const q = st.q.map(toS); ctx.moveTo(q[3][0], q[3][1]); ctx.lineTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.lineTo(q[2][0], q[2][1]); }
       ctx.stroke();
+      if (layout.ouvrage && layout.ouvrage.controle && nivActif() === "rdc") drawControle(layout.ouvrage.controle);
     }
     if (layout.ouvrage && VIS.noyaux) drawNoyaux(layout.ouvrage.noyaux);
     if (layout.ouvrage && VIS.structure) drawStructure(layout.ouvrage);

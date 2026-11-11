@@ -485,3 +485,101 @@ fn le_rez_et_le_dernier_niveau_ont_leurs_places_en_plus() {
     // Chaque épure dit à quelle extrémité de rampe elle sert : le bas (absent du dernier niveau) ou le haut (absent du rez).
     assert!(o.girations.iter().any(|g| g.bas) && o.girations.iter().any(|g| !g.bas));
 }
+
+fn rez_payant(niveaux: u32, voies: u32) -> parkimo::model::Layout {
+    let mut s = site("rect");
+    let o = s.ouvrage.as_mut().unwrap();
+    (o.niveaux, o.controle, o.voies_controle) = (niveaux, true, voies);
+    parkimo::solve(&s)
+}
+
+fn cotes(q: &[[f64; 2]; 4]) -> (f64, f64) {
+    let d = |a: [f64; 2], b: [f64; 2]| (a[0] - b[0]).hypot(a[1] - b[1]);
+    (d(q[0], q[1]), d(q[1], q[2]))
+}
+
+/// Rez payant : trois voies de 2,50 m séparées par des îlots (Neufert p. 274-276), barrières, bornes,
+/// local d'accueil de deux places ; les places prises ne le sont qu'au rez.
+#[test]
+fn le_rez_payant_pose_ses_voies_ses_ilots_et_son_local() {
+    let lay = rez_payant(3, 3);
+    let o = lay.ouvrage.as_ref().unwrap();
+    let c = o.controle.as_ref().expect("contrôle d'accès");
+    let sens: Vec<&str> = c.voies.iter().map(|v| v.sens.as_str()).collect();
+    assert!(sens == ["entree", "reversible", "sortie"] || sens == ["sortie", "reversible", "entree"], "{sens:?}");
+    for v in &c.voies {
+        let (a, b) = cotes(&v.q);
+        assert!((a.min(b) - 2.5).abs() < 1e-6 && a.max(b) > 4.5, "voie {a} x {b}");
+    }
+    assert_eq!((c.ilots.len(), c.barrieres.len()), (2, 3));
+    assert!(c.ilots.iter().all(|q| { let (a, b) = cotes(q); a.min(b) >= 0.75 - 1e-6 }));
+    assert!(c.bornes.len() >= 2);
+    // Aucun poteau dans une voie.
+    for p in &o.poteaux {
+        let m = [(p[0][0] + p[2][0]) / 2.0, (p[0][1] + p[2][1]) / 2.0];
+        assert!(!c.voies.iter().any(|v| quad(&v.q).contains(v2(m[0], m[1]))), "poteau dans une voie");
+    }
+    // Local : deux places, moins les murs de 0,20 m et la surlargeur de la place voisine.
+    let l = c.local.as_ref().expect("local d'accueil");
+    let (a, b) = cotes(&l.q);
+    assert!((a.min(b) - 4.9).abs() < 1e-6 || (a.min(b) - 5.0).abs() < 1e-6, "local {a} x {b}");
+    assert!((l.surface - (a.min(b) - 0.4) * (a.max(b) - 0.4)).abs() < 0.01 && l.surface > 19.0 && l.surface < 22.0, "{} m²", l.surface);
+    // Les places prises ne le sont qu'au rez : décompte par niveau.
+    assert!(o.places_rdc_retirees.len() >= 6, "{} places retirées", o.places_rdc_retirees.len());
+    assert_eq!(o.places_rdc, lay.stalls.len() - o.places_rdc_retirees.len() + o.places_rdc_seul.len());
+    assert_eq!(o.places_niveau, lay.stalls.len());
+    assert_eq!(lay.metrics.stalls, o.places_rdc + o.places_niveau + o.places_dernier);
+    // Aucune place du rez sous une voie ou dans le local.
+    let au_rez = lay.stalls.iter().enumerate().filter(|(i, _)| !o.places_rdc_retirees.contains(i)).map(|(_, st)| st.q).chain(o.places_rdc_seul.iter().copied());
+    for q in au_rez {
+        let m = quad(&q).center();
+        assert!(!c.voies.iter().any(|v| quad(&v.q).contains(m)) && !quad(&l.q).contains(m), "place sous le contrôle");
+    }
+}
+
+/// La place voisine du mur du local passe à 2,60 m, pris sur le local ; un local en bout de rangée
+/// garde ses 5,00 m.
+#[test]
+fn la_place_voisine_du_local_est_elargie_aux_depens_du_local() {
+    let mut vues = [0, 0];
+    for (edge, t) in (0..4).flat_map(|e| [0.2, 0.5, 0.8].map(|t| (e, t))) {
+        let mut s = site("rect");
+        s.entries = vec![parkimo::model::Entry { edge, t }];
+        let o = s.ouvrage.as_mut().unwrap();
+        (o.niveaux, o.controle) = (2, true);
+        let lay = parkimo::solve(&s);
+        let o = lay.ouvrage.as_ref().unwrap();
+        let l = o.controle.as_ref().unwrap().local.as_ref().unwrap();
+        let (a, b) = cotes(&l.q);
+        let elargies = o.places_rdc_seul.iter().filter(|q| { let (a, b) = cotes(q); (a.min(b) - 2.6).abs() < 1e-6 }).count();
+        if a.min(b) < 5.0 - 1e-6 {
+            assert!((a.min(b) - 4.9).abs() < 1e-6, "local de {} m", a.min(b));
+            assert_eq!(elargies, 1, "accès {edge} à {t}");
+            assert!((l.surface - 4.5 * 4.6).abs() < 0.01, "{} m²", l.surface);
+            vues[0] += 1;
+        } else {
+            assert!((a.min(b) - 5.0).abs() < 1e-6 && elargies == 0, "accès {edge} à {t} : local de {} m", a.min(b));
+            vues[1] += 1;
+        }
+    }
+    assert!(vues[0] > 0, "aucun cas avec place voisine : {vues:?}");
+}
+
+#[test]
+fn le_rez_payant_suit_le_nombre_de_voies_et_reste_facultatif() {
+    let deux = rez_payant(2, 2);
+    let c = deux.ouvrage.as_ref().unwrap().controle.clone().unwrap();
+    assert_eq!((c.voies.len(), c.ilots.len()), (2, 1));
+    assert!(c.voies.iter().all(|v| v.sens != "reversible"));
+    // Un seul niveau : le rez est tout le parc.
+    let un = rez_payant(1, 3);
+    let o = un.ouvrage.as_ref().unwrap();
+    assert!(o.controle.is_some());
+    assert_eq!(un.metrics.stalls, un.stalls.len() - o.places_rdc_retirees.len() + o.places_rdc_seul.len());
+    // Sans rez payant, rien ne change.
+    let mut s = site("rect");
+    s.ouvrage.as_mut().unwrap().niveaux = 3;
+    let libre = parkimo::solve(&s);
+    let o = libre.ouvrage.as_ref().unwrap();
+    assert!(o.controle.is_none() && o.places_rdc_retirees.is_empty());
+}

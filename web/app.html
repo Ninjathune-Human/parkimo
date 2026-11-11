@@ -75,6 +75,7 @@ __STYLE__
         <div class="row" id="r-dalle" hidden><span class="k">Dalle</span><span class="v" id="s-dalle"></span></div>
         <div class="row" id="r-trame" hidden><span class="k">Trame</span><span class="v" id="s-trame"></span></div>
         <div class="row" id="r-niveaux" hidden><span class="k">Niveaux</span><span class="v" id="s-niveaux"></span></div>
+        <div class="row" id="r-controle" hidden><span class="k">Rez payant</span><span class="v" id="s-controle"></span></div>
         <div class="row" id="r-rampes" hidden><span class="k">Rampes</span><span class="v" id="s-rampes"></span></div>
         <div class="row" id="r-noyaux" hidden><span class="k">Escaliers</span><span class="v" id="s-noyaux"></span></div>
         <div class="row" id="r-plancher" hidden><span class="k">Plancher</span><span class="v" id="s-plancher"></span></div>
@@ -247,6 +248,8 @@ __STYLE__
         <div class="field" id="ra-field"><label for="ra-sel">Rampes</label><span class="pop"><select id="ra-sel"><option value="auto">Auto</option><option value="rangee">En rangée</option><option value="pignon">En pignon</option><option value="demi">Demi-niveaux</option><option value="helice">Hélice</option><option value="helice_ext">Hélices hors dalle</option><option value="helice_double">Hélice à double sens</option><option value="helice_centre">Double sens au centre</option><option value="helice_anneau">Double sens en anneau</option><option value="helice_facade">Double sens en façade</option><option value="inclines">Plateaux inclinés</option></select></span></div>
         <div class="field" id="asc-field" hidden><label for="asc-sel">Ascenseurs</label><span class="pop"><select id="asc-sel"><option value="deux">Un par demi-niveau</option><option value="liaison">Un, escalier de liaison</option></select></span></div>
         <div class="field" id="pslv-field"><label for="p-silo_ventile">Largement ventilé (PS 3)</label><input id="p-silo_ventile" type="checkbox" class="switch" role="switch"></div>
+        <div class="field"><label for="p-silo_controle">Rez payant (barrières, accueil)</label><input id="p-silo_controle" type="checkbox" class="switch" role="switch"></div>
+        <div class="field" id="voies-field" hidden><label for="p-silo_voies">Voies de contrôle</label><span class="unit"><input id="p-silo_voies" type="text" inputmode="numeric" autocomplete="off">voies</span></div>
         <div class="field"><label for="p-silo_pu">Poteau le long des allées</label><span class="unit"><input id="p-silo_pu" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_pv">Poteau en travers</label><span class="unit"><input id="p-silo_pv" type="text" inputmode="decimal" autocomplete="off">m</span></div>
         <div class="field"><label for="p-silo_retrait">Retrait en tête de place</label><span class="unit"><input id="p-silo_retrait" type="text" inputmode="decimal" autocomplete="off">m</span></div>

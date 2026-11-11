@@ -74,6 +74,8 @@ function updateStats(quick) {
   if (ov) $("#s-dalle").textContent = `${fmt1(ov.largeur)} × ${fmt1(Math.hypot(ov.dalle[1][0] - ov.dalle[0][0], ov.dalle[1][1] - ov.dalle[0][1]))} m · ${ov.modules}${ov.demi_module ? ",5" : ""} module${ov.modules + (ov.demi_module ? 0.5 : 0) >= 2 ? "s" : ""}`;
   $("#r-trame").hidden = !ov; if (ov) $("#s-trame").textContent = `${DENSITE[params.silo_densite]} · portée ${fmt1(ov.portee)} m`;
   $("#r-niveaux").hidden = !ov || ov.niveaux < 2; if (ov && ov.niveaux > 1) $("#s-niveaux").textContent = ov.demi_niveaux ? `${ov.niveaux} en ${2 * ov.niveaux} demi-niveaux · ${fmtInt(ov.places_niveau)} places par niveau` : ov.plateaux_inclines ? `${ov.niveaux} · ${fmtInt(ov.places_niveau)} places par niveau, plateaux inclinés` : `${ov.niveaux} · ${fmtInt(ov.places_rdc)} places au rez, ${ov.niveaux > 2 ? fmtInt(ov.places_niveau) + " par niveau courant, " : ""}${fmtInt(ov.places_dernier)} au dernier`;
+  $("#r-controle").hidden = !(ov && ov.controle);
+  if (ov && ov.controle) { const c = ov.controle; $("#s-controle").textContent = `${c.voies.length} voie${c.voies.length > 1 ? "s" : ""}${c.local ? ` · accueil ${fmt1(c.local.surface)} m²` : ""} · ${c.places_prises} places en moins au rez`; }
   $("#r-rampes").hidden = !ov || ov.niveaux < 2; $("#lay-girations").hidden = !ov || !ov.girations.length;
   if (ov && ov.niveaux > 1) { const k = ov.girations.filter((g) => g.conflits.length).length; $("#s-rampes").innerHTML = ov.rampes.length ? `${IMPLANTATION[ov.implantation]}<span class="chip ${k ? "bad" : "ok"}">${k ? (k > 1 ? k + " girations gênées" : "giration gênée") : "girations conformes"}</span>` : `aucune<span class="chip bad">impossible</span>`; }
   const ev = ov && ov.evacuation;

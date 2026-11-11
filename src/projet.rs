@@ -85,6 +85,8 @@ pub const REGLAGES: &[Reglage] = &[
     nombre("silo_retrait", "Retrait des poteaux", "m", 0.65, 0.0, 2.0),
     Reglage { cle: "silo_rampes", libelle: "Implantation des rampes", unite: "", defaut: Defaut::S("auto"), genre: Genre::Choix(IMPLANTATIONS) },
     Reglage { cle: "silo_ventile", libelle: "Parc largement ventilé", unite: "", defaut: Defaut::B(true), genre: Genre::Bool },
+    Reglage { cle: "silo_controle", libelle: "Rez payant : contrôle d'accès à barrières et local d'accueil", unite: "", defaut: Defaut::B(false), genre: Genre::Bool },
+    Reglage { cle: "silo_voies", libelle: "Voies du contrôle d'accès", unite: "voies", defaut: Defaut::N(3.0), genre: Genre::Entier { min: 1.0, max: 4.0 } },
     Reglage { cle: "silo_asc", libelle: "Ascenseurs des demi-niveaux", unite: "", defaut: Defaut::S("deux"), genre: Genre::Choix(&["deux", "liaison"]) },
 ];
 
@@ -382,6 +384,8 @@ impl Projet {
                 "niveaux": arrondi(self.reglage("silo_niveaux")).max(1.0) as u64,
                 "implantation": v("silo_rampes"),
                 "largement_ventile": p.get("silo_ventile").and_then(Value::as_bool) != Some(false),
+                "controle": p.get("silo_controle").and_then(Value::as_bool) == Some(true),
+                "voies_controle": arrondi(self.reglage("silo_voies")).clamp(1.0, 4.0) as u64,
                 "ascenseurs_demi": p.get("silo_asc").and_then(Value::as_str).filter(|s| !s.is_empty()).unwrap_or("deux"),
                 "noyaux": site.get("noyaux").filter(|x| x.is_array()).cloned().unwrap_or(Value::Null),
                 "pente_rampe": self.reglage("silo_pente") / 100.0,

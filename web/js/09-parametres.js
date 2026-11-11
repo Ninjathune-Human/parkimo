@@ -1,7 +1,7 @@
 // ============================================================================
 // Paramètres.
 // ============================================================================
-const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "canopy", "pmr_ratio", "irve_ratio", "irve_equip_ratio", "silo_niveaux", "silo_etage", "silo_pente", "silo_pu", "silo_pv", "silo_retrait", "silo_travee", "silo_facade"];
+const PKEYS = ["stall_w", "stall_d", "noue_w", "basin_h", "basin_margin", "aisle", "aisle_one", "entry_w", "building_margin", "door_w", "planter_every", "cap", "canopy", "pmr_ratio", "irve_ratio", "irve_equip_ratio", "silo_niveaux", "silo_etage", "silo_pente", "silo_pu", "silo_pv", "silo_retrait", "silo_travee", "silo_facade", "silo_voies"];
 // Densité de la trame du silo : libellés du bilan et du tableur.
 const DENSITE = { longue: "Longue", moyenne: "Moyenne", courte: "Courte" };
 const IMPLANTATION = { rangee: "En rangée", pignon: "En pignon", demi: "Demi-niveaux", helice: "Hélice", helice_ext: "Hélices hors dalle", helice_double: "Hélice à double sens", helice_centre: "Double sens au centre", helice_anneau: "Double sens en anneau", helice_facade: "Double sens en façade", inclines: "Plateaux inclinés" };
@@ -61,6 +61,7 @@ function syncParamsUI() {
   for (const b of $("#t-seg").children) b.setAttribute("aria-pressed", String((b.dataset.t === "silo") === !!params.silo));
   for (const b of $("#prog-seg").children) b.setAttribute("aria-pressed", String(b.dataset.g === params.programme));
   $("#silo-fields").hidden = !params.silo; $("#p-silo_rives").checked = !!params.silo_rives; $("#p-ombrieres").checked = !!params.ombrieres;
+  $("#p-silo_controle").checked = !!params.silo_controle; $("#voies-field").hidden = !params.silo_controle;
   for (const b of $("#sy-seg").children) b.setAttribute("aria-pressed", String(b.dataset.s === params.silo_systeme));
   for (const b of $("#d-seg").children) { b.setAttribute("aria-pressed", String(b.dataset.d === params.silo_densite)); b.disabled = !!SYSTEMES[params.silo_systeme].densite && b.dataset.d !== SYSTEMES[params.silo_systeme].densite; }
   $("#ra-sel").value = params.silo_rampes; $("#asc-sel").value = params.silo_asc || "deux"; $("#p-silo_ventile").checked = params.silo_ventile !== false;
@@ -88,6 +89,7 @@ $("#t-seg").addEventListener("click", (ev) => {
 });
 $("#p-ombrieres").addEventListener("change", (ev) => { params.ombrieres = ev.target.checked; solve(false); commit(); });
 $("#p-silo_rives").addEventListener("change", (ev) => { params.silo_rives = ev.target.checked; lastAngle = null; solve(false); commit(); });
+$("#p-silo_controle").addEventListener("change", (ev) => { params.silo_controle = ev.target.checked; syncParamsUI(); solve(false); commit(); });
 $("#p-silo_ventile").addEventListener("change", (ev) => { params.silo_ventile = ev.target.checked; lastAngle = null; solve(false); commit(); });
 // Choisir un système applique ses valeurs par défaut (poteau, largeur de place, portée imposée).
 $("#sy-seg").addEventListener("click", (ev) => {
