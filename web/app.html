@@ -135,6 +135,19 @@ body {
 .chip.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
 .chip.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
 #warn { font-size: 12px; color: var(--warn); padding-top: 6px; }
+/* Conformité : une ligne du bilan qui se déplie en liste de constats. */
+#conf-head { width: 100%; padding: 0; background: none; border: 0; border-top: .5px solid var(--sep); color: inherit; font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+#conf-head .v { margin-left: auto; }
+#conf-head .chev { width: 22px; height: 22px; }
+#conf-body { max-height: min(42vh, 340px); overflow: auto; overscroll-behavior: contain; }
+.cst { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; column-gap: 8px; padding: 6px 0; border-top: .5px solid var(--sep); font-size: 12.5px; line-height: 1.35; }
+.cst .dot { width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--label-2); }
+.cst .dot.ok { background: var(--ok); }
+.cst .dot.bad { background: var(--bad); }
+.cst-l { font-weight: 500; }
+.cst-v { font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cst.bad .cst-v { color: var(--bad); }
+.cst-s { grid-column: 2 / 4; color: var(--label-2); font-size: 11.5px; }
 #engine { font-size: 11px; color: var(--label-3); padding-top: 8px; }
 
 /* Barre d'outils */
@@ -420,6 +433,8 @@ body:has(#girbar:not([hidden])) #hint { opacity: 0; }
         <div class="row"><span class="k">Parcelle</span><span class="v" id="s-parcel"></span></div>
         <div class="row"><span class="k">Espaces verts</span><span class="v" id="s-green"></span></div>
         <div class="row"><span class="k">Orientation des rangées</span><span class="v" id="s-angle"></span></div>
+        <button class="row" id="conf-head" aria-expanded="false" aria-controls="conf-body" hidden><span class="k">Conformité</span><span class="v" id="s-conf"></span><span class="chev" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
+        <div id="conf-body" hidden></div>
         <div id="warn" hidden></div>
         <div id="engine" class="num"></div>
       </div>
@@ -573,6 +588,7 @@ body:has(#girbar:not([hidden])) #hint { opacity: 0; }
     <div class="pgroup">
       <div class="eyebrow">Type d'étude</div>
       <div class="field"><span class="seg" role="group" aria-label="Type d'étude" id="t-seg"><button data-t="surface" aria-pressed="true">Surface</button><button data-t="silo" aria-pressed="false">Silo</button></span></div>
+      <div class="field"><label id="prog-lab">Programme</label><span class="seg" role="group" aria-labelledby="prog-lab" id="prog-seg"><button data-g="public" aria-pressed="true">Public</button><button data-g="privatif" aria-pressed="false">Privatif</button></span></div>
       <div id="silo-fields" hidden>
         <div class="field"><span class="seg" role="group" aria-label="Système constructif" id="sy-seg"><button data-s="coule" aria-pressed="true">Béton coulé</button><button data-s="prefa" aria-pressed="false">Préfabriqué</button><button data-s="mixte" aria-pressed="false">Acier-béton</button></span></div>
         <div class="field"><label id="d-lab">Portée</label><span class="seg" role="group" aria-labelledby="d-lab" id="d-seg"><button data-d="longue" aria-pressed="true">Longue</button><button data-d="moyenne" aria-pressed="false">Moyenne</button><button data-d="courte" aria-pressed="false">Courte</button></span></div>
@@ -772,7 +788,7 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((res) => setTimeout(
 // ============================================================================
 // Données : sites d'exemple (mètres, repère local, y vers le haut).
 // ============================================================================
-const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, basin_margin: 2, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null, slant: 90,
+const DEFAULT_PARAMS = { stall_w: 2.5, stall_d: 5, noue_w: 0, basin_h: 1.5, basin_margin: 2, aisle: 6, aisle_one: 5, entry_w: 6, building_margin: 2, door_w: 3, planter_every: 8, cap: 1.5, pmr_ratio: 2, irve_ratio: 20, irve_equip_ratio: 5, angle: null, slant: 90, programme: "public",
   silo: false, silo_etage: 2.9, silo_niveaux: 1, silo_pente: 18, silo_systeme: "coule", silo_pu: 0.3, silo_pv: 0.6, silo_travee: 3, silo_facade: 0.2, silo_rives: true, silo_densite: "longue", silo_retrait: 0.65, silo_rampes: "auto", silo_ventile: true, silo_asc: "deux" };
 
 function arc(cx, cy, r, a0, a1, n) {
@@ -853,7 +869,7 @@ function engineInput(quick, turns = false) {
       slant: p.slant, stall_w: p.stall_w, stall_d: p.stall_d, noue_w: p.noue_w, basin_h: p.basin_h, basin_margin: p.basin_margin, aisle: p.aisle, aisle_one: p.aisle_one, entry_w: p.entry_w, building_margin: p.building_margin,
       planter_every: Math.max(0, Math.round(p.planter_every)), cap: p.cap,
       pmr_ratio: p.pmr_ratio / 100, irve_ratio: p.irve_ratio / 100, irve_equip_ratio: p.irve_equip_ratio / 100,
-      angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle, turns: !!turns,
+      angle: p.angle, quick: !!quick && lastAngle !== null && p.angle === null, angle_hint: lastAngle, turns: !!turns, programme: p.programme,
     },
     ouvrage: p.silo ? { actif: true, facade: p.silo_facade, poteau: [p.silo_pu, p.silo_pv], travee: Math.max(1, Math.round(p.silo_travee)), rives: !!p.silo_rives, densite: p.silo_densite, retrait: p.silo_retrait, systeme: p.silo_systeme, angle: p.angle, hauteur_etage: p.silo_etage, niveaux: Math.max(1, Math.round(p.silo_niveaux)), implantation: p.silo_rampes, largement_ventile: p.silo_ventile !== false, ascenseurs_demi: p.silo_asc || "deux", noyaux: site.noyaux || null, pente_rampe: p.silo_pente / 100, emprise: site.slab ? { cx: site.slab.cx, cy: site.slab.cy, w: site.slab.w, h: site.slab.h, rot: site.slab.rot, fixe: site.slab.fixe || [0, 0] } : null } : null,
   };
@@ -1786,8 +1802,30 @@ const nf1 = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 1, maximumFr
 const nf0 = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
 const fmt1 = (x) => nf1.format(x), fmtInt = (x) => nf0.format(x);
 function chip(ok) { return `<span class="chip ${ok ? "ok" : "bad"}">${ok ? "conforme" : "insuffisant"}</span>`; }
+// Conformité : constats du dernier calcul complet. Un calcul rapide (pendant un glisser) n'en rend
+// pas : les précédents restent affichés jusqu'au relâchement.
+let constats = [];
+const cstNum = (x, u) => (u === "m" ? x.toFixed(2).replace(".", ",") : fmtInt(x));
+function updateConf() {
+  const head = $("#conf-head"), body = $("#conf-body");
+  head.hidden = !constats.length; body.hidden = !constats.length || head.getAttribute("aria-expanded") !== "true";
+  const n = (st) => constats.filter((c) => c.statut === st).length, e = n("ecart"), i = n("info");
+  $("#s-conf").innerHTML = (e ? `<span class="chip bad">${e} écart${e > 1 ? "s" : ""}</span>` : constats.length ? `<span class="chip ok">conforme</span>` : "") + (i ? `<span class="chip grey">${i} à justifier</span>` : "");
+  const rank = { ecart: 0, info: 1, conforme: 2 }, el = (tag, cls, text) => { const x = document.createElement(tag); x.className = cls; if (text) x.textContent = text; return x; };
+  body.replaceChildren(...[...constats].sort((a, b) => rank[a.statut] - rank[b.statut]).map((c) => {
+    const k = c.statut === "ecart" ? "bad" : c.statut === "conforme" ? "ok" : "", u = c.unite && c.unite !== "places" ? " " + c.unite : "";
+    const v = c.mesure == null ? "" : c.statut === "info" || c.exige == null ? cstNum(c.mesure, c.unite) + u : `${cstNum(c.mesure, c.unite)} / ${cstNum(c.exige, c.unite)}${u}`;
+    const row = el("div", "cst " + k);
+    row.append(el("i", "dot " + k), el("span", "cst-l", c.libelle), el("span", "cst-v", v), el("span", "cst-s", c.source + (c.detail ? " · " + c.detail : "")));
+    return row;
+  }));
+}
+$("#conf-head").addEventListener("click", () => { const h = $("#conf-head"); h.setAttribute("aria-expanded", String(h.getAttribute("aria-expanded") !== "true")); updateConf(); });
+
 function updateStats(quick) {
   const m = layout && layout.metrics;
+  if (!quick || !m) constats = (m && layout.constats) || [];
+  updateConf();
   if (!m) {
     $("#s-total").textContent = "0";
     for (const id of ["#s-pmr", "#s-irve", "#s-irve-eq", "#s-split", "#s-trees", "#s-eff", "#s-parcel", "#s-green", "#s-angle", "#o-val"]) $(id).textContent = "–";
@@ -2353,6 +2391,7 @@ function updateSlantNote() {
 function syncParamsUI() {
   for (const k of PKEYS) $("#p-" + k).value = String(params[k]).replace(".", ",");
   for (const b of $("#t-seg").children) b.setAttribute("aria-pressed", String((b.dataset.t === "silo") === !!params.silo));
+  for (const b of $("#prog-seg").children) b.setAttribute("aria-pressed", String(b.dataset.g === params.programme));
   $("#silo-fields").hidden = !params.silo; $("#p-silo_rives").checked = !!params.silo_rives;
   for (const b of $("#sy-seg").children) b.setAttribute("aria-pressed", String(b.dataset.s === params.silo_systeme));
   for (const b of $("#d-seg").children) { b.setAttribute("aria-pressed", String(b.dataset.d === params.silo_densite)); b.disabled = !!SYSTEMES[params.silo_systeme].densite && b.dataset.d !== SYSTEMES[params.silo_systeme].densite; }
@@ -2369,6 +2408,10 @@ let paramTimer = null;
 for (const k of PKEYS) $("#p-" + k).addEventListener("input", (ev) => {
   const v = parseFloat(ev.target.value.replace(",", ".")); if (!isFinite(v)) return;
   params[k] = v; if (k === "silo_niveaux") $("#ra-field").hidden = $("#pslv-field").hidden = Math.round(v) < 2; clearTimeout(paramTimer); paramTimer = setTimeout(() => { lastAngle = null; solve(false); commit(); }, 120);
+});
+$("#prog-seg").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-g]"); if (!b || b.dataset.g === params.programme) return;
+  params.programme = b.dataset.g; syncParamsUI(); solve(false); commit();
 });
 $("#t-seg").addEventListener("click", (ev) => {
   const b = ev.target.closest("button[data-t]"); if (!b || (b.dataset.t === "silo") === !!params.silo) return;
