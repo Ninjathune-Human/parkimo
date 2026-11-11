@@ -129,3 +129,9 @@ Ces décisions sont prises ; elles se corrigent à la relecture.
 - Arrêté du 20 avril 2017, art. 3 : fiches de la Fédération des aveugles de France et des DDT.
 - Code de l'urbanisme, L. 111-19-1, et loi APER, art. 40 : ministère de la Transition écologique, photovoltaique.info, Seban et associés, CMS Francis Lefebvre.
 - IRVE : fiches Legrand et ChargeGuru sur les articles L. 113-12 et L. 113-13 du code de la construction.
+
+## Suivi
+
+- **11 novembre, bascule.** `main` porte la version unifiée ; le déploiement GitHub Pages a réussi.
+- **11 novembre, socle 1a.** Caisse `parkimo`. Référentiel commun `src/normes.rs`. Contrôle `src/conformite.rs` : 15 règles, 19 tests. Ligne Conformité dans le bilan, programme Public ou Privatif dans Paramètres. Passent à « appliqué » (en contrôle, sans modifier le plan) : largeur des places, demi-travée, allée à double sens au-delà de 20 places, surlargeur au droit des poteaux, seuil des 500 places, compartimentage, recharge selon les seuils du code de la construction. Ombrage et ombrières sont signalés au-delà des seuils, à justifier par le concepteur. La largeur des places adaptées est mesurée sur le plan et non lue dans les réglages. Plan du lot : `docs/plans/2026-11-11-socle-1a-referentiel-conformite.md`.
+- **Reste du socle (1b).** Couche de commandes, découpage de l'interface en modules, déploiement par l'intégration continue avec tag `deploye`, séparation des tests rapides et des tests longs.
