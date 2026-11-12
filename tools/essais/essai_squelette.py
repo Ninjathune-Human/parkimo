@@ -37,18 +37,19 @@ with sync_playwright() as p:
         r["boucle_reste"] = pg.evaluate("S.noeuds.map(p => p.map(v => +v.toFixed(2)))")
         pg.click("#b-annuler"); pg.wait_for_timeout(200)
         r["suite_annulee"] = pg.evaluate("S.noeuds.map(p => p.map(v => +v.toFixed(2)))")
-        # Aimantation des voies : une bande piétonne ajoutée côté îlot fait se chevaucher les deux rangées dos à dos.
-        # En glissant la voie, elle s'aimante là où les deux fonds de rangée se touchent (0,80 m), hors du pas de 2,50 m ;
+        # Aimantation des voies : des places à 45° côté îlot laissent un vide de 0,20 m entre les deux rangées dos à dos.
+        # En glissant la voie, elle s'aimante là où les deux fonds de rangée se touchent (0,20 m), hors du pas de 2,50 m ;
         # l'antenne suit. Plus loin, sans alignement à portée, le pas de 2,50 m reprend.
         q = E(30, 0); pg.mouse.click(*q); pg.wait_for_timeout(250)
-        pg.click('#fiche .seg[data-cote="pieton"] button[data-t="g"]'); pg.wait_for_timeout(200)
-        r["ilot_chevauche"] = pg.evaluate("calc.pl.length")
-        glisser((30, 0), (30, -1.8))
-        r["ilot_aimante"] = [pg.evaluate("S.noeuds.map(p => p.map(v => +v.toFixed(2)))"), pg.evaluate("calc.pl.length")]
-        glisser((30, -0.8), (30, -6))
+        pg.click('#fiche .seg[data-cote="g"] button[data-t="45"]'); pg.wait_for_timeout(200)
+        pg.mouse.click(5, 5); pg.wait_for_timeout(200)
+        q = E(30, 0); pg.mouse.move(*q); pg.mouse.wheel(0, -1200); pg.wait_for_timeout(300)
+        glisser((30, 0), (30, 0.7))
+        r["ilot_aimante"] = pg.evaluate("S.noeuds.map(p => p.map(v => +v.toFixed(2)))")
+        glisser((30, 0.2), (30, -5.0))
         r["voie_au_pas"] = pg.evaluate("S.noeuds[0].map(v => +v.toFixed(2))")
         for _ in range(3): pg.click("#b-annuler"); pg.wait_for_timeout(200)
-        pg.mouse.click(5, 5); pg.wait_for_timeout(200)
+        pg.click("#b-cadrer"); pg.wait_for_timeout(300); pg.mouse.click(5, 5); pg.wait_for_timeout(200)
         # Bandes piétonnes : un réseau continu au départ ; en ôter sur les deux pignons le coupe en tronçons.
         PI = "[document.querySelector('#s-pietons').textContent, calc.trottoirs.length, calc.zebres.length > 0, calc.pl.length]"
         r["pietons"] = pg.evaluate(PI)
@@ -104,14 +105,12 @@ with sync_playwright() as p:
         # Contreventement : l'exemple a des remplissages en maçonnerie dans deux sens ; en ôter un sens se lit au bilan.
         CV = "[document.querySelector('#s-contrev').textContent, S.pb.filter(b => b.plein).length]"
         r["contreventement"] = pg.evaluate(CV)
-        q = E(-8.3, 15); pg.mouse.move(*q); pg.mouse.wheel(0, -2400); pg.wait_for_timeout(300)
-        for y in (8.75, 15):
-            q = E(-8.3, y); pg.mouse.click(*q); pg.wait_for_timeout(250)
-            r["poutre_choisie"] = pg.evaluate("[document.querySelector('#f-long').textContent, !document.querySelector('#f-mur').hidden, document.querySelector('#b-plein').getAttribute('aria-pressed')]")
-            pg.click("#b-plein"); pg.wait_for_timeout(200)
+        q = E(-2.5, -7.5); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        r["poutre_choisie"] = pg.evaluate("[document.querySelector('#f-long').textContent, !document.querySelector('#f-mur').hidden, document.querySelector('#b-plein').getAttribute('aria-pressed')]")
+        pg.click("#b-plein"); pg.wait_for_timeout(200)
         r["sans_remplissage"] = pg.evaluate(CV)
         pg.screenshot(path=str(out / f"{name}-squelette-contreventement.png"))
-        for _ in range(2): pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        pg.click("#b-annuler"); pg.wait_for_timeout(200)
         r["remplissage_retabli"] = pg.evaluate(CV)
         pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         # La trame suit les voies : rien de choisi, la fiche de la structure le dit.
@@ -142,7 +141,7 @@ with sync_playwright() as p:
         pg.screenshot(path=str(out / f"{name}-squelette-structure.png"))
         pg.click("#b-annuler"); pg.wait_for_timeout(200)
         # Une poutre de plus, tracée depuis un poteau ; puis la choisir.
-        pg.click("#b-tracer"); a, c = E(47.5, 23.3), E(47.5, 30)
+        pg.click("#b-tracer"); a, c = E(47.5, 22.5), E(47.5, 30)
         pg.mouse.move(*a); pg.mouse.down(); pg.mouse.move((a[0] + c[0]) / 2, (a[1] + c[1]) / 2); pg.mouse.move(*c); pg.mouse.up(); pg.wait_for_timeout(300)
         pg.click("#b-tracer")
         r["poutre"] = pg.evaluate(ST)
@@ -159,7 +158,7 @@ with sync_playwright() as p:
         pg.click("#b-suppr"); pg.wait_for_timeout(200)
         r["supprime"] = pg.evaluate("[S.pn.filter(Boolean).length, S.pb.length, document.querySelector('#fiche').hidden]")
         # Un poteau posé près de l'angle du bâtiment s'y aimante.
-        pg.click("#b-tracer"); q = E(-8.0, -7.8); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-tracer")
+        pg.click("#b-tracer"); q = E(-7.2, -7.0); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-tracer")
         r["poteau_d_angle"] = pg.evaluate("S.pn[choixN]")
         pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         pg.mouse.click(5, 5); pg.wait_for_timeout(200)

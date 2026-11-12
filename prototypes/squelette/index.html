@@ -102,8 +102,8 @@ function repere(b, N = S.noeuds) {
   const u = [(B[0] - A[0]) / L, (B[1] - A[1]) / L], n = [-u[1], u[0]];
   return { A, L, u, n, P: (t, o) => [A[0] + u[0] * t + n[0] * o, A[1] + u[1] * t + n[1] * o] };
 }
-// Bande piétonne : 0,80 m le long de la voie, d'un côté de l'axe, entre la chaussée et les places.
-// La rangée de ce côté recule d'autant.
+// Bande piétonne : 0,80 m pris dans la largeur de la voie, d'un côté de l'axe, le long de son bord.
+// Elle ne déplace ni la chaussée ni les places.
 const BANDE = 0.8, pw = (b, c) => (c === "g" || c === "d") && b.pieton === c ? BANDE : 0;
 // ---- Nœuds. Autour d'un nœud, les branches sont prises dans l'ordre ; entre deux voisines s'ouvre un secteur.
 // Dans un secteur, les bords de même rang des deux branches (bord de chaussée, bord de bande piétonne, fond de
@@ -111,7 +111,8 @@ const BANDE = 0.8, pw = (b, c) => (c === "g" || c === "d") && b.pieton === c ? B
 // sans recouvrement ni vide. Secteur rentrant (moins de 180°) : la rangée de la branche la plus longue garde le
 // coin, l'autre s'arrête sur son fond. Bords parallèles, pointe trop longue ou branche trop courte : chaque
 // branche est coupée d'équerre au nœud et une cale ferme le secteur.
-// Rend, pour chaque bout de branche et chaque côté, quatre points : bord de chaussée, bord de bande, pied et fond de rangée.
+// Rend, pour chaque bout de branche et chaque côté, quatre points : bord de chaussée, bord intérieur de la bande
+// piétonne (vers l'axe), pied et fond de rangée.
 function noeuds() {
   const bouts = S.branches.map(() => ({ a: {}, b: {} })), nd = [], cales = [], coins = [], carrefours = [];
   S.noeuds.forEach((N, k) => {
@@ -120,7 +121,7 @@ function noeuds() {
     const tour = [], sect = autour.map((i, n) => {
       const j = autour[(n + 1) % autour.length]; let ang = j.th - i.th; if (ang <= 1e-9) ang += 2 * Math.PI;
       const ci = i.dep ? "g" : "d", cj = j.dep ? "d" : "g", hi = demi(i.b), hj = demi(j.b);
-      const oi = [hi, hi + pw(i.b, ci), hi + pw(i.b, ci) + TYPES[i.b[ci]].prof], oj = [hj, hj + pw(j.b, cj), hj + pw(j.b, cj) + TYPES[j.b[cj]].prof];
+      const oi = [hi, hi - pw(i.b, ci), hi + TYPES[i.b[ci]].prof], oj = [hj, hj - pw(j.b, cj), hj + TYPES[j.b[cj]].prof]; // bord de chaussée, bord intérieur de bande, fond de rangée
       const ni = [-i.d[1], i.d[0]], nj = [j.d[1], -j.d[0]], det = i.d[0] * j.d[1] - i.d[1] * j.d[0];
       const A = (o) => [N[0] + ni[0] * o, N[1] + ni[1] * o], B = (o) => [N[0] + nj[0] * o, N[1] + nj[1] * o];
       const X = (a, b) => { const p = A(a), q = B(b), t = ((q[0] - p[0]) * j.d[1] - (q[1] - p[1]) * j.d[0]) / det; return [p[0] + t * i.d[0], p[1] + t * i.d[1]]; }; // bord de i à l'écart a, bord de j à l'écart b
@@ -129,14 +130,14 @@ function noeuds() {
       if (Math.abs(det) > 0.05) {
         const xe = X(oi[2], oj[2]);
         if (Math.hypot(xe[0] - N[0], xe[1] - N[1]) <= 3 * Math.max(oi[2], oj[2]) + 1 && le(xe, i) < i.L - 0.5 && le(xe, j) < j.L - 0.5) {
-          joint = true; const xh = X(oi[0], oj[0]), xw = X(oi[1], oj[1]);
-          if (ang < Math.PI) { const prio = i.L >= j.L, y = prio ? X(oi[2], oj[1]) : X(oi[1], oj[2]); pi = prio ? [xh, xw, xw, y] : [xh, xw, y, xe]; pj = prio ? [xh, xw, y, xe] : [xh, xw, xw, y]; }
-          else pi = pj = [xh, xw, xw, xe];
+          joint = true; const xh = X(oi[0], oj[0]), xb = X(oi[1], oj[1]);
+          if (ang < Math.PI) { const prio = i.L >= j.L, y = prio ? X(oi[2], oj[0]) : X(oi[0], oj[2]); pi = prio ? [xh, xb, xh, y] : [xh, xb, y, xe]; pj = prio ? [xh, xb, y, xe] : [xh, xb, xh, y]; }
+          else pi = pj = [xh, xb, xh, xe];
           // Angle du bâtiment : le fond des deux rangées se rejoint, un poteau peut s'y poser.
           if (ang > Math.PI + 0.02) coins.push({ x: xe.map((v) => +v.toFixed(3)), q: [N, [xe[0] + i.d[0], xe[1] + i.d[1]], xe, [xe[0] + j.d[0], xe[1] + j.d[1]]] });
         }
       }
-      if (!joint) { pi = [A(oi[0]), A(oi[1]), A(oi[1]), A(oi[2])]; pj = [B(oj[0]), B(oj[1]), B(oj[1]), B(oj[2])]; cales.push([pi[0], pi[3], pj[3], pj[0]]); }
+      if (!joint) { pi = [A(oi[0]), A(oi[1]), A(oi[0]), A(oi[2])]; pj = [B(oj[0]), B(oj[1]), B(oj[0]), B(oj[2])]; cales.push([pi[0], pi[3], pj[3], pj[0]]); }
       bouts[i.i][i.dep ? "a" : "b"][ci] = pi; bouts[j.i][j.dep ? "a" : "b"][cj] = pj;
       tour.push(pi[0]); if (!joint) tour.push(pj[0]);
       // Les bandes d'un même secteur se touchent si elles se rejoignent, ou si les deux voies se prolongent.
@@ -151,7 +152,7 @@ function noeuds() {
 const biaisDe = (t, s) => t.angle > 0 && t.angle < 90 ? (t.prof / Math.tan(t.angle * Math.PI / 180)) * -s : 0;
 function places(b, cote, rangee) {
   const t = TYPES[b[cote]]; if (!t.prof) return [];
-  const r = repere(b), h = demi(b) + pw(b, cote), s = cote === "g" ? 1 : -1, biais = biaisDe(t, s);
+  const r = repere(b), h = demi(b), s = cote === "g" ? 1 : -1, biais = biaisDe(t, s);
   // Places calées sur le nœud de départ, au pas de la place ; ne restent que celles qui tiennent dans la rangée.
   const al = rangee.map((p) => (p[0] - r.A[0]) * r.u[0] + (p[1] - r.A[1]) * r.u[1]), k0 = Math.floor((Math.min(...al) - Math.abs(biais)) / t.pas) - 1, k1 = Math.ceil((Math.max(...al) + Math.abs(biais)) / t.pas) + 1, out = [];
   for (let k = k0; k < k1; k++) { const a = k * t.pas, q = [r.P(a + biais, s * (h + t.prof)), r.P(a + t.pas + biais, s * (h + t.prof)), r.P(a + t.pas, s * h), r.P(a, s * h)]; if (tient(q, rangee)) { q.k = k; out.push(q); } }
@@ -191,7 +192,7 @@ function mesurer() {
   const ch = [...S.branches.map((_, i) => [B[i].a.d[0], B[i].b.d[0], B[i].b.g[0], B[i].a.g[0]]), ...geo.nd], bandes = [...geo.cales], pl = [], genees = [];
   // Bandes piétonnes et leur réseau : deux bandes d'un même secteur se touchent ; un passage zébré, en travers
   // de l'entrée d'une voie, relie les bandes des deux secteurs qui la bordent.
-  const trottoirs = [], zebres = []; S.branches.forEach((b, i) => { if (pw(b, b.pieton)) { const q = quad(i, b.pieton, 0, 1); trottoirs.push({ i, q }); bandes.push(q); } });
+  const trottoirs = [], zebres = []; S.branches.forEach((b, i) => { if (pw(b, b.pieton)) trottoirs.push({ i, q: quad(i, b.pieton, 0, 1) }); });
   const chef = S.branches.map((_, k) => k), racine = (k) => (chef[k] === k ? k : (chef[k] = racine(chef[k]))), unir = (l) => l.forEach((k) => { chef[racine(k)] = racine(l[0]); });
   for (const { autour, sect } of geo.carrefours) {
     const m = sect.length; sect.forEach((x) => { if (x.lie) unir(x.pietons); });
@@ -327,7 +328,7 @@ function suiveurs(k) {
 function aimantVoie(g, m) {
   const b = BR[g.i], L = Math.hypot(g.b0[0] - g.a0[0], g.b0[1] - g.a0[1]) || 1, u = [(g.b0[0] - g.a0[0]) / L, (g.b0[1] - g.a0[1]) / L], n = [-u[1], u[0]];
   const d = [m[0] - g.m0[0], m[1] - g.m0[1]], dl = Math.round((d[0] * u[0] + d[1] * u[1]) / PAS) * PAS, dn = d[0] * n[0] + d[1] * n[1];
-  const fond = (x, c) => demi(x) + pw(x, c) + TYPES[x[c]].prof, tol = Math.min(Math.max(AIMANT / vue.s, 0.6), PAS / 2);
+  const fond = (x, c) => demi(x) + TYPES[x[c]].prof, tol = Math.min(Math.max(AIMANT / vue.s, 0.6), PAS / 2);
   let best = null;
   for (const c of BR) {
     if (c === b || c.a === b.a || c.a === b.b || c.b === b.a || c.b === b.b) continue;
@@ -403,7 +404,7 @@ function trame() {
   };
   S.branches.forEach((b, i) => {
     const r = repere(b), h = demi(b), n = [-r.u[1], r.u[0]];
-    const cotes = ["g", "d"].map((c) => { const t = TYPES[b[c]], s = c === "g" ? 1 : -1, ks = new Set(); for (const o of calc.pl) if (o.i === i && o.c === c) { ks.add(o.q.k); ks.add(o.q.k + 1); } return { t, s, ks, w: pw(b, c) }; });
+    const cotes = ["g", "d"].map((c) => { const t = TYPES[b[c]], s = c === "g" ? 1 : -1, ks = new Set(); for (const o of calc.pl) if (o.i === i && o.c === c) { ks.add(o.q.k); ks.add(o.q.k + 1); } return { t, s, ks }; });
     const rg = cotes.filter((x) => x.ks.size); if (!rg.length && cotes.some((x) => x.t.prof)) return;
     const pas = rg.length ? rg[0].t.pas : PAS, a0 = rg.length ? Math.max(...rg.map((x) => Math.min(...x.ks) * x.t.pas)) : 0, a1 = rg.length ? Math.min(...rg.map((x) => Math.max(...x.ks) * x.t.pas)) : r.L;
     if (a1 - a0 < pas) return;
@@ -413,8 +414,8 @@ function trame() {
     if (as.length > 1 && a1 - a0 - as[as.length - 1] < 1.5 * pas) as[as.length - 1] = a1 - a0; else as.push(a1 - a0);
     for (const x of cotes) for (const d of as) {
       const a = inv ? a1 - d : a0 + d, dirs = [{ d: r.u, tol: 0.3 }, { d: [-r.u[0], -r.u[1]], tol: 0.3 }, { d: [-x.s * n[0], -x.s * n[1]], tol: pas / 2 + 0.1 }];
-      if (x.t.prof) { const k = Math.round(a / x.t.pas); if (x.ks.has(k)) ajoute(r.P(k * x.t.pas + biaisDe(x.t, x.s), x.s * (h + x.w + x.t.prof)), dirs); }
-      else if (!rects.some((q) => dans(r.P(a, x.s * (h + x.w + 0.3)), q))) ajoute(r.P(a, x.s * (h + x.w)), dirs);
+      if (x.t.prof) { const k = Math.round(a / x.t.pas); if (x.ks.has(k)) ajoute(r.P(k * x.t.pas + biaisDe(x.t, x.s), x.s * (h + x.t.prof)), dirs); }
+      else if (!rects.some((q) => dans(r.P(a, x.s * (h + 0.3)), q))) ajoute(r.P(a, x.s * h), dirs);
     }
   });
   for (const a of calc.angles) if (a.x) ajoute(a.x, [1, 3].map((m) => { const v = [a.q[m][0] - a.x[0], a.q[m][1] - a.x[1]], l = Math.hypot(v[0], v[1]); return l > 0.01 ? { d: [v[0] / l, v[1] / l], tol: 0.3 } : null; }).filter(Boolean));
