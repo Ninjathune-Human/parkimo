@@ -39,23 +39,34 @@ with sync_playwright() as p:
         ST = "({poteaux: calc.pot.length, conflits: calc.conflits.length, genees: calc.genees.length, places: calc.pl.length, texte: document.querySelector('#s-structure').textContent, fiche: document.querySelector('#fiche').hidden ? null : document.querySelector('#f-long').textContent, lignes: [...document.querySelectorAll('#fiche .ligne')].filter(l => !l.hidden).length})"
         pg.click('#calques button[data-c="1"]'); pg.wait_for_timeout(200)
         r["structure"] = pg.evaluate(ST)
-        n, m = E(30, 7.5), E(30, 1)
+        # Contreventement : l'exemple a des remplissages en maçonnerie dans deux sens ; en ôter un sens se lit au bilan.
+        CV = "[document.querySelector('#s-contrev').textContent, S.pb.filter(b => b.plein).length]"
+        r["contreventement"] = pg.evaluate(CV)
+        for y in (0, 15):
+            q = E(-7.5, y); pg.mouse.click(*q); pg.wait_for_timeout(250)
+            r["poutre_choisie"] = pg.evaluate("[document.querySelector('#f-long').textContent, !document.querySelector('#f-mur').hidden, document.querySelector('#b-plein').getAttribute('aria-pressed')]")
+            pg.click("#b-plein"); pg.wait_for_timeout(200)
+        r["sans_remplissage"] = pg.evaluate(CV)
+        pg.screenshot(path=str(out / f"{name}-squelette-contreventement.png"))
+        for _ in range(2): pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        r["remplissage_retabli"] = pg.evaluate(CV)
+        n, m = E(32.5, 7.5), E(32.5, 0)
         pg.mouse.move(*n); pg.mouse.down(); pg.mouse.move((n[0] + m[0]) / 2, (n[1] + m[1]) / 2); pg.mouse.move(*m); pg.mouse.up(); pg.wait_for_timeout(300)
         r["poteau_en_voie"] = pg.evaluate(ST)
         pg.screenshot(path=str(out / f"{name}-squelette-structure.png"))
         pg.click("#b-annuler"); pg.wait_for_timeout(200)
         # Une poutre de plus, tracée depuis un poteau ; puis la choisir.
-        pg.click("#b-tracer"); a, c = E(52.5, 22.5), E(52.5, 30)
+        pg.click("#b-tracer"); a, c = E(55, 22.5), E(55, 30)
         pg.mouse.move(*a); pg.mouse.down(); pg.mouse.move((a[0] + c[0]) / 2, (a[1] + c[1]) / 2); pg.mouse.move(*c); pg.mouse.up(); pg.wait_for_timeout(300)
         pg.click("#b-tracer")
         r["poutre"] = pg.evaluate(ST)
         # Poser un poteau d'un toucher : il s'aimante à un coin de place ; puis porter ses poutres le long de la voie.
-        pg.click("#b-tracer"); q = E(15.3, 12.2); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-tracer")
+        pg.click("#b-tracer"); q = E(17.8, 12.2); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-tracer")
         r["pose"] = pg.evaluate("({n: S.pn.filter(Boolean).length, p: S.pn[choixN], fiche: document.querySelector('#f-long').textContent, actions: !document.querySelector('#f-portee').hidden, genees: calc.genees.length})")
         pg.click('#f-portee button[data-p="travers"]'); pg.wait_for_timeout(200)
         r["portee_travers"] = pg.evaluate("[S.pb.filter(b => b.a === choixN || b.b === choixN).map(b => +repere(b, S.pn).L.toFixed(2)), document.querySelector('#f-long').textContent]")
         # Glisser ce poteau au milieu d'une place : il s'aimante à la ligne la plus proche, la place reste.
-        a, c = E(*pg.evaluate("S.pn[choixN]")), E(16.4, 10.4)
+        a, c = E(*pg.evaluate("S.pn[choixN]")), E(18.9, 10.4)
         pg.mouse.move(*a); pg.mouse.down(); pg.mouse.move((a[0] + c[0]) / 2, (a[1] + c[1]) / 2); pg.mouse.move(*c); pg.mouse.up(); pg.wait_for_timeout(300)
         r["glisse"] = pg.evaluate("({p: S.pn[choixN], genees: calc.genees.length, places: calc.pl.length})")
         pg.screenshot(path=str(out / f"{name}-squelette-trame.png"))
@@ -65,6 +76,7 @@ with sync_playwright() as p:
         pg.click("#b-tracer"); q = E(-7.2, -7.0); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-tracer")
         r["poteau_d_angle"] = pg.evaluate("S.pn[choixN]")
         pg.click("#b-cadrer"); pg.wait_for_timeout(300)
+        pg.mouse.click(5, 5); pg.wait_for_timeout(200)
         pg.screenshot(path=str(out / f"{name}-squelette-angles.png"))
         pg.click('#calques button[data-c="0"]'); pg.wait_for_timeout(200)
         r["retour_voies"] = pg.evaluate("[calque, NO === S.noeuds, document.querySelector('#fiche').hidden]")

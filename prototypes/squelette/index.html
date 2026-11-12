@@ -33,8 +33,10 @@ button:disabled { opacity: .35; }
 .seg button[aria-pressed="true"] { background: var(--verre); color: var(--label); box-shadow: 0 1px 4px rgba(0,0,0,.18); font-weight: 600; }
 #fiche .bas { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--label-2); }
 #f-portee { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-#f-portee[hidden] { display: none; }
-#f-portee button { min-height: 40px; padding: 0 6px; font-size: 13px; background: color-mix(in srgb, var(--os) 18%, transparent); border-radius: 12px; }
+#f-portee[hidden], #f-mur[hidden] { display: none; }
+#f-mur { display: grid; }
+#b-plein[aria-pressed="true"] { background: var(--mur); color: var(--fond); }
+#f-portee button, #f-mur button { min-height: 40px; padding: 0 6px; font-size: 13px; background: color-mix(in srgb, var(--os) 18%, transparent); border-radius: 12px; }
 #fiche .bas button { color: var(--rouge); min-height: 40px; padding: 0 10px; }
 #aide { position: fixed; left: 50%; transform: translateX(-50%); top: calc(16px + env(safe-area-inset-top)); font-size: 13px; color: var(--label-2); padding: 8px 14px; border-radius: 18px; max-width: calc(100vw - 250px); text-align: center; }
 @media (max-width: 760px) { #aide { top: auto; bottom: calc(82px + env(safe-area-inset-bottom)); max-width: calc(100vw - 24px); } body:has(#fiche:not([hidden])) #aide { display: none; } }
@@ -45,13 +47,14 @@ button:disabled { opacity: .35; }
 <section id="bilan" class="verre" aria-live="polite">
   <h1>Essai du squelette</h1>
   <div class="n"><span id="s-places">0</span><small>places</small></div>
-  <dl><dt>Emprise</dt><dd id="s-emprise">–</dd><dt>Par place</dt><dd id="s-ratio">–</dd><dt>Branches</dt><dd id="s-branches">0</dd><dt>Structure</dt><dd id="s-structure">–</dd></dl>
+  <dl><dt>Emprise</dt><dd id="s-emprise">–</dd><dt>Par place</dt><dd id="s-ratio">–</dd><dt>Branches</dt><dd id="s-branches">0</dd><dt>Structure</dt><dd id="s-structure">–</dd><dt>Contreventement</dt><dd id="s-contrev">–</dd></dl>
 </section>
 <div id="aide" class="verre">Glissez un nœud ou une branche · touchez une branche pour la régler</div>
 <section id="fiche" class="verre" hidden aria-label="Branche choisie">
   <div class="ligne"><span>Gauche</span><div class="seg" data-cote="g"></div></div>
   <div class="ligne"><span>Droite</span><div class="seg" data-cote="d"></div></div>
   <div id="f-portee" hidden><button data-p="long">Poutres le long de la voie</button><button data-p="travers">Poutres en travers</button></div>
+  <div id="f-mur" hidden><button id="b-plein" aria-pressed="false">Remplissage en maçonnerie</button></div>
   <div class="bas"><span id="f-long"></span><button id="b-suppr">Supprimer</button></div>
 </section>
 <nav id="barre" class="verre">
@@ -88,7 +91,8 @@ const versE = (p) => [p[0] * vue.s + vue.ox, -p[1] * vue.s + vue.oy], versM = (x
 const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
 // ---- Géométrie d'une branche : demi-chaussée (la plus large des deux côtés, NF P 91-100 tab. 2 note 6) et rangées.
-function demi(b) { return Math.max(TYPES[b.g].allee, TYPES[b.d].allee) / 2; }
+// Une voie bordée de places d'un seul côté prend l'allée de ces places, pas la largeur d'une voie seule.
+function demi(b) { const g = TYPES[b.g], d = TYPES[b.d]; return (g.prof && d.prof ? Math.max(g.allee, d.allee) : g.prof ? g.allee : d.prof ? d.allee : g.allee) / 2; }
 function repere(b, N = S.noeuds) {
   const A = N[b.a], B = N[b.b], L = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1e-9;
   const u = [(B[0] - A[0]) / L, (B[1] - A[1]) / L], n = [-u[1], u[0]];
@@ -166,6 +170,10 @@ function calculer() {
   calc = { ch, bandes, pl, aire, pot, conflits, genees, angles: an };
   $("#s-structure").textContent = pot.length ? `${pot.length} poteaux · ${portee.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m${conflits.length ? ` · ${conflits.length} en voie` : ""}` : "–";
   $("#s-structure").style.color = conflits.length ? css("--rouge") : "";
+  // Contreventement : des travées remplies en maçonnerie dans deux sens (deux directions nettement distinctes).
+  const murs = S.pb.filter((b) => b.plein).map((b) => repere(b, S.pn).u), sens = !murs.length ? 0 : murs.some((u) => Math.abs(u[0] * murs[0][1] - u[1] * murs[0][0]) > 0.5) ? 2 : 1;
+  $("#s-contrev").textContent = pot.length ? ["à prévoir", "1 sens", "2 sens"][sens] : "–";
+  $("#s-contrev").style.color = pot.length && sens < 2 ? css("--rouge") : "";
   $("#s-places").textContent = pl.length; $("#s-branches").textContent = S.branches.length;
   $("#s-emprise").textContent = aire ? Math.round(aire).toLocaleString("fr-FR") + " m²" : "–";
   $("#s-ratio").textContent = pl.length ? (aire / pl.length).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " m²" : "–";
@@ -198,6 +206,7 @@ function dessiner() {
   ctx.globalAlpha = calque ? 1 : 0.55;
   S.pb.forEach((br, i) => {
     const A = versE(S.pn[br.a]), B = versE(S.pn[br.b]), sel = calque && i === choix;
+    if (br.plein) { ctx.strokeStyle = css("--mur"); ctx.lineWidth = Math.max(7, 0.7 * vue.s); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); }
     ctx.strokeStyle = css(calque ? "--os" : "--mur"); ctx.lineWidth = sel ? 4 : calque ? 2 : 1.2;
     ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
   });
@@ -233,7 +242,7 @@ function cadrer() {
 
 // ---- Historique et enregistrement.
 function garder() { passe.push(JSON.stringify(S)); if (passe.length > 60) passe.shift(); $("#b-annuler").disabled = false; }
-function enregistrer() { try { localStorage.setItem("parkimo.squelette.2", JSON.stringify(S)); } catch (e) { /* stockage indisponible */ } }
+function enregistrer() { try { localStorage.setItem("parkimo.squelette.3", JSON.stringify(S)); } catch (e) { /* stockage indisponible */ } }
 function annuler() { if (!passe.length) return; S = JSON.parse(passe.pop()); pointer(); choix = choixN = -1; $("#b-annuler").disabled = !passe.length; rafraichir(); fiche(); enregistrer(); }
 
 // ---- Aimants : un nœud voisin, sinon le corps d'une branche (le nœud s'y crée), sinon la trame.
@@ -329,11 +338,11 @@ cv.addEventListener("wheel", (ev) => { ev.preventDefault(); const e = pos(ev), m
 for (const seg of document.querySelectorAll("#fiche .seg")) for (const k of Object.keys(TYPES)) { const b = document.createElement("button"); b.textContent = TYPES[k].nom; b.dataset.t = k; seg.append(b); }
 function fiche() {
   const poteau = calque && choixN >= 0 && NO[choixN], b = BR[choix];
-  $("#fiche").hidden = !b && !poteau; $("#f-portee").hidden = !poteau;
+  $("#fiche").hidden = !b && !poteau; $("#f-portee").hidden = !poteau; $("#f-mur").hidden = !calque || !!poteau || !b;
   for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = !!calque;
   if (poteau) { const n = BR.filter((x) => x.a === choixN || x.b === choixN).length; $("#f-long").textContent = `Poteau · ${n} poutre${n > 1 ? "s" : ""}${calc.conflits.includes(poteau) ? " · dans une voie" : ""}`; return; }
   if (!b) return;
-  if (calque) { $("#f-long").textContent = `Poutre · portée ${repere(b, NO).L.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m`; return; }
+  if (calque) { $("#b-plein").setAttribute("aria-pressed", String(!!b.plein)); $("#f-long").textContent = `${b.plein ? "Travée pleine" : "Poutre"} · portée ${repere(b, NO).L.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m`; return; }
   for (const seg of document.querySelectorAll("#fiche .seg")) for (const x of seg.children) x.setAttribute("aria-pressed", String(b[seg.dataset.cote] === x.dataset.t));
   const n = calc ? calc.pl.filter((p) => p.i === choix).length : 0;
   $("#f-long").textContent = `${repere(b).L.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m · chaussée ${(2 * demi(b)).toLocaleString("fr-FR")} m · ${n} places`;
@@ -344,6 +353,8 @@ $("#f-portee").addEventListener("click", (ev) => {
   garder(); if (!porter(choixN, x.dataset.p)) { passe.pop(); $("#b-annuler").disabled = !passe.length; $("#f-long").textContent = "Aucun poteau en face, à moins de 20 m"; return; }
   rafraichir(); fiche(); enregistrer();
 });
+// Une travée remplie en maçonnerie contrevente le bâtiment dans son sens.
+$("#b-plein").addEventListener("click", () => { const b = calque && BR[choix]; if (!b) return; garder(); if (b.plein) delete b.plein; else b.plein = true; rafraichir(); fiche(); enregistrer(); });
 $("#b-suppr").addEventListener("click", () => {
   // Un poteau part avec ses poutres.
   if (calque && choixN >= 0) { garder(); const r = BR.filter((b) => b.a !== choixN && b.b !== choixN); BR.length = 0; BR.push(...r); NO[choixN] = null; choixN = -1; rafraichir(); fiche(); enregistrer(); return; }
@@ -362,12 +373,17 @@ $("#b-annuler").addEventListener("click", annuler); $("#b-cadrer").addEventListe
 addEventListener("keydown", (ev) => { if ((ev.ctrlKey || ev.metaKey) && ev.key === "z") { ev.preventDefault(); annuler(); } });
 
 // ---- Départ : le dernier essai, sinon une boucle avec une antenne.
-try { const s = JSON.parse(localStorage.getItem("parkimo.squelette.2") || "null"); if (s && s.noeuds && s.branches) S = s; } catch (e) { /* stockage indisponible */ }
+try { const s = JSON.parse(localStorage.getItem("parkimo.squelette.3") || "null"); if (s && s.noeuds && s.branches) S = s; } catch (e) { /* stockage indisponible */ }
 const neuf = !S.branches.length;
 if (neuf) S = { noeuds: [[0, 0], [60, 0], [60, 15], [0, 15], [90, 0]], branches: [{ a: 0, b: 1, g: "90", d: "90" }, { a: 1, b: 2, g: "aucun", d: "90" }, { a: 2, b: 3, g: "90", d: "90" }, { a: 3, b: 0, g: "aucun", d: "90" }, { a: 1, b: 4, g: "60", d: "45" }], pn: [], pb: [] };
 if (neuf) {
-  // Structure de l'exemple : trois files (façades et axe des rangées dos à dos), un poteau toutes les trois places.
-  [-7.5, 7.5, 22.5].forEach((y, j) => { for (let i = 0; i < 7; i++) { S.pn.push([7.5 * (i + 1), y]); const k = j * 7 + i; if (i) S.pb.push({ a: k - 1, b: k }); if (j) S.pb.push({ a: k - 7, b: k }); } });
+  // Structure de l'exemple : la trame part du bout des rangées (tête d'îlot, première ligne de place en façade),
+  // un poteau toutes les trois places ; les angles du bâtiment ferment les files. Trois travées pleines contreventent.
+  const P = (x, y) => S.pn.push([x, y]) - 1, B = (a, b, plein) => S.pb.push(plein ? { a, b, plein: true } : { a, b });
+  const files = [-7.5, 7.5, 22.5].map((y, j) => Array.from({ length: 8 }, (_, i) => P(2.5 + 7.5 * i, y)));
+  files.forEach((f, j) => f.forEach((k, i) => { if (i) B(f[i - 1], k, !j && i === 1); if (j) B(files[j - 1][i], k); }));
+  const a0 = P(-7.5, -7.5), a1 = P(-7.5, 7.5), a2 = P(-7.5, 22.5), a3 = P(67.5, 7.5), a4 = P(67.5, 22.5);
+  B(a0, files[0][0]); B(a1, files[1][0]); B(a2, files[2][0]); B(a0, a1, true); B(a1, a2, true); B(files[1][7], a3); B(files[2][7], a4); B(a3, a4);
 }
 pointer();
 new ResizeObserver(taille).observe(cv); taille(); calculer(); cadrer();
