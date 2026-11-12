@@ -306,6 +306,18 @@ function branchePres(m, tol, saufNoeud = -1) {
 }
 // Bout d'une branche tirée depuis `o` : angle au pas de 15°, longueur au pas de la trame.
 function aligner(o, m) { const a = Math.round(Math.atan2(m[1] - o[1], m[0] - o[0]) / (Math.PI / 12)) * (Math.PI / 12), l = Math.max(PAS, Math.round(Math.hypot(m[0] - o[0], m[1] - o[1]) / PAS) * PAS); return [o[0] + Math.cos(a) * l, o[1] + Math.sin(a) * l]; }
+// Ce qu'un nœud emmène quand on le glisse : les parties du squelette qui ne tiennent au reste que par lui,
+// par une seule branche (une antenne, par exemple). La plus grande partie est le reste : elle ne bouge pas.
+function suiveurs(k) {
+  const voisins = (n) => BR.filter((b) => b.a === n || b.b === n).map((b) => (b.a === n ? b.b : b.a)), vu = new Set([k]), parts = [];
+  for (const d of voisins(k)) {
+    if (vu.has(d)) continue; const part = [d]; vu.add(d);
+    for (let i = 0; i < part.length; i++) for (const v of voisins(part[i])) if (!vu.has(v)) { vu.add(v); part.push(v); }
+    parts.push({ part, liens: BR.filter((b) => (b.a === k && part.includes(b.b)) || (b.b === k && part.includes(b.a))).length });
+  }
+  const reste = parts.reduce((m, p) => (!m || p.part.length > m.part.length ? p : m), null);
+  return parts.filter((p) => p !== reste && p.liens === 1).flatMap((p) => p.part).map((n) => ({ n, p: NO[n].slice() }));
+}
 function couper(i, p) { const b = BR[i], k = NO.push(p) - 1; BR.push({ ...b, a: k }); b.b = k; return k; }
 function fusionner(garde, ote) { for (const b of BR) { if (b.a === ote) b.a = garde; if (b.b === ote) b.b = garde; } const r = BR.filter((b) => b.a !== b.b); BR.length = 0; BR.push(...r); if (calque) NO[ote] = null; }
 // Nœud au point `m` : celui qui s'y trouve, un nouveau sur une branche, ou un nouveau libre.
@@ -387,7 +399,7 @@ cv.addEventListener("pointerdown", (ev) => {
   if (doigts.size === 2) { const [a, b] = [...doigts.values()]; pince = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], v: { ...vue } }; if (geste && geste.avant) { S = JSON.parse(geste.avant); pointer(); calculer(); } geste = null; return; }
   const m = versM(e[0], e[1]), k = noeudPres(e), c = k < 0 ? branchePres(m, Math.max(AIMANT / vue.s, 2)) : null;
   if (tracer) geste = { genre: "trace", e, de: calque ? cible(e, m).p : k >= 0 ? NO[k].slice() : c ? c.p : [Math.round(m[0] / PAS) * PAS, Math.round(m[1] / PAS) * PAS] };
-  else if (k >= 0) geste = { genre: "noeud", k, e, avant: JSON.stringify(S) };
+  else if (k >= 0) geste = { genre: "noeud", k, e, avant: JSON.stringify(S), p0: NO[k].slice(), suite: calque ? [] : suiveurs(k) };
   else if (c) geste = { genre: "branche", i: c.i, e, m0: m, a0: NO[BR[c.i].a].slice(), b0: NO[BR[c.i].b].slice(), avant: JSON.stringify(S) };
   else geste = { genre: "vue", e };
 });
@@ -402,8 +414,12 @@ cv.addEventListener("pointermove", (ev) => {
   if (geste.genre === "noeud") {
     // Le nœud suit le doigt : aimanté à un autre nœud, sinon aligné sur son premier voisin.
     if (calque) { const t = cible(e, m, geste.k); NO[geste.k] = t.p; geste.vers = t.k; return rafraichir(); }
-    const autre = noeudPres(e, geste.k), v = BR.find((b) => b.a === geste.k || b.b === geste.k), o = v ? NO[v.a === geste.k ? v.b : v.a] : null;
-    NO[geste.k] = autre >= 0 ? NO[autre].slice() : o ? aligner(o, m) : m; geste.vers = autre; return rafraichir();
+    // Les parties qu'il emmène le suivent du même déplacement ; il ne s'aimante ni ne s'aligne sur elles.
+    const suit = (n) => geste.suite.some((x) => x.n === n), pres = noeudPres(e, geste.k), autre = pres >= 0 && suit(pres) ? -1 : pres;
+    const v = BR.find((b) => (b.a === geste.k && !suit(b.b)) || (b.b === geste.k && !suit(b.a))), o = v ? NO[v.a === geste.k ? v.b : v.a] : null;
+    NO[geste.k] = autre >= 0 ? NO[autre].slice() : o ? aligner(o, m) : m; geste.vers = autre;
+    for (const x of geste.suite) NO[x.n] = [x.p[0] + NO[geste.k][0] - geste.p0[0], x.p[1] + NO[geste.k][1] - geste.p0[1]];
+    return rafraichir();
   }
   if (geste.genre === "branche") { const b = BR[geste.i], dx = Math.round((m[0] - geste.m0[0]) / PAS) * PAS, dy = Math.round((m[1] - geste.m0[1]) / PAS) * PAS; NO[b.a] = [geste.a0[0] + dx, geste.a0[1] + dy]; NO[b.b] = [geste.b0[0] + dx, geste.b0[1] + dy]; return rafraichir(); }
 });

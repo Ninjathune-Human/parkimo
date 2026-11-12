@@ -26,6 +26,17 @@ with sync_playwright() as p:
         q = E(*pg.evaluate("S.noeuds[1]")); pg.mouse.move(*q); pg.mouse.wheel(0, -1400); pg.wait_for_timeout(300)
         pg.screenshot(path=str(out / f"{name}-squelette-noeud-biais.png"))
         pg.click("#b-annuler"); pg.wait_for_timeout(200); pg.click("#b-cadrer"); pg.wait_for_timeout(300)
+        # Un nœud glissé emmène ce qui ne tient au reste que par lui : ici l'antenne suit le nœud du carrefour, la boucle reste.
+        def glisser(de, vers):
+            n, m = E(*de), E(*vers)
+            pg.mouse.move(*n); pg.mouse.down(); pg.mouse.move((n[0] + m[0]) / 2, (n[1] + m[1]) / 2); pg.mouse.move(*m); pg.mouse.up(); pg.wait_for_timeout(300)
+        glisser((60, 0), (65, 0.4))
+        r["antenne_suit"] = pg.evaluate("S.noeuds.map(p => p.map(v => +v.toFixed(2)))")
+        pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        glisser((0, 0), (-5, 0.4))
+        r["boucle_reste"] = pg.evaluate("S.noeuds.map(p => p.map(v => +v.toFixed(2)))")
+        pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        r["suite_annulee"] = pg.evaluate("S.noeuds.map(p => p.map(v => +v.toFixed(2)))")
         # Bandes piétonnes : un réseau continu au départ ; en ôter sur les deux pignons le coupe en tronçons.
         PI = "[document.querySelector('#s-pietons').textContent, calc.trottoirs.length, calc.zebres.length > 0, calc.pl.length]"
         r["pietons"] = pg.evaluate(PI)
