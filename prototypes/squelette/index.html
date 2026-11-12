@@ -195,15 +195,21 @@ function mesurer() {
   const ch = [...S.branches.map((_, i) => [B[i].a.d[0], B[i].b.d[0], B[i].b.g[0], B[i].a.g[0]]), ...geo.nd], bandes = [...geo.cales], pl = [], genees = [];
   // Bandes piétonnes et leur réseau : deux bandes d'un même secteur se touchent ; un passage zébré, en travers
   // de l'entrée d'une voie, relie les bandes des deux secteurs qui la bordent.
-  const trottoirs = [], zebres = []; S.branches.forEach((b, i) => { const c = bandeDe(b); if (pw(b, c)) trottoirs.push({ i, q: quad(i, c, 0, 1) }); });
+  const trottoirs = [], zebres = [], raccords = []; S.branches.forEach((b, i) => { const c = bandeDe(b); if (pw(b, c)) trottoirs.push({ i, q: quad(i, c, 0, 1) }); });
   const chef = S.branches.map((_, k) => k), racine = (k) => (chef[k] === k ? k : (chef[k] = racine(chef[k]))), unir = (l) => l.forEach((k) => { chef[racine(k)] = racine(l[0]); });
   for (const { autour, sect } of geo.carrefours) {
     const m = sect.length; sect.forEach((x) => { if (x.lie) unir(x.pietons); });
     autour.forEach((x, n) => {
       const avant = sect[(n + m - 1) % m], apres = sect[n]; if (m < 2 || (m === 2 && n) || !avant.pietons.length || !apres.pietons.length) return;
       unir([...avant.pietons, ...apres.pietons]);
-      const e = x.dep ? "a" : "b", R = B[x.i][e][x.dep ? "d" : "g"][0], G = B[x.i][e][x.dep ? "g" : "d"][0], l = Math.hypot(G[0] - R[0], G[1] - R[1]), v = [(G[0] - R[0]) / l, (G[1] - R[1]) / l];
-      for (let a = 0.25; a + 0.5 <= l; a += 1) { const p = [R[0] + v[0] * a, R[1] + v[1] * a], q = [p[0] + v[0] * 0.5, p[1] + v[1] * 0.5]; zebres.push([p, q, [q[0] + x.d[0] * BANDE, q[1] + x.d[1] * BANDE], [p[0] + x.d[0] * BANDE, p[1] + x.d[1] * BANDE]]); }
+      // Le passage est d'équerre sur la voie traversée, large de 0,80 m, juste avant son entrée : il passe par le
+      // coin de chaussée le plus avancé. De l'autre côté, un bout de bande le long du bord rattrape le coin en retrait.
+      const N = S.noeuds[x.dep ? x.b.a : x.b.b], nl = [-x.d[1], x.d[0]], h = demi(x.b), e = x.dep ? "a" : "b", cd = x.dep ? "d" : "g", cg = x.dep ? "g" : "d";
+      const le = (p) => (p[0] - N[0]) * x.d[0] + (p[1] - N[1]) * x.d[1], aR = le(B[x.i][e][cd][0]), aG = le(B[x.i][e][cg][0]), a1 = Math.max(aR, aG), a0 = a1 - BANDE;
+      const P = (a, v) => [N[0] + x.d[0] * a + nl[0] * v, N[1] + x.d[1] * a + nl[1] * v];
+      for (let v = -h + 0.25; v + 0.5 <= h + 1e-9; v += 1) zebres.push([P(a0, v), P(a0, v + 0.5), P(a1, v + 0.5), P(a1, v)]);
+      if (a0 - aR > 0.05 && !pw(x.b, cd)) raccords.push([P(aR, -h), P(a0, -h), P(a0, -h + BANDE), P(aR, -h + BANDE)]);
+      if (a0 - aG > 0.05 && !pw(x.b, cg)) raccords.push([P(aG, h - BANDE), P(a0, h - BANDE), P(a0, h), P(aG, h)]);
     });
   }
   const troncons = new Set(trottoirs.map((t) => racine(t.i))).size, lin = trottoirs.reduce((m, t) => m + repere(S.branches[t.i]).L, 0);
@@ -222,7 +228,7 @@ function mesurer() {
     const bb = rects.map((q) => [Math.min(...q.map((p) => p[0])), Math.min(...q.map((p) => p[1])), Math.max(...q.map((p) => p[0])), Math.max(...q.map((p) => p[1]))]);
     for (let x = x0 + 0.25; x < x1; x += 0.5) for (let y = y0 + 0.25; y < y1; y += 0.5) if (rects.some((q, k) => x >= bb[k][0] && x <= bb[k][2] && y >= bb[k][1] && y <= bb[k][3] && dans([x, y], q))) aire += 0.25;
   }
-  calc = { ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres };
+  calc = { ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords };
   $("#s-structure").textContent = pot.length ? `${pot.length} poteaux · ${portee.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m${conflits.length ? ` · ${conflits.length} en voie` : ""}` : "–";
   $("#s-structure").style.color = conflits.length ? css("--rouge") : "";
   // Contreventement : des travées remplies en maçonnerie dans deux sens (deux directions nettement distinctes).
@@ -254,6 +260,7 @@ function dessiner() {
   ctx.fillStyle = css("--place"); ctx.beginPath(); for (const p of calc.pl) chemin(p.q); ctx.fill();
   // Bandes piétonnes : un ruban teinté, zébré de blanc là où il traverse une chaussée.
   ctx.fillStyle = css("--pieton"); ctx.globalAlpha = 0.7; ctx.beginPath(); for (const t of calc.trottoirs) chemin(t.q); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.fillStyle = css("--pieton"); ctx.globalAlpha = 0.7; ctx.beginPath(); for (const q of calc.raccords) chemin(q); ctx.fill(); ctx.globalAlpha = 1;
   ctx.fillStyle = css("--marque"); ctx.beginPath(); for (const z of calc.zebres) chemin(z); ctx.fill();
   ctx.strokeStyle = css("--marque"); ctx.lineWidth = Math.max(0.6, 0.1 * vue.s); ctx.beginPath();
   for (const p of calc.pl) { const q = p.q.map(versE); ctx.moveTo(q[3][0], q[3][1]); ctx.lineTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.lineTo(q[2][0], q[2][1]); }

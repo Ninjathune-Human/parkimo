@@ -53,6 +53,8 @@ with sync_playwright() as p:
         # Logique d'ensemble : en « auto », les bandes longent les façades et font le tour. Une seconde boucle tracée
         # sous la première : ses trois voies portent leur bande côté façade, le réseau reste continu.
         r["bandes_auto"] = pg.evaluate("S.branches.map(bandeDe)")
+        # Passages piétons : d'équerre sur la voie traversée. Celui de l'entrée de l'antenne tient entre deux abscisses.
+        r["passage_droit"] = pg.evaluate("[...new Set(calc.zebres.flat().map(p => +p[0].toFixed(2)))].sort((a, b) => a - b)")
         pg.click("#b-tracer")
         for de, vers in (((0, 0), (0, -15)), ((0, -15), (60, -15)), ((60, -15), (60, 0))): glisser(de, vers)
         pg.click("#b-tracer"); pg.mouse.click(5, 5); pg.wait_for_timeout(200); pg.click("#b-cadrer"); pg.wait_for_timeout(300)
