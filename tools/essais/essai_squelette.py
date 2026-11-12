@@ -56,7 +56,8 @@ with sync_playwright() as p:
         # Passages piétons : d'équerre sur la voie traversée. Celui de l'entrée de l'antenne tient entre deux abscisses.
         r["passage_droit"] = pg.evaluate("[...new Set(calc.zebres.flat().map(p => +p[0].toFixed(2)))].sort((a, b) => a - b)")
         pg.click("#b-tracer")
-        for de, vers in (((0, 0), (0, -15)), ((0, -15), (60, -15)), ((60, -15), (60, 0))): glisser(de, vers)
+        for de, vers in (((0, 0), (0, -15)), ((0, -15), (60, -15)), ((60, -15), (60, 0))):
+            glisser(de, vers); pg.mouse.click(5, 5); pg.wait_for_timeout(200)  # la fiche de la voie tracée se replie avant le tracé suivant
         pg.click("#b-tracer"); pg.mouse.click(5, 5); pg.wait_for_timeout(200); pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         r["boucle_basse"] = [pg.evaluate("S.branches.map(bandeDe)"), pg.evaluate("[S.branches.length, document.querySelector('#s-pietons').textContent, calc.zebres.length, calc.pl.length]")]
         pg.screenshot(path=str(out / f"{name}-squelette-deux-boucles.png"))
@@ -70,6 +71,28 @@ with sync_playwright() as p:
         r["anneau"] = pg.evaluate("[S.branches.map(bandeDe), calc.zebres.length, document.querySelector('#s-pietons').textContent]")
         pg.screenshot(path=str(out / f"{name}-squelette-anneau.png"))
         pg.click("#b-annuler"); pg.wait_for_timeout(200); pg.click("#b-cadrer"); pg.wait_for_timeout(300)
+        # Rampes, par typologie. Une rampe droite ajoutée depuis la fiche d'une voie prend 20 m de rangée : huit places
+        # en moins, les poteaux s'adaptent. On la glisse où l'on veut, elle s'aimante à la rangée la plus proche.
+        # Une seconde, dos à dos : couplées ; glissée ailleurs : séparées. On la choisit, on la supprime.
+        RP = "[S.rampes.length, calc.rampes.map(x => [x.i, x.c, x.a]), calc.pl.length, calc.conflits.length, calc.genees.length, document.querySelector('#s-rampes').textContent]"
+        q = E(30, 0); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        pg.click('#fiche .seg[data-cote="rampe"] button[data-t="droite"]'); pg.wait_for_timeout(250)
+        r["rampe"] = [pg.evaluate(RP), pg.evaluate("document.querySelector('#f-long').textContent")]
+        glisser((30, 5), (30, 10))
+        r["rampe_glissee"] = pg.evaluate(RP)
+        q = E(30, 0); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        pg.click('#fiche .seg[data-cote="rampe"] button[data-t="demi"]'); pg.wait_for_timeout(250)
+        r["rampes_couplees"] = pg.evaluate(RP)
+        pg.screenshot(path=str(out / f"{name}-squelette-rampes.png"))
+        glisser((30, 5), (10, -5))
+        r["rampes_separees"] = pg.evaluate(RP)
+        q = E(30, 10); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        r["rampe_choisie"] = pg.evaluate("document.querySelector('#f-long').textContent")
+        pg.click("#b-suppr"); pg.wait_for_timeout(250)
+        r["rampe_supprimee"] = pg.evaluate(RP)
+        for _ in range(5): pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        r["rampes_annulees"] = pg.evaluate("[(S.rampes || []).length, calc.pl.length]")
+        pg.mouse.click(5, 5); pg.wait_for_timeout(200)
         # Bandes piétonnes : un réseau continu au départ ; en ôter sur les deux pignons le coupe en tronçons.
         PI = "[document.querySelector('#s-pietons').textContent, calc.trottoirs.length, calc.zebres.length > 0, calc.pl.length]"
         r["pietons"] = pg.evaluate(PI)

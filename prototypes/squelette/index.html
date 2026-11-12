@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Parkimo · essai du squelette</title>
 <style>
-:root { --fond: #EEF1EF; --grille: rgba(17,22,20,.07); --label: #111614; --label-2: rgba(17,22,20,.62); --verre: rgba(255,255,255,.78); --trait: rgba(17,22,20,.12); --accent: #007AFF; --dalle: #D9DDD9; --enrobe: #8E9499; --place: #A3A9AE; --marque: #FFFFFF; --mur: #2B3136; --rouge: #FF3B30; --os: #FF9500; --pieton: #3F86C9; }
-@media (prefers-color-scheme: dark) { :root { --fond: #14181A; --grille: rgba(238,243,240,.07); --label: #EEF3F0; --label-2: rgba(238,243,240,.64); --verre: rgba(30,35,38,.78); --trait: rgba(238,243,240,.14); --accent: #0A84FF; --dalle: #2A3034; --enrobe: #4A5157; --place: #5A6268; --marque: #E9EDEB; --mur: #C9D0CD; --rouge: #FF453A; --pieton: #5AA0E0; } }
+:root { --fond: #EEF1EF; --grille: rgba(17,22,20,.07); --label: #111614; --label-2: rgba(17,22,20,.62); --verre: rgba(255,255,255,.78); --trait: rgba(17,22,20,.12); --accent: #007AFF; --dalle: #D9DDD9; --enrobe: #8E9499; --place: #A3A9AE; --marque: #FFFFFF; --mur: #2B3136; --rouge: #FF3B30; --os: #FF9500; --pieton: #3F86C9; --rampe: #C7B594; }
+@media (prefers-color-scheme: dark) { :root { --fond: #14181A; --grille: rgba(238,243,240,.07); --label: #EEF3F0; --label-2: rgba(238,243,240,.64); --verre: rgba(30,35,38,.78); --trait: rgba(238,243,240,.14); --accent: #0A84FF; --dalle: #2A3034; --enrobe: #4A5157; --place: #5A6268; --marque: #E9EDEB; --mur: #C9D0CD; --rouge: #FF453A; --pieton: #5AA0E0; --rampe: #8E7C5E; } }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--fond); color: var(--label); font: 15px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", system-ui, sans-serif; }
 canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
@@ -47,13 +47,14 @@ button:disabled { opacity: .35; }
 <section id="bilan" class="verre" aria-live="polite">
   <h1>Essai du squelette</h1>
   <div class="n"><span id="s-places">0</span><small>places</small></div>
-  <dl><dt>Emprise</dt><dd id="s-emprise">–</dd><dt>Par place</dt><dd id="s-ratio">–</dd><dt>Branches</dt><dd id="s-branches">0</dd><dt>Piétons</dt><dd id="s-pietons">–</dd><dt>Structure</dt><dd id="s-structure">–</dd><dt>Contreventement</dt><dd id="s-contrev">–</dd></dl>
+  <dl><dt>Emprise</dt><dd id="s-emprise">–</dd><dt>Par place</dt><dd id="s-ratio">–</dd><dt>Branches</dt><dd id="s-branches">0</dd><dt>Piétons</dt><dd id="s-pietons">–</dd><dt>Rampes</dt><dd id="s-rampes">–</dd><dt>Structure</dt><dd id="s-structure">–</dd><dt>Contreventement</dt><dd id="s-contrev">–</dd></dl>
 </section>
 <div id="aide" class="verre">Glissez un nœud ou une branche · touchez une branche pour la régler</div>
 <section id="fiche" class="verre" hidden aria-label="Branche choisie">
   <div class="ligne"><span>Gauche</span><div class="seg" data-cote="g"></div></div>
   <div class="ligne"><span>Droite</span><div class="seg" data-cote="d"></div></div>
   <div class="ligne"><span>Piétons</span><div class="seg" data-cote="pieton"><button data-t="auto">Auto</button><button data-t="aucun">Aucune</button><button data-t="g">Gauche</button><button data-t="d">Droite</button></div></div>
+  <div class="ligne"><span>Rampe</span><div class="seg" data-cote="rampe"><button data-t="droite">Droite</button><button data-t="demi">Demi-niveau</button></div></div>
   <div id="f-portee" hidden><button data-p="long">Poutres le long de la voie</button><button data-p="travers">Poutres en travers</button></div>
   <div id="f-trame" hidden><button id="b-trame" aria-pressed="true">Trame automatique</button></div>
   <div id="f-mur" hidden><button id="b-plein" aria-pressed="false">Remplissage en maçonnerie</button></div>
@@ -88,6 +89,26 @@ let S = { noeuds: [], branches: [], pn: [], pb: [] }, choix = -1, tracer = false
 // Deux squelettes superposés, même fonctionnement : les voies (`noeuds`, `branches`) et la structure
 // (`pn`, `pb` : un nœud est un poteau, une branche une poutre). `NO` et `BR` désignent celui qu'on modifie.
 let calque = 0, NO, BR, choixN = -1; // choixN : poteau choisi
+// ---- Rampes, par typologie. Une rampe est une brique posée dans une rangée : elle en prend toute la profondeur,
+// sur la longueur de son type, le long de la voie. Elle garde sa place sur le plan (son centre) ; à chaque calcul
+// elle s'aimante à la rangée la plus proche, au pas de 2,50 m. Les places qu'elle recouvre disparaissent, la trame
+// des poteaux la contourne. Deux rampes qui se touchent sont couplées.
+// Droite : un étage de 2,80 m à 15 % (Neufert), soit 18,70 m, arrondis à 20 m. Demi-niveau : 1,40 m à 15 %, 10 m.
+const RAMPES = { droite: { nom: "Rampe droite", long: 20 }, demi: { nom: "Rampe de demi-niveau", long: 10 } };
+let choixR = -1; // rampe choisie
+function poser(ra, B) {
+  const L = RAMPES[ra.type].long; let best = null;
+  S.branches.forEach((b, i) => { for (const c of ["g", "d"]) {
+    const t = TYPES[b[c]]; if (t.prof < 4) continue;
+    const r = repere(b), s = c === "g" ? 1 : -1, h = demi(b), al = (p) => (p[0] - r.A[0]) * r.u[0] + (p[1] - r.A[1]) * r.u[1];
+    const a0 = Math.ceil(Math.max(al(B[i].a[c][2]), al(B[i].a[c][3])) / PAS - 1e-6) * PAS, a1 = Math.floor((Math.min(al(B[i].b[c][2]), al(B[i].b[c][3])) - L) / PAS + 1e-6) * PAS; if (a1 < a0) continue;
+    const v = s * ((ra.p[0] - r.A[0]) * -r.u[1] + (ra.p[1] - r.A[1]) * r.u[0]), a = Math.min(a1, Math.max(a0, Math.round((al(ra.p) - L / 2) / PAS) * PAS)), d = Math.hypot(v - (h + t.prof / 2), al(ra.p) - (a + L / 2));
+    if (!best || d < best.d) best = { d, i, c, a, L, u: r.u, q: [r.P(a, s * h), r.P(a + L, s * h), r.P(a + L, s * (h + t.prof)), r.P(a, s * (h + t.prof))] };
+  } });
+  // Trop loin de toute rangée : elle reste où on l'a laissée, à replacer.
+  return best && best.d < 12 ? best : { i: -1, L, hors: true, u: [1, 0], q: [[ra.p[0] - L / 2, ra.p[1] - 2.5], [ra.p[0] + L / 2, ra.p[1] - 2.5], [ra.p[0] + L / 2, ra.p[1] + 2.5], [ra.p[0] - L / 2, ra.p[1] + 2.5]] };
+}
+const centre = (q) => [(q[0][0] + q[2][0]) / 2, (q[0][1] + q[2][1]) / 2];
 let ficheTrame = true; // calque Poteaux, rien de choisi : la fiche de la trame est ouverte ; un toucher hors du dessin la replie
 const dansDessin = (m) => !!calc && [...calc.ch, ...calc.bandes].some((q) => dans(m, q));
 function pointer() { S.pn = S.pn || []; S.pb = S.pb || []; NO = calque ? S.pn : S.noeuds; BR = calque ? S.pb : S.branches; }
@@ -209,6 +230,11 @@ function mesurer() {
   // Bandes piétonnes et leur réseau : deux bandes d'un même secteur se touchent ; un passage zébré, en travers
   // de l'entrée d'une voie, relie les bandes des deux secteurs qui la bordent.
   const trottoirs = [], zebres = [], raccords = []; S.branches.forEach((b, i) => { const c = bandeDe(b); if (pw(b, c)) trottoirs.push({ i, q: quad(i, c, 0, 1) }); });
+  const rampes = (S.rampes || []).map((ra) => poser(ra, B)), gonfle = (q, e) => { const c = centre(q); return q.map((p) => { const l = Math.hypot(p[0] - c[0], p[1] - c[1]) || 1; return [p[0] + (p[0] - c[0]) / l * e, p[1] + (p[1] - c[1]) / l * e]; }); };
+  rampes.forEach((x, k) => { x.couple = !x.hors && rampes.some((y, j) => j !== k && !y.hors && recouvre(gonfle(x.q, 0.4), y.q)); });
+  const nr = rampes.length, aReplacer = rampes.filter((x) => x.hors).length;
+  $("#s-rampes").textContent = nr ? `${nr}${nr > 1 ? (rampes.every((x) => x.couple) ? " · couplées" : " · séparées") : ""}${aReplacer ? ` · ${aReplacer} à replacer` : ""}` : "–";
+  $("#s-rampes").style.color = aReplacer ? css("--rouge") : "";
   const res = reseau(geo);
   for (const x of res.passages) {
       // Le passage est d'équerre sur la voie traversée, large de 0,80 m, juste avant son entrée : il passe par le
@@ -227,7 +253,7 @@ function mesurer() {
   const pot = S.pn.filter(Boolean);
   const conflits = pot.filter((c) => ch.some((q) => dedans(c, q, 0.02))); // 2 cm de marge : un poteau au bord d'une chaussée n'est pas dedans
   const portee = S.pb.reduce((m, b) => Math.max(m, repere(b, S.pn).L), 0);
-  S.branches.forEach((b, i) => { for (const c of ["g", "d"]) { if (!TYPES[b[c]].prof) continue; const q = quad(i, c, 2, 3); bandes.push(q); for (const p of places(b, c, q)) { if (ch.some((r, j) => j !== i && recouvre(p, r)) || trottoirs.some((t) => t.i !== i && recouvre(p, t.q))) continue; if (pl.some((o) => o.i !== i && recouvre(p, o.q))) continue; if (pot.some((c) => dedans(c, p, 0.15))) { genees.push(p); continue; } pl.push({ i, c, q: p }); } } });
+  S.branches.forEach((b, i) => { for (const c of ["g", "d"]) { if (!TYPES[b[c]].prof) continue; const q = quad(i, c, 2, 3); bandes.push(q); for (const p of places(b, c, q)) { if (ch.some((r, j) => j !== i && recouvre(p, r)) || trottoirs.some((t) => t.i !== i && recouvre(p, t.q)) || rampes.some((x) => !x.hors && recouvre(p, x.q))) continue; if (pl.some((o) => o.i !== i && recouvre(p, o.q))) continue; if (pot.some((c) => dedans(c, p, 0.15))) { genees.push(p); continue; } pl.push({ i, c, q: p }); } } });
   // Emprise : réunion des chaussées et des rangées, mesurée sur une grille de 0,5 m.
   const an = geo.coins, rects = [...ch, ...bandes]; let aire = 0;
   if (rects.length) {
@@ -236,7 +262,7 @@ function mesurer() {
     const bb = rects.map((q) => [Math.min(...q.map((p) => p[0])), Math.min(...q.map((p) => p[1])), Math.max(...q.map((p) => p[0])), Math.max(...q.map((p) => p[1]))]);
     for (let x = x0 + 0.25; x < x1; x += 0.5) for (let y = y0 + 0.25; y < y1; y += 0.5) if (rects.some((q, k) => x >= bb[k][0] && x <= bb[k][2] && y >= bb[k][1] && y <= bb[k][3] && dans([x, y], q))) aire += 0.25;
   }
-  calc = { ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords };
+  calc = { ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords, rampes };
   $("#s-structure").textContent = pot.length ? `${pot.length} poteaux · ${portee.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m${conflits.length ? ` · ${conflits.length} en voie` : ""}` : "–";
   $("#s-structure").style.color = conflits.length ? css("--rouge") : "";
   // Contreventement : des travées remplies en maçonnerie dans deux sens (deux directions nettement distinctes).
@@ -266,6 +292,14 @@ function dessiner() {
   ctx.fillStyle = css("--dalle"); for (const q of tout) { ctx.beginPath(); chemin(q); ctx.fill(); } // un par un : deux pleins de sens contraires ne se trouent pas
   ctx.fillStyle = css("--enrobe"); ctx.beginPath(); for (const q of calc.ch) chemin(q); ctx.fill();
   ctx.fillStyle = css("--place"); ctx.beginPath(); for (const p of calc.pl) chemin(p.q); ctx.fill();
+  // Rampes : un plein teinté et trois chevrons dans le sens de la voie ; en rouge pointillé si elle est à replacer.
+  calc.rampes.forEach((x, k) => {
+    ctx.fillStyle = css("--rampe"); ctx.globalAlpha = x.hors ? 0.5 : 1; ctx.beginPath(); chemin(x.q); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = css(x.hors ? "--rouge" : !calque && k === choixR ? "--accent" : "--mur"); ctx.lineWidth = !calque && k === choixR ? 3 : 1.5; ctx.setLineDash(x.hors ? [5, 4] : []); ctx.beginPath(); chemin(x.q); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+    const c = centre(x.q), n = [-x.u[1], x.u[0]]; ctx.strokeStyle = css("--mur"); ctx.lineWidth = 1.5; ctx.beginPath();
+    for (const t of [-0.25, 0, 0.25]) { const o = [c[0] + x.u[0] * x.L * t, c[1] + x.u[1] * x.L * t], A = versE([o[0] - x.u[0] + n[0], o[1] - x.u[1] + n[1]]), P = versE([o[0] + x.u[0], o[1] + x.u[1]]), Bq = versE([o[0] - x.u[0] - n[0], o[1] - x.u[1] - n[1]]); ctx.moveTo(A[0], A[1]); ctx.lineTo(P[0], P[1]); ctx.lineTo(Bq[0], Bq[1]); }
+    ctx.stroke();
+  });
   // Bandes piétonnes : un ruban teinté, zébré de blanc là où il traverse une chaussée.
   ctx.fillStyle = css("--pieton"); ctx.globalAlpha = 0.7; ctx.beginPath(); for (const t of calc.trottoirs) chemin(t.q); ctx.fill(); ctx.globalAlpha = 1;
   ctx.fillStyle = css("--pieton"); ctx.globalAlpha = 0.7; ctx.beginPath(); for (const q of calc.raccords) chemin(q); ctx.fill(); ctx.globalAlpha = 1;
@@ -317,7 +351,7 @@ function cadrer() {
 // ---- Historique et enregistrement.
 function garder() { passe.push(JSON.stringify(S)); if (passe.length > 60) passe.shift(); $("#b-annuler").disabled = false; }
 function enregistrer() { try { localStorage.setItem("parkimo.squelette.5", JSON.stringify(S)); } catch (e) { /* stockage indisponible */ } }
-function annuler() { if (!passe.length) return; S = JSON.parse(passe.pop()); pointer(); choix = choixN = -1; $("#b-annuler").disabled = !passe.length; rafraichir(); fiche(); enregistrer(); }
+function annuler() { if (!passe.length) return; S = JSON.parse(passe.pop()); pointer(); choix = choixN = choixR = -1; $("#b-annuler").disabled = !passe.length; rafraichir(); fiche(); enregistrer(); }
 
 // ---- Aimants : un nœud voisin, sinon le corps d'une branche (le nœud s'y crée), sinon la trame.
 function noeudPres(e, sauf = -1) { let m = -1, d = AIMANT; NO.forEach((n, i) => { if (i === sauf || !n || (!calque && !BR.some((b) => b.a === i || b.b === i))) return; const p = versE(n), l = Math.hypot(p[0] - e[0], p[1] - e[1]); if (l < d) { d = l; m = i; } }); return m; }
@@ -421,7 +455,7 @@ function trame() {
     // Un poteau à moins d'un mètre d'un autre ne se pose pas ; au même point (rangées dos à dos), il partage ses poutres.
     let k = pts.findIndex((o) => Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) < 1);
     if (k >= 0 && Math.hypot(pts[k].p[0] - p[0], pts[k].p[1] - p[1]) > 0.05) return;
-    if (k < 0) { if (calc.ch.some((q) => dedans(p, q, 0.02)) || calc.pl.some((o) => dedans(p, o.q, 0.15))) return; k = pts.push({ p: p.map((v) => +v.toFixed(3)), dirs: [] }) - 1; }
+    if (k < 0) { if (calc.rampes.some((x) => !x.hors && dedans(p, x.q, 0.15)) || calc.ch.some((q) => dedans(p, q, 0.02)) || calc.pl.some((o) => dedans(p, o.q, 0.15))) return; k = pts.push({ p: p.map((v) => +v.toFixed(3)), dirs: [] }) - 1; }
     pts[k].dirs.push(...dirs);
   };
   S.branches.forEach((b, i) => {
@@ -440,6 +474,7 @@ function trame() {
       else if (!rects.some((q) => dans(r.P(a, x.s * (h + 0.3)), q))) ajoute(r.P(a, x.s * h), dirs);
     }
   });
+  for (const x of calc.rampes) if (!x.hors) for (const p of x.q) ajoute(p, [{ d: x.u, tol: 0.3 }, { d: [-x.u[0], -x.u[1]], tol: 0.3 }]); // les quatre coins d'une rampe
   for (const a of calc.angles) if (a.x) ajoute(a.x, [1, 3].map((m) => { const v = [a.q[m][0] - a.x[0], a.q[m][1] - a.x[1]], l = Math.hypot(v[0], v[1]); return l > 0.01 ? { d: [v[0] / l, v[1] / l], tol: 0.3 } : null; }).filter(Boolean));
   pts.forEach((o, k) => { for (const { d, tol } of o.dirs) {
     let best = -1, bx = 20.01;
@@ -457,7 +492,9 @@ cv.addEventListener("pointerdown", (ev) => {
   cv.setPointerCapture(ev.pointerId); const e = pos(ev); doigts.set(ev.pointerId, e);
   if (doigts.size === 2) { const [a, b] = [...doigts.values()]; pince = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], v: { ...vue } }; if (geste && geste.avant) { S = JSON.parse(geste.avant); pointer(); calculer(); } geste = null; return; }
   const m = versM(e[0], e[1]), k = noeudPres(e), c = k < 0 ? branchePres(m, Math.max(AIMANT / vue.s, 2)) : null;
-  if (tracer) geste = { genre: "trace", e, de: calque ? cible(e, m).p : k >= 0 ? NO[k].slice() : c ? c.p : [Math.round(m[0] / PAS) * PAS, Math.round(m[1] / PAS) * PAS] };
+  const ra = !calque && !tracer && calc ? calc.rampes.findIndex((x) => dans(m, x.q)) : -1;
+  if (ra >= 0) geste = { genre: "rampe", k: ra, e, avant: JSON.stringify(S), d: [m[0] - S.rampes[ra].p[0], m[1] - S.rampes[ra].p[1]] };
+  else if (tracer) geste = { genre: "trace", e, de: calque ? cible(e, m).p : k >= 0 ? NO[k].slice() : c ? c.p : [Math.round(m[0] / PAS) * PAS, Math.round(m[1] / PAS) * PAS] };
   else if (k >= 0) geste = { genre: "noeud", k, e, avant: JSON.stringify(S), p0: NO[k].slice(), suite: calque ? [] : suiveurs(k) };
   else if (c) geste = { genre: "branche", i: c.i, e, m0: m, a0: NO[BR[c.i].a].slice(), b0: NO[BR[c.i].b].slice(), avant: JSON.stringify(S), suite: calque ? [] : [...suiveurs(BR[c.i].a), ...suiveurs(BR[c.i].b)].filter((x) => x.n !== BR[c.i].a && x.n !== BR[c.i].b) };
   else geste = { genre: "vue", e };
@@ -470,6 +507,7 @@ cv.addEventListener("pointermove", (ev) => {
   if (calque && S.auto && geste.genre !== "trace") S.auto = false; // un poteau ou une poutre glissé à la main : la trame ne suit plus les voies
   if (geste.genre === "vue") { vue.ox += e[0] - geste.e[0]; vue.oy += e[1] - geste.e[1]; geste.e = e; return rafraichir(false); }
   if (geste.genre === "trace") { const k = noeudPres(e), c = k < 0 ? branchePres(m, AIMANT / vue.s) : null; geste.fantome = [geste.de, calque ? cible(e, m).p : k >= 0 ? NO[k] : c ? c.p : aligner(geste.de, m)]; return rafraichir(false); }
+  if (geste.genre === "rampe") { S.rampes[geste.k].p = [m[0] - geste.d[0], m[1] - geste.d[1]]; return rafraichir(); } // la rampe suit le doigt, de rangée en rangée
   if (geste.genre === "noeud") {
     // Le nœud suit le doigt : aimanté à un autre nœud, sinon aligné sur son premier voisin.
     if (calque) { const t = cible(e, m, geste.k); NO[geste.k] = t.p; geste.vers = t.k; return rafraichir(); }
@@ -491,7 +529,10 @@ function fin(ev) {
   const e = doigts.get(ev.pointerId) || pos(ev); doigts.delete(ev.pointerId);
   if (pince) { if (doigts.size < 2) pince = null; return; }
   const g = geste; geste = null; if (!g) return;
-  if (g.genre === "trace") {
+  if (g.genre === "rampe") {
+    if (!g.bouge) { choixR = g.k; choix = choixN = -1; }
+    else { passe.push(g.avant); $("#b-annuler").disabled = false; const x = calc.rampes[g.k]; if (!x.hors) S.rampes[g.k].p = centre(x.q); }
+  } else if (g.genre === "trace") {
     if (g.fantome && Math.hypot(g.fantome[1][0] - g.de[0], g.fantome[1][1] - g.de[1]) >= (calque ? 1 : PAS - 1e-6)) { garder(); const a = noeudEn(g.e, g.de), b = noeudEn(versE(g.fantome[1]), g.fantome[1]); if (calque) S.auto = false; if (a !== b) { BR.push(calque ? { a, b } : { a, b, g: "90", d: "90" }); if (!calque) BR[BR.length - 1].pieton = "auto"; choix = BR.length - 1; choixN = -1; } }
     // Structure : un simple toucher pose un poteau, aimanté à la trame du stationnement.
     // Hors du dessin, le toucher désélectionne tout et replie la fiche.
@@ -499,7 +540,7 @@ function fin(ev) {
     else if (!g.bouge) choix = choixN = -1;
   } else if (!g.bouge) {
     const m = versM(e[0], e[1]), k = calque ? noeudPres(e) : -1, c = branchePres(m, Math.max(AIMANT / vue.s, 2));
-    choixN = k; choix = k >= 0 ? -1 : g.genre === "branche" ? g.i : c ? c.i : -1;
+    choixR = -1; choixN = k; choix = k >= 0 ? -1 : g.genre === "branche" ? g.i : c ? c.i : -1;
     if (calque && k < 0 && choix < 0) ficheTrame = dansDessin(m); // rien touché : dans le dessin, la fiche de la trame ; dehors, tout se replie
   }
   else if (g.genre === "noeud") { passe.push(g.avant); $("#b-annuler").disabled = false; if (g.vers >= 0) fusionner(g.vers, g.k); else if (!calque) { const c = branchePres(NO[g.k], AIMANT / vue.s, g.k); if (c) { NO[g.k] = c.p; fusionner(couper(c.i, c.p), g.k); } } choix = -1; choixN = calque ? (g.vers >= 0 ? g.vers : g.k) : -1; }
@@ -510,8 +551,13 @@ cv.addEventListener("pointerup", fin); cv.addEventListener("pointercancel", fin)
 cv.addEventListener("wheel", (ev) => { ev.preventDefault(); const e = pos(ev), m = versM(e[0], e[1]), s = Math.max(1.2, Math.min(40, vue.s * Math.exp(-ev.deltaY * 0.0015))); vue = { s, ox: e[0] - m[0] * s, oy: e[1] + m[1] * s }; rafraichir(false); }, { passive: false });
 
 // ---- Fiche de la branche choisie : ce qui se développe à gauche et à droite de l'axe.
-for (const seg of document.querySelectorAll('#fiche .seg:not([data-cote="pieton"])')) for (const k of Object.keys(TYPES)) { const b = document.createElement("button"); b.textContent = TYPES[k].nom; b.dataset.t = k; seg.append(b); }
+for (const seg of document.querySelectorAll('#fiche .seg[data-cote="g"], #fiche .seg[data-cote="d"]')) for (const k of Object.keys(TYPES)) { const b = document.createElement("button"); b.textContent = TYPES[k].nom; b.dataset.t = k; seg.append(b); }
 function fiche() {
+  const rampe = !calque && choixR >= 0 && calc ? calc.rampes[choixR] : null;
+  if (rampe) {
+    $("#fiche").hidden = false; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = true; $("#b-suppr").hidden = false; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
+    $("#f-long").textContent = `${RAMPES[S.rampes[choixR].type].nom} · ${rampe.L} m${rampe.hors ? " · à replacer dans une rangée" : rampe.couple ? " · couplée" : ""}`; return;
+  }
   const poteau = calque && choixN >= 0 && NO[choixN], b = BR[choix];
   const libre = !!calque && !b && !poteau && ficheTrame; // rien de choisi dans la structure : la fiche est celle de la trame entière
   $("#fiche").hidden = !b && !poteau && !libre; $("#f-portee").hidden = !poteau; $("#f-mur").hidden = !calque || !!poteau || !b; $("#f-trame").hidden = !libre; $("#b-suppr").hidden = libre;
@@ -524,7 +570,10 @@ function fiche() {
   const n = calc ? calc.pl.filter((p) => p.i === choix).length : 0;
   $("#f-long").textContent = `${repere(b).L.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m · chaussée ${(2 * demi(b)).toLocaleString("fr-FR")} m · ${n} places`;
 }
-$("#fiche").addEventListener("click", (ev) => { const x = ev.target.closest(".seg button"), b = S.branches[choix]; if (!x || !b || calque) return; garder(); b[x.parentElement.dataset.cote] = x.dataset.t; rafraichir(); fiche(); enregistrer(); });
+$("#fiche").addEventListener("click", (ev) => { const x = ev.target.closest(".seg button"), b = S.branches[choix]; if (!x || !b || calque) return; garder();
+  // Une rampe du type touché se pose au milieu de la voie, dans sa première rangée ; on la glisse ensuite où l'on veut.
+  if (x.parentElement.dataset.cote === "rampe") { const r = repere(b), c = TYPES[b.g].prof >= 4 ? "g" : "d", s = c === "g" ? 1 : -1; (S.rampes = S.rampes || []).push({ type: x.dataset.t, p: r.P(r.L / 2, s * (demi(b) + TYPES[b[c]].prof / 2)) }); choixR = S.rampes.length - 1; choix = -1; rafraichir(); fiche(); enregistrer(); return; }
+  b[x.parentElement.dataset.cote] = x.dataset.t; rafraichir(); fiche(); enregistrer(); });
 $("#f-portee").addEventListener("click", (ev) => {
   const x = ev.target.closest("button[data-p]"); if (!x || choixN < 0) return;
   garder(); S.auto = false; if (!porter(choixN, x.dataset.p)) { passe.pop(); $("#b-annuler").disabled = !passe.length; $("#f-long").textContent = "Aucun poteau en face, à moins de 20 m"; return; }
@@ -534,6 +583,7 @@ $("#b-trame").addEventListener("click", () => { garder(); S.auto = !S.auto; choi
 // Une travée remplie en maçonnerie contrevente le bâtiment dans son sens.
 $("#b-plein").addEventListener("click", () => { const b = calque && BR[choix]; if (!b) return; garder(); if (b.plein) delete b.plein; else b.plein = true; rafraichir(); fiche(); enregistrer(); });
 $("#b-suppr").addEventListener("click", () => {
+  if (!calque && choixR >= 0) { garder(); S.rampes.splice(choixR, 1); choixR = -1; rafraichir(); fiche(); enregistrer(); return; }
   // Un poteau part avec ses poutres.
   if (calque && (choixN >= 0 || choix >= 0)) { garder(); S.auto = false; }
   if (calque && choixN >= 0) { const r = BR.filter((b) => b.a !== choixN && b.b !== choixN); BR.length = 0; BR.push(...r); NO[choixN] = null; choixN = -1; rafraichir(); fiche(); enregistrer(); return; }
@@ -546,7 +596,7 @@ function aide() {
 }
 $("#calques").addEventListener("click", (ev) => {
   const x = ev.target.closest("button[data-c]"); if (!x) return;
-  calque = +x.dataset.c; choix = choixN = -1; ficheTrame = true; pointer(); aide(); for (const y of $("#calques").children) y.setAttribute("aria-pressed", String(y === x)); fiche(); rafraichir(false);
+  calque = +x.dataset.c; choix = choixN = choixR = -1; ficheTrame = true; pointer(); aide(); for (const y of $("#calques").children) y.setAttribute("aria-pressed", String(y === x)); fiche(); rafraichir(false);
 });
 $("#b-annuler").addEventListener("click", annuler); $("#b-cadrer").addEventListener("click", cadrer);
 addEventListener("keydown", (ev) => { if ((ev.ctrlKey || ev.metaKey) && ev.key === "z") { ev.preventDefault(); annuler(); } });
