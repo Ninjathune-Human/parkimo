@@ -69,6 +69,8 @@ with sync_playwright() as p:
         a, c = E(30, 0), E(30, -30)
         pg.mouse.move(*a); pg.mouse.down(); pg.mouse.move((a[0] + c[0]) / 2, (a[1] + c[1]) / 2); pg.mouse.move(*c); pg.mouse.up(); pg.wait_for_timeout(300)
         r["trace"] = pg.evaluate(ETAT)
+        # La voie tracée reçoit d'office une bande piétonne, du côté qui rejoint celles des voies qu'elle touche : le réseau reste continu.
+        r["trace_pietons"] = pg.evaluate("[S.branches[S.branches.length - 1].pieton || null, document.querySelector('#s-pietons').textContent, calc.trottoirs.length]")
         pg.click("#b-tracer")
         # Régler le côté gauche de la branche choisie en épi à 60°, puis la passer en voie seule à droite.
         pg.click('.seg[data-cote="g"] button[data-t="60"]'); pg.click('.seg[data-cote="d"] button[data-t="aucun"]'); pg.wait_for_timeout(200)

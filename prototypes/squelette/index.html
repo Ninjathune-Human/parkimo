@@ -340,6 +340,18 @@ function aimantVoie(g, m) {
   g.guide = best ? [-12, L + 12].map((t) => [g.a0[0] + dx + u[0] * t + n[0] * best[1], g.a0[1] + dy + u[1] * t + n[1] * best[1]]) : null;
   return [dx, dy];
 }
+// Bande piétonne d'une voie qu'on vient de tracer : comme ses voisines. Elle en reçoit une si une voie qu'elle
+// touche en a une (ou si elle ne touche rien), du côté où se trouvent le plus de bandes voisines, à droite sinon.
+function bandeVoisine(x) {
+  const r = repere(x); let g = 0, d = 0, touche = false;
+  for (const [k, dx] of [[x.a, r.u], [x.b, [-r.u[0], -r.u[1]]]]) for (const o of BR) {
+    if (o === x || (o.a !== k && o.b !== k)) continue; touche = true; if (!pw(o, o.pieton)) continue;
+    const ro = repere(o), so = o.pieton === "g" ? 1 : -1, sens = o.a === k ? 1 : -1, v = [sens * ro.u[0] - so * ro.u[1] * 0.5, sens * ro.u[1] + so * ro.u[0] * 0.5];
+    // La bande voisine est à gauche ou à droite de la voie, vue du nœud ; ramené aux côtés de la voie.
+    if ((dx[0] * v[1] - dx[1] * v[0] > 0) === (k === x.a)) g++; else d++;
+  }
+  return !touche || g + d ? (g > d ? "g" : "d") : "aucun";
+}
 function couper(i, p) { const b = BR[i], k = NO.push(p) - 1; BR.push({ ...b, a: k }); b.b = k; return k; }
 function fusionner(garde, ote) { for (const b of BR) { if (b.a === ote) b.a = garde; if (b.b === ote) b.b = garde; } const r = BR.filter((b) => b.a !== b.b); BR.length = 0; BR.push(...r); if (calque) NO[ote] = null; }
 // Nœud au point `m` : celui qui s'y trouve, un nouveau sur une branche, ou un nouveau libre.
@@ -455,7 +467,7 @@ function fin(ev) {
   if (pince) { if (doigts.size < 2) pince = null; return; }
   const g = geste; geste = null; if (!g) return;
   if (g.genre === "trace") {
-    if (g.fantome && Math.hypot(g.fantome[1][0] - g.de[0], g.fantome[1][1] - g.de[1]) >= (calque ? 1 : PAS - 1e-6)) { garder(); const a = noeudEn(g.e, g.de), b = noeudEn(versE(g.fantome[1]), g.fantome[1]); if (calque) S.auto = false; if (a !== b) { BR.push(calque ? { a, b } : { a, b, g: "90", d: "90" }); choix = BR.length - 1; choixN = -1; } }
+    if (g.fantome && Math.hypot(g.fantome[1][0] - g.de[0], g.fantome[1][1] - g.de[1]) >= (calque ? 1 : PAS - 1e-6)) { garder(); const a = noeudEn(g.e, g.de), b = noeudEn(versE(g.fantome[1]), g.fantome[1]); if (calque) S.auto = false; if (a !== b) { BR.push(calque ? { a, b } : { a, b, g: "90", d: "90" }); if (!calque) BR[BR.length - 1].pieton = bandeVoisine(BR[BR.length - 1]); choix = BR.length - 1; choixN = -1; } }
     // Structure : un simple toucher pose un poteau, aimanté à la trame du stationnement.
     else if (calque && !g.bouge) { const t = cible(g.e, versM(g.e[0], g.e[1])); if (t.k < 0) { garder(); S.auto = false; choixN = NO.push(t.p) - 1; } else choixN = t.k; choix = -1; }
   } else if (!g.bouge) {
