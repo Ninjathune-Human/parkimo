@@ -15,6 +15,7 @@ with sync_playwright() as p:
         pg.on("pageerror", lambda e: errs.append(f"[{name}] pageerror: {e}"))
         pg.goto(page_path.as_uri()); pg.wait_for_timeout(600)
         r = {"vue": name, "depart": pg.evaluate(ETAT)}
+        r["angles"] = pg.evaluate("calc.angles.map(a => a.x)")
         pg.screenshot(path=str(out / f"{name}-squelette-depart.png"))
         E = lambda x, y: pg.evaluate(f"versE([{x}, {y}])")
         # Tracer une branche depuis le milieu de la branche du bas, vers le bas : un nœud se crée sur la branche.
@@ -60,6 +61,11 @@ with sync_playwright() as p:
         pg.screenshot(path=str(out / f"{name}-squelette-trame.png"))
         pg.click("#b-suppr"); pg.wait_for_timeout(200)
         r["supprime"] = pg.evaluate("[S.pn.filter(Boolean).length, S.pb.length, document.querySelector('#fiche').hidden]")
+        # Un poteau posé près de l'angle du bâtiment s'y aimante.
+        pg.click("#b-tracer"); q = E(-7.2, -7.0); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-tracer")
+        r["poteau_d_angle"] = pg.evaluate("S.pn[choixN]")
+        pg.click("#b-cadrer"); pg.wait_for_timeout(300)
+        pg.screenshot(path=str(out / f"{name}-squelette-angles.png"))
         pg.click('#calques button[data-c="0"]'); pg.wait_for_timeout(200)
         r["retour_voies"] = pg.evaluate("[calque, NO === S.noeuds, document.querySelector('#fiche').hidden]")
         print(json.dumps(r, ensure_ascii=False))
