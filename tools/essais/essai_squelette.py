@@ -48,6 +48,18 @@ with sync_playwright() as p:
         pg.mouse.move(*a); pg.mouse.down(); pg.mouse.move((a[0] + c[0]) / 2, (a[1] + c[1]) / 2); pg.mouse.move(*c); pg.mouse.up(); pg.wait_for_timeout(300)
         pg.click("#b-tracer")
         r["poutre"] = pg.evaluate(ST)
+        # Poser un poteau d'un toucher : il s'aimante à un coin de place ; puis porter ses poutres le long de la voie.
+        pg.click("#b-tracer"); q = E(15.3, 12.2); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-tracer")
+        r["pose"] = pg.evaluate("({n: S.pn.filter(Boolean).length, p: S.pn[choixN], fiche: document.querySelector('#f-long').textContent, actions: !document.querySelector('#f-portee').hidden, genees: calc.genees.length})")
+        pg.click('#f-portee button[data-p="travers"]'); pg.wait_for_timeout(200)
+        r["portee_travers"] = pg.evaluate("[S.pb.filter(b => b.a === choixN || b.b === choixN).map(b => +repere(b, S.pn).L.toFixed(2)), document.querySelector('#f-long').textContent]")
+        # Glisser ce poteau au milieu d'une place : il s'aimante à la ligne la plus proche, la place reste.
+        a, c = E(*pg.evaluate("S.pn[choixN]")), E(16.4, 10.4)
+        pg.mouse.move(*a); pg.mouse.down(); pg.mouse.move((a[0] + c[0]) / 2, (a[1] + c[1]) / 2); pg.mouse.move(*c); pg.mouse.up(); pg.wait_for_timeout(300)
+        r["glisse"] = pg.evaluate("({p: S.pn[choixN], genees: calc.genees.length, places: calc.pl.length})")
+        pg.screenshot(path=str(out / f"{name}-squelette-trame.png"))
+        pg.click("#b-suppr"); pg.wait_for_timeout(200)
+        r["supprime"] = pg.evaluate("[S.pn.filter(Boolean).length, S.pb.length, document.querySelector('#fiche').hidden]")
         pg.click('#calques button[data-c="0"]'); pg.wait_for_timeout(200)
         r["retour_voies"] = pg.evaluate("[calque, NO === S.noeuds, document.querySelector('#fiche').hidden]")
         print(json.dumps(r, ensure_ascii=False))
