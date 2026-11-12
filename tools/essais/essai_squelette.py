@@ -50,6 +50,16 @@ with sync_playwright() as p:
         r["voie_au_pas"] = pg.evaluate("S.noeuds[0].map(v => +v.toFixed(2))")
         for _ in range(3): pg.click("#b-annuler"); pg.wait_for_timeout(200)
         pg.click("#b-cadrer"); pg.wait_for_timeout(300); pg.mouse.click(5, 5); pg.wait_for_timeout(200)
+        # Logique d'ensemble : en « auto », les bandes longent les façades et font le tour. Une seconde boucle tracée
+        # sous la première : ses trois voies portent leur bande côté façade, le réseau reste continu.
+        r["bandes_auto"] = pg.evaluate("S.branches.map(bandeDe)")
+        pg.click("#b-tracer")
+        for de, vers in (((0, 0), (0, -15)), ((0, -15), (60, -15)), ((60, -15), (60, 0))): glisser(de, vers)
+        pg.click("#b-tracer"); pg.mouse.click(5, 5); pg.wait_for_timeout(200); pg.click("#b-cadrer"); pg.wait_for_timeout(300)
+        r["boucle_basse"] = [pg.evaluate("S.branches.map(bandeDe)"), pg.evaluate("[S.branches.length, document.querySelector('#s-pietons').textContent, calc.zebres.length, calc.pl.length]")]
+        pg.screenshot(path=str(out / f"{name}-squelette-deux-boucles.png"))
+        for _ in range(3): pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         # Bandes piétonnes : un réseau continu au départ ; en ôter sur les deux pignons le coupe en tronçons.
         PI = "[document.querySelector('#s-pietons').textContent, calc.trottoirs.length, calc.zebres.length > 0, calc.pl.length]"
         r["pietons"] = pg.evaluate(PI)

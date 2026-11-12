@@ -53,7 +53,7 @@ button:disabled { opacity: .35; }
 <section id="fiche" class="verre" hidden aria-label="Branche choisie">
   <div class="ligne"><span>Gauche</span><div class="seg" data-cote="g"></div></div>
   <div class="ligne"><span>Droite</span><div class="seg" data-cote="d"></div></div>
-  <div class="ligne"><span>Piétons</span><div class="seg" data-cote="pieton"><button data-t="aucun">Aucune</button><button data-t="g">Gauche</button><button data-t="d">Droite</button></div></div>
+  <div class="ligne"><span>Piétons</span><div class="seg" data-cote="pieton"><button data-t="auto">Auto</button><button data-t="aucun">Aucune</button><button data-t="g">Gauche</button><button data-t="d">Droite</button></div></div>
   <div id="f-portee" hidden><button data-p="long">Poutres le long de la voie</button><button data-p="travers">Poutres en travers</button></div>
   <div id="f-trame" hidden><button id="b-trame" aria-pressed="true">Trame automatique</button></div>
   <div id="f-mur" hidden><button id="b-plein" aria-pressed="false">Remplissage en maçonnerie</button></div>
@@ -104,7 +104,9 @@ function repere(b, N = S.noeuds) {
 }
 // Bande piétonne : 0,80 m pris dans la largeur de la voie, d'un côté de l'axe, le long de son bord.
 // Elle ne déplace ni la chaussée ni les places.
-const BANDE = 0.8, pw = (b, c) => (c === "g" || c === "d") && b.pieton === c ? BANDE : 0;
+// Réglage d'une voie : « auto » (le côté est choisi par la logique d'ensemble, voir bandesAuto), « g », « d » ou « aucun ».
+let COTE = new Map(); // côté retenu pour les voies en « auto »
+const BANDE = 0.8, bandeDe = (b) => (b.pieton === "auto" ? COTE.get(b) || "aucun" : b.pieton || "aucun"), pw = (b, c) => (c === "g" || c === "d") && bandeDe(b) === c ? BANDE : 0;
 // ---- Nœuds. Autour d'un nœud, les branches sont prises dans l'ordre ; entre deux voisines s'ouvre un secteur.
 // Dans un secteur, les bords de même rang des deux branches (bord de chaussée, bord de bande piétonne, fond de
 // rangée) se prolongent jusqu'à leur rencontre : chaussées, bandes et rangées s'y coupent l'une sur l'autre,
@@ -187,12 +189,13 @@ function calculer() {
   mesurer();
 }
 function mesurer() {
+  bandesAuto();
   const geo = noeuds(), B = geo.bouts, quad = (i, c, m, n) => [B[i].a[c][m], B[i].b[c][m], B[i].b[c][n], B[i].a[c][n]];
   // Chaussées : celle de chaque branche (même rang que la branche), puis les carrefours.
   const ch = [...S.branches.map((_, i) => [B[i].a.d[0], B[i].b.d[0], B[i].b.g[0], B[i].a.g[0]]), ...geo.nd], bandes = [...geo.cales], pl = [], genees = [];
   // Bandes piétonnes et leur réseau : deux bandes d'un même secteur se touchent ; un passage zébré, en travers
   // de l'entrée d'une voie, relie les bandes des deux secteurs qui la bordent.
-  const trottoirs = [], zebres = []; S.branches.forEach((b, i) => { if (pw(b, b.pieton)) trottoirs.push({ i, q: quad(i, b.pieton, 0, 1) }); });
+  const trottoirs = [], zebres = []; S.branches.forEach((b, i) => { const c = bandeDe(b); if (pw(b, c)) trottoirs.push({ i, q: quad(i, c, 0, 1) }); });
   const chef = S.branches.map((_, k) => k), racine = (k) => (chef[k] === k ? k : (chef[k] = racine(chef[k]))), unir = (l) => l.forEach((k) => { chef[racine(k)] = racine(l[0]); });
   for (const { autour, sect } of geo.carrefours) {
     const m = sect.length; sect.forEach((x) => { if (x.lie) unir(x.pietons); });
@@ -343,17 +346,31 @@ function aimantVoie(g, m) {
   g.guide = best ? [-12, L + 12].map((t) => [g.a0[0] + dx + u[0] * t + n[0] * best[1], g.a0[1] + dy + u[1] * t + n[1] * best[1]]) : null;
   return [dx, dy];
 }
-// Bande piétonne d'une voie qu'on vient de tracer : comme ses voisines. Elle en reçoit une si une voie qu'elle
-// touche en a une (ou si elle ne touche rien), du côté où se trouvent le plus de bandes voisines, à droite sinon.
+// Côté qui prolonge les bandes des voies touchées : celui où se trouvent le plus de bandes voisines, une voie
+// dans le prolongement comptant double. Rien si aucune voisine n'a de bande.
 function bandeVoisine(x) {
-  const r = repere(x); let g = 0, d = 0, touche = false;
-  for (const [k, dx] of [[x.a, r.u], [x.b, [-r.u[0], -r.u[1]]]]) for (const o of BR) {
-    if (o === x || (o.a !== k && o.b !== k)) continue; touche = true; if (!pw(o, o.pieton)) continue;
-    const ro = repere(o), so = o.pieton === "g" ? 1 : -1, sens = o.a === k ? 1 : -1, v = [sens * ro.u[0] - so * ro.u[1] * 0.5, sens * ro.u[1] + so * ro.u[0] * 0.5];
+  const r = repere(x); let g = 0, d = 0;
+  for (const [k, dx] of [[x.a, r.u], [x.b, [-r.u[0], -r.u[1]]]]) for (const o of S.branches) {
+    const co = bandeDe(o); if (o === x || (o.a !== k && o.b !== k) || !pw(o, co)) continue;
+    const ro = repere(o), so = co === "g" ? 1 : -1, sens = o.a === k ? 1 : -1, v = [sens * ro.u[0] - so * ro.u[1] * 0.5, sens * ro.u[1] + so * ro.u[0] * 0.5];
+    const poids = Math.abs(dx[0] * ro.u[1] - dx[1] * ro.u[0]) < 0.2 && (dx[0] * ro.u[0] + dx[1] * ro.u[1]) * sens < 0 ? 2 : 1;
     // La bande voisine est à gauche ou à droite de la voie, vue du nœud ; ramené aux côtés de la voie.
-    if ((dx[0] * v[1] - dx[1] * v[0] > 0) === (k === x.a)) g++; else d++;
+    if ((dx[0] * v[1] - dx[1] * v[0] > 0) === (k === x.a)) g += poids; else d += poids;
   }
-  return !touche || g + d ? (g > d ? "g" : "d") : "aucun";
+  return g + d ? (g > d ? "g" : "d") : null;
+}
+// Logique d'ensemble des bandes piétonnes en « auto ». Une voie qui longe une façade (un seul côté donne sur
+// l'extérieur du bâtiment) porte sa bande de ce côté : les bandes font le tour du bâtiment, sans traversée.
+// Les autres voies (intérieures, ou façades des deux côtés) prolongent les bandes des voies qu'elles touchent.
+function bandesAuto() {
+  COTE = new Map(); const autos = S.branches.filter((b) => b.pieton === "auto"); if (!autos.length) return;
+  const geo = noeuds(), B = geo.bouts, rects = [...S.branches.map((_, i) => [B[i].a.d[0], B[i].b.d[0], B[i].b.g[0], B[i].a.g[0]]), ...geo.nd, ...geo.cales];
+  S.branches.forEach((b, i) => { for (const c of ["g", "d"]) if (TYPES[b[c]].prof) rects.push([B[i].a[c][2], B[i].b[c][2], B[i].b[c][3], B[i].a[c][3]]); });
+  const dehors = (b, c) => { const r = repere(b), e = (c === "g" ? 1 : -1) * (demi(b) + TYPES[b[c]].prof + 0.5); return [0.25, 0.5, 0.75].filter((f) => !rects.some((q) => dans(r.P(r.L * f, e), q))).length >= 2; };
+  let reste = [];
+  for (const b of autos) { const g = dehors(b, "g"), d = dehors(b, "d"); if (g !== d) COTE.set(b, g ? "g" : "d"); else reste.push(b); }
+  for (let n = reste.length; n > 0 && reste.length; n--) reste = reste.filter((b) => { const c = bandeVoisine(b); if (c) COTE.set(b, c); return !c; });
+  for (const b of reste) COTE.set(b, "d");
 }
 function couper(i, p) { const b = BR[i], k = NO.push(p) - 1; BR.push({ ...b, a: k }); b.b = k; return k; }
 function fusionner(garde, ote) { for (const b of BR) { if (b.a === ote) b.a = garde; if (b.b === ote) b.b = garde; } const r = BR.filter((b) => b.a !== b.b); BR.length = 0; BR.push(...r); if (calque) NO[ote] = null; }
@@ -470,7 +487,7 @@ function fin(ev) {
   if (pince) { if (doigts.size < 2) pince = null; return; }
   const g = geste; geste = null; if (!g) return;
   if (g.genre === "trace") {
-    if (g.fantome && Math.hypot(g.fantome[1][0] - g.de[0], g.fantome[1][1] - g.de[1]) >= (calque ? 1 : PAS - 1e-6)) { garder(); const a = noeudEn(g.e, g.de), b = noeudEn(versE(g.fantome[1]), g.fantome[1]); if (calque) S.auto = false; if (a !== b) { BR.push(calque ? { a, b } : { a, b, g: "90", d: "90" }); if (!calque) BR[BR.length - 1].pieton = bandeVoisine(BR[BR.length - 1]); choix = BR.length - 1; choixN = -1; } }
+    if (g.fantome && Math.hypot(g.fantome[1][0] - g.de[0], g.fantome[1][1] - g.de[1]) >= (calque ? 1 : PAS - 1e-6)) { garder(); const a = noeudEn(g.e, g.de), b = noeudEn(versE(g.fantome[1]), g.fantome[1]); if (calque) S.auto = false; if (a !== b) { BR.push(calque ? { a, b } : { a, b, g: "90", d: "90" }); if (!calque) BR[BR.length - 1].pieton = "auto"; choix = BR.length - 1; choixN = -1; } }
     // Structure : un simple toucher pose un poteau, aimanté à la trame du stationnement.
     // Hors du dessin, le toucher désélectionne tout et replie la fiche.
     else if (calque && !g.bouge) { const m = versM(g.e[0], g.e[1]), t = cible(g.e, m); choix = -1; if (t.k >= 0) choixN = t.k; else if (dansDessin(t.p) || dansDessin(m)) { garder(); S.auto = false; choixN = NO.push(t.p) - 1; } else { choixN = -1; ficheTrame = false; } }
@@ -532,7 +549,9 @@ addEventListener("keydown", (ev) => { if ((ev.ctrlKey || ev.metaKey) && ev.key =
 // ---- Départ : le dernier essai, sinon une boucle avec une antenne.
 try { const s = JSON.parse(localStorage.getItem("parkimo.squelette.5") || "null"); if (s && s.noeuds && s.branches) S = s; } catch (e) { /* stockage indisponible */ }
 const neuf = !S.branches.length;
-if (neuf) S = { noeuds: [[0, 0], [60, 0], [60, 15], [0, 15], [90, 0]], branches: [{ a: 0, b: 1, g: "90", d: "90", pieton: "d" }, { a: 1, b: 2, g: "aucun", d: "90", pieton: "d" }, { a: 2, b: 3, g: "90", d: "90", pieton: "d" }, { a: 3, b: 0, g: "aucun", d: "90", pieton: "d" }, { a: 1, b: 4, g: "60", d: "45", pieton: "g" }], pn: [], pb: [] };
+// Essai enregistré avant la logique d'ensemble : ses bandes posées à la main ou absentes passent en « auto ».
+if (!S.v) { for (const b of S.branches) if (b.pieton !== "aucun") b.pieton = "auto"; S.v = 2; }
+if (neuf) S = { noeuds: [[0, 0], [60, 0], [60, 15], [0, 15], [90, 0]], branches: [{ a: 0, b: 1, g: "90", d: "90", pieton: "auto" }, { a: 1, b: 2, g: "aucun", d: "90", pieton: "auto" }, { a: 2, b: 3, g: "90", d: "90", pieton: "auto" }, { a: 3, b: 0, g: "aucun", d: "90", pieton: "auto" }, { a: 1, b: 4, g: "60", d: "45", pieton: "auto" }], pn: [], pb: [] };
 if (S.auto === undefined) S.auto = true; // un essai enregistré avant la trame automatique la reçoit
 pointer();
 new ResizeObserver(taille).observe(cv); taille(); calculer();
