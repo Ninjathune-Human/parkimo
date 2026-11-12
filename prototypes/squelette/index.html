@@ -100,75 +100,67 @@ function repere(b, N = S.noeuds) {
   const u = [(B[0] - A[0]) / L, (B[1] - A[1]) / L], n = [-u[1], u[0]];
   return { A, L, u, n, P: (t, o) => [A[0] + u[0] * t + n[0] * o, A[1] + u[1] * t + n[1] * o] };
 }
-// Chaussée : prolongée à chaque bout jusqu'au bord de la plus large des voies qu'elle y rencontre,
-// pour que les voies se rejoignent aux nœuds sans déborder sur les places d'en face.
 // Bande piétonne : 0,80 m le long de la voie, d'un côté de l'axe, entre la chaussée et les places.
-// La rangée de ce côté recule d'autant. Au bout, la bande traverse la voie rencontrée et rejoint sa bande.
+// La rangée de ce côté recule d'autant.
 const BANDE = 0.8, pw = (b, c) => (c === "g" || c === "d") && b.pieton === c ? BANDE : 0;
-function trottoir(b) {
-  if (!pw(b, b.pieton)) return null;
-  const r = repere(b), h = demi(b), s = b.pieton === "g" ? 1 : -1;
-  // Bouts de la bande, comme les angles du bâtiment : à un nœud, elle file jusqu'au bord le plus lointain des
-  // bandes des voies rencontrées et se coupe sur ce bord ; les deux bandes se recouvrent juste sur leur croisement.
-  // Sans bande à rejoindre (ou trop loin, voies presque alignées), elle va jusqu'au bord de la voie rencontrée.
-  const bout = (k, sens) => {
-    const uo = [sens * r.u[0], sens * r.u[1]], n = [-r.u[1], r.u[0]], loin = (c) => { // c : écart du bord visé à l'axe
-      let m = null;
-      for (const o of S.branches) {
-        if (o === b || (o.a !== k && o.b !== k) || !pw(o, o.pieton)) continue;
-        const ro = repere(o), no = [-ro.u[1], ro.u[0]], so = o.pieton === "g" ? 1 : -1, x = uo[0] * ro.u[1] - uo[1] * ro.u[0]; if (Math.abs(x) < 0.2) continue;
-        for (const e of [demi(o), demi(o) + BANDE]) { const d = [no[0] * so * e - n[0] * c, no[1] * so * e - n[1] * c], t = (d[0] * ro.u[1] - d[1] * ro.u[0]) / x; if (!m || t > m.t) m = { t, o, e: so * e }; }
-      }
-      return m;
-    };
-    const m = loin(s * (h + BANDE / 2)), e = debord(b, k); if (!m || m.t > 3 * (h + BANDE) + 3) return [e, e];
-    // Le bord retenu coupe nos deux bords, chacun à sa distance.
-    const ro = repere(m.o), no = [-ro.u[1], ro.u[0]], x = uo[0] * ro.u[1] - uo[1] * ro.u[0];
-    return [h, h + BANDE].map((c) => { const d = [no[0] * m.e - n[0] * s * c, no[1] * m.e - n[1] * s * c]; return (d[0] * ro.u[1] - d[1] * ro.u[0]) / x; });
-  }, [ai, ao] = bout(b.a, -1), [bi, bo] = bout(b.b, 1);
-  return { r, h, s, a0: -Math.min(ai, ao), a1: r.L + Math.min(bi, bo), q: [r.P(-ai, s * h), r.P(r.L + bi, s * h), r.P(r.L + bo, s * (h + BANDE)), r.P(-ao, s * (h + BANDE))] };
-}
-function debord(b, k) { let e = 0; for (const o of S.branches) if (o !== b && (o.a === k || o.b === k)) e = Math.max(e, demi(o)); return e; }
-function chaussee(b) { const r = repere(b), h = demi(b), ea = debord(b, b.a), eb = debord(b, b.b); return [r.P(-ea, -h), r.P(r.L + eb, -h), r.P(r.L + eb, h), r.P(-ea, h)]; }
-// Rangée : comme la chaussée, elle va jusqu'au bord de la voie rencontrée à chaque bout.
-function bande(b, cote) { const r = repere(b), h = demi(b) + pw(b, cote), s = cote === "g" ? 1 : -1, t = TYPES[b[cote]], ea = debord(b, b.a), eb = debord(b, b.b); return t.prof ? [r.P(-ea, s * h), r.P(r.L + eb, s * h), r.P(r.L + eb, s * (h + t.prof)), r.P(-ea, s * (h + t.prof))] : null; }
-// Angles du bâtiment : à un nœud, du côté où deux branches voisines s'ouvrent à plus de 180°, les
-// génératrices du fond des deux rangées (le bord de la chaussée s'il n'y a pas de rangée) se
-// prolongent jusqu'à leur rencontre. L'angle ferme l'emprise et donne un point où poser un poteau.
-function angles() {
-  const out = [];
+// ---- Nœuds. Autour d'un nœud, les branches sont prises dans l'ordre ; entre deux voisines s'ouvre un secteur.
+// Dans un secteur, les bords de même rang des deux branches (bord de chaussée, bord de bande piétonne, fond de
+// rangée) se prolongent jusqu'à leur rencontre : chaussées, bandes et rangées s'y coupent l'une sur l'autre,
+// sans recouvrement ni vide. Secteur rentrant (moins de 180°) : la rangée de la branche la plus longue garde le
+// coin, l'autre s'arrête sur son fond. Bords parallèles, pointe trop longue ou branche trop courte : chaque
+// branche est coupée d'équerre au nœud et une cale ferme le secteur.
+// Rend, pour chaque bout de branche et chaque côté, quatre points : bord de chaussée, bord de bande, pied et fond de rangée.
+function noeuds() {
+  const bouts = S.branches.map(() => ({ a: {}, b: {} })), nd = [], cales = [], coins = [], carrefours = [];
   S.noeuds.forEach((N, k) => {
-    const autour = S.branches.filter((b) => b.a === k || b.b === k).map((b) => { const r = repere(b), dep = b.a === k, d = dep ? r.u : [-r.u[0], -r.u[1]]; return { b, d, dep, th: Math.atan2(d[1], d[0]) }; }).sort((x, y) => x.th - y.th);
-    if (autour.length < 2) return;
-    autour.forEach((i, n) => {
-      const j = autour[(n + 1) % autour.length]; let ang = j.th - i.th; if (ang <= 0) ang += 2 * Math.PI;
-      if (ang < Math.PI + 0.02 || ang > 2 * Math.PI - 0.02) return;
-      // Côté de chaque branche tourné vers l'angle : à gauche de la première en partant du nœud, à droite de la seconde.
-      const ci = i.dep ? "g" : "d", cj = j.dep ? "d" : "g", wi = demi(i.b) + pw(i.b, ci) + TYPES[i.b[ci]].prof, wj = demi(j.b) + pw(j.b, cj) + TYPES[j.b[cj]].prof;
-      const A = [N[0] - i.d[1] * wi, N[1] + i.d[0] * wi], B = [N[0] + j.d[1] * wj, N[1] - j.d[0] * wj];
-      const det = i.d[0] * j.d[1] - i.d[1] * j.d[0], t = ((B[0] - A[0]) * j.d[1] - (B[1] - A[1]) * j.d[0]) / det, X = [A[0] + t * i.d[0], A[1] + t * i.d[1]];
-      // Angle trop aigu : la pointe partirait loin, on la coupe.
-      const coupe = !isFinite(t) || Math.hypot(X[0] - N[0], X[1] - N[1]) > 3 * Math.max(wi, wj);
-      out.push({ q: coupe ? [N, A, B, B] : [N, A, X, B], x: coupe ? null : X.map((v) => +v.toFixed(3)) });
+    const autour = S.branches.map((b, i) => ({ b, i })).filter((x) => x.b.a === k || x.b.b === k).map((x) => { const r = repere(x.b), dep = x.b.a === k, d = dep ? r.u : [-r.u[0], -r.u[1]]; return { b: x.b, i: x.i, L: r.L, d, dep, th: Math.atan2(d[1], d[0]) }; }).sort((x, y) => x.th - y.th);
+    if (!autour.length) return;
+    const tour = [], sect = autour.map((i, n) => {
+      const j = autour[(n + 1) % autour.length]; let ang = j.th - i.th; if (ang <= 1e-9) ang += 2 * Math.PI;
+      const ci = i.dep ? "g" : "d", cj = j.dep ? "d" : "g", hi = demi(i.b), hj = demi(j.b);
+      const oi = [hi, hi + pw(i.b, ci), hi + pw(i.b, ci) + TYPES[i.b[ci]].prof], oj = [hj, hj + pw(j.b, cj), hj + pw(j.b, cj) + TYPES[j.b[cj]].prof];
+      const ni = [-i.d[1], i.d[0]], nj = [j.d[1], -j.d[0]], det = i.d[0] * j.d[1] - i.d[1] * j.d[0];
+      const A = (o) => [N[0] + ni[0] * o, N[1] + ni[1] * o], B = (o) => [N[0] + nj[0] * o, N[1] + nj[1] * o];
+      const X = (a, b) => { const p = A(a), q = B(b), t = ((q[0] - p[0]) * j.d[1] - (q[1] - p[1]) * j.d[0]) / det; return [p[0] + t * i.d[0], p[1] + t * i.d[1]]; }; // bord de i à l'écart a, bord de j à l'écart b
+      const le = (p, x) => (p[0] - N[0]) * x.d[0] + (p[1] - N[1]) * x.d[1];
+      let pi, pj, joint = false;
+      if (Math.abs(det) > 0.05) {
+        const xe = X(oi[2], oj[2]);
+        if (Math.hypot(xe[0] - N[0], xe[1] - N[1]) <= 3 * Math.max(oi[2], oj[2]) + 1 && le(xe, i) < i.L - 0.5 && le(xe, j) < j.L - 0.5) {
+          joint = true; const xh = X(oi[0], oj[0]), xw = X(oi[1], oj[1]);
+          if (ang < Math.PI) { const prio = i.L >= j.L, y = prio ? X(oi[2], oj[1]) : X(oi[1], oj[2]); pi = prio ? [xh, xw, xw, y] : [xh, xw, y, xe]; pj = prio ? [xh, xw, y, xe] : [xh, xw, xw, y]; }
+          else pi = pj = [xh, xw, xw, xe];
+          // Angle du bâtiment : le fond des deux rangées se rejoint, un poteau peut s'y poser.
+          if (ang > Math.PI + 0.02) coins.push({ x: xe.map((v) => +v.toFixed(3)), q: [N, [xe[0] + i.d[0], xe[1] + i.d[1]], xe, [xe[0] + j.d[0], xe[1] + j.d[1]]] });
+        }
+      }
+      if (!joint) { pi = [A(oi[0]), A(oi[1]), A(oi[1]), A(oi[2])]; pj = [B(oj[0]), B(oj[1]), B(oj[1]), B(oj[2])]; cales.push([pi[0], pi[3], pj[3], pj[0]]); }
+      bouts[i.i][i.dep ? "a" : "b"][ci] = pi; bouts[j.i][j.dep ? "a" : "b"][cj] = pj;
+      tour.push(pi[0]); if (!joint) tour.push(pj[0]);
+      // Les bandes d'un même secteur se touchent si elles se rejoignent, ou si les deux voies se prolongent.
+      return { lie: joint || Math.abs(ang - Math.PI) < 0.1, pietons: [pw(i.b, ci) ? i.i : -1, pw(j.b, cj) ? j.i : -1].filter((v) => v >= 0) };
     });
+    tour.forEach((p, t) => nd.push([N, p, tour[(t + 1) % tour.length], tour[(t + 1) % tour.length]])); // le carrefour, en éventail
+    carrefours.push({ autour, sect });
   });
-  return out;
+  return { bouts, nd, cales, coins, carrefours };
 }
 // Places d'un côté : calées au milieu de la branche ; en épi, penchées dans le sens de marche (on roule à droite).
 const biaisDe = (t, s) => t.angle > 0 && t.angle < 90 ? (t.prof / Math.tan(t.angle * Math.PI / 180)) * -s : 0;
-function places(b, cote) {
+function places(b, cote, rangee) {
   const t = TYPES[b[cote]]; if (!t.prof) return [];
-  const r = repere(b), h = demi(b) + pw(b, cote), s = cote === "g" ? 1 : -1;
-  const biais = biaisDe(t, s);
-  // Places calées sur le nœud de départ, au pas de la place ; la rangée court d'un bord de voie à l'autre.
-  const k0 = Math.ceil((-debord(b, b.a) - Math.min(0, biais)) / t.pas - 1e-9), k1 = Math.floor((r.L + debord(b, b.b) - Math.max(0, biais)) / t.pas + 1e-9), out = [];
-  for (let k = k0; k < k1; k++) { const a = k * t.pas, q = [r.P(a + biais, s * (h + t.prof)), r.P(a + t.pas + biais, s * (h + t.prof)), r.P(a + t.pas, s * h), r.P(a, s * h)]; q.k = k; out.push(q); }
+  const r = repere(b), h = demi(b) + pw(b, cote), s = cote === "g" ? 1 : -1, biais = biaisDe(t, s);
+  // Places calées sur le nœud de départ, au pas de la place ; ne restent que celles qui tiennent dans la rangée.
+  const al = rangee.map((p) => (p[0] - r.A[0]) * r.u[0] + (p[1] - r.A[1]) * r.u[1]), k0 = Math.floor((Math.min(...al) - Math.abs(biais)) / t.pas) - 1, k1 = Math.ceil((Math.max(...al) + Math.abs(biais)) / t.pas) + 1, out = [];
+  for (let k = k0; k < k1; k++) { const a = k * t.pas, q = [r.P(a + biais, s * (h + t.prof)), r.P(a + t.pas + biais, s * (h + t.prof)), r.P(a + t.pas, s * h), r.P(a, s * h)]; if (tient(q, rangee)) { q.k = k; out.push(q); } }
   return out;
 }
+// Un polygone tient-il dans un quadrilatère convexe ? (2 cm de tolérance au bord)
+const tient = (p, q) => p.every((v) => { let s = 0; for (let i = 0; i < q.length; i++) { const a = q[i], b = q[(i + 1) % q.length], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (!l) continue; const d = ((b[0] - a[0]) * (v[1] - a[1]) - (b[1] - a[1]) * (v[0] - a[0])) / l; if (Math.abs(d) < 0.02) continue; if (s && Math.sign(d) !== s) return false; s = Math.sign(d); } return true; });
 // Deux quadrilatères convexes se recouvrent-ils ? (axes séparateurs, avec une tolérance de 5 cm)
 function recouvre(p, q) {
   for (const poly of [p, q]) for (let i = 0; i < poly.length; i++) {
-    const a = poly[i], b = poly[(i + 1) % poly.length], nx = b[1] - a[1], ny = a[0] - b[0], l = Math.hypot(nx, ny) || 1;
+    const a = poly[i], b = poly[(i + 1) % poly.length], nx = b[1] - a[1], ny = a[0] - b[0], l = Math.hypot(nx, ny); if (!l) continue;
     let p0 = Infinity, p1 = -Infinity, q0 = Infinity, q1 = -Infinity;
     for (const v of p) { const d = (v[0] * nx + v[1] * ny) / l; p0 = Math.min(p0, d); p1 = Math.max(p1, d); }
     for (const v of q) { const d = (v[0] * nx + v[1] * ny) / l; q0 = Math.min(q0, d); q1 = Math.max(q1, d); }
@@ -177,7 +169,7 @@ function recouvre(p, q) {
   return true;
 }
 // Point strictement dans un quadrilatère convexe, à plus de `m` mètres de ses bords.
-const dedans = (pt, q, m) => { let s = 0; for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, d = ((b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0])) / l; if (Math.abs(d) <= m) return false; if (s && Math.sign(d) !== s) return false; s = Math.sign(d); } return true; };
+const dedans = (pt, q, m) => { let s = 0; for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (!l) continue; const d = ((b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0])) / l; if (Math.abs(d) <= m) return false; if (s && Math.sign(d) !== s) return false; s = Math.sign(d); } return true; };
 const dans = (pt, q) => { let s = 0; for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4], c = (b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0]); if (Math.abs(c) < 1e-9) continue; if (s && Math.sign(c) !== s) return false; s = Math.sign(c); } return true; };
 
 // ---- Calcul : chaussées, places qui tiennent (hors des autres chaussées et des places déjà posées), emprise.
@@ -192,29 +184,32 @@ function calculer() {
   mesurer();
 }
 function mesurer() {
-  const ch = S.branches.map(chaussee), bandes = [], pl = [], genees = [];
-  // Bandes piétonnes : leur réseau (deux bandes qui se recouvrent sont reliées), les zébrures là où elles traversent une chaussée.
-  const trottoirs = [], zebres = []; S.branches.forEach((b, i) => { const t = trottoir(b); if (t) { t.i = i; trottoirs.push(t); bandes.push(t.q); } });
-  const chef = trottoirs.map((_, k) => k), racine = (k) => (chef[k] === k ? k : (chef[k] = racine(chef[k])));
-  trottoirs.forEach((t, k) => { for (let j = 0; j < k; j++) if (recouvre(t.q, trottoirs[j].q)) chef[racine(k)] = racine(j); });
-  // Zébrures : une barre de 0,50 m par mètre, là où la bande est dans la chaussée d'une autre voie ; une vraie
-  // traversée en compte au moins trois de suite, ce qui écarte les débords d'un coin de chaussée.
-  for (const t of trottoirs) {
-    let suite = [];
-    const vide = () => { if (suite.length >= 3) zebres.push(...suite); suite = []; };
-    for (let a = t.a0 + 0.25; a + 0.5 <= t.a1; a += 1) { if (ch.some((q, j) => j !== t.i && dedans(t.r.P(a + 0.25, t.s * (t.h + BANDE / 2)), q, 0))) suite.push([t.r.P(a, t.s * t.h), t.r.P(a + 0.5, t.s * t.h), t.r.P(a + 0.5, t.s * (t.h + BANDE)), t.r.P(a, t.s * (t.h + BANDE))]); else vide(); }
-    vide();
+  const geo = noeuds(), B = geo.bouts, quad = (i, c, m, n) => [B[i].a[c][m], B[i].b[c][m], B[i].b[c][n], B[i].a[c][n]];
+  // Chaussées : celle de chaque branche (même rang que la branche), puis les carrefours.
+  const ch = [...S.branches.map((_, i) => [B[i].a.d[0], B[i].b.d[0], B[i].b.g[0], B[i].a.g[0]]), ...geo.nd], bandes = [...geo.cales], pl = [], genees = [];
+  // Bandes piétonnes et leur réseau : deux bandes d'un même secteur se touchent ; un passage zébré, en travers
+  // de l'entrée d'une voie, relie les bandes des deux secteurs qui la bordent.
+  const trottoirs = [], zebres = []; S.branches.forEach((b, i) => { if (pw(b, b.pieton)) { const q = quad(i, b.pieton, 0, 1); trottoirs.push({ i, q }); bandes.push(q); } });
+  const chef = S.branches.map((_, k) => k), racine = (k) => (chef[k] === k ? k : (chef[k] = racine(chef[k]))), unir = (l) => l.forEach((k) => { chef[racine(k)] = racine(l[0]); });
+  for (const { autour, sect } of geo.carrefours) {
+    const m = sect.length; sect.forEach((x) => { if (x.lie) unir(x.pietons); });
+    autour.forEach((x, n) => {
+      const avant = sect[(n + m - 1) % m], apres = sect[n]; if (m < 2 || (m === 2 && n) || !avant.pietons.length || !apres.pietons.length) return;
+      unir([...avant.pietons, ...apres.pietons]);
+      const e = x.dep ? "a" : "b", R = B[x.i][e][x.dep ? "d" : "g"][0], G = B[x.i][e][x.dep ? "g" : "d"][0], l = Math.hypot(G[0] - R[0], G[1] - R[1]), v = [(G[0] - R[0]) / l, (G[1] - R[1]) / l];
+      for (let a = 0.25; a + 0.5 <= l; a += 1) { const p = [R[0] + v[0] * a, R[1] + v[1] * a], q = [p[0] + v[0] * 0.5, p[1] + v[1] * 0.5]; zebres.push([p, q, [q[0] + x.d[0] * BANDE, q[1] + x.d[1] * BANDE], [p[0] + x.d[0] * BANDE, p[1] + x.d[1] * BANDE]]); }
+    });
   }
-  const troncons = new Set(trottoirs.map((_, k) => racine(k))).size, lin = trottoirs.reduce((m, t) => m + t.r.L, 0);
+  const troncons = new Set(trottoirs.map((t) => racine(t.i))).size, lin = trottoirs.reduce((m, t) => m + repere(S.branches[t.i]).L, 0);
   $("#s-pietons").textContent = trottoirs.length ? `${Math.round(lin)} m · ${troncons === 1 ? "réseau continu" : troncons + " tronçons"}` : "–";
   $("#s-pietons").style.color = troncons > 1 ? css("--rouge") : "";
   // Structure : poteaux (nœuds portant une poutre), ceux qui tombent dans une voie, portée la plus longue.
   const pot = S.pn.filter(Boolean);
   const conflits = pot.filter((c) => ch.some((q) => dedans(c, q, 0.02))); // 2 cm de marge : un poteau au bord d'une chaussée n'est pas dedans
   const portee = S.pb.reduce((m, b) => Math.max(m, repere(b, S.pn).L), 0);
-  S.branches.forEach((b, i) => { for (const c of ["g", "d"]) { const q = bande(b, c); if (q) bandes.push(q); for (const p of places(b, c)) { if (ch.some((r, j) => j !== i && recouvre(p, r)) || trottoirs.some((t) => t.i !== i && recouvre(p, t.q))) continue; if (pl.some((o) => o.i !== i && recouvre(p, o.q))) continue; if (pot.some((c) => dedans(c, p, 0.15))) { genees.push(p); continue; } pl.push({ i, c, q: p }); } } });
+  S.branches.forEach((b, i) => { for (const c of ["g", "d"]) { if (!TYPES[b[c]].prof) continue; const q = quad(i, c, 2, 3); bandes.push(q); for (const p of places(b, c, q)) { if (ch.some((r, j) => j !== i && recouvre(p, r)) || trottoirs.some((t) => t.i !== i && recouvre(p, t.q))) continue; if (pl.some((o) => o.i !== i && recouvre(p, o.q))) continue; if (pot.some((c) => dedans(c, p, 0.15))) { genees.push(p); continue; } pl.push({ i, c, q: p }); } } });
   // Emprise : réunion des chaussées et des rangées, mesurée sur une grille de 0,5 m.
-  const an = angles(), rects = [...ch, ...bandes, ...an.map((a) => a.q)]; let aire = 0;
+  const an = geo.coins, rects = [...ch, ...bandes]; let aire = 0;
   if (rects.length) {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const q of rects) for (const p of q) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
@@ -245,7 +240,7 @@ function dessiner() {
   ctx.stroke();
   if (!calc) return;
   // Emprise : le contour de la réunion (traits épais recouverts par le plein), puis chaussées et places.
-  const tout = [...calc.ch, ...calc.bandes, ...calc.angles.map((a) => a.q)];
+  const tout = [...calc.ch, ...calc.bandes];
   ctx.beginPath(); for (const q of tout) chemin(q);
   ctx.lineJoin = "round"; ctx.strokeStyle = css("--mur"); ctx.lineWidth = Math.max(3, 0.5 * vue.s); ctx.stroke();
   ctx.fillStyle = css("--dalle"); for (const q of tout) { ctx.beginPath(); chemin(q); ctx.fill(); } // un par un : deux pleins de sens contraires ne se trouent pas
@@ -291,7 +286,7 @@ let attente = false;
 function rafraichir(recalc = true) { if (recalc) calculer(); if (!attente) { attente = true; requestAnimationFrame(() => { attente = false; dessiner(); }); } }
 function taille() { DPR = Math.min(window.devicePixelRatio || 1, 2.5); W = cv.clientWidth; H = cv.clientHeight; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); rafraichir(false); }
 function cadrer() {
-  const pts = (calc ? [...calc.ch, ...calc.bandes, ...calc.angles.map((a) => a.q)] : []).flat(); if (!pts.length) { vue = { s: 6, ox: W / 2, oy: H / 2 }; return rafraichir(false); }
+  const pts = (calc ? [...calc.ch, ...calc.bandes] : []).flat(); if (!pts.length) { vue = { s: 6, ox: W / 2, oy: H / 2 }; return rafraichir(false); }
   const x0 = Math.min(...pts.map((p) => p[0])), x1 = Math.max(...pts.map((p) => p[0])), y0 = Math.min(...pts.map((p) => p[1])), y1 = Math.max(...pts.map((p) => p[1]));
   const haut = W < 760 ? 150 : 40, bas = 110;
   vue.s = Math.min((W - 60) / (x1 - x0), (H - haut - bas) / (y1 - y0), 14); vue.ox = W / 2 - (x0 + x1) / 2 * vue.s; vue.oy = haut + (H - haut - bas) / 2 + (y0 + y1) / 2 * vue.s; rafraichir(false);
@@ -350,7 +345,7 @@ function porter(k, sens) {
 // pose un poteau sur la génératrice du fond de chaque rangée, ou au bord de la chaussée si ce bord est une
 // façade. Les angles du bâtiment ferment les files. Poutres : le long des génératrices et en travers des voies.
 function trame() {
-  const pts = [], poutres = [], rects = [...calc.ch, ...calc.bandes, ...calc.angles.map((a) => a.q)];
+  const pts = [], poutres = [], rects = [...calc.ch, ...calc.bandes];
   const ajoute = (p, dirs) => {
     // Un poteau à moins d'un mètre d'un autre ne se pose pas ; au même point (rangées dos à dos), il partage ses poutres.
     let k = pts.findIndex((o) => Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) < 1);

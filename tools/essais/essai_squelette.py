@@ -17,6 +17,15 @@ with sync_playwright() as p:
         r = {"vue": name, "depart": pg.evaluate(ETAT)}
         r["angles"] = pg.evaluate("calc.angles.map(a => a.x)")
         E = lambda x, y: pg.evaluate(f"versE([{x}, {y}])")
+        # Surfaces : chaussées, bandes et rangées se joignent sans se recouvrir ni laisser de vide. La somme de leurs aires
+        # vaut l'emprise mesurée, sur l'exemple puis avec le carrefour à trois voies déplacé en biais.
+        PAV = "(() => { const aire = (q) => Math.abs(q.reduce((s, p, i) => { const n = q[(i + 1) % q.length]; return s + p[0] * n[1] - n[0] * p[1]; }, 0)) / 2; return +([...calc.ch, ...calc.bandes].reduce((s, q) => s + aire(q), 0) / calc.aire).toFixed(3); })()"
+        r["pavage"] = pg.evaluate(PAV)
+        pg.evaluate("(() => { garder(); S.noeuds[1] = [56, -6]; rafraichir(); })()"); pg.wait_for_timeout(200)
+        r["pavage_biais"] = [pg.evaluate("S.noeuds[1]"), pg.evaluate(PAV), pg.evaluate("[document.querySelector('#s-pietons').textContent, calc.conflits.length, calc.pl.length]")]
+        q = E(*pg.evaluate("S.noeuds[1]")); pg.mouse.move(*q); pg.mouse.wheel(0, -1400); pg.wait_for_timeout(300)
+        pg.screenshot(path=str(out / f"{name}-squelette-noeud-biais.png"))
+        pg.click("#b-annuler"); pg.wait_for_timeout(200); pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         # Bandes piétonnes : un réseau continu au départ ; en ôter sur les deux pignons le coupe en tronçons.
         PI = "[document.querySelector('#s-pietons').textContent, calc.trottoirs.length, calc.zebres.length > 0, calc.pl.length]"
         r["pietons"] = pg.evaluate(PI)
