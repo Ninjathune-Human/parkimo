@@ -73,10 +73,20 @@ with sync_playwright() as p:
         pg.mouse.move(*n); pg.mouse.down(); pg.mouse.move((n[0] + m[0]) / 2, (n[1] + m[1]) / 2); pg.mouse.move(*m); pg.mouse.up(); pg.wait_for_timeout(300)
         pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         r["separe"] = [pg.evaluate("S.noeuds[0]"), pg.evaluate(ST), pg.evaluate(CV)]
+        # Au nœud déplacé, l'angle n'est plus droit : les deux bandes piétonnes se coupent l'une sur l'autre, leurs bords extérieurs se rejoignent en un point.
+        r["separe_pietons"] = pg.evaluate("(() => { const A = calc.trottoirs.find(t => t.i === 0).q[3], B = calc.trottoirs.find(t => t.i === 3).q[2]; return [document.querySelector('#s-pietons').textContent, +Math.hypot(A[0] - B[0], A[1] - B[1]).toFixed(3)]; })()")
+        q = E(*pg.evaluate("S.noeuds[0]")); pg.mouse.move(*q); pg.mouse.wheel(0, -1600); pg.wait_for_timeout(300)
+        pg.screenshot(path=str(out / f"{name}-squelette-carrefour-pietons.png"))
+        pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         pg.screenshot(path=str(out / f"{name}-squelette-separe.png"))
         pg.click("#b-annuler"); pg.wait_for_timeout(200); pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         pg.click('#calques button[data-c="1"]'); pg.wait_for_timeout(200)
         r["separe_annule"] = [pg.evaluate(ST)["poteaux"], pg.evaluate(CV)]
+        # Soixante déformations au hasard : la trame automatique ne met jamais de poteau dans une voie ni dans une place.
+        r["alea"] = pg.evaluate("""(() => { let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647; const base = JSON.stringify(S), out = { essais: 0, enVoie: 0, genees: 0, reseauCoupe: 0 };
+          for (let n = 0; n < 60; n++) { S = JSON.parse(base); pointer(); for (const N of S.noeuds) { N[0] += Math.round((rnd() * 30 - 15) / 2.5) * 2.5; N[1] += Math.round((rnd() * 30 - 15) / 2.5) * 2.5; } calculer(); out.essais++;
+            if (calc.conflits.length) out.enVoie++; if (calc.genees.length) out.genees++; if (!/continu/.test(document.querySelector('#s-pietons').textContent)) out.reseauCoupe++; }
+          S = JSON.parse(base); pointer(); rafraichir(); return out; })()""")
         n, m = E(32.5, 7.5), E(32.5, 0)
         pg.mouse.move(*n); pg.mouse.down(); pg.mouse.move((n[0] + m[0]) / 2, (n[1] + m[1]) / 2); pg.mouse.move(*m); pg.mouse.up(); pg.wait_for_timeout(300)
         r["poteau_en_voie"] = pg.evaluate(ST)
