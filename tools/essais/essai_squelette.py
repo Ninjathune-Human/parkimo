@@ -42,7 +42,8 @@ with sync_playwright() as p:
         # Contreventement : l'exemple a des remplissages en maçonnerie dans deux sens ; en ôter un sens se lit au bilan.
         CV = "[document.querySelector('#s-contrev').textContent, S.pb.filter(b => b.plein).length]"
         r["contreventement"] = pg.evaluate(CV)
-        for y in (0, 15):
+        q = E(-7.5, 15); pg.mouse.move(*q); pg.mouse.wheel(0, -2400); pg.wait_for_timeout(300)
+        for y in (8.75, 15):
             q = E(-7.5, y); pg.mouse.click(*q); pg.wait_for_timeout(250)
             r["poutre_choisie"] = pg.evaluate("[document.querySelector('#f-long').textContent, !document.querySelector('#f-mur').hidden, document.querySelector('#b-plein').getAttribute('aria-pressed')]")
             pg.click("#b-plein"); pg.wait_for_timeout(200)
@@ -50,13 +51,28 @@ with sync_playwright() as p:
         pg.screenshot(path=str(out / f"{name}-squelette-contreventement.png"))
         for _ in range(2): pg.click("#b-annuler"); pg.wait_for_timeout(200)
         r["remplissage_retabli"] = pg.evaluate(CV)
+        pg.click("#b-cadrer"); pg.wait_for_timeout(300)
+        # Trame automatique : rien de choisi, la fiche propose de régénérer la structure depuis les rangées.
+        r["fiche_structure"] = pg.evaluate("[document.querySelector('#fiche').hidden, document.querySelector('#f-trame').hidden, document.querySelector('#f-long').textContent]")
+        pg.click("#b-trame"); pg.wait_for_timeout(300)
+        r["trame_auto"] = [pg.evaluate(ST), pg.evaluate(CV), pg.evaluate("S.pn.filter(p => Math.abs(p[1] - 7.5) < 0.01).map(p => p[0]).sort((a, b) => a - b)")]
+        pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        # Sur une autre forme : l'antenne pivotée, puis la trame régénérée.
+        pg.click('#calques button[data-c="0"]'); n, m = E(90, 0), E(85, 20)
+        pg.mouse.move(*n); pg.mouse.down(); pg.mouse.move((n[0] + m[0]) / 2, (n[1] + m[1]) / 2); pg.mouse.move(*m); pg.mouse.up(); pg.wait_for_timeout(300)
+        pg.click('#calques button[data-c="1"]'); pg.mouse.click(5, 5); pg.wait_for_timeout(200)
+        pg.click("#b-trame"); pg.wait_for_timeout(300); pg.click("#b-cadrer"); pg.wait_for_timeout(300)
+        r["trame_forme"] = pg.evaluate(ST)
+        pg.screenshot(path=str(out / f"{name}-squelette-trame-auto.png"))
+        for _ in range(2): pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        r["trame_annulee"] = [pg.evaluate(ST)["poteaux"], pg.evaluate(CV)]
         n, m = E(32.5, 7.5), E(32.5, 0)
         pg.mouse.move(*n); pg.mouse.down(); pg.mouse.move((n[0] + m[0]) / 2, (n[1] + m[1]) / 2); pg.mouse.move(*m); pg.mouse.up(); pg.wait_for_timeout(300)
         r["poteau_en_voie"] = pg.evaluate(ST)
         pg.screenshot(path=str(out / f"{name}-squelette-structure.png"))
         pg.click("#b-annuler"); pg.wait_for_timeout(200)
         # Une poutre de plus, tracée depuis un poteau ; puis la choisir.
-        pg.click("#b-tracer"); a, c = E(55, 22.5), E(55, 30)
+        pg.click("#b-tracer"); a, c = E(47.5, 22.5), E(47.5, 30)
         pg.mouse.move(*a); pg.mouse.down(); pg.mouse.move((a[0] + c[0]) / 2, (a[1] + c[1]) / 2); pg.mouse.move(*c); pg.mouse.up(); pg.wait_for_timeout(300)
         pg.click("#b-tracer")
         r["poutre"] = pg.evaluate(ST)
