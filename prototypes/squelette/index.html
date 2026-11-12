@@ -35,7 +35,7 @@ button:disabled { opacity: .35; }
 #f-portee { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 #f-portee[hidden], #f-mur[hidden], #f-trame[hidden] { display: none; }
 #f-mur, #f-trame { display: grid; }
-#b-plein[aria-pressed="true"] { background: var(--mur); color: var(--fond); }
+#b-plein[aria-pressed="true"], #b-trame[aria-pressed="true"] { background: var(--mur); color: var(--fond); }
 #f-portee button, #f-mur button, #f-trame button { min-height: 40px; padding: 0 6px; font-size: 13px; background: color-mix(in srgb, var(--os) 18%, transparent); border-radius: 12px; }
 #fiche .bas button { color: var(--rouge); min-height: 40px; padding: 0 10px; }
 #aide { position: fixed; left: 50%; transform: translateX(-50%); top: calc(16px + env(safe-area-inset-top)); font-size: 13px; color: var(--label-2); padding: 8px 14px; border-radius: 18px; max-width: calc(100vw - 250px); text-align: center; }
@@ -54,7 +54,7 @@ button:disabled { opacity: .35; }
   <div class="ligne"><span>Gauche</span><div class="seg" data-cote="g"></div></div>
   <div class="ligne"><span>Droite</span><div class="seg" data-cote="d"></div></div>
   <div id="f-portee" hidden><button data-p="long">Poutres le long de la voie</button><button data-p="travers">Poutres en travers</button></div>
-  <div id="f-trame" hidden><button id="b-trame">Trame automatique</button></div>
+  <div id="f-trame" hidden><button id="b-trame" aria-pressed="true">Trame automatique</button></div>
   <div id="f-mur" hidden><button id="b-plein" aria-pressed="false">Remplissage en maçonnerie</button></div>
   <div class="bas"><span id="f-long"></span><button id="b-suppr">Supprimer</button></div>
 </section>
@@ -154,7 +154,17 @@ const dedans = (pt, q, m) => { let s = 0; for (let i = 0; i < 4; i++) { const a 
 const dans = (pt, q) => { let s = 0; for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4], c = (b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0]); if (Math.abs(c) < 1e-9) continue; if (s && Math.sign(c) !== s) return false; s = Math.sign(c); } return true; };
 
 // ---- Calcul : chaussées, places qui tiennent (hors des autres chaussées et des places déjà posées), emprise.
+// Tant que la trame est automatique (`S.auto`), la structure est refaite à chaque changement des voies :
+// elle s'adapte à chaque branche. Les travées pleines dont les deux poteaux n'ont pas bougé restent pleines.
 function calculer() {
+  if (S.auto) {
+    const murs = S.pb.filter((b) => b.plein && S.pn[b.a] && S.pn[b.b]).map((b) => [S.pn[b.a], S.pn[b.b]]), pres = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 0.05;
+    S.pn = []; S.pb = []; mesurer(); trame();
+    for (const b of S.pb) { const A = S.pn[b.a], B = S.pn[b.b]; if (murs.some((m) => (pres(m[0], A) && pres(m[1], B)) || (pres(m[0], B) && pres(m[1], A)))) b.plein = true; }
+  }
+  mesurer();
+}
+function mesurer() {
   const ch = S.branches.map(chaussee), bandes = [], pl = [], genees = [];
   // Structure : poteaux (nœuds portant une poutre), ceux qui tombent dans une voie, portée la plus longue.
   const pot = S.pn.filter(Boolean);
@@ -323,6 +333,7 @@ function trame() {
   pts.forEach((o, k) => { for (const { d, tol } of o.dirs) {
     let best = -1, bx = 20.01;
     pts.forEach((q, j) => { if (j === k) return; const x = (q.p[0] - o.p[0]) * d[0] + (q.p[1] - o.p[1]) * d[1], y = Math.abs((q.p[0] - o.p[0]) * d[1] - (q.p[1] - o.p[1]) * d[0]); if (x > 0.5 && y <= tol && x < bx) { bx = x; best = j; } });
+    if (bx > (tol > 0.3 ? 20 : 15)) best = -1; // 15 m au plus le long d'une génératrice, 20 m en travers d'une voie
     if (best >= 0 && !poutres.some((b) => (b.a === k && b.b === best) || (b.a === best && b.b === k))) poutres.push({ a: k, b: best });
   } });
   S.pn = pts.map((o) => o.p); S.pb = poutres; pointer();
@@ -345,6 +356,7 @@ cv.addEventListener("pointermove", (ev) => {
   if (pince && doigts.size === 2) { const [a, b] = [...doigts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]), c = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], s = Math.max(1.2, Math.min(40, pince.v.s * d / pince.d)); const wx = (pince.m[0] - pince.v.ox) / pince.v.s, wy = (pince.v.oy - pince.m[1]) / pince.v.s; vue = { s, ox: c[0] - wx * s, oy: c[1] + wy * s }; return rafraichir(false); }
   if (!geste) return; const m = versM(e[0], e[1]);
   if (!geste.bouge && Math.hypot(e[0] - geste.e[0], e[1] - geste.e[1]) < 5) return; geste.bouge = true;
+  if (calque && S.auto && geste.genre !== "trace") S.auto = false; // un poteau ou une poutre glissé à la main : la trame ne suit plus les voies
   if (geste.genre === "vue") { vue.ox += e[0] - geste.e[0]; vue.oy += e[1] - geste.e[1]; geste.e = e; return rafraichir(false); }
   if (geste.genre === "trace") { const k = noeudPres(e), c = k < 0 ? branchePres(m, AIMANT / vue.s) : null; geste.fantome = [geste.de, calque ? cible(e, m).p : k >= 0 ? NO[k] : c ? c.p : aligner(geste.de, m)]; return rafraichir(false); }
   if (geste.genre === "noeud") {
@@ -360,9 +372,9 @@ function fin(ev) {
   if (pince) { if (doigts.size < 2) pince = null; return; }
   const g = geste; geste = null; if (!g) return;
   if (g.genre === "trace") {
-    if (g.fantome && Math.hypot(g.fantome[1][0] - g.de[0], g.fantome[1][1] - g.de[1]) >= (calque ? 1 : PAS - 1e-6)) { garder(); const a = noeudEn(g.e, g.de), b = noeudEn(versE(g.fantome[1]), g.fantome[1]); if (a !== b) { BR.push(calque ? { a, b } : { a, b, g: "90", d: "90" }); choix = BR.length - 1; choixN = -1; } }
+    if (g.fantome && Math.hypot(g.fantome[1][0] - g.de[0], g.fantome[1][1] - g.de[1]) >= (calque ? 1 : PAS - 1e-6)) { garder(); const a = noeudEn(g.e, g.de), b = noeudEn(versE(g.fantome[1]), g.fantome[1]); if (calque) S.auto = false; if (a !== b) { BR.push(calque ? { a, b } : { a, b, g: "90", d: "90" }); choix = BR.length - 1; choixN = -1; } }
     // Structure : un simple toucher pose un poteau, aimanté à la trame du stationnement.
-    else if (calque && !g.bouge) { const t = cible(g.e, versM(g.e[0], g.e[1])); if (t.k < 0) { garder(); choixN = NO.push(t.p) - 1; } else choixN = t.k; choix = -1; }
+    else if (calque && !g.bouge) { const t = cible(g.e, versM(g.e[0], g.e[1])); if (t.k < 0) { garder(); S.auto = false; choixN = NO.push(t.p) - 1; } else choixN = t.k; choix = -1; }
   } else if (!g.bouge) {
     const m = versM(e[0], e[1]), k = calque ? noeudPres(e) : -1, c = branchePres(m, Math.max(AIMANT / vue.s, 2));
     choixN = k; choix = k >= 0 ? -1 : g.genre === "branche" ? g.i : c ? c.i : -1;
@@ -381,7 +393,7 @@ function fiche() {
   const libre = !!calque && !b && !poteau; // rien de choisi dans la structure : la fiche est celle de la trame entière
   $("#fiche").hidden = !b && !poteau && !libre; $("#f-portee").hidden = !poteau; $("#f-mur").hidden = !calque || !!poteau || !b; $("#f-trame").hidden = !libre; $("#b-suppr").hidden = libre;
   for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = !!calque;
-  if (libre) { const n = calc ? calc.pot.length : 0; $("#f-long").textContent = n ? `${n} poteau${n > 1 ? "x" : ""}` : "Aucun poteau"; return; }
+  if (libre) { const n = calc ? calc.pot.length : 0; $("#b-trame").setAttribute("aria-pressed", String(!!S.auto)); $("#f-long").textContent = (n ? `${n} poteau${n > 1 ? "x" : ""}` : "Aucun poteau") + (S.auto ? " · suit les voies" : " · à la main"); return; }
   if (poteau) { const n = BR.filter((x) => x.a === choixN || x.b === choixN).length; $("#f-long").textContent = `Poteau · ${n} poutre${n > 1 ? "s" : ""}${calc.conflits.includes(poteau) ? " · dans une voie" : ""}`; return; }
   if (!b) return;
   if (calque) { $("#b-plein").setAttribute("aria-pressed", String(!!b.plein)); $("#f-long").textContent = `${b.plein ? "Travée pleine" : "Poutre"} · portée ${repere(b, NO).L.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m`; return; }
@@ -392,16 +404,17 @@ function fiche() {
 $("#fiche").addEventListener("click", (ev) => { const x = ev.target.closest(".seg button"), b = S.branches[choix]; if (!x || !b || calque) return; garder(); b[x.parentElement.dataset.cote] = x.dataset.t; rafraichir(); fiche(); enregistrer(); });
 $("#f-portee").addEventListener("click", (ev) => {
   const x = ev.target.closest("button[data-p]"); if (!x || choixN < 0) return;
-  garder(); if (!porter(choixN, x.dataset.p)) { passe.pop(); $("#b-annuler").disabled = !passe.length; $("#f-long").textContent = "Aucun poteau en face, à moins de 20 m"; return; }
+  garder(); S.auto = false; if (!porter(choixN, x.dataset.p)) { passe.pop(); $("#b-annuler").disabled = !passe.length; $("#f-long").textContent = "Aucun poteau en face, à moins de 20 m"; return; }
   rafraichir(); fiche(); enregistrer();
 });
-$("#b-trame").addEventListener("click", () => { garder(); trame(); choix = choixN = -1; rafraichir(); fiche(); enregistrer(); });
+$("#b-trame").addEventListener("click", () => { garder(); S.auto = !S.auto; choix = choixN = -1; rafraichir(); fiche(); enregistrer(); });
 // Une travée remplie en maçonnerie contrevente le bâtiment dans son sens.
 $("#b-plein").addEventListener("click", () => { const b = calque && BR[choix]; if (!b) return; garder(); if (b.plein) delete b.plein; else b.plein = true; rafraichir(); fiche(); enregistrer(); });
 $("#b-suppr").addEventListener("click", () => {
   // Un poteau part avec ses poutres.
-  if (calque && choixN >= 0) { garder(); const r = BR.filter((b) => b.a !== choixN && b.b !== choixN); BR.length = 0; BR.push(...r); NO[choixN] = null; choixN = -1; rafraichir(); fiche(); enregistrer(); return; }
-  if (choix < 0) return; garder(); BR.splice(choix, 1); choix = -1; rafraichir(); fiche(); enregistrer(); });
+  if (calque && (choixN >= 0 || choix >= 0)) { garder(); S.auto = false; }
+  if (calque && choixN >= 0) { const r = BR.filter((b) => b.a !== choixN && b.b !== choixN); BR.length = 0; BR.push(...r); NO[choixN] = null; choixN = -1; rafraichir(); fiche(); enregistrer(); return; }
+  if (choix < 0) return; if (!calque) garder(); BR.splice(choix, 1); choix = -1; rafraichir(); fiche(); enregistrer(); });
 $("#b-tracer").addEventListener("click", () => { tracer = !tracer; $("#b-tracer").setAttribute("aria-pressed", String(tracer)); cv.style.cursor = tracer ? "crosshair" : "grab"; aide(); });
 function aide() {
   $("#aide").textContent = calque
@@ -419,10 +432,11 @@ addEventListener("keydown", (ev) => { if ((ev.ctrlKey || ev.metaKey) && ev.key =
 try { const s = JSON.parse(localStorage.getItem("parkimo.squelette.4") || "null"); if (s && s.noeuds && s.branches) S = s; } catch (e) { /* stockage indisponible */ }
 const neuf = !S.branches.length;
 if (neuf) S = { noeuds: [[0, 0], [60, 0], [60, 15], [0, 15], [90, 0]], branches: [{ a: 0, b: 1, g: "90", d: "90" }, { a: 1, b: 2, g: "aucun", d: "90" }, { a: 2, b: 3, g: "90", d: "90" }, { a: 3, b: 0, g: "aucun", d: "90" }, { a: 1, b: 4, g: "60", d: "45" }], pn: [], pb: [] };
+if (S.auto === undefined) S.auto = true; // un essai enregistré avant la trame automatique la reçoit
 pointer();
 new ResizeObserver(taille).observe(cv); taille(); calculer();
 // Structure de l'exemple : la trame automatique, et trois travées pleines qui contreventent dans les deux sens.
-if (neuf) { trame(); for (const b of S.pb) { const A = S.pn[b.a], B = S.pn[b.b]; if ((A[0] === -7.5 && B[0] === -7.5 && Math.min(A[1], B[1]) >= 2.5 && Math.max(A[1], B[1]) <= 17.5) || (A[1] === -7.5 && B[1] === -7.5 && Math.max(A[0], B[0]) <= 2.5)) b.plein = true; } calculer(); }
+if (neuf) { for (const b of S.pb) { const A = S.pn[b.a], B = S.pn[b.b]; if ((A[0] === -7.5 && B[0] === -7.5 && Math.min(A[1], B[1]) >= 2.5 && Math.max(A[1], B[1]) <= 17.5) || (A[1] === -7.5 && B[1] === -7.5 && Math.max(A[0], B[0]) <= 2.5)) b.plein = true; } calculer(); }
 cadrer();
 </script>
 </body>

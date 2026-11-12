@@ -52,23 +52,21 @@ with sync_playwright() as p:
         for _ in range(2): pg.click("#b-annuler"); pg.wait_for_timeout(200)
         r["remplissage_retabli"] = pg.evaluate(CV)
         pg.click("#b-cadrer"); pg.wait_for_timeout(300)
-        # Trame automatique : rien de choisi, la fiche propose de régénérer la structure depuis les rangées.
-        r["fiche_structure"] = pg.evaluate("[document.querySelector('#fiche').hidden, document.querySelector('#f-trame').hidden, document.querySelector('#f-long').textContent]")
-        pg.click("#b-trame"); pg.wait_for_timeout(300)
-        r["trame_auto"] = [pg.evaluate(ST), pg.evaluate(CV), pg.evaluate("S.pn.filter(p => Math.abs(p[1] - 7.5) < 0.01).map(p => p[0]).sort((a, b) => a - b)")]
-        pg.click("#b-annuler"); pg.wait_for_timeout(200)
-        # Sur une autre forme : l'antenne pivotée, puis la trame régénérée.
-        pg.click('#calques button[data-c="0"]'); n, m = E(90, 0), E(85, 20)
+        # La trame suit les voies : rien de choisi, la fiche de la structure le dit.
+        r["fiche_structure"] = pg.evaluate("[document.querySelector('#fiche').hidden, document.querySelector('#f-trame').hidden, document.querySelector('#b-trame').getAttribute('aria-pressed'), document.querySelector('#f-long').textContent, S.auto]")
+        # On sépare deux parties : le nœud du bas à gauche descend, l'îlot s'ouvre. La structure s'adapte à chaque branche, sans rien toucher d'autre.
+        pg.click('#calques button[data-c="0"]'); n, m = E(0, 0), E(-5, -20)
         pg.mouse.move(*n); pg.mouse.down(); pg.mouse.move((n[0] + m[0]) / 2, (n[1] + m[1]) / 2); pg.mouse.move(*m); pg.mouse.up(); pg.wait_for_timeout(300)
-        pg.click('#calques button[data-c="1"]'); pg.mouse.click(5, 5); pg.wait_for_timeout(200)
-        pg.click("#b-trame"); pg.wait_for_timeout(300); pg.click("#b-cadrer"); pg.wait_for_timeout(300)
-        r["trame_forme"] = pg.evaluate(ST)
-        pg.screenshot(path=str(out / f"{name}-squelette-trame-auto.png"))
-        for _ in range(2): pg.click("#b-annuler"); pg.wait_for_timeout(200)
-        r["trame_annulee"] = [pg.evaluate(ST)["poteaux"], pg.evaluate(CV)]
+        pg.click("#b-cadrer"); pg.wait_for_timeout(300)
+        r["separe"] = [pg.evaluate("S.noeuds[0]"), pg.evaluate(ST), pg.evaluate(CV)]
+        pg.screenshot(path=str(out / f"{name}-squelette-separe.png"))
+        pg.click("#b-annuler"); pg.wait_for_timeout(200); pg.click("#b-cadrer"); pg.wait_for_timeout(300)
+        pg.click('#calques button[data-c="1"]'); pg.wait_for_timeout(200)
+        r["separe_annule"] = [pg.evaluate(ST)["poteaux"], pg.evaluate(CV)]
         n, m = E(32.5, 7.5), E(32.5, 0)
         pg.mouse.move(*n); pg.mouse.down(); pg.mouse.move((n[0] + m[0]) / 2, (n[1] + m[1]) / 2); pg.mouse.move(*m); pg.mouse.up(); pg.wait_for_timeout(300)
         r["poteau_en_voie"] = pg.evaluate(ST)
+        r["a_la_main"] = pg.evaluate("[S.auto, document.querySelector('#f-long').textContent]")
         pg.screenshot(path=str(out / f"{name}-squelette-structure.png"))
         pg.click("#b-annuler"); pg.wait_for_timeout(200)
         # Une poutre de plus, tracée depuis un poteau ; puis la choisir.
@@ -77,7 +75,7 @@ with sync_playwright() as p:
         pg.click("#b-tracer")
         r["poutre"] = pg.evaluate(ST)
         # Poser un poteau d'un toucher : il s'aimante à un coin de place ; puis porter ses poutres le long de la voie.
-        pg.click("#b-tracer"); q = E(17.8, 12.2); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-tracer")
+        pg.click("#b-tracer"); q = E(17.8, 12.4); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-tracer")
         r["pose"] = pg.evaluate("({n: S.pn.filter(Boolean).length, p: S.pn[choixN], fiche: document.querySelector('#f-long').textContent, actions: !document.querySelector('#f-portee').hidden, genees: calc.genees.length})")
         pg.click('#f-portee button[data-p="travers"]'); pg.wait_for_timeout(200)
         r["portee_travers"] = pg.evaluate("[S.pb.filter(b => b.a === choixN || b.b === choixN).map(b => +repere(b, S.pn).L.toFixed(2)), document.querySelector('#f-long').textContent]")
