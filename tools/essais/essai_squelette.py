@@ -62,6 +62,14 @@ with sync_playwright() as p:
         pg.screenshot(path=str(out / f"{name}-squelette-deux-boucles.png"))
         for _ in range(3): pg.click("#b-annuler"); pg.wait_for_timeout(200)
         pg.click("#b-cadrer"); pg.wait_for_timeout(300)
+        # Bâtiment en anneau autour d'une cour : les bandes font le tour côté façade extérieure, sans aucune traversée,
+        # quel que soit le sens dans lequel chaque voie a été tracée (celle du haut est tracée à l'envers).
+        pg.evaluate("""(() => { garder(); const v = (a, b) => ({ a, b, g: "90", d: "90", pieton: "auto" });
+          S.noeuds = [[0, 0], [60, 0], [60, 45], [0, 45]]; S.branches = [v(0, 1), v(1, 2), v(3, 2), v(3, 0)]; pointer(); rafraichir(); })()"""); pg.wait_for_timeout(200)
+        pg.click("#b-cadrer"); pg.wait_for_timeout(300)
+        r["anneau"] = pg.evaluate("[S.branches.map(bandeDe), calc.zebres.length, document.querySelector('#s-pietons').textContent]")
+        pg.screenshot(path=str(out / f"{name}-squelette-anneau.png"))
+        pg.click("#b-annuler"); pg.wait_for_timeout(200); pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         # Bandes piétonnes : un réseau continu au départ ; en ôter sur les deux pignons le coupe en tronçons.
         PI = "[document.querySelector('#s-pietons').textContent, calc.trottoirs.length, calc.zebres.length > 0, calc.pl.length]"
         r["pietons"] = pg.evaluate(PI)

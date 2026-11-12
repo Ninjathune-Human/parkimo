@@ -188,6 +188,19 @@ function calculer() {
   }
   mesurer();
 }
+// Réseau piéton d'une géométrie. Deux bandes d'un même secteur se touchent ; un passage, en travers de l'entrée
+// d'une voie, relie les bandes des deux secteurs qui la bordent. Rend les voies traversées et le nombre de tronçons.
+function reseau(geo) {
+  const chef = S.branches.map((_, k) => k), racine = (k) => (chef[k] === k ? k : (chef[k] = racine(chef[k]))), unir = (l) => l.forEach((k) => { chef[racine(k)] = racine(l[0]); }), passages = [];
+  for (const { autour, sect } of geo.carrefours) {
+    const m = sect.length; sect.forEach((x) => { if (x.lie) unir(x.pietons); });
+    autour.forEach((x, n) => {
+      const avant = sect[(n + m - 1) % m], apres = sect[n]; if (m < 2 || (m === 2 && n) || !avant.pietons.length || !apres.pietons.length) return;
+      unir([...avant.pietons, ...apres.pietons]); passages.push(x);
+    });
+  }
+  return { passages, troncons: new Set(S.branches.map((b, i) => (pw(b, bandeDe(b)) ? racine(i) : -1)).filter((k) => k >= 0)).size };
+}
 function mesurer() {
   bandesAuto();
   const geo = noeuds(), B = geo.bouts, quad = (i, c, m, n) => [B[i].a[c][m], B[i].b[c][m], B[i].b[c][n], B[i].a[c][n]];
@@ -196,12 +209,8 @@ function mesurer() {
   // Bandes piétonnes et leur réseau : deux bandes d'un même secteur se touchent ; un passage zébré, en travers
   // de l'entrée d'une voie, relie les bandes des deux secteurs qui la bordent.
   const trottoirs = [], zebres = [], raccords = []; S.branches.forEach((b, i) => { const c = bandeDe(b); if (pw(b, c)) trottoirs.push({ i, q: quad(i, c, 0, 1) }); });
-  const chef = S.branches.map((_, k) => k), racine = (k) => (chef[k] === k ? k : (chef[k] = racine(chef[k]))), unir = (l) => l.forEach((k) => { chef[racine(k)] = racine(l[0]); });
-  for (const { autour, sect } of geo.carrefours) {
-    const m = sect.length; sect.forEach((x) => { if (x.lie) unir(x.pietons); });
-    autour.forEach((x, n) => {
-      const avant = sect[(n + m - 1) % m], apres = sect[n]; if (m < 2 || (m === 2 && n) || !avant.pietons.length || !apres.pietons.length) return;
-      unir([...avant.pietons, ...apres.pietons]);
+  const res = reseau(geo);
+  for (const x of res.passages) {
       // Le passage est d'équerre sur la voie traversée, large de 0,80 m, juste avant son entrée : il passe par le
       // coin de chaussée le plus avancé. De l'autre côté, un bout de bande le long du bord rattrape le coin en retrait.
       const N = S.noeuds[x.dep ? x.b.a : x.b.b], nl = [-x.d[1], x.d[0]], h = demi(x.b), e = x.dep ? "a" : "b", cd = x.dep ? "d" : "g", cg = x.dep ? "g" : "d";
@@ -210,9 +219,8 @@ function mesurer() {
       for (let v = -h + 0.25; v + 0.5 <= h + 1e-9; v += 1) zebres.push([P(a0, v), P(a0, v + 0.5), P(a1, v + 0.5), P(a1, v)]);
       if (a0 - aR > 0.05 && !pw(x.b, cd)) raccords.push([P(aR, -h), P(a0, -h), P(a0, -h + BANDE), P(aR, -h + BANDE)]);
       if (a0 - aG > 0.05 && !pw(x.b, cg)) raccords.push([P(aG, h - BANDE), P(a0, h - BANDE), P(a0, h), P(aG, h)]);
-    });
   }
-  const troncons = new Set(trottoirs.map((t) => racine(t.i))).size, lin = trottoirs.reduce((m, t) => m + repere(S.branches[t.i]).L, 0);
+  const troncons = res.troncons, lin = trottoirs.reduce((m, t) => m + repere(S.branches[t.i]).L, 0);
   $("#s-pietons").textContent = trottoirs.length ? `${Math.round(lin)} m · ${troncons === 1 ? "réseau continu" : troncons + " tronçons"}` : "–";
   $("#s-pietons").style.color = troncons > 1 ? css("--rouge") : "";
   // Structure : poteaux (nœuds portant une poutre), ceux qui tombent dans une voie, portée la plus longue.
@@ -353,31 +361,21 @@ function aimantVoie(g, m) {
   g.guide = best ? [-12, L + 12].map((t) => [g.a0[0] + dx + u[0] * t + n[0] * best[1], g.a0[1] + dy + u[1] * t + n[1] * best[1]]) : null;
   return [dx, dy];
 }
-// Côté qui prolonge les bandes des voies touchées : celui où se trouvent le plus de bandes voisines, une voie
-// dans le prolongement comptant double. Rien si aucune voisine n'a de bande.
-function bandeVoisine(x) {
-  const r = repere(x); let g = 0, d = 0;
-  for (const [k, dx] of [[x.a, r.u], [x.b, [-r.u[0], -r.u[1]]]]) for (const o of S.branches) {
-    const co = bandeDe(o); if (o === x || (o.a !== k && o.b !== k) || !pw(o, co)) continue;
-    const ro = repere(o), so = co === "g" ? 1 : -1, sens = o.a === k ? 1 : -1, v = [sens * ro.u[0] - so * ro.u[1] * 0.5, sens * ro.u[1] + so * ro.u[0] * 0.5];
-    const poids = Math.abs(dx[0] * ro.u[1] - dx[1] * ro.u[0]) < 0.2 && (dx[0] * ro.u[0] + dx[1] * ro.u[1]) * sens < 0 ? 2 : 1;
-    // La bande voisine est à gauche ou à droite de la voie, vue du nœud ; ramené aux côtés de la voie.
-    if ((dx[0] * v[1] - dx[1] * v[0] > 0) === (k === x.a)) g += poids; else d += poids;
-  }
-  return g + d ? (g > d ? "g" : "d") : null;
-}
-// Logique d'ensemble des bandes piétonnes en « auto ». Une voie qui longe une façade (un seul côté donne sur
-// l'extérieur du bâtiment) porte sa bande de ce côté : les bandes font le tour du bâtiment, sans traversée.
-// Les autres voies (intérieures, ou façades des deux côtés) prolongent les bandes des voies qu'elles touchent.
+// Logique d'ensemble des bandes piétonnes en « auto » : on cherche le cheminement le plus direct. Dans l'ordre :
+// un réseau d'un seul tenant ; le moins de traversées de chaussée possible (on ne traverse pas quand on peut
+// aller tout droit) ; la bande côté façade extérieure quand la voie en longe une (une cour fermée n'est pas une façade).
 function bandesAuto() {
   COTE = new Map(); const autos = S.branches.filter((b) => b.pieton === "auto"); if (!autos.length) return;
   const geo = noeuds(), B = geo.bouts, rects = [...S.branches.map((_, i) => [B[i].a.d[0], B[i].b.d[0], B[i].b.g[0], B[i].a.g[0]]), ...geo.nd, ...geo.cales];
   S.branches.forEach((b, i) => { for (const c of ["g", "d"]) if (TYPES[b[c]].prof) rects.push([B[i].a[c][2], B[i].b[c][2], B[i].b[c][3], B[i].a[c][3]]); });
-  const dehors = (b, c) => { const r = repere(b), e = (c === "g" ? 1 : -1) * (demi(b) + TYPES[b[c]].prof + 0.5); return [0.25, 0.5, 0.75].filter((f) => !rects.some((q) => dans(r.P(r.L * f, e), q))).length >= 2; };
-  let reste = [];
-  for (const b of autos) { const g = dehors(b, "g"), d = dehors(b, "d"); if (g !== d) COTE.set(b, g ? "g" : "d"); else reste.push(b); }
-  for (let n = reste.length; n > 0 && reste.length; n--) reste = reste.filter((b) => { const c = bandeVoisine(b); if (c) COTE.set(b, c); return !c; });
-  for (const b of reste) COTE.set(b, "d");
+  // Un point donne sur l'extérieur s'il est hors du bâtiment et qu'en s'éloignant tout droit on ne le retrouve pas.
+  const libre = (P, n) => !rects.some((q) => dans(P, q) || q.some((a, i) => { const b = q[(i + 1) % q.length], ex = b[0] - a[0], ey = b[1] - a[1], den = n[0] * ey - n[1] * ex; if (Math.abs(den) < 1e-9) return false; const t = ((a[0] - P[0]) * ey - (a[1] - P[1]) * ex) / den, u = ((a[0] - P[0]) * n[1] - (a[1] - P[1]) * n[0]) / den; return t > 0 && u >= 0 && u <= 1; }));
+  const facade = (b, c) => { const r = repere(b), s = c === "g" ? 1 : -1, n = [-r.u[1] * s, r.u[0] * s], e = s * (demi(b) + TYPES[b[c]].prof + 0.5); return [0.25, 0.5, 0.75].filter((f) => libre(r.P(r.L * f, e), n)).length >= 2; };
+  const voulu = new Map(); for (const b of autos) { const g = facade(b, "g"), d = facade(b, "d"); if (g !== d) voulu.set(b, g ? "g" : "d"); COTE.set(b, voulu.get(b) || "d"); }
+  const cout = () => { const r = reseau(noeuds()); return r.troncons * 1e6 + r.passages.length * 1e3 + autos.filter((b) => voulu.has(b) && COTE.get(b) !== voulu.get(b)).length; };
+  // Amélioration pas à pas : on retourne la bande d'une voie tant que le réseau y gagne.
+  let best = cout();
+  for (let tour = 0, mieux = true; mieux && tour < 6; tour++) { mieux = false; for (const b of autos) { const c = COTE.get(b); COTE.set(b, c === "g" ? "d" : "g"); const v = cout(); if (v < best) { best = v; mieux = true; } else COTE.set(b, c); } }
 }
 function couper(i, p) { const b = BR[i], k = NO.push(p) - 1; BR.push({ ...b, a: k }); b.b = k; return k; }
 function fusionner(garde, ote) { for (const b of BR) { if (b.a === ote) b.a = garde; if (b.b === ote) b.b = garde; } const r = BR.filter((b) => b.a !== b.b); BR.length = 0; BR.push(...r); if (calque) NO[ote] = null; }
