@@ -61,6 +61,8 @@ jobs:
         run: |
           mkdir -p site/essai site/giration
           cp dist/index.html site/index.html
+          # Essai à part : le squelette (prototype d'interaction, hors moteur).
+          mkdir -p site/squelette && cp prototypes/squelette/index.html site/squelette/index.html
           # Anciennes pages d'essai des modules, désormais réunis : renvoi vers l'application.
           for d in essai giration; do
             printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=../"><title>Parkimo</title><a href="../">Parkimo</a>\n' > "site/$d/index.html"
