@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Parkimo · essai du squelette</title>
 <style>
-:root { --fond: #EEF1EF; --grille: rgba(17,22,20,.07); --label: #111614; --label-2: rgba(17,22,20,.62); --verre: rgba(255,255,255,.78); --trait: rgba(17,22,20,.12); --accent: #007AFF; --dalle: #D9DDD9; --enrobe: #8E9499; --place: #A3A9AE; --marque: #FFFFFF; --mur: #2B3136; --rouge: #FF3B30; --os: #FF9500; }
-@media (prefers-color-scheme: dark) { :root { --fond: #14181A; --grille: rgba(238,243,240,.07); --label: #EEF3F0; --label-2: rgba(238,243,240,.64); --verre: rgba(30,35,38,.78); --trait: rgba(238,243,240,.14); --accent: #0A84FF; --dalle: #2A3034; --enrobe: #4A5157; --place: #5A6268; --marque: #E9EDEB; --mur: #C9D0CD; --rouge: #FF453A; } }
+:root { --fond: #EEF1EF; --grille: rgba(17,22,20,.07); --label: #111614; --label-2: rgba(17,22,20,.62); --verre: rgba(255,255,255,.78); --trait: rgba(17,22,20,.12); --accent: #007AFF; --dalle: #D9DDD9; --enrobe: #8E9499; --place: #A3A9AE; --marque: #FFFFFF; --mur: #2B3136; --rouge: #FF3B30; --os: #FF9500; --pieton: #3F86C9; }
+@media (prefers-color-scheme: dark) { :root { --fond: #14181A; --grille: rgba(238,243,240,.07); --label: #EEF3F0; --label-2: rgba(238,243,240,.64); --verre: rgba(30,35,38,.78); --trait: rgba(238,243,240,.14); --accent: #0A84FF; --dalle: #2A3034; --enrobe: #4A5157; --place: #5A6268; --marque: #E9EDEB; --mur: #C9D0CD; --rouge: #FF453A; --pieton: #5AA0E0; } }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--fond); color: var(--label); font: 15px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", system-ui, sans-serif; }
 canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
@@ -47,12 +47,13 @@ button:disabled { opacity: .35; }
 <section id="bilan" class="verre" aria-live="polite">
   <h1>Essai du squelette</h1>
   <div class="n"><span id="s-places">0</span><small>places</small></div>
-  <dl><dt>Emprise</dt><dd id="s-emprise">–</dd><dt>Par place</dt><dd id="s-ratio">–</dd><dt>Branches</dt><dd id="s-branches">0</dd><dt>Structure</dt><dd id="s-structure">–</dd><dt>Contreventement</dt><dd id="s-contrev">–</dd></dl>
+  <dl><dt>Emprise</dt><dd id="s-emprise">–</dd><dt>Par place</dt><dd id="s-ratio">–</dd><dt>Branches</dt><dd id="s-branches">0</dd><dt>Piétons</dt><dd id="s-pietons">–</dd><dt>Structure</dt><dd id="s-structure">–</dd><dt>Contreventement</dt><dd id="s-contrev">–</dd></dl>
 </section>
 <div id="aide" class="verre">Glissez un nœud ou une branche · touchez une branche pour la régler</div>
 <section id="fiche" class="verre" hidden aria-label="Branche choisie">
   <div class="ligne"><span>Gauche</span><div class="seg" data-cote="g"></div></div>
   <div class="ligne"><span>Droite</span><div class="seg" data-cote="d"></div></div>
+  <div class="ligne"><span>Piétons</span><div class="seg" data-cote="pieton"><button data-t="aucun">Aucune</button><button data-t="g">Gauche</button><button data-t="d">Droite</button></div></div>
   <div id="f-portee" hidden><button data-p="long">Poutres le long de la voie</button><button data-p="travers">Poutres en travers</button></div>
   <div id="f-trame" hidden><button id="b-trame" aria-pressed="true">Trame automatique</button></div>
   <div id="f-mur" hidden><button id="b-plein" aria-pressed="false">Remplissage en maçonnerie</button></div>
@@ -101,10 +102,25 @@ function repere(b, N = S.noeuds) {
 }
 // Chaussée : prolongée à chaque bout jusqu'au bord de la plus large des voies qu'elle y rencontre,
 // pour que les voies se rejoignent aux nœuds sans déborder sur les places d'en face.
+// Bande piétonne : 0,80 m le long de la voie, d'un côté de l'axe, entre la chaussée et les places.
+// La rangée de ce côté recule d'autant. Au bout, la bande traverse la voie rencontrée et rejoint sa bande.
+const BANDE = 0.8, pw = (b, c) => (c === "g" || c === "d") && b.pieton === c ? BANDE : 0;
+function trottoir(b) {
+  if (!pw(b, b.pieton)) return null;
+  const r = repere(b), h = demi(b), s = b.pieton === "g" ? 1 : -1;
+  // Bout de la bande, compté au-delà du nœud : jusqu'au bord extérieur de la bande la plus lointaine des voies
+  // rencontrées, ou seulement jusqu'à celle qui est de notre côté ; sans bande à rejoindre, jusqu'au bord de la voie.
+  const bout = (k, uo) => {
+    let x = -Infinity;
+    for (const o of S.branches) { if (o === b || (o.a !== k && o.b !== k) || !pw(o, o.pieton)) continue; const ro = repere(o), p = (o.pieton === "g" ? 1 : -1) * (-ro.u[1] * uo[0] + ro.u[0] * uo[1]); if (Math.abs(p) > 0.3) x = Math.max(x, p > 0 ? p * (demi(o) + BANDE) : p * demi(o)); }
+    return x === -Infinity ? debord(b, k) : x;
+  }, a0 = -bout(b.a, [-r.u[0], -r.u[1]]), a1 = r.L + bout(b.b, r.u);
+  return { r, h, s, a0, a1, q: [r.P(a0, s * h), r.P(a1, s * h), r.P(a1, s * (h + BANDE)), r.P(a0, s * (h + BANDE))] };
+}
 function debord(b, k) { let e = 0; for (const o of S.branches) if (o !== b && (o.a === k || o.b === k)) e = Math.max(e, demi(o)); return e; }
 function chaussee(b) { const r = repere(b), h = demi(b), ea = debord(b, b.a), eb = debord(b, b.b); return [r.P(-ea, -h), r.P(r.L + eb, -h), r.P(r.L + eb, h), r.P(-ea, h)]; }
 // Rangée : comme la chaussée, elle va jusqu'au bord de la voie rencontrée à chaque bout.
-function bande(b, cote) { const r = repere(b), h = demi(b), s = cote === "g" ? 1 : -1, t = TYPES[b[cote]], ea = debord(b, b.a), eb = debord(b, b.b); return t.prof ? [r.P(-ea, s * h), r.P(r.L + eb, s * h), r.P(r.L + eb, s * (h + t.prof)), r.P(-ea, s * (h + t.prof))] : null; }
+function bande(b, cote) { const r = repere(b), h = demi(b) + pw(b, cote), s = cote === "g" ? 1 : -1, t = TYPES[b[cote]], ea = debord(b, b.a), eb = debord(b, b.b); return t.prof ? [r.P(-ea, s * h), r.P(r.L + eb, s * h), r.P(r.L + eb, s * (h + t.prof)), r.P(-ea, s * (h + t.prof))] : null; }
 // Angles du bâtiment : à un nœud, du côté où deux branches voisines s'ouvrent à plus de 180°, les
 // génératrices du fond des deux rangées (le bord de la chaussée s'il n'y a pas de rangée) se
 // prolongent jusqu'à leur rencontre. L'angle ferme l'emprise et donne un point où poser un poteau.
@@ -117,7 +133,7 @@ function angles() {
       const j = autour[(n + 1) % autour.length]; let ang = j.th - i.th; if (ang <= 0) ang += 2 * Math.PI;
       if (ang < Math.PI + 0.02 || ang > 2 * Math.PI - 0.02) return;
       // Côté de chaque branche tourné vers l'angle : à gauche de la première en partant du nœud, à droite de la seconde.
-      const wi = demi(i.b) + TYPES[i.b[i.dep ? "g" : "d"]].prof, wj = demi(j.b) + TYPES[j.b[j.dep ? "d" : "g"]].prof;
+      const ci = i.dep ? "g" : "d", cj = j.dep ? "d" : "g", wi = demi(i.b) + pw(i.b, ci) + TYPES[i.b[ci]].prof, wj = demi(j.b) + pw(j.b, cj) + TYPES[j.b[cj]].prof;
       const A = [N[0] - i.d[1] * wi, N[1] + i.d[0] * wi], B = [N[0] + j.d[1] * wj, N[1] - j.d[0] * wj];
       const det = i.d[0] * j.d[1] - i.d[1] * j.d[0], t = ((B[0] - A[0]) * j.d[1] - (B[1] - A[1]) * j.d[0]) / det, X = [A[0] + t * i.d[0], A[1] + t * i.d[1]];
       // Angle trop aigu : la pointe partirait loin, on la coupe.
@@ -131,7 +147,7 @@ function angles() {
 const biaisDe = (t, s) => t.angle > 0 && t.angle < 90 ? (t.prof / Math.tan(t.angle * Math.PI / 180)) * -s : 0;
 function places(b, cote) {
   const t = TYPES[b[cote]]; if (!t.prof) return [];
-  const r = repere(b), h = demi(b), s = cote === "g" ? 1 : -1;
+  const r = repere(b), h = demi(b) + pw(b, cote), s = cote === "g" ? 1 : -1;
   const biais = biaisDe(t, s);
   // Places calées sur le nœud de départ, au pas de la place ; la rangée court d'un bord de voie à l'autre.
   const k0 = Math.ceil((-debord(b, b.a) - Math.min(0, biais)) / t.pas - 1e-9), k1 = Math.floor((r.L + debord(b, b.b) - Math.max(0, biais)) / t.pas + 1e-9), out = [];
@@ -166,11 +182,19 @@ function calculer() {
 }
 function mesurer() {
   const ch = S.branches.map(chaussee), bandes = [], pl = [], genees = [];
+  // Bandes piétonnes : leur réseau (deux bandes qui se recouvrent sont reliées), les zébrures là où elles traversent une chaussée.
+  const trottoirs = [], zebres = []; S.branches.forEach((b, i) => { const t = trottoir(b); if (t) { t.i = i; trottoirs.push(t); bandes.push(t.q); } });
+  const chef = trottoirs.map((_, k) => k), racine = (k) => (chef[k] === k ? k : (chef[k] = racine(chef[k])));
+  trottoirs.forEach((t, k) => { for (let j = 0; j < k; j++) if (recouvre(t.q, trottoirs[j].q)) chef[racine(k)] = racine(j); });
+  for (const t of trottoirs) for (let a = t.a0 + 0.25; a + 0.5 <= t.a1; a += 1) if (ch.some((q, j) => j !== t.i && dedans(t.r.P(a + 0.25, t.s * (t.h + BANDE / 2)), q, 0))) zebres.push([t.r.P(a, t.s * t.h), t.r.P(a + 0.5, t.s * t.h), t.r.P(a + 0.5, t.s * (t.h + BANDE)), t.r.P(a, t.s * (t.h + BANDE))]);
+  const troncons = new Set(trottoirs.map((_, k) => racine(k))).size, lin = trottoirs.reduce((m, t) => m + t.r.L, 0);
+  $("#s-pietons").textContent = trottoirs.length ? `${Math.round(lin)} m · ${troncons === 1 ? "réseau continu" : troncons + " tronçons"}` : "–";
+  $("#s-pietons").style.color = troncons > 1 ? css("--rouge") : "";
   // Structure : poteaux (nœuds portant une poutre), ceux qui tombent dans une voie, portée la plus longue.
   const pot = S.pn.filter(Boolean);
   const conflits = pot.filter((c) => ch.some((q) => dedans(c, q, 0)));
   const portee = S.pb.reduce((m, b) => Math.max(m, repere(b, S.pn).L), 0);
-  S.branches.forEach((b, i) => { for (const c of ["g", "d"]) { const q = bande(b, c); if (q) bandes.push(q); for (const p of places(b, c)) { if (ch.some((r, j) => j !== i && recouvre(p, r))) continue; if (pl.some((o) => o.i !== i && recouvre(p, o.q))) continue; if (pot.some((c) => dedans(c, p, 0.15))) { genees.push(p); continue; } pl.push({ i, c, q: p }); } } });
+  S.branches.forEach((b, i) => { for (const c of ["g", "d"]) { const q = bande(b, c); if (q) bandes.push(q); for (const p of places(b, c)) { if (ch.some((r, j) => j !== i && recouvre(p, r)) || trottoirs.some((t) => t.i !== i && recouvre(p, t.q))) continue; if (pl.some((o) => o.i !== i && recouvre(p, o.q))) continue; if (pot.some((c) => dedans(c, p, 0.15))) { genees.push(p); continue; } pl.push({ i, c, q: p }); } } });
   // Emprise : réunion des chaussées et des rangées, mesurée sur une grille de 0,5 m.
   const an = angles(), rects = [...ch, ...bandes, ...an.map((a) => a.q)]; let aire = 0;
   if (rects.length) {
@@ -179,7 +203,7 @@ function mesurer() {
     const bb = rects.map((q) => [Math.min(...q.map((p) => p[0])), Math.min(...q.map((p) => p[1])), Math.max(...q.map((p) => p[0])), Math.max(...q.map((p) => p[1]))]);
     for (let x = x0 + 0.25; x < x1; x += 0.5) for (let y = y0 + 0.25; y < y1; y += 0.5) if (rects.some((q, k) => x >= bb[k][0] && x <= bb[k][2] && y >= bb[k][1] && y <= bb[k][3] && dans([x, y], q))) aire += 0.25;
   }
-  calc = { ch, bandes, pl, aire, pot, conflits, genees, angles: an };
+  calc = { ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres };
   $("#s-structure").textContent = pot.length ? `${pot.length} poteaux · ${portee.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m${conflits.length ? ` · ${conflits.length} en voie` : ""}` : "–";
   $("#s-structure").style.color = conflits.length ? css("--rouge") : "";
   // Contreventement : des travées remplies en maçonnerie dans deux sens (deux directions nettement distinctes).
@@ -206,9 +230,12 @@ function dessiner() {
   const tout = [...calc.ch, ...calc.bandes, ...calc.angles.map((a) => a.q)];
   ctx.beginPath(); for (const q of tout) chemin(q);
   ctx.lineJoin = "round"; ctx.strokeStyle = css("--mur"); ctx.lineWidth = Math.max(3, 0.5 * vue.s); ctx.stroke();
-  ctx.fillStyle = css("--dalle"); ctx.fill();
+  ctx.fillStyle = css("--dalle"); for (const q of tout) { ctx.beginPath(); chemin(q); ctx.fill(); } // un par un : deux pleins de sens contraires ne se trouent pas
   ctx.fillStyle = css("--enrobe"); ctx.beginPath(); for (const q of calc.ch) chemin(q); ctx.fill();
   ctx.fillStyle = css("--place"); ctx.beginPath(); for (const p of calc.pl) chemin(p.q); ctx.fill();
+  // Bandes piétonnes : un ruban teinté, zébré de blanc là où il traverse une chaussée.
+  ctx.fillStyle = css("--pieton"); ctx.globalAlpha = 0.7; ctx.beginPath(); for (const t of calc.trottoirs) chemin(t.q); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.fillStyle = css("--marque"); ctx.beginPath(); for (const z of calc.zebres) chemin(z); ctx.fill();
   ctx.strokeStyle = css("--marque"); ctx.lineWidth = Math.max(0.6, 0.1 * vue.s); ctx.beginPath();
   for (const p of calc.pl) { const q = p.q.map(versE); ctx.moveTo(q[3][0], q[3][1]); ctx.lineTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.lineTo(q[2][0], q[2][1]); }
   ctx.stroke();
@@ -254,7 +281,7 @@ function cadrer() {
 
 // ---- Historique et enregistrement.
 function garder() { passe.push(JSON.stringify(S)); if (passe.length > 60) passe.shift(); $("#b-annuler").disabled = false; }
-function enregistrer() { try { localStorage.setItem("parkimo.squelette.4", JSON.stringify(S)); } catch (e) { /* stockage indisponible */ } }
+function enregistrer() { try { localStorage.setItem("parkimo.squelette.5", JSON.stringify(S)); } catch (e) { /* stockage indisponible */ } }
 function annuler() { if (!passe.length) return; S = JSON.parse(passe.pop()); pointer(); choix = choixN = -1; $("#b-annuler").disabled = !passe.length; rafraichir(); fiche(); enregistrer(); }
 
 // ---- Aimants : un nœud voisin, sinon le corps d'une branche (le nœud s'y crée), sinon la trame.
@@ -315,7 +342,7 @@ function trame() {
   };
   S.branches.forEach((b, i) => {
     const r = repere(b), h = demi(b), n = [-r.u[1], r.u[0]];
-    const cotes = ["g", "d"].map((c) => { const t = TYPES[b[c]], s = c === "g" ? 1 : -1, ks = new Set(); for (const o of calc.pl) if (o.i === i && o.c === c) { ks.add(o.q.k); ks.add(o.q.k + 1); } return { t, s, ks }; });
+    const cotes = ["g", "d"].map((c) => { const t = TYPES[b[c]], s = c === "g" ? 1 : -1, ks = new Set(); for (const o of calc.pl) if (o.i === i && o.c === c) { ks.add(o.q.k); ks.add(o.q.k + 1); } return { t, s, ks, w: pw(b, c) }; });
     const rg = cotes.filter((x) => x.ks.size); if (!rg.length && cotes.some((x) => x.t.prof)) return;
     const pas = rg.length ? rg[0].t.pas : PAS, a0 = rg.length ? Math.max(...rg.map((x) => Math.min(...x.ks) * x.t.pas)) : 0, a1 = rg.length ? Math.min(...rg.map((x) => Math.max(...x.ks) * x.t.pas)) : r.L;
     if (a1 - a0 < pas) return;
@@ -325,8 +352,8 @@ function trame() {
     if (as.length > 1 && a1 - a0 - as[as.length - 1] < 1.5 * pas) as[as.length - 1] = a1 - a0; else as.push(a1 - a0);
     for (const x of cotes) for (const d of as) {
       const a = inv ? a1 - d : a0 + d, dirs = [{ d: r.u, tol: 0.3 }, { d: [-r.u[0], -r.u[1]], tol: 0.3 }, { d: [-x.s * n[0], -x.s * n[1]], tol: pas / 2 + 0.1 }];
-      if (x.t.prof) { const k = Math.round(a / x.t.pas); if (x.ks.has(k)) ajoute(r.P(k * x.t.pas + biaisDe(x.t, x.s), x.s * (h + x.t.prof)), dirs); }
-      else if (!rects.some((q) => dans(r.P(a, x.s * (h + 0.3)), q))) ajoute(r.P(a, x.s * h), dirs);
+      if (x.t.prof) { const k = Math.round(a / x.t.pas); if (x.ks.has(k)) ajoute(r.P(k * x.t.pas + biaisDe(x.t, x.s), x.s * (h + x.w + x.t.prof)), dirs); }
+      else if (!rects.some((q) => dans(r.P(a, x.s * (h + x.w + 0.3)), q))) ajoute(r.P(a, x.s * (h + x.w)), dirs);
     }
   });
   for (const a of calc.angles) if (a.x) ajoute(a.x, [1, 3].map((m) => { const v = [a.q[m][0] - a.x[0], a.q[m][1] - a.x[1]], l = Math.hypot(v[0], v[1]); return l > 0.01 ? { d: [v[0] / l, v[1] / l], tol: 0.3 } : null; }).filter(Boolean));
@@ -387,7 +414,7 @@ cv.addEventListener("pointerup", fin); cv.addEventListener("pointercancel", fin)
 cv.addEventListener("wheel", (ev) => { ev.preventDefault(); const e = pos(ev), m = versM(e[0], e[1]), s = Math.max(1.2, Math.min(40, vue.s * Math.exp(-ev.deltaY * 0.0015))); vue = { s, ox: e[0] - m[0] * s, oy: e[1] + m[1] * s }; rafraichir(false); }, { passive: false });
 
 // ---- Fiche de la branche choisie : ce qui se développe à gauche et à droite de l'axe.
-for (const seg of document.querySelectorAll("#fiche .seg")) for (const k of Object.keys(TYPES)) { const b = document.createElement("button"); b.textContent = TYPES[k].nom; b.dataset.t = k; seg.append(b); }
+for (const seg of document.querySelectorAll('#fiche .seg:not([data-cote="pieton"])')) for (const k of Object.keys(TYPES)) { const b = document.createElement("button"); b.textContent = TYPES[k].nom; b.dataset.t = k; seg.append(b); }
 function fiche() {
   const poteau = calque && choixN >= 0 && NO[choixN], b = BR[choix];
   const libre = !!calque && !b && !poteau; // rien de choisi dans la structure : la fiche est celle de la trame entière
@@ -397,7 +424,7 @@ function fiche() {
   if (poteau) { const n = BR.filter((x) => x.a === choixN || x.b === choixN).length; $("#f-long").textContent = `Poteau · ${n} poutre${n > 1 ? "s" : ""}${calc.conflits.includes(poteau) ? " · dans une voie" : ""}`; return; }
   if (!b) return;
   if (calque) { $("#b-plein").setAttribute("aria-pressed", String(!!b.plein)); $("#f-long").textContent = `${b.plein ? "Travée pleine" : "Poutre"} · portée ${repere(b, NO).L.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m`; return; }
-  for (const seg of document.querySelectorAll("#fiche .seg")) for (const x of seg.children) x.setAttribute("aria-pressed", String(b[seg.dataset.cote] === x.dataset.t));
+  for (const seg of document.querySelectorAll("#fiche .seg")) for (const x of seg.children) x.setAttribute("aria-pressed", String((b[seg.dataset.cote] || "aucun") === x.dataset.t));
   const n = calc ? calc.pl.filter((p) => p.i === choix).length : 0;
   $("#f-long").textContent = `${repere(b).L.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m · chaussée ${(2 * demi(b)).toLocaleString("fr-FR")} m · ${n} places`;
 }
@@ -429,14 +456,14 @@ $("#b-annuler").addEventListener("click", annuler); $("#b-cadrer").addEventListe
 addEventListener("keydown", (ev) => { if ((ev.ctrlKey || ev.metaKey) && ev.key === "z") { ev.preventDefault(); annuler(); } });
 
 // ---- Départ : le dernier essai, sinon une boucle avec une antenne.
-try { const s = JSON.parse(localStorage.getItem("parkimo.squelette.4") || "null"); if (s && s.noeuds && s.branches) S = s; } catch (e) { /* stockage indisponible */ }
+try { const s = JSON.parse(localStorage.getItem("parkimo.squelette.5") || "null"); if (s && s.noeuds && s.branches) S = s; } catch (e) { /* stockage indisponible */ }
 const neuf = !S.branches.length;
-if (neuf) S = { noeuds: [[0, 0], [60, 0], [60, 15], [0, 15], [90, 0]], branches: [{ a: 0, b: 1, g: "90", d: "90" }, { a: 1, b: 2, g: "aucun", d: "90" }, { a: 2, b: 3, g: "90", d: "90" }, { a: 3, b: 0, g: "aucun", d: "90" }, { a: 1, b: 4, g: "60", d: "45" }], pn: [], pb: [] };
+if (neuf) S = { noeuds: [[0, 0], [60, 0], [60, 15], [0, 15], [90, 0]], branches: [{ a: 0, b: 1, g: "90", d: "90", pieton: "d" }, { a: 1, b: 2, g: "aucun", d: "90", pieton: "d" }, { a: 2, b: 3, g: "90", d: "90", pieton: "d" }, { a: 3, b: 0, g: "aucun", d: "90", pieton: "d" }, { a: 1, b: 4, g: "60", d: "45", pieton: "g" }], pn: [], pb: [] };
 if (S.auto === undefined) S.auto = true; // un essai enregistré avant la trame automatique la reçoit
 pointer();
 new ResizeObserver(taille).observe(cv); taille(); calculer();
 // Structure de l'exemple : la trame automatique, et trois travées pleines qui contreventent dans les deux sens.
-if (neuf) { for (const b of S.pb) { const A = S.pn[b.a], B = S.pn[b.b]; if ((A[0] === -7.5 && B[0] === -7.5 && Math.min(A[1], B[1]) >= 2.5 && Math.max(A[1], B[1]) <= 17.5) || (A[1] === -7.5 && B[1] === -7.5 && Math.max(A[0], B[0]) <= 2.5)) b.plein = true; } calculer(); }
+if (neuf) { const x0 = Math.min(...S.pn.map((p) => p[0])), y0 = Math.min(...S.pn.map((p) => p[1])); for (const b of S.pb) { const A = S.pn[b.a], B = S.pn[b.b]; if ((A[0] === x0 && B[0] === x0 && Math.min(A[1], B[1]) >= 2.5 && Math.max(A[1], B[1]) <= 17.5) || (A[1] === y0 && B[1] === y0 && Math.max(A[0], B[0]) <= 2.5)) b.plein = true; } calculer(); }
 cadrer();
 </script>
 </body>

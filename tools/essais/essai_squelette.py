@@ -16,6 +16,20 @@ with sync_playwright() as p:
         pg.goto(page_path.as_uri()); pg.wait_for_timeout(600)
         r = {"vue": name, "depart": pg.evaluate(ETAT)}
         r["angles"] = pg.evaluate("calc.angles.map(a => a.x)")
+        E = lambda x, y: pg.evaluate(f"versE([{x}, {y}])")
+        # Bandes piétonnes : un réseau continu au départ ; en ôter sur les deux pignons le coupe en tronçons.
+        PI = "[document.querySelector('#s-pietons').textContent, calc.trottoirs.length, calc.zebres.length > 0, calc.pl.length]"
+        r["pietons"] = pg.evaluate(PI)
+        for x in (0, 60):
+            q = E(x, 7.5); pg.mouse.click(*q); pg.wait_for_timeout(250)
+            pg.click('#fiche .seg[data-cote="pieton"] button[data-t="aucun"]'); pg.wait_for_timeout(200)
+            r["pietons_sans_%d" % x] = pg.evaluate(PI)
+        q = E(60, 7.5); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        pg.click('#fiche .seg[data-cote="pieton"] button[data-t="g"]'); pg.wait_for_timeout(200)
+        r["pietons_interieur"] = pg.evaluate(PI)
+        for _ in range(3): pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        r["pietons_retablis"] = pg.evaluate(PI)
+        pg.mouse.click(5, 5); pg.wait_for_timeout(200)
         pg.screenshot(path=str(out / f"{name}-squelette-depart.png"))
         E = lambda x, y: pg.evaluate(f"versE([{x}, {y}])")
         # Tracer une branche depuis le milieu de la branche du bas, vers le bas : un nœud se crée sur la branche.
@@ -42,9 +56,9 @@ with sync_playwright() as p:
         # Contreventement : l'exemple a des remplissages en maçonnerie dans deux sens ; en ôter un sens se lit au bilan.
         CV = "[document.querySelector('#s-contrev').textContent, S.pb.filter(b => b.plein).length]"
         r["contreventement"] = pg.evaluate(CV)
-        q = E(-7.5, 15); pg.mouse.move(*q); pg.mouse.wheel(0, -2400); pg.wait_for_timeout(300)
+        q = E(-8.3, 15); pg.mouse.move(*q); pg.mouse.wheel(0, -2400); pg.wait_for_timeout(300)
         for y in (8.75, 15):
-            q = E(-7.5, y); pg.mouse.click(*q); pg.wait_for_timeout(250)
+            q = E(-8.3, y); pg.mouse.click(*q); pg.wait_for_timeout(250)
             r["poutre_choisie"] = pg.evaluate("[document.querySelector('#f-long').textContent, !document.querySelector('#f-mur').hidden, document.querySelector('#b-plein').getAttribute('aria-pressed')]")
             pg.click("#b-plein"); pg.wait_for_timeout(200)
         r["sans_remplissage"] = pg.evaluate(CV)
@@ -70,7 +84,7 @@ with sync_playwright() as p:
         pg.screenshot(path=str(out / f"{name}-squelette-structure.png"))
         pg.click("#b-annuler"); pg.wait_for_timeout(200)
         # Une poutre de plus, tracée depuis un poteau ; puis la choisir.
-        pg.click("#b-tracer"); a, c = E(47.5, 22.5), E(47.5, 30)
+        pg.click("#b-tracer"); a, c = E(47.5, 23.3), E(47.5, 30)
         pg.mouse.move(*a); pg.mouse.down(); pg.mouse.move((a[0] + c[0]) / 2, (a[1] + c[1]) / 2); pg.mouse.move(*c); pg.mouse.up(); pg.wait_for_timeout(300)
         pg.click("#b-tracer")
         r["poutre"] = pg.evaluate(ST)
@@ -87,7 +101,7 @@ with sync_playwright() as p:
         pg.click("#b-suppr"); pg.wait_for_timeout(200)
         r["supprime"] = pg.evaluate("[S.pn.filter(Boolean).length, S.pb.length, document.querySelector('#fiche').hidden]")
         # Un poteau posé près de l'angle du bâtiment s'y aimante.
-        pg.click("#b-tracer"); q = E(-7.2, -7.0); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-tracer")
+        pg.click("#b-tracer"); q = E(-8.0, -7.8); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-tracer")
         r["poteau_d_angle"] = pg.evaluate("S.pn[choixN]")
         pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         pg.mouse.click(5, 5); pg.wait_for_timeout(200)
