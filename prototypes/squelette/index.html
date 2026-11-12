@@ -280,6 +280,7 @@ function dessiner() {
     if (!S.branches.some((b) => b.a === i || b.b === i)) return;
     const e = versE(n); ctx.beginPath(); ctx.arc(e[0], e[1], 7, 0, 2 * Math.PI); ctx.fillStyle = css("--fond"); ctx.fill(); ctx.strokeStyle = css("--accent"); ctx.lineWidth = 2.5; ctx.stroke();
   });
+  if (geste && geste.guide) { const A = versE(geste.guide[0]), B = versE(geste.guide[1]); ctx.strokeStyle = css("--accent"); ctx.lineWidth = 1.5; ctx.setLineDash([2, 5]); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]); } // l'alignement trouvé
   if (geste && geste.fantome) { const A = versE(geste.fantome[0]), B = versE(geste.fantome[1]); ctx.strokeStyle = css(calque ? "--os" : "--accent"); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); }
 }
 let attente = false;
@@ -317,6 +318,27 @@ function suiveurs(k) {
   }
   const reste = parts.reduce((m, p) => (!m || p.part.length > m.part.length ? p : m), null);
   return parts.filter((p) => p !== reste && p.liens === 1).flatMap((p) => p.part).map((n) => ({ n, p: NO[n].slice() }));
+}
+// Glisser une voie. Le long de son axe, elle avance par pas de 2,50 m. En travers, elle s'aimante aux alignements
+// avec les voies parallèles qui ne la touchent pas : deux rangées dos à dos (les fonds se touchent, plus de vide
+// ni de chevauchement), deux façades dans le même plan, deux axes dans le prolongement ; sinon, pas de 2,50 m.
+function aimantVoie(g, m) {
+  const b = BR[g.i], L = Math.hypot(g.b0[0] - g.a0[0], g.b0[1] - g.a0[1]) || 1, u = [(g.b0[0] - g.a0[0]) / L, (g.b0[1] - g.a0[1]) / L], n = [-u[1], u[0]];
+  const d = [m[0] - g.m0[0], m[1] - g.m0[1]], dl = Math.round((d[0] * u[0] + d[1] * u[1]) / PAS) * PAS, dn = d[0] * n[0] + d[1] * n[1];
+  const fond = (x, c) => demi(x) + pw(x, c) + TYPES[x[c]].prof, tol = Math.min(Math.max(AIMANT / vue.s, 0.6), PAS / 2);
+  let best = null;
+  for (const c of BR) {
+    if (c === b || c.a === b.a || c.a === b.b || c.b === b.a || c.b === b.b) continue;
+    const rc = repere(c); if (Math.abs(u[0] * rc.u[1] - u[1] * rc.u[0]) > 0.02) continue;
+    const y = (rc.A[0] - g.a0[0]) * n[0] + (rc.A[1] - g.a0[1]) * n[1], meme = u[0] * rc.u[0] + u[1] * rc.u[1] > 0;
+    const haut = fond(c, meme ? "g" : "d"), bas = fond(c, meme ? "d" : "g"), G = fond(b, "g"), D = fond(b, "d"); // emprise de c vers +n et vers -n ; la nôtre à gauche (+n) et à droite
+    // [déplacement en travers, écart à notre axe de la ligne commune]
+    for (const [p, lat] of [[y - bas - G, G], [y + haut + D, -D], [y + haut - G, G], [y - bas + D, -D], [y, 0]]) if (Math.abs(p - dn) < tol && (!best || Math.abs(p - dn) < Math.abs(best[0] - dn))) best = [p, lat];
+  }
+  const pn = best ? best[0] : Math.round(dn / PAS) * PAS, dx = u[0] * dl + n[0] * pn, dy = u[1] * dl + n[1] * pn;
+  // Ligne d'alignement, montrée pendant le geste.
+  g.guide = best ? [-12, L + 12].map((t) => [g.a0[0] + dx + u[0] * t + n[0] * best[1], g.a0[1] + dy + u[1] * t + n[1] * best[1]]) : null;
+  return [dx, dy];
 }
 function couper(i, p) { const b = BR[i], k = NO.push(p) - 1; BR.push({ ...b, a: k }); b.b = k; return k; }
 function fusionner(garde, ote) { for (const b of BR) { if (b.a === ote) b.a = garde; if (b.b === ote) b.b = garde; } const r = BR.filter((b) => b.a !== b.b); BR.length = 0; BR.push(...r); if (calque) NO[ote] = null; }
@@ -400,7 +422,7 @@ cv.addEventListener("pointerdown", (ev) => {
   const m = versM(e[0], e[1]), k = noeudPres(e), c = k < 0 ? branchePres(m, Math.max(AIMANT / vue.s, 2)) : null;
   if (tracer) geste = { genre: "trace", e, de: calque ? cible(e, m).p : k >= 0 ? NO[k].slice() : c ? c.p : [Math.round(m[0] / PAS) * PAS, Math.round(m[1] / PAS) * PAS] };
   else if (k >= 0) geste = { genre: "noeud", k, e, avant: JSON.stringify(S), p0: NO[k].slice(), suite: calque ? [] : suiveurs(k) };
-  else if (c) geste = { genre: "branche", i: c.i, e, m0: m, a0: NO[BR[c.i].a].slice(), b0: NO[BR[c.i].b].slice(), avant: JSON.stringify(S) };
+  else if (c) geste = { genre: "branche", i: c.i, e, m0: m, a0: NO[BR[c.i].a].slice(), b0: NO[BR[c.i].b].slice(), avant: JSON.stringify(S), suite: calque ? [] : [...suiveurs(BR[c.i].a), ...suiveurs(BR[c.i].b)].filter((x) => x.n !== BR[c.i].a && x.n !== BR[c.i].b) };
   else geste = { genre: "vue", e };
 });
 cv.addEventListener("pointermove", (ev) => {
@@ -421,7 +443,12 @@ cv.addEventListener("pointermove", (ev) => {
     for (const x of geste.suite) NO[x.n] = [x.p[0] + NO[geste.k][0] - geste.p0[0], x.p[1] + NO[geste.k][1] - geste.p0[1]];
     return rafraichir();
   }
-  if (geste.genre === "branche") { const b = BR[geste.i], dx = Math.round((m[0] - geste.m0[0]) / PAS) * PAS, dy = Math.round((m[1] - geste.m0[1]) / PAS) * PAS; NO[b.a] = [geste.a0[0] + dx, geste.a0[1] + dy]; NO[b.b] = [geste.b0[0] + dx, geste.b0[1] + dy]; return rafraichir(); }
+  if (geste.genre === "branche") {
+    const b = BR[geste.i], [dx, dy] = calque ? [Math.round((m[0] - geste.m0[0]) / PAS) * PAS, Math.round((m[1] - geste.m0[1]) / PAS) * PAS] : aimantVoie(geste, m);
+    NO[b.a] = [geste.a0[0] + dx, geste.a0[1] + dy]; NO[b.b] = [geste.b0[0] + dx, geste.b0[1] + dy];
+    for (const x of geste.suite) NO[x.n] = [x.p[0] + dx, x.p[1] + dy]; // les parties pendantes suivent
+    return rafraichir();
+  }
 });
 function fin(ev) {
   const e = doigts.get(ev.pointerId) || pos(ev); doigts.delete(ev.pointerId);

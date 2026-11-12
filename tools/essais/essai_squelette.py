@@ -37,6 +37,18 @@ with sync_playwright() as p:
         r["boucle_reste"] = pg.evaluate("S.noeuds.map(p => p.map(v => +v.toFixed(2)))")
         pg.click("#b-annuler"); pg.wait_for_timeout(200)
         r["suite_annulee"] = pg.evaluate("S.noeuds.map(p => p.map(v => +v.toFixed(2)))")
+        # Aimantation des voies : une bande piétonne ajoutée côté îlot fait se chevaucher les deux rangées dos à dos.
+        # En glissant la voie, elle s'aimante là où les deux fonds de rangée se touchent (0,80 m), hors du pas de 2,50 m ;
+        # l'antenne suit. Plus loin, sans alignement à portée, le pas de 2,50 m reprend.
+        q = E(30, 0); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        pg.click('#fiche .seg[data-cote="pieton"] button[data-t="g"]'); pg.wait_for_timeout(200)
+        r["ilot_chevauche"] = pg.evaluate("calc.pl.length")
+        glisser((30, 0), (30, -1.8))
+        r["ilot_aimante"] = [pg.evaluate("S.noeuds.map(p => p.map(v => +v.toFixed(2)))"), pg.evaluate("calc.pl.length")]
+        glisser((30, -0.8), (30, -6))
+        r["voie_au_pas"] = pg.evaluate("S.noeuds[0].map(v => +v.toFixed(2))")
+        for _ in range(3): pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        pg.mouse.click(5, 5); pg.wait_for_timeout(200)
         # Bandes piétonnes : un réseau continu au départ ; en ôter sur les deux pignons le coupe en tronçons.
         PI = "[document.querySelector('#s-pietons').textContent, calc.trottoirs.length, calc.zebres.length > 0, calc.pl.length]"
         r["pietons"] = pg.evaluate(PI)
