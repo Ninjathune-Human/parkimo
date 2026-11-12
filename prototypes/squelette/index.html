@@ -38,7 +38,7 @@ button:disabled { opacity: .35; }
 #b-plein[aria-pressed="true"], #b-trame[aria-pressed="true"] { background: var(--mur); color: var(--fond); }
 #f-portee button, #f-mur button, #f-trame button { min-height: 40px; padding: 0 6px; font-size: 13px; background: color-mix(in srgb, var(--os) 18%, transparent); border-radius: 12px; }
 #fiche .bas button { color: var(--rouge); min-height: 40px; padding: 0 10px; }
-#aide { position: fixed; left: 50%; transform: translateX(-50%); top: calc(16px + env(safe-area-inset-top)); font-size: 13px; color: var(--label-2); padding: 8px 14px; border-radius: 18px; max-width: calc(100vw - 250px); text-align: center; }
+#aide { pointer-events: none; position: fixed; left: 50%; transform: translateX(-50%); top: calc(16px + env(safe-area-inset-top)); font-size: 13px; color: var(--label-2); padding: 8px 14px; border-radius: 18px; max-width: calc(100vw - 250px); text-align: center; }
 @media (max-width: 760px) { #aide { top: auto; bottom: calc(82px + env(safe-area-inset-bottom)); max-width: calc(100vw - 24px); } body:has(#fiche:not([hidden])) #aide { display: none; } }
 </style>
 </head>
@@ -88,6 +88,8 @@ let S = { noeuds: [], branches: [], pn: [], pb: [] }, choix = -1, tracer = false
 // Deux squelettes superposés, même fonctionnement : les voies (`noeuds`, `branches`) et la structure
 // (`pn`, `pb` : un nœud est un poteau, une branche une poutre). `NO` et `BR` désignent celui qu'on modifie.
 let calque = 0, NO, BR, choixN = -1; // choixN : poteau choisi
+let ficheTrame = true; // calque Poteaux, rien de choisi : la fiche de la trame est ouverte ; un toucher hors du dessin la replie
+const dansDessin = (m) => !!calc && [...calc.ch, ...calc.bandes].some((q) => dans(m, q));
 function pointer() { S.pn = S.pn || []; S.pb = S.pb || []; NO = calque ? S.pn : S.noeuds; BR = calque ? S.pb : S.branches; }
 const versE = (p) => [p[0] * vue.s + vue.ox, -p[1] * vue.s + vue.oy], versM = (x, y) => [(x - vue.ox) / vue.s, (vue.oy - y) / vue.s];
 const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -469,10 +471,13 @@ function fin(ev) {
   if (g.genre === "trace") {
     if (g.fantome && Math.hypot(g.fantome[1][0] - g.de[0], g.fantome[1][1] - g.de[1]) >= (calque ? 1 : PAS - 1e-6)) { garder(); const a = noeudEn(g.e, g.de), b = noeudEn(versE(g.fantome[1]), g.fantome[1]); if (calque) S.auto = false; if (a !== b) { BR.push(calque ? { a, b } : { a, b, g: "90", d: "90" }); if (!calque) BR[BR.length - 1].pieton = bandeVoisine(BR[BR.length - 1]); choix = BR.length - 1; choixN = -1; } }
     // Structure : un simple toucher pose un poteau, aimanté à la trame du stationnement.
-    else if (calque && !g.bouge) { const t = cible(g.e, versM(g.e[0], g.e[1])); if (t.k < 0) { garder(); S.auto = false; choixN = NO.push(t.p) - 1; } else choixN = t.k; choix = -1; }
+    // Hors du dessin, le toucher désélectionne tout et replie la fiche.
+    else if (calque && !g.bouge) { const m = versM(g.e[0], g.e[1]), t = cible(g.e, m); choix = -1; if (t.k >= 0) choixN = t.k; else if (dansDessin(t.p) || dansDessin(m)) { garder(); S.auto = false; choixN = NO.push(t.p) - 1; } else { choixN = -1; ficheTrame = false; } }
+    else if (!g.bouge) choix = choixN = -1;
   } else if (!g.bouge) {
     const m = versM(e[0], e[1]), k = calque ? noeudPres(e) : -1, c = branchePres(m, Math.max(AIMANT / vue.s, 2));
     choixN = k; choix = k >= 0 ? -1 : g.genre === "branche" ? g.i : c ? c.i : -1;
+    if (calque && k < 0 && choix < 0) ficheTrame = dansDessin(m); // rien touché : dans le dessin, la fiche de la trame ; dehors, tout se replie
   }
   else if (g.genre === "noeud") { passe.push(g.avant); $("#b-annuler").disabled = false; if (g.vers >= 0) fusionner(g.vers, g.k); else if (!calque) { const c = branchePres(NO[g.k], AIMANT / vue.s, g.k); if (c) { NO[g.k] = c.p; fusionner(couper(c.i, c.p), g.k); } } choix = -1; choixN = calque ? (g.vers >= 0 ? g.vers : g.k) : -1; }
   else if (g.genre === "branche") { passe.push(g.avant); $("#b-annuler").disabled = false; const b = BR[g.i]; for (const k of [b.a, b.b]) { const v = noeudPres(versE(NO[k]), k); if (v >= 0) fusionner(v, k); } }
@@ -485,7 +490,7 @@ cv.addEventListener("wheel", (ev) => { ev.preventDefault(); const e = pos(ev), m
 for (const seg of document.querySelectorAll('#fiche .seg:not([data-cote="pieton"])')) for (const k of Object.keys(TYPES)) { const b = document.createElement("button"); b.textContent = TYPES[k].nom; b.dataset.t = k; seg.append(b); }
 function fiche() {
   const poteau = calque && choixN >= 0 && NO[choixN], b = BR[choix];
-  const libre = !!calque && !b && !poteau; // rien de choisi dans la structure : la fiche est celle de la trame entière
+  const libre = !!calque && !b && !poteau && ficheTrame; // rien de choisi dans la structure : la fiche est celle de la trame entière
   $("#fiche").hidden = !b && !poteau && !libre; $("#f-portee").hidden = !poteau; $("#f-mur").hidden = !calque || !!poteau || !b; $("#f-trame").hidden = !libre; $("#b-suppr").hidden = libre;
   for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = !!calque;
   if (libre) { const n = calc ? calc.pot.length : 0; $("#b-trame").setAttribute("aria-pressed", String(!!S.auto)); $("#f-long").textContent = (n ? `${n} poteau${n > 1 ? "x" : ""}` : "Aucun poteau") + (S.auto ? " · suit les voies" : " · à la main"); return; }
@@ -518,7 +523,7 @@ function aide() {
 }
 $("#calques").addEventListener("click", (ev) => {
   const x = ev.target.closest("button[data-c]"); if (!x) return;
-  calque = +x.dataset.c; choix = choixN = -1; pointer(); aide(); for (const y of $("#calques").children) y.setAttribute("aria-pressed", String(y === x)); fiche(); rafraichir(false);
+  calque = +x.dataset.c; choix = choixN = -1; ficheTrame = true; pointer(); aide(); for (const y of $("#calques").children) y.setAttribute("aria-pressed", String(y === x)); fiche(); rafraichir(false);
 });
 $("#b-annuler").addEventListener("click", annuler); $("#b-cadrer").addEventListener("click", cadrer);
 addEventListener("keydown", (ev) => { if ((ev.ctrlKey || ev.metaKey) && ev.key === "z") { ev.preventDefault(); annuler(); } });

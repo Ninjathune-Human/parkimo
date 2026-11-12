@@ -64,6 +64,20 @@ with sync_playwright() as p:
         pg.mouse.click(5, 5); pg.wait_for_timeout(200)
         pg.screenshot(path=str(out / f"{name}-squelette-depart.png"))
         E = lambda x, y: pg.evaluate(f"versE([{x}, {y}])")
+        # Toucher hors du dessin : tout se désélectionne et la fiche se replie, dans les deux calques et en mode Tracer.
+        F = "[document.querySelector('#fiche').hidden, choix, choixN]"
+        q = E(30, 0); pg.mouse.click(*q); pg.wait_for_timeout(250); avant = pg.evaluate(F)
+        q = E(30, 35); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        r["hors_voies"] = [avant, pg.evaluate(F)]
+        q = E(30, 0); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-tracer")
+        q = E(30, 35); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        r["hors_tracer"] = pg.evaluate(F); pg.click("#b-tracer")
+        pg.click('#calques button[data-c="1"]'); pg.wait_for_timeout(200); avant = pg.evaluate(F)
+        q = E(30, 35); pg.mouse.click(*q); pg.wait_for_timeout(250); dehors = pg.evaluate(F)
+        q = E(28.75, 0); pg.mouse.move(*q); pg.mouse.wheel(0, -1800); pg.wait_for_timeout(300)
+        q = E(28.75, 0); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        r["hors_poteaux"] = [avant, dehors, pg.evaluate(F)]
+        pg.click("#b-cadrer"); pg.wait_for_timeout(300); pg.click('#calques button[data-c="0"]'); pg.wait_for_timeout(200)
         # Tracer une branche depuis le milieu de la branche du bas, vers le bas : un nœud se crée sur la branche.
         pg.click("#b-tracer")
         a, c = E(30, 0), E(30, -30)
