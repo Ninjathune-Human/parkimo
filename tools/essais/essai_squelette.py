@@ -34,6 +34,22 @@ with sync_playwright() as p:
         pg.screenshot(path=str(out / f"{name}-squelette-apres.png"))
         for _ in range(4): pg.click("#b-annuler")
         r["annule"] = pg.evaluate(ETAT)
+        # Squelette de la structure : poteaux et poutres de l'exemple, puis un poteau glissé dans une voie.
+        ST = "({poteaux: calc.pot.length, conflits: calc.conflits.length, genees: calc.genees.length, places: calc.pl.length, texte: document.querySelector('#s-structure').textContent, fiche: document.querySelector('#fiche').hidden ? null : document.querySelector('#f-long').textContent, lignes: [...document.querySelectorAll('#fiche .ligne')].filter(l => !l.hidden).length})"
+        pg.click('#calques button[data-c="1"]'); pg.wait_for_timeout(200)
+        r["structure"] = pg.evaluate(ST)
+        n, m = E(30, 7.5), E(30, 1)
+        pg.mouse.move(*n); pg.mouse.down(); pg.mouse.move((n[0] + m[0]) / 2, (n[1] + m[1]) / 2); pg.mouse.move(*m); pg.mouse.up(); pg.wait_for_timeout(300)
+        r["poteau_en_voie"] = pg.evaluate(ST)
+        pg.screenshot(path=str(out / f"{name}-squelette-structure.png"))
+        pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        # Une poutre de plus, tracée depuis un poteau ; puis la choisir.
+        pg.click("#b-tracer"); a, c = E(52.5, 22.5), E(52.5, 30)
+        pg.mouse.move(*a); pg.mouse.down(); pg.mouse.move((a[0] + c[0]) / 2, (a[1] + c[1]) / 2); pg.mouse.move(*c); pg.mouse.up(); pg.wait_for_timeout(300)
+        pg.click("#b-tracer")
+        r["poutre"] = pg.evaluate(ST)
+        pg.click('#calques button[data-c="0"]'); pg.wait_for_timeout(200)
+        r["retour_voies"] = pg.evaluate("[calque, NO === S.noeuds, document.querySelector('#fiche').hidden]")
         print(json.dumps(r, ensure_ascii=False))
     b.close()
 print("erreurs:", errs)

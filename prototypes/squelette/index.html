@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Parkimo · essai du squelette</title>
 <style>
-:root { --fond: #EEF1EF; --grille: rgba(17,22,20,.07); --label: #111614; --label-2: rgba(17,22,20,.62); --verre: rgba(255,255,255,.78); --trait: rgba(17,22,20,.12); --accent: #007AFF; --dalle: #D9DDD9; --enrobe: #8E9499; --place: #A3A9AE; --marque: #FFFFFF; --mur: #2B3136; --rouge: #FF3B30; }
+:root { --fond: #EEF1EF; --grille: rgba(17,22,20,.07); --label: #111614; --label-2: rgba(17,22,20,.62); --verre: rgba(255,255,255,.78); --trait: rgba(17,22,20,.12); --accent: #007AFF; --dalle: #D9DDD9; --enrobe: #8E9499; --place: #A3A9AE; --marque: #FFFFFF; --mur: #2B3136; --rouge: #FF3B30; --os: #FF9500; }
 @media (prefers-color-scheme: dark) { :root { --fond: #14181A; --grille: rgba(238,243,240,.07); --label: #EEF3F0; --label-2: rgba(238,243,240,.64); --verre: rgba(30,35,38,.78); --trait: rgba(238,243,240,.14); --accent: #0A84FF; --dalle: #2A3034; --enrobe: #4A5157; --place: #5A6268; --marque: #E9EDEB; --mur: #C9D0CD; --rouge: #FF453A; } }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--fond); color: var(--label); font: 15px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", system-ui, sans-serif; }
@@ -24,6 +24,9 @@ button[aria-pressed="true"], button.plein { background: var(--accent); color: #f
 button:disabled { opacity: .35; }
 #fiche { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(82px + env(safe-area-inset-bottom)); border-radius: 22px; padding: 10px 12px; display: grid; gap: 8px; width: min(430px, calc(100vw - 24px)); }
 #fiche[hidden] { display: none; }
+.ligne[hidden] { display: none; }
+#barre .seg { align-self: center; }
+@media (max-width: 760px) { #barre > button { padding: 0 10px; } }
 .ligne { display: grid; grid-template-columns: 62px 1fr; align-items: center; gap: 8px; font-size: 13px; color: var(--label-2); }
 .seg { display: flex; background: rgba(127,127,127,.16); border-radius: 14px; padding: 2px; }
 .seg button { flex: 1; min-width: 0; min-height: 40px; padding: 0 4px; border-radius: 12px; font-size: 13px; font-weight: 500; }
@@ -39,15 +42,16 @@ button:disabled { opacity: .35; }
 <section id="bilan" class="verre" aria-live="polite">
   <h1>Essai du squelette</h1>
   <div class="n"><span id="s-places">0</span><small>places</small></div>
-  <dl><dt>Emprise</dt><dd id="s-emprise">–</dd><dt>Par place</dt><dd id="s-ratio">–</dd><dt>Branches</dt><dd id="s-branches">0</dd></dl>
+  <dl><dt>Emprise</dt><dd id="s-emprise">–</dd><dt>Par place</dt><dd id="s-ratio">–</dd><dt>Branches</dt><dd id="s-branches">0</dd><dt>Structure</dt><dd id="s-structure">–</dd></dl>
 </section>
-<div id="aide" class="verre">Glissez un nœud ou une branche · touchez une branche pour régler ses deux côtés</div>
+<div id="aide" class="verre">Glissez un nœud ou une branche · touchez une branche pour la régler</div>
 <section id="fiche" class="verre" hidden aria-label="Branche choisie">
   <div class="ligne"><span>Gauche</span><div class="seg" data-cote="g"></div></div>
   <div class="ligne"><span>Droite</span><div class="seg" data-cote="d"></div></div>
   <div class="bas"><span id="f-long"></span><button id="b-suppr">Supprimer</button></div>
 </section>
 <nav id="barre" class="verre">
+  <div class="seg" id="calques" role="group" aria-label="Squelette à modifier"><button data-c="0" aria-pressed="true">Voies</button><button data-c="1" aria-pressed="false">Poteaux</button></div>
   <button id="b-tracer" aria-pressed="false">Tracer</button>
   <button id="b-annuler" disabled>Annuler</button>
   <button id="b-cadrer">Cadrer</button>
@@ -71,14 +75,18 @@ const TYPES = {
 const PAS = 2.5, AIMANT = 16; // trame des longueurs (m), rayon d'aimantation (px)
 const $ = (s) => document.querySelector(s), cv = $("#plan"), ctx = cv.getContext("2d");
 let W = 0, H = 0, DPR = 1, vue = { s: 6, ox: 0, oy: 0 };
-let S = { noeuds: [], branches: [] }, choix = -1, tracer = false, passe = [], calc = null;
+let S = { noeuds: [], branches: [], pn: [], pb: [] }, choix = -1, tracer = false, passe = [], calc = null;
+// Deux squelettes superposés, même fonctionnement : les voies (`noeuds`, `branches`) et la structure
+// (`pn`, `pb` : un nœud est un poteau, une branche une poutre). `NO` et `BR` désignent celui qu'on modifie.
+let calque = 0, NO, BR;
+function pointer() { S.pn = S.pn || []; S.pb = S.pb || []; NO = calque ? S.pn : S.noeuds; BR = calque ? S.pb : S.branches; }
 const versE = (p) => [p[0] * vue.s + vue.ox, -p[1] * vue.s + vue.oy], versM = (x, y) => [(x - vue.ox) / vue.s, (vue.oy - y) / vue.s];
 const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
 // ---- Géométrie d'une branche : demi-chaussée (la plus large des deux côtés, NF P 91-100 tab. 2 note 6) et rangées.
 function demi(b) { return Math.max(TYPES[b.g].allee, TYPES[b.d].allee) / 2; }
-function repere(b) {
-  const A = S.noeuds[b.a], B = S.noeuds[b.b], L = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1e-9;
+function repere(b, N = S.noeuds) {
+  const A = N[b.a], B = N[b.b], L = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1e-9;
   const u = [(B[0] - A[0]) / L, (B[1] - A[1]) / L], n = [-u[1], u[0]];
   return { A, L, u, n, P: (t, o) => [A[0] + u[0] * t + n[0] * o, A[1] + u[1] * t + n[1] * o] };
 }
@@ -107,12 +115,18 @@ function recouvre(p, q) {
   }
   return true;
 }
+// Point strictement dans un quadrilatère convexe, à plus de `m` mètres de ses bords.
+const dedans = (pt, q, m) => { let s = 0; for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, d = ((b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0])) / l; if (Math.abs(d) <= m) return false; if (s && Math.sign(d) !== s) return false; s = Math.sign(d); } return true; };
 const dans = (pt, q) => { let s = 0; for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4], c = (b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0]); if (Math.abs(c) < 1e-9) continue; if (s && Math.sign(c) !== s) return false; s = Math.sign(c); } return true; };
 
 // ---- Calcul : chaussées, places qui tiennent (hors des autres chaussées et des places déjà posées), emprise.
 function calculer() {
-  const ch = S.branches.map(chaussee), bandes = [], pl = [];
-  S.branches.forEach((b, i) => { for (const c of ["g", "d"]) { const q = bande(b, c); if (q) bandes.push(q); for (const p of places(b, c)) { if (ch.some((r, j) => j !== i && recouvre(p, r))) continue; if (pl.some((o) => o.i !== i && recouvre(p, o.q))) continue; pl.push({ i, q: p }); } } });
+  const ch = S.branches.map(chaussee), bandes = [], pl = [], genees = [];
+  // Structure : poteaux (nœuds portant une poutre), ceux qui tombent dans une voie, portée la plus longue.
+  const pot = S.pn.filter((_, k) => S.pb.some((b) => b.a === k || b.b === k));
+  const conflits = pot.filter((c) => ch.some((q) => dedans(c, q, 0)));
+  const portee = S.pb.reduce((m, b) => Math.max(m, repere(b, S.pn).L), 0);
+  S.branches.forEach((b, i) => { for (const c of ["g", "d"]) { const q = bande(b, c); if (q) bandes.push(q); for (const p of places(b, c)) { if (ch.some((r, j) => j !== i && recouvre(p, r))) continue; if (pl.some((o) => o.i !== i && recouvre(p, o.q))) continue; if (pot.some((c) => dedans(c, p, 0.15))) { genees.push(p); continue; } pl.push({ i, q: p }); } } });
   // Emprise : réunion des chaussées et des rangées, mesurée sur une grille de 0,5 m.
   const rects = [...ch, ...bandes]; let aire = 0;
   if (rects.length) {
@@ -121,7 +135,9 @@ function calculer() {
     const bb = rects.map((q) => [Math.min(...q.map((p) => p[0])), Math.min(...q.map((p) => p[1])), Math.max(...q.map((p) => p[0])), Math.max(...q.map((p) => p[1]))]);
     for (let x = x0 + 0.25; x < x1; x += 0.5) for (let y = y0 + 0.25; y < y1; y += 0.5) if (rects.some((q, k) => x >= bb[k][0] && x <= bb[k][2] && y >= bb[k][1] && y <= bb[k][3] && dans([x, y], q))) aire += 0.25;
   }
-  calc = { ch, bandes, pl, aire };
+  calc = { ch, bandes, pl, aire, pot, conflits, genees };
+  $("#s-structure").textContent = pot.length ? `${pot.length} poteaux · ${portee.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m${conflits.length ? ` · ${conflits.length} en voie` : ""}` : "–";
+  $("#s-structure").style.color = conflits.length ? css("--rouge") : "";
   $("#s-places").textContent = pl.length; $("#s-branches").textContent = S.branches.length;
   $("#s-emprise").textContent = aire ? Math.round(aire).toLocaleString("fr-FR") + " m²" : "–";
   $("#s-ratio").textContent = pl.length ? (aire / pl.length).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " m²" : "–";
@@ -148,17 +164,30 @@ function dessiner() {
   ctx.strokeStyle = css("--marque"); ctx.lineWidth = Math.max(0.6, 0.1 * vue.s); ctx.beginPath();
   for (const p of calc.pl) { const q = p.q.map(versE); ctx.moveTo(q[3][0], q[3][1]); ctx.lineTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.lineTo(q[2][0], q[2][1]); }
   ctx.stroke();
-  // Squelette : axes et nœuds.
+  // Places qu'un poteau condamne.
+  ctx.fillStyle = css("--rouge"); ctx.globalAlpha = 0.28; ctx.beginPath(); for (const q of calc.genees) chemin(q); ctx.fill(); ctx.globalAlpha = 1;
+  // Squelette de la structure : poutres et poteaux, en avant quand c'est lui qu'on modifie.
+  ctx.globalAlpha = calque ? 1 : 0.55;
+  S.pb.forEach((br, i) => {
+    const A = versE(S.pn[br.a]), B = versE(S.pn[br.b]), sel = calque && i === choix;
+    ctx.strokeStyle = css(calque ? "--os" : "--mur"); ctx.lineWidth = sel ? 4 : calque ? 2 : 1.2;
+    ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+  });
+  const c = Math.max(7, 0.5 * vue.s);
+  for (const pt of calc.pot) { const e = versE(pt); ctx.fillStyle = css(calc.conflits.includes(pt) ? "--rouge" : "--mur"); ctx.fillRect(e[0] - c / 2, e[1] - c / 2, c, c); if (calque) { ctx.strokeStyle = css("--os"); ctx.lineWidth = 2; ctx.strokeRect(e[0] - c / 2 - 2, e[1] - c / 2 - 2, c + 4, c + 4); } }
+  // Squelette des voies : axes et nœuds.
+  ctx.globalAlpha = calque ? 0.4 : 1;
   S.branches.forEach((br, i) => {
-    const A = versE(S.noeuds[br.a]), B = versE(S.noeuds[br.b]);
-    ctx.strokeStyle = css("--accent"); ctx.lineWidth = i === choix ? 3.5 : 1.5; ctx.setLineDash(i === choix ? [] : [8, 5]);
+    const A = versE(S.noeuds[br.a]), B = versE(S.noeuds[br.b]), sel = !calque && i === choix;
+    ctx.strokeStyle = css("--accent"); ctx.lineWidth = sel ? 3.5 : 1.5; ctx.setLineDash(sel ? [] : [8, 5]);
     ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]);
   });
-  S.noeuds.forEach((n, i) => {
+  ctx.globalAlpha = 1;
+  if (!calque) S.noeuds.forEach((n, i) => {
     if (!S.branches.some((b) => b.a === i || b.b === i)) return;
     const e = versE(n); ctx.beginPath(); ctx.arc(e[0], e[1], 7, 0, 2 * Math.PI); ctx.fillStyle = css("--fond"); ctx.fill(); ctx.strokeStyle = css("--accent"); ctx.lineWidth = 2.5; ctx.stroke();
   });
-  if (geste && geste.fantome) { const A = versE(geste.fantome[0]), B = versE(geste.fantome[1]); ctx.strokeStyle = css("--accent"); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); }
+  if (geste && geste.fantome) { const A = versE(geste.fantome[0]), B = versE(geste.fantome[1]); ctx.strokeStyle = css(calque ? "--os" : "--accent"); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); }
 }
 let attente = false;
 function rafraichir(recalc = true) { if (recalc) calculer(); if (!attente) { attente = true; requestAnimationFrame(() => { attente = false; dessiner(); }); } }
@@ -172,33 +201,33 @@ function cadrer() {
 
 // ---- Historique et enregistrement.
 function garder() { passe.push(JSON.stringify(S)); if (passe.length > 60) passe.shift(); $("#b-annuler").disabled = false; }
-function enregistrer() { try { localStorage.setItem("parkimo.squelette", JSON.stringify(S)); } catch (e) { /* stockage indisponible */ } }
-function annuler() { if (!passe.length) return; S = JSON.parse(passe.pop()); choix = -1; $("#b-annuler").disabled = !passe.length; rafraichir(); fiche(); enregistrer(); }
+function enregistrer() { try { localStorage.setItem("parkimo.squelette.2", JSON.stringify(S)); } catch (e) { /* stockage indisponible */ } }
+function annuler() { if (!passe.length) return; S = JSON.parse(passe.pop()); pointer(); choix = -1; $("#b-annuler").disabled = !passe.length; rafraichir(); fiche(); enregistrer(); }
 
 // ---- Aimants : un nœud voisin, sinon le corps d'une branche (le nœud s'y crée), sinon la trame.
-function noeudPres(e, sauf = -1) { let m = -1, d = AIMANT; S.noeuds.forEach((n, i) => { if (i === sauf || !S.branches.some((b) => b.a === i || b.b === i)) return; const p = versE(n), l = Math.hypot(p[0] - e[0], p[1] - e[1]); if (l < d) { d = l; m = i; } }); return m; }
+function noeudPres(e, sauf = -1) { let m = -1, d = AIMANT; NO.forEach((n, i) => { if (i === sauf || !BR.some((b) => b.a === i || b.b === i)) return; const p = versE(n), l = Math.hypot(p[0] - e[0], p[1] - e[1]); if (l < d) { d = l; m = i; } }); return m; }
 function branchePres(m, tol, saufNoeud = -1) {
   let best = null;
-  S.branches.forEach((b, i) => { if (b.a === saufNoeud || b.b === saufNoeud) return; const r = repere(b), t = (m[0] - r.A[0]) * r.u[0] + (m[1] - r.A[1]) * r.u[1], o = Math.abs((m[0] - r.A[0]) * r.n[0] + (m[1] - r.A[1]) * r.n[1]); if (t > 0 && t < r.L && o < tol && (!best || o < best.o)) best = { i, o, t: Math.round(t / PAS) * PAS, p: r.P(Math.round(t / PAS) * PAS, 0), L: r.L }; });
+  BR.forEach((b, i) => { if (b.a === saufNoeud || b.b === saufNoeud) return; const r = repere(b, NO), t = (m[0] - r.A[0]) * r.u[0] + (m[1] - r.A[1]) * r.u[1], o = Math.abs((m[0] - r.A[0]) * r.n[0] + (m[1] - r.A[1]) * r.n[1]); if (t > 0 && t < r.L && o < tol && (!best || o < best.o)) best = { i, o, t: Math.round(t / PAS) * PAS, p: r.P(Math.round(t / PAS) * PAS, 0), L: r.L }; });
   return best && best.t > 0.5 && best.t < best.L - 0.5 ? best : null;
 }
 // Bout d'une branche tirée depuis `o` : angle au pas de 15°, longueur au pas de la trame.
 function aligner(o, m) { const a = Math.round(Math.atan2(m[1] - o[1], m[0] - o[0]) / (Math.PI / 12)) * (Math.PI / 12), l = Math.max(PAS, Math.round(Math.hypot(m[0] - o[0], m[1] - o[1]) / PAS) * PAS); return [o[0] + Math.cos(a) * l, o[1] + Math.sin(a) * l]; }
-function couper(i, p) { const b = S.branches[i], k = S.noeuds.push(p) - 1; S.branches.push({ ...b, a: k }); b.b = k; return k; }
-function fusionner(garde, ote) { for (const b of S.branches) { if (b.a === ote) b.a = garde; if (b.b === ote) b.b = garde; } S.branches = S.branches.filter((b) => b.a !== b.b); }
+function couper(i, p) { const b = BR[i], k = NO.push(p) - 1; BR.push({ ...b, a: k }); b.b = k; return k; }
+function fusionner(garde, ote) { for (const b of BR) { if (b.a === ote) b.a = garde; if (b.b === ote) b.b = garde; } const r = BR.filter((b) => b.a !== b.b); BR.length = 0; BR.push(...r); }
 // Nœud au point `m` : celui qui s'y trouve, un nouveau sur une branche, ou un nouveau libre.
-function noeudEn(e, m) { const k = noeudPres(e); if (k >= 0) return k; const c = branchePres(m, AIMANT / vue.s); if (c) return couper(c.i, c.p); return S.noeuds.push(m) - 1; }
+function noeudEn(e, m) { const k = noeudPres(e); if (k >= 0) return k; const c = branchePres(m, AIMANT / vue.s); if (c) return couper(c.i, c.p); return NO.push(m) - 1; }
 
 // ---- Gestes : un doigt, un stylet ou la souris ; deux doigts pour zoomer.
 const doigts = new Map(); let geste = null, pince = null;
 const pos = (ev) => { const r = cv.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; };
 cv.addEventListener("pointerdown", (ev) => {
   cv.setPointerCapture(ev.pointerId); const e = pos(ev); doigts.set(ev.pointerId, e);
-  if (doigts.size === 2) { const [a, b] = [...doigts.values()]; pince = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], v: { ...vue } }; if (geste && geste.avant) { S = JSON.parse(geste.avant); calculer(); } geste = null; return; }
+  if (doigts.size === 2) { const [a, b] = [...doigts.values()]; pince = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], v: { ...vue } }; if (geste && geste.avant) { S = JSON.parse(geste.avant); pointer(); calculer(); } geste = null; return; }
   const m = versM(e[0], e[1]), k = noeudPres(e), c = k < 0 ? branchePres(m, Math.max(AIMANT / vue.s, 2)) : null;
-  if (tracer) geste = { genre: "trace", e, de: k >= 0 ? S.noeuds[k].slice() : c ? c.p : [Math.round(m[0] / PAS) * PAS, Math.round(m[1] / PAS) * PAS] };
+  if (tracer) geste = { genre: "trace", e, de: k >= 0 ? NO[k].slice() : c ? c.p : [Math.round(m[0] / PAS) * PAS, Math.round(m[1] / PAS) * PAS] };
   else if (k >= 0) geste = { genre: "noeud", k, e, avant: JSON.stringify(S) };
-  else if (c) geste = { genre: "branche", i: c.i, e, m0: m, a0: S.noeuds[S.branches[c.i].a].slice(), b0: S.noeuds[S.branches[c.i].b].slice(), avant: JSON.stringify(S) };
+  else if (c) geste = { genre: "branche", i: c.i, e, m0: m, a0: NO[BR[c.i].a].slice(), b0: NO[BR[c.i].b].slice(), avant: JSON.stringify(S) };
   else geste = { genre: "vue", e };
 });
 cv.addEventListener("pointermove", (ev) => {
@@ -207,45 +236,57 @@ cv.addEventListener("pointermove", (ev) => {
   if (!geste) return; const m = versM(e[0], e[1]);
   if (!geste.bouge && Math.hypot(e[0] - geste.e[0], e[1] - geste.e[1]) < 5) return; geste.bouge = true;
   if (geste.genre === "vue") { vue.ox += e[0] - geste.e[0]; vue.oy += e[1] - geste.e[1]; geste.e = e; return rafraichir(false); }
-  if (geste.genre === "trace") { const k = noeudPres(e), c = k < 0 ? branchePres(m, AIMANT / vue.s) : null; geste.fantome = [geste.de, k >= 0 ? S.noeuds[k] : c ? c.p : aligner(geste.de, m)]; return rafraichir(false); }
+  if (geste.genre === "trace") { const k = noeudPres(e), c = k < 0 ? branchePres(m, AIMANT / vue.s) : null; geste.fantome = [geste.de, k >= 0 ? NO[k] : c ? c.p : aligner(geste.de, m)]; return rafraichir(false); }
   if (geste.genre === "noeud") {
     // Le nœud suit le doigt : aimanté à un autre nœud, sinon aligné sur son premier voisin.
-    const autre = noeudPres(e, geste.k), v = S.branches.find((b) => b.a === geste.k || b.b === geste.k), o = v ? S.noeuds[v.a === geste.k ? v.b : v.a] : null;
-    S.noeuds[geste.k] = autre >= 0 ? S.noeuds[autre].slice() : o ? aligner(o, m) : m; geste.vers = autre; return rafraichir();
+    const autre = noeudPres(e, geste.k), v = BR.find((b) => b.a === geste.k || b.b === geste.k), o = v ? NO[v.a === geste.k ? v.b : v.a] : null;
+    NO[geste.k] = autre >= 0 ? NO[autre].slice() : o ? aligner(o, m) : m; geste.vers = autre; return rafraichir();
   }
-  if (geste.genre === "branche") { const b = S.branches[geste.i], dx = Math.round((m[0] - geste.m0[0]) / PAS) * PAS, dy = Math.round((m[1] - geste.m0[1]) / PAS) * PAS; S.noeuds[b.a] = [geste.a0[0] + dx, geste.a0[1] + dy]; S.noeuds[b.b] = [geste.b0[0] + dx, geste.b0[1] + dy]; return rafraichir(); }
+  if (geste.genre === "branche") { const b = BR[geste.i], dx = Math.round((m[0] - geste.m0[0]) / PAS) * PAS, dy = Math.round((m[1] - geste.m0[1]) / PAS) * PAS; NO[b.a] = [geste.a0[0] + dx, geste.a0[1] + dy]; NO[b.b] = [geste.b0[0] + dx, geste.b0[1] + dy]; return rafraichir(); }
 });
 function fin(ev) {
   const e = doigts.get(ev.pointerId) || pos(ev); doigts.delete(ev.pointerId);
   if (pince) { if (doigts.size < 2) pince = null; return; }
   const g = geste; geste = null; if (!g) return;
   if (g.genre === "trace") {
-    if (g.fantome && Math.hypot(g.fantome[1][0] - g.de[0], g.fantome[1][1] - g.de[1]) >= PAS - 1e-6) { garder(); const a = noeudEn(g.e, g.de), b = noeudEn(versE(g.fantome[1]), g.fantome[1]); if (a !== b) { S.branches.push({ a, b, g: "90", d: "90" }); choix = S.branches.length - 1; } }
+    if (g.fantome && Math.hypot(g.fantome[1][0] - g.de[0], g.fantome[1][1] - g.de[1]) >= PAS - 1e-6) { garder(); const a = noeudEn(g.e, g.de), b = noeudEn(versE(g.fantome[1]), g.fantome[1]); if (a !== b) { BR.push(calque ? { a, b } : { a, b, g: "90", d: "90" }); choix = BR.length - 1; } }
   } else if (!g.bouge) { const m = versM(e[0], e[1]), c = branchePres(m, Math.max(AIMANT / vue.s, 2)); choix = g.genre === "branche" ? g.i : c ? c.i : -1; }
-  else if (g.genre === "noeud") { passe.push(g.avant); $("#b-annuler").disabled = false; if (g.vers >= 0) fusionner(g.vers, g.k); else { const c = branchePres(S.noeuds[g.k], AIMANT / vue.s, g.k); if (c) { S.noeuds[g.k] = c.p; fusionner(couper(c.i, c.p), g.k); } } choix = -1; }
-  else if (g.genre === "branche") { passe.push(g.avant); $("#b-annuler").disabled = false; const b = S.branches[g.i]; for (const k of [b.a, b.b]) { const v = noeudPres(versE(S.noeuds[k]), k); if (v >= 0) fusionner(v, k); } }
+  else if (g.genre === "noeud") { passe.push(g.avant); $("#b-annuler").disabled = false; if (g.vers >= 0) fusionner(g.vers, g.k); else { const c = branchePres(NO[g.k], AIMANT / vue.s, g.k); if (c) { NO[g.k] = c.p; fusionner(couper(c.i, c.p), g.k); } } choix = -1; }
+  else if (g.genre === "branche") { passe.push(g.avant); $("#b-annuler").disabled = false; const b = BR[g.i]; for (const k of [b.a, b.b]) { const v = noeudPres(versE(NO[k]), k); if (v >= 0) fusionner(v, k); } }
   rafraichir(); fiche(); enregistrer();
 }
 cv.addEventListener("pointerup", fin); cv.addEventListener("pointercancel", fin);
 cv.addEventListener("wheel", (ev) => { ev.preventDefault(); const e = pos(ev), m = versM(e[0], e[1]), s = Math.max(1.2, Math.min(40, vue.s * Math.exp(-ev.deltaY * 0.0015))); vue = { s, ox: e[0] - m[0] * s, oy: e[1] + m[1] * s }; rafraichir(false); }, { passive: false });
 
 // ---- Fiche de la branche choisie : ce qui se développe à gauche et à droite de l'axe.
-for (const seg of document.querySelectorAll(".seg")) for (const k of Object.keys(TYPES)) { const b = document.createElement("button"); b.textContent = TYPES[k].nom; b.dataset.t = k; seg.append(b); }
+for (const seg of document.querySelectorAll("#fiche .seg")) for (const k of Object.keys(TYPES)) { const b = document.createElement("button"); b.textContent = TYPES[k].nom; b.dataset.t = k; seg.append(b); }
 function fiche() {
-  const b = S.branches[choix]; $("#fiche").hidden = !b; if (!b) return;
-  for (const seg of document.querySelectorAll(".seg")) for (const x of seg.children) x.setAttribute("aria-pressed", String(b[seg.dataset.cote] === x.dataset.t));
+  const b = BR[choix]; $("#fiche").hidden = !b; if (!b) return;
+  for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = !!calque;
+  if (calque) { $("#f-long").textContent = `Poutre · portée ${repere(b, NO).L.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m`; return; }
+  for (const seg of document.querySelectorAll("#fiche .seg")) for (const x of seg.children) x.setAttribute("aria-pressed", String(b[seg.dataset.cote] === x.dataset.t));
   const n = calc ? calc.pl.filter((p) => p.i === choix).length : 0;
   $("#f-long").textContent = `${repere(b).L.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m · chaussée ${(2 * demi(b)).toLocaleString("fr-FR")} m · ${n} places`;
 }
-$("#fiche").addEventListener("click", (ev) => { const x = ev.target.closest(".seg button"), b = S.branches[choix]; if (!x || !b) return; garder(); b[x.parentElement.dataset.cote] = x.dataset.t; rafraichir(); fiche(); enregistrer(); });
-$("#b-suppr").addEventListener("click", () => { if (choix < 0) return; garder(); S.branches.splice(choix, 1); choix = -1; rafraichir(); fiche(); enregistrer(); });
-$("#b-tracer").addEventListener("click", () => { tracer = !tracer; $("#b-tracer").setAttribute("aria-pressed", String(tracer)); cv.style.cursor = tracer ? "crosshair" : "grab"; $("#aide").textContent = tracer ? "Tirez un trait : il s'aimante aux nœuds, aux branches et à la trame" : "Glissez un nœud ou une branche · touchez une branche pour régler ses deux côtés"; });
+$("#fiche").addEventListener("click", (ev) => { const x = ev.target.closest(".seg button"), b = S.branches[choix]; if (!x || !b || calque) return; garder(); b[x.parentElement.dataset.cote] = x.dataset.t; rafraichir(); fiche(); enregistrer(); });
+$("#b-suppr").addEventListener("click", () => { if (choix < 0) return; garder(); BR.splice(choix, 1); choix = -1; rafraichir(); fiche(); enregistrer(); });
+$("#b-tracer").addEventListener("click", () => { tracer = !tracer; $("#b-tracer").setAttribute("aria-pressed", String(tracer)); cv.style.cursor = tracer ? "crosshair" : "grab"; $("#aide").textContent = tracer ? "Tirez un trait : il s'aimante aux nœuds, aux branches et à la trame" : "Glissez un nœud ou une branche · touchez une branche pour la régler"; });
+$("#calques").addEventListener("click", (ev) => {
+  const x = ev.target.closest("button[data-c]"); if (!x) return;
+  calque = +x.dataset.c; choix = -1; pointer(); for (const y of $("#calques").children) y.setAttribute("aria-pressed", String(y === x)); fiche(); rafraichir(false);
+});
 $("#b-annuler").addEventListener("click", annuler); $("#b-cadrer").addEventListener("click", cadrer);
 addEventListener("keydown", (ev) => { if ((ev.ctrlKey || ev.metaKey) && ev.key === "z") { ev.preventDefault(); annuler(); } });
 
 // ---- Départ : le dernier essai, sinon une boucle avec une antenne.
-try { const s = JSON.parse(localStorage.getItem("parkimo.squelette") || "null"); if (s && s.noeuds && s.branches) S = s; } catch (e) { /* stockage indisponible */ }
-if (!S.branches.length) S = { noeuds: [[0, 0], [60, 0], [60, 15], [0, 15], [90, 0]], branches: [{ a: 0, b: 1, g: "90", d: "90" }, { a: 1, b: 2, g: "aucun", d: "90" }, { a: 2, b: 3, g: "90", d: "90" }, { a: 3, b: 0, g: "aucun", d: "90" }, { a: 1, b: 4, g: "60", d: "45" }] };
+try { const s = JSON.parse(localStorage.getItem("parkimo.squelette.2") || "null"); if (s && s.noeuds && s.branches) S = s; } catch (e) { /* stockage indisponible */ }
+const neuf = !S.branches.length;
+if (neuf) S = { noeuds: [[0, 0], [60, 0], [60, 15], [0, 15], [90, 0]], branches: [{ a: 0, b: 1, g: "90", d: "90" }, { a: 1, b: 2, g: "aucun", d: "90" }, { a: 2, b: 3, g: "90", d: "90" }, { a: 3, b: 0, g: "aucun", d: "90" }, { a: 1, b: 4, g: "60", d: "45" }], pn: [], pb: [] };
+if (neuf) {
+  // Structure de l'exemple : trois files (façades et axe des rangées dos à dos), un poteau toutes les trois places.
+  [-7.5, 7.5, 22.5].forEach((y, j) => { for (let i = 0; i < 7; i++) { S.pn.push([7.5 * (i + 1), y]); const k = j * 7 + i; if (i) S.pb.push({ a: k - 1, b: k }); if (j) S.pb.push({ a: k - 7, b: k }); } });
+}
+pointer();
 new ResizeObserver(taille).observe(cv); taille(); calculer(); cadrer();
 </script>
 </body>
