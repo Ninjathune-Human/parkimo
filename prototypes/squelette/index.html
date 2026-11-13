@@ -46,10 +46,10 @@ button:disabled { opacity: .35; }
 .seg button[aria-pressed="true"] { background: var(--verre); color: var(--label); box-shadow: 0 1px 4px rgba(0,0,0,.18); font-weight: 600; }
 #fiche .bas { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--label-2); }
 #f-portee { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-#f-portee[hidden], #f-mur[hidden], #f-trame[hidden], #f-systeme[hidden], #f-escalier[hidden] { display: none; }
-#f-mur, #f-trame, #f-escalier { display: grid; }
-#b-plein[aria-pressed="true"], #b-trame[aria-pressed="true"], #b-principal[aria-pressed="true"] { background: var(--mur); color: var(--fond); }
-#f-portee button, #f-mur button, #f-trame button, #f-escalier button { min-height: 40px; padding: 0 6px; font-size: 13px; background: color-mix(in srgb, var(--os) 18%, transparent); border-radius: 12px; }
+#f-portee[hidden], #f-mur[hidden], #f-trame[hidden], #f-systeme[hidden], #f-escalier[hidden], #f-escauto[hidden] { display: none; }
+#f-mur, #f-trame, #f-escalier, #f-escauto { display: grid; }
+#b-plein[aria-pressed="true"], #b-trame[aria-pressed="true"], #b-principal[aria-pressed="true"], #b-escauto[aria-pressed="true"] { background: var(--mur); color: var(--fond); }
+#f-portee button, #f-mur button, #f-trame button, #f-escalier button, #f-escauto button { min-height: 40px; padding: 0 6px; font-size: 13px; background: color-mix(in srgb, var(--os) 18%, transparent); border-radius: 12px; }
 #fiche .bas button { color: var(--rouge); min-height: 40px; padding: 0 10px; }
 #aide { pointer-events: none; position: fixed; left: 50%; transform: translateX(-50%); top: calc(16px + env(safe-area-inset-top)); font-size: 13px; color: var(--label-2); padding: 8px 14px; border-radius: 18px; max-width: calc(100vw - 250px); text-align: center; }
 @media (max-width: 760px) { #aide { top: auto; bottom: calc(var(--barre) + env(safe-area-inset-bottom)); max-width: calc(100vw - 24px); } body:has(#fiche:not([hidden])) #aide { display: none; } }
@@ -73,6 +73,7 @@ button:disabled { opacity: .35; }
   <div id="f-portee" hidden><button data-p="long">Poutres le long de la voie</button><button data-p="travers">Poutres en travers</button></div>
   <div id="f-systeme" class="seg" role="group" aria-label="Système porteur" hidden></div>
   <div id="f-escalier" hidden><button id="b-principal" aria-pressed="false">Escalier principal · deux ascenseurs</button></div>
+  <div id="f-escauto" hidden><button id="b-escauto" aria-pressed="true">Placement automatique</button></div>
   <div id="f-trame" hidden><button id="b-trame" aria-pressed="true">Trame automatique</button></div>
   <div id="f-mur" hidden><button id="b-plein" aria-pressed="false">Remplissage en maçonnerie</button></div>
   <div class="bas"><span id="f-long"></span><button id="b-suppr">Supprimer</button></div>
@@ -439,7 +440,76 @@ function horsPlace(p) {
 // Tant que la trame est automatique (`S.auto`), la structure est refaite à chaque changement des voies :
 // elle s'adapte à chaque branche. Un remplissage reste là où il a été posé : la travée refaite est pleine si elle
 // suit, sur plus de la moitié de sa longueur, un remplissage d'avant (à 0,30 m près).
+// ---- Placement automatique des escaliers. Le plus petit nombre d'escaliers tel qu'aucune place ne soit trop loin ; à
+// nombre égal, l'implantation dont la place la plus éloignée est la plus proche. Les positions possibles sont celles des
+// rangées, de 2,50 m en 2,50 m, là où le noyau ne prend que des places. La recherche couvre toutes les places, à 40 m ou
+// à 25 m pour celles du fond d'un cul-de-sac ; chaque implantation est jugée par la mesure même du principe (desservir).
+let cleEsc = "";
+function placer() {
+  const cle = JSON.stringify([S.noeuds, S.branches, S.rampes || [], S.systeme]); if (cle === cleEsc) return; cleEsc = cle;
+  const t0 = performance.now(); S.escaliers = []; mesurer();
+  const pl = calc.pl, libres = calc.emprises.filter((e) => e.nature !== "place"), cands = [], R = S.branches.map((b) => repere(b));
+  S.branches.forEach((b, i) => { for (const c of ["g", "d"]) {
+    const t = TYPES[b[c]]; if (t.prof < 4 || b.rampe) continue; const r = R[i], s = c === "g" ? 1 : -1, h = demi(b), vus = new Set(), ici = pl.filter((o) => o.i === i && o.c === c).map((o) => centre(o.q));
+    for (let v = 0; v <= r.L; v += PAS) {
+      const x = loger(r.P(v, s * (h + t.prof / 2)), ESCALIER.long, calc.B, calc.D), k = x.hors ? "" : x.a.toFixed(2); if (x.hors || x.i !== i || x.c !== c || vus.has(k)) continue; vus.add(k);
+      if (cedeQuad(x.corps, "place", libres) || ici.filter((p) => dans(p, x.corps)).length < (t.angle === 90 ? 2 : 1)) continue; // le noyau ne prend que des places
+      cands.push({ x, rang: `${i}${c}`, k: vus.size });
+    }
+  } });
+  // De chaque position seule : la distance de chaque place, et le sens dans lequel elle part le long de sa voie.
+  for (const c of cands) { desservir([c.x], pl); c.d = pl.map((o) => o.dist); c.sens = pl.map((o) => (o.vers ? Math.sign(o.vers.par.a - o.vers.a) || 1 : 0)); }
+  // Fond d'un cul-de-sac : toutes les positions à plus de 25 m sont du même côté, et le premier carrefour de ce côté est
+  // trop loin pour que deux escaliers s'y séparent à temps. Une telle place veut un escalier à 25 m, quoi qu'on pose ailleurs.
+  const deg = S.noeuds.map((_, n) => S.branches.filter((b) => !b.rampe && (b.a === n || b.b === n)).length);
+  const carrefour = (i, a, sens) => { let n = sens > 0 ? S.branches[i].b : S.branches[i].a, long = sens > 0 ? R[i].L - a : a;
+    for (let tour = 0; deg[n] === 2 && tour < S.branches.length; tour++) { const j = S.branches.findIndex((o, k) => k !== i && !o.rampe && (o.a === n || o.b === n)); i = j; long += R[j].L; n = S.branches[j].a === n ? S.branches[j].b : S.branches[j].a; }
+    return deg[n] >= 3 ? long : Infinity; };
+  const rayon = pl.map((o, j) => { const sens = cands.filter((c) => c.d[j] > ESCALIER.impasse + 0.01 && c.d[j] < Infinity).map((c) => c.sens[j]); if (sens.some((v) => v !== sens[0])) return ESCALIER.dist;
+    const r = R[o.i], q = centre(o.q), a = Math.min(r.L, Math.max(0, (q[0] - r.A[0]) * r.u[0] + (q[1] - r.A[1]) * r.u[1])); return !sens.length || carrefour(o.i, a, sens[0]) > ESCALIER.impasse + 6 ? ESCALIER.impasse : ESCALIER.dist; });
+  // Les places qu'aucune position ne dessert restent hors de portée : elles ne comptent pas dans la recherche.
+  const J = pl.map((_, j) => j).filter((j) => cands.some((c) => c.d[j] <= rayon[j] + 0.01)), P = J.map((j) => pl[j]), N = J.length;
+  for (const c of cands) { c.d = J.map((j) => c.d[j]); c.couv = Uint8Array.from(c.d, (v, k) => (v <= rayon[J[k]] + 0.01 ? 1 : 0)); c.somme = c.d.reduce((t, v) => t + Math.min(v, 200), 0); }
+  const gros = cands.filter((c) => c.k % 2 === 1), ordre = P.map((_, j) => j).sort((a, b) => gros.reduce((t, c) => t + c.couv[a] - c.couv[b], 0)); // d'abord la place que le moins de positions desservent
+  const juges = new Map(); let budget = 500, pas = 0, sols = [];
+  const juger = (l) => { const cle = l.map((c) => cands.indexOf(c)).sort((a, b) => a - b).join(); if (!juges.has(cle)) { budget--; const r = desservir(l.map((c) => c.x), P); juges.set(cle, { l, max: r.max, loin: r.loin.length ? P.findIndex((o) => o.q === r.loin[0]) : -1, neuf: true }); } else juges.get(cle).neuf = false; return juges.get(cle); };
+  const chercher = (l, reste, nb, k) => {
+    if (budget <= 0 || pas++ > 6000 || sols.length >= 40) return;
+    if (!nb) { // toutes desservies à leur rayon : la mesure tranche ; une place encore en défaut veut un escalier à 25 m
+      const r = juger(l); if (!r.neuf) return; if (r.loin < 0) { sols.push(r); return; }
+      if (l.length < k) for (const c of gros.filter((c) => !l.includes(c) && c.d[r.loin] <= ESCALIER.impasse).sort((a, b) => a.d[r.loin] - b.d[r.loin])) chercher([...l, c], reste, 0, k);
+      return;
+    }
+    if (l.length === k) return;
+    const cible = ordre.find((j) => reste[j]), gain = (c) => { let g = 0; for (let j = 0; j < N; j++) g += reste[j] & c.couv[j]; return g; };
+    if (Math.max(...gros.map(gain)) * (k - l.length) < nb) return; // même les meilleures positions n'y suffiraient pas
+    for (const c of gros.filter((c) => c.couv[cible] && !l.includes(c)).map((c) => [c, gain(c)]).sort((a, b) => b[1] - a[1])) {
+      const r2 = reste.slice(); let n2 = nb; for (let j = 0; j < N; j++) if (r2[j] && c[0].couv[j]) { r2[j] = 0; n2--; }
+      chercher([...l, c[0]], r2, n2, k);
+    }
+  };
+  for (let k = 1; k <= 12 && !sols.length && budget > 0 && pas <= 6000 && N; k++) chercher([], new Uint8Array(N).fill(1), N, k);
+  placer.abrege = !sols.length || budget <= 0 || pas > 6000; // faute d'avoir tout essayé, le nombre trouvé n'est pas garanti le plus petit
+  if (!sols.length && N) { // recherche épuisée : de proche en proche la position qui dessert le plus de places, puis on retire les escaliers de trop
+    let l = []; const reste = new Uint8Array(N).fill(1), g = (c) => c.couv.reduce((t, v, j) => t + (reste[j] & v), 0);
+    for (;;) { const c = cands.filter((c) => !l.includes(c)).sort((a, b) => g(b) - g(a))[0]; if (!c || !g(c) || l.length >= 40) break; l.push(c); c.couv.forEach((v, j) => { if (v) reste[j] = 0; }); }
+    for (let r = juger(l), tour = 0; r.loin >= 0 && tour < 20; tour++) { const c = cands.filter((c) => !l.includes(c) && c.d[r.loin] <= ESCALIER.impasse).sort((a, b) => a.d[r.loin] - b.d[r.loin])[0]; if (!c) break; l = [...l, c]; r = juger(l); }
+    if (juger(l).loin < 0) for (let m = l.length - 1; m >= 0; m--) { const sans = l.filter((_, k) => k !== m); if (sans.length && juger(sans).loin < 0) l = sans; }
+    if (l.length) sols.push(juger(l));
+  }
+  // Affinage : chaque escalier essaie les positions voisines de sa rangée tant que la plus longue distance diminue.
+  sols.sort((a, b) => a.max - b.max); sols = sols.slice(0, 3).map((so) => ({ ...so })); budget = 300;
+  for (const so of sols) for (let tour = 0, mieux = true; mieux && tour < 20 && budget > 0 && so.loin < 0; tour++) { mieux = false;
+    so.l.forEach((c, m) => { for (const v of cands.filter((o) => o.rang === c.rang && Math.abs(o.k - so.l[m].k) === 1 && !so.l.includes(o))) { const l = so.l.slice(); l[m] = v; const r = juger(l); if (r.loin < 0 && r.max < so.max - 1e-6) { so.l = l; so.max = r.max; mieux = true; } } }); }
+  sols.sort((a, b) => a.max - b.max);
+  // L'escalier principal : le plus central qui ait la place de ses ascenseurs. Le plan entier est mesuré avec lui.
+  const poser = (so, m) => { S.escaliers = so.l.map((c, k) => (k === m ? { p: c.x.r.P(c.x.a + ESCALIER.long, c.x.s * (c.x.h + c.x.prof / 2)), principal: true } : { p: centre(c.x.corps) })); mesurer(); return !calc.escHors && calc.loin.length <= pl.length - N && calc.escaliers[m].a === so.l[m].x.a; };
+  let fait = false; for (const so of sols) { const centraux = so.l.map((c, m) => m).sort((a, b) => so.l[a].somme - so.l[b].somme); for (const m of centraux) if (poser(so, m)) { fait = true; break; } if (fait) break; }
+  if (!fait && sols.length) poser(sols[0], 0);
+  placer.ms = performance.now() - t0; placer.mesures = juges.size; placer.positions = cands.length;
+}
 function calculer() {
+  if (S.escAuto && !geste) placer(); // pendant un geste, les escaliers gardent leur place ; ils se replacent quand il s'achève
   if (S.auto) {
     const murs = S.pb.filter((b) => b.plein && !b.voile && !b.noyau && S.pn[b.a] && S.pn[b.b]).map((b) => [S.pn[b.a], S.pn[b.b]]);
     const suit = (A, B, m) => { const ex = m[1][0] - m[0][0], ey = m[1][1] - m[0][1], l = Math.hypot(ex, ey) || 1, t = (p) => ((p[0] - m[0][0]) * ex + (p[1] - m[0][1]) * ey) / l, e = (p) => Math.abs((p[0] - m[0][0]) * ey - (p[1] - m[0][1]) * ex) / l; return e(A) < 0.3 && e(B) < 0.3 && Math.min(l, Math.max(t(A), t(B))) - Math.max(0, Math.min(t(A), t(B))) > 0.5 * Math.hypot(B[0] - A[0], B[1] - A[1]); };
@@ -524,7 +594,7 @@ function mesurer() {
     const bb = rects.map((q) => [Math.min(...q.map((p) => p[0])), Math.min(...q.map((p) => p[1])), Math.max(...q.map((p) => p[0])), Math.max(...q.map((p) => p[1]))]);
     for (let x = x0 + 0.25; x < x1; x += 0.5) for (let y = y0 + 0.25; y < y1; y += 0.5) if (rects.some((q, k) => x >= bb[k][0] && x <= bb[k][2] && y >= bb[k][1] && y <= bb[k][3] && dans([x, y], q))) aire += 0.25;
   }
-  calc = { ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords, rampes, emprises: E, croisements, chevauchements, dansPlace, appuis, rampesVoie, raides, escaliers, escHors: escaliers.filter((x) => x.hors).length, porteeNette: Math.max(0, portee - sys.section), porteeLim: sys.portee };
+  calc = { B, D, ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords, rampes, emprises: E, croisements, chevauchements, dansPlace, appuis, rampesVoie, raides, escaliers, escHors: escaliers.filter((x) => x.hors).length, porteeNette: Math.max(0, portee - sys.section), porteeLim: sys.portee };
   $("#s-structure").textContent = pot.length ? `${pot.length} poteaux · ${portee.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m${conflits.length ? ` · ${conflits.length} en voie` : ""}` : "–";
   $("#s-structure").style.color = conflits.length ? css("--rouge") : "";
   // Desserte : distance de chaque place à un escalier, dès qu'il y en a un.
@@ -890,7 +960,7 @@ function fin(ev) {
     else { passe.push(g.avant); $("#b-annuler").disabled = false; const x = calc.rampes[g.k]; if (!x.hors) S.rampes[g.k].p = centre(x.corps); }
   } else if (g.genre === "escalier") {
     if (!g.bouge) { choixE = g.k; choix = choixN = choixR = -1; }
-    else { passe.push(g.avant); $("#b-annuler").disabled = false; const x = calc.escaliers[g.k]; if (!x.hors) S.escaliers[g.k].p = centre(x.corps); }
+    else { passe.push(g.avant); $("#b-annuler").disabled = false; S.escAuto = false; const x = calc.escaliers[g.k]; if (!x.hors) S.escaliers[g.k].p = centre(x.corps); }
   } else if (g.genre === "trace") {
     if (g.fantome && Math.hypot(g.fantome[1][0] - g.de[0], g.fantome[1][1] - g.de[1]) >= (calque ? 1 : PAS - 1e-6)) { garder(); const a = noeudEn(g.e, g.de), b = noeudEn(versE(g.fantome[1]), g.fantome[1]); if (calque) S.auto = false; if (a !== b) { BR.push(calque ? { a, b } : { a, b, g: "90", d: "90" }); if (!calque) BR[BR.length - 1].pieton = "auto"; choix = BR.length - 1; choixN = -1; } }
     // Structure : un simple toucher pose un poteau, aimanté à la trame du stationnement.
@@ -899,7 +969,7 @@ function fin(ev) {
     else if (!g.bouge) choix = choixN = -1;
   } else if (actif === 2) {
     // « Tracer », puis un toucher dans une rangée : un escalier s'y pose ; le premier posé est le principal.
-    if (!g.bouge) { choixE = -1; if (g.pose) { const avant = JSON.stringify(S); S.escaliers = S.escaliers || []; S.escaliers.push({ p: versM(e[0], e[1]), principal: !S.escaliers.length }); calculer(); const x = calc.escaliers[S.escaliers.length - 1]; if (x.hors) S.escaliers.pop(); else { passe.push(avant); $("#b-annuler").disabled = false; S.escaliers[S.escaliers.length - 1].p = centre(x.corps); choixE = S.escaliers.length - 1; } } }
+    if (!g.bouge) { choixE = -1; if (!g.pose) ficheTrame = dansDessin(versM(e[0], e[1])); else { const avant = JSON.stringify(S); S.escAuto = false; S.escaliers = S.escaliers || []; S.escaliers.push({ p: versM(e[0], e[1]), principal: !S.escaliers.length }); calculer(); const x = calc.escaliers[S.escaliers.length - 1]; if (x.hors) { S.escaliers.pop(); S.escAuto = JSON.parse(avant).escAuto; } else { passe.push(avant); $("#b-annuler").disabled = false; S.escaliers[S.escaliers.length - 1].p = centre(x.corps); choixE = S.escaliers.length - 1; } } }
   } else if (!g.bouge) {
     const m = versM(e[0], e[1]), k = calque ? noeudPres(e) : -1, c = branchePres(m, Math.max(AIMANT / vue.s, 2));
     choixR = choixE = -1; choixN = k; choix = k >= 0 ? -1 : g.genre === "branche" ? g.i : c ? c.i : -1;
@@ -918,7 +988,7 @@ for (const k of Object.keys(SYSTEMES)) { const x = document.createElement("butto
 $("#f-systeme").addEventListener("click", (ev) => { const x = ev.target.closest("button[data-s]"); if (!x || x.dataset.s === S.systeme) return; garder(); S.systeme = x.dataset.s; rafraichir(); fiche(); enregistrer(); });
 function fiche() {
   const rampe = !actif && choixR >= 0 && calc ? calc.rampes[choixR] : null, esc = actif === 2 && choixE >= 0 && calc ? calc.escaliers[choixE] : null;
-  $("#f-escalier").hidden = !esc;
+  $("#f-escalier").hidden = !esc; $("#f-escauto").hidden = true;
   if (esc) {
     $("#fiche").hidden = false; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = true; $("#b-suppr").hidden = false; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
     $("#b-principal").setAttribute("aria-pressed", String(esc.principal));
@@ -927,6 +997,11 @@ function fiche() {
   if (rampe) {
     $("#fiche").hidden = false; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = true; $("#b-suppr").hidden = false; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
     $("#f-long").textContent = `${RAMPES[S.rampes[choixR].type].nom} · ${rampe.L} m${rampe.hors ? " · à replacer dans une rangée assez longue" : ` · ${(rampe.L + 2 * GIR.s).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m avec les girations${rampe.couple ? " · couplée" : ""}`}`; return;
+  }
+  if (actif === 2) { // calque des escaliers, rien de choisi : la fiche du placement ; un toucher hors du dessin la replie
+    $("#fiche").hidden = !ficheTrame; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = $("#b-suppr").hidden = true; $("#f-escauto").hidden = false; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
+    const n = calc ? calc.escaliers.length : 0; $("#b-escauto").setAttribute("aria-pressed", String(!!S.escAuto));
+    $("#f-long").textContent = (n ? `${n} escalier${n > 1 ? "s" : ""}` : "Aucun escalier") + (S.escAuto ? ` · suit le plan${placer.abrege ? " · recherche abrégée" : ""}` : " · à la main"); return;
   }
   const poteau = calque && choixN >= 0 && NO[choixN], b = BR[choix];
   const libre = !!calque && !b && !poteau && ficheTrame; // rien de choisi dans la structure : la fiche est celle de la trame entière
@@ -962,14 +1037,15 @@ $("#f-portee").addEventListener("click", (ev) => {
   rafraichir(); fiche(); enregistrer();
 });
 // Un seul escalier principal : le choisir le retire à l'autre.
-$("#b-principal").addEventListener("click", () => { if (actif !== 2 || choixE < 0 || S.escaliers[choixE].principal) return; garder(); S.escaliers.forEach((e, k) => { if (k === choixE) e.principal = true; else delete e.principal; }); rafraichir(); fiche(); enregistrer(); });
+$("#b-principal").addEventListener("click", () => { if (actif !== 2 || choixE < 0 || S.escaliers[choixE].principal) return; garder(); S.escAuto = false; S.escaliers.forEach((e, k) => { if (k === choixE) e.principal = true; else delete e.principal; }); rafraichir(); fiche(); enregistrer(); });
 $("#b-trame").addEventListener("click", () => { garder(); S.auto = !S.auto; choix = choixN = -1; rafraichir(); fiche(); enregistrer(); });
 // Une travée remplie en maçonnerie contrevente le bâtiment dans son sens.
+$("#b-escauto").addEventListener("click", () => { if (actif !== 2) return; garder(); S.escAuto = !S.escAuto; cleEsc = ""; rafraichir(); fiche(); enregistrer(); });
 $("#b-plein").addEventListener("click", () => { const b = calque && BR[choix]; if (!b) return; garder(); if (b.plein) delete b.plein; else b.plein = true; rafraichir(); fiche(); enregistrer(); });
 $("#b-suppr").addEventListener("click", () => {
   if (!actif && choixR >= 0) { garder(); S.rampes.splice(choixR, 1); choixR = -1; rafraichir(); fiche(); enregistrer(); return; }
   // L'escalier principal supprimé, le premier qui reste le devient.
-  if (actif === 2 && choixE >= 0) { garder(); const [e] = S.escaliers.splice(choixE, 1); if (e.principal && S.escaliers.length) S.escaliers[0].principal = true; choixE = -1; rafraichir(); fiche(); enregistrer(); return; }
+  if (actif === 2 && choixE >= 0) { garder(); S.escAuto = false; const [e] = S.escaliers.splice(choixE, 1); if (e.principal && S.escaliers.length) S.escaliers[0].principal = true; choixE = -1; rafraichir(); fiche(); enregistrer(); return; }
   // Un poteau part avec ses poutres.
   if (calque && (choixN >= 0 || choix >= 0)) { garder(); S.auto = false; }
   if (calque && choixN >= 0) { const r = BR.filter((b) => b.a !== choixN && b.b !== choixN); BR.length = 0; BR.push(...r); NO[choixN] = null; choixN = -1; rafraichir(); fiche(); enregistrer(); return; }
@@ -993,14 +1069,16 @@ addEventListener("keydown", (ev) => { if ((ev.ctrlKey || ev.metaKey) && ev.key =
 try { const s = JSON.parse(localStorage.getItem("parkimo.squelette.5") || "null"); if (s && s.noeuds && s.branches) S = s; } catch (e) { /* stockage indisponible */ }
 // L'exemple d'avant la décision 8 (module de 15 m), resté tel quel, laisse la place au nouveau (module de 16 m).
 const EXEMPLE = (y) => ({ noeuds: [[0, 0], [60, 0], [60, y], [0, y], [90, 0]], branches: [{ a: 0, b: 1, g: "90", d: "90", pieton: "auto" }, { a: 1, b: 2, g: "aucun", d: "90", pieton: "auto" }, { a: 2, b: 3, g: "90", d: "90", pieton: "auto" }, { a: 3, b: 0, g: "aucun", d: "90", pieton: "auto" }, { a: 1, b: 4, g: "60", d: "45", pieton: "auto" }], pn: [], pb: [],
-  // Trois escaliers sur la boucle et un dans l'antenne : aucune place à plus de 40 m, 25 m en cul-de-sac.
-  escaliers: [{ p: [24.5, y + 5.5], principal: true }, { p: [47.5, -5.5] }, { p: [76, -4.4] }, { p: [-5.5, y / 2] }] });
-const ancien = (S.v || 0) < 4 && [15, 16].some((y) => JSON.stringify([S.noeuds, S.branches]) === JSON.stringify([EXEMPLE(y).noeuds, EXEMPLE(y).branches])) && !(S.rampes || []).length && !(S.escaliers || []).length;
+  escaliers: [], escAuto: true }); // ses escaliers viennent du placement automatique
+// Resté tel quel avec les escaliers publiés à la main, il passe lui aussi au placement automatique.
+const publies = [[[27, 21.5], [52.5, -5.5], [76, -4.4], [-5.5, 8]], [[24.5, 21.5], [47.5, -5.5], [76, -4.4], [-5.5, 8]]].map((l) => JSON.stringify(l));
+const ancien = (S.v || 0) < 5 && [15, 16].some((y) => JSON.stringify([S.noeuds, S.branches]) === JSON.stringify([EXEMPLE(y).noeuds, EXEMPLE(y).branches])) && !(S.rampes || []).length && (!(S.escaliers || []).length || publies.includes(JSON.stringify(S.escaliers.map((e) => e.p))));
 const neuf = !S.branches.length || ancien;
 // Essai enregistré avant la logique d'ensemble : ses bandes posées à la main ou absentes passent en « auto ».
 if (!S.v) for (const b of S.branches) if (b.pieton !== "aucun") b.pieton = "auto";
 if (neuf) S = EXEMPLE(16);
-S.v = 4;
+S.v = 5;
+if (S.escAuto === undefined) S.escAuto = !(S.escaliers || []).length; // un plan sans escalier les reçoit d'office ; ceux posés à la main restent en place
 if (!SYSTEMES[S.systeme]) S.systeme = "beton"; // par défaut la grande portée béton : aucun appui dans le plateau
 if (S.auto === undefined) S.auto = true; // un essai enregistré avant la trame automatique la reçoit
 pointer();

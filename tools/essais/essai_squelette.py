@@ -86,8 +86,19 @@ with sync_playwright() as p:
         e = pg.evaluate(ES); r["escaliers"] = [e]
         assert e["n"] >= 2 and e["principaux"] == 1 and sorted(set(e["longs"])) == [5, 10] and e["hors"] == 0 and 0 < e["max"] <= 40 and e["loin"] == 0 and not e["viol"] and e["murs"] >= 8 and e["places"] == base, e
         # La place la plus proche d'un escalier : du centre de la place à la bande, le long de la bande, puis jusqu'à la porte.
-        r["escalier_proche"] = pg.evaluate("(() => { const x = calc.escaliers.find((o) => !o.principal), o = calc.pl.filter((p) => p.i === x.i && p.c === x.c).sort((p, q) => p.dist - q.dist)[0]; return [+o.dist.toFixed(2), o.limite]; })()")
+        r["escalier_proche"] = pg.evaluate("(() => { const x = calc.escaliers.find((o) => !o.principal && TYPES[S.branches[o.i][o.c]].angle === 90), o = calc.pl.filter((p) => p.i === x.i && p.c === x.c).sort((p, q) => p.dist - q.dist)[0]; return [+o.dist.toFixed(2), o.limite]; })()")
         assert 3 < r["escalier_proche"][0] < 8, r["escalier_proche"]
+        # Placement automatique : le plus petit nombre d'escaliers qui dessert toutes les places. Sur l'exemple, trois.
+        AU = "({auto: S.escAuto, n: calc.escaliers.length, principaux: calc.escaliers.filter((x) => x.principal).length, loin: calc.loin.length, hors: calc.escHors, max: +calc.distMax.toFixed(1), viol: calc.principes.filter((p) => !p.ok).map((p) => p.id), p: S.escaliers.map((x) => x.p.map((v) => +v.toFixed(2))), ms: Math.round(placer.ms), abrege: placer.abrege})"
+        au = pg.evaluate(AU); r["auto"] = [au]
+        assert au["auto"] is True and au["n"] == 3 and au["principaux"] == 1 and au["loin"] == 0 and au["hors"] == 0 and not au["viol"] and au["ms"] < 1500 and au["abrege"] is False, au
+        # Aucun n'est de trop : sans l'un d'eux, des places ne sont plus desservies.
+        r["auto_minimal"] = pg.evaluate("(() => { const g = JSON.stringify(S), out = []; for (let k = 0; k < JSON.parse(g).escaliers.length; k++) { S = JSON.parse(g); pointer(); S.escAuto = false; S.escaliers.splice(k, 1); if (!S.escaliers.some((x) => x.principal)) S.escaliers[0].principal = true; calculer(); out.push(calc.loin.length); } S = JSON.parse(g); pointer(); calculer(); return out; })()")
+        assert all(x > 0 for x in r["auto_minimal"]), r["auto_minimal"]
+        # Le plan change, les escaliers suivent : l'antenne allongée en reçoit ce qu'il faut, aucune place ne reste à découvert.
+        r["auto_suit"] = pg.evaluate("(() => { const g = JSON.stringify(S); S.noeuds[4][0] = 140; calculer(); const x = [calc.escaliers.length, calc.loin.length, calc.escHors, calc.principes.filter((p) => !p.ok).map((p) => p.id).filter((k) => k === 'escaliers').length, Math.round(placer.ms)]; S = JSON.parse(g); pointer(); calculer(); return x; })()")
+        assert r["auto_suit"][0] > 3 and r["auto_suit"][1:4] == [0, 0, 0], r["auto_suit"]
+        assert pg.evaluate(AU)["p"] == au["p"]
         # Trois calques : Voies, Poteaux, Escaliers. Les escaliers ne se manient que dans le leur, et ne se posent
         # que là : la ligne « Piétons » d'une voie n'a plus de bouton d'escalier.
         k = pg.evaluate("calc.escaliers.findIndex((o) => !o.principal)")
@@ -109,6 +120,10 @@ with sync_playwright() as p:
         assert all(x[3] and x[1] <= 40 and abs(x[1] - x[2]) < 3 for x in li["places"]) and max(x[1] for x in li["places"]) == li["max"], li
         assert li["barre"] == [True, True, True], li["barre"]
         pg.screenshot(path=str(out / f"{name}-squelette-escaliers.png"))
+        # Rien de choisi : la fiche du placement, « Placement automatique » enfoncé.
+        FA = "[document.querySelector('#fiche').hidden, document.querySelector('#f-escauto').hidden, document.querySelector('#b-escauto').getAttribute('aria-pressed'), document.querySelector('#f-long').textContent, document.querySelector('#b-suppr').hidden]"
+        r["fiche_auto"] = [pg.evaluate(FA)]
+        assert r["fiche_auto"][0][:3] == [False, False, "true"] and r["fiche_auto"][0][4] is True and "suit le plan" in r["fiche_auto"][0][3], r["fiche_auto"]
         # Dans ce calque, les voies ne se saisissent pas : glisser sur un nœud ne déplace que la vue.
         glisser([0, 0], [5, 5]); pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         r["voie_inerte"] = pg.evaluate("[S.noeuds[0], choix]")
@@ -118,14 +133,20 @@ with sync_playwright() as p:
         e = pg.evaluate(ES); r["escaliers"].append(e)
         assert e["loin"] > 0 and e["viol"] == ["escaliers"] and e["hors"] == 0, e
         pg.screenshot(path=str(out / f"{name}-squelette-escalier-loin.png"))
-        pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        # Un escalier glissé à la main : le placement ne suit plus le plan. « Placement automatique » le rétablit.
+        q = E(30, 8); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        r["fiche_auto"].append(pg.evaluate(FA))
+        assert pg.evaluate("S.escAuto") is False and r["fiche_auto"][1][2] == "false" and "à la main" in r["fiche_auto"][1][3], r["fiche_auto"]
+        pg.click("#b-escauto"); pg.wait_for_timeout(300)
+        e = pg.evaluate(AU); r["auto"].append(e)
+        assert e["auto"] is True and e["p"] == au["p"] and e["loin"] == 0, e
         # On le touche : sa fiche. « Escalier principal » lui donne les deux ascenseurs, et les retire à l'autre.
         q = E(*de); pg.mouse.click(*q); pg.wait_for_timeout(250)
         r["escalier_choisi"] = pg.evaluate("[document.querySelector('#f-long').textContent, document.querySelector('#b-principal').getAttribute('aria-pressed'), [...document.querySelectorAll('#fiche .ligne')].filter((l) => !l.hidden).length, (() => { const f = document.querySelector('#fiche').getBoundingClientRect(), b = document.querySelector('#barre').getBoundingClientRect(); return f.bottom <= b.top; })()]")
         assert r["escalier_choisi"][0].startswith("Escalier") and r["escalier_choisi"][1:] == ["false", 0, True], r["escalier_choisi"]
         pg.click("#b-principal"); pg.wait_for_timeout(250)
         e = pg.evaluate(ES); r["escaliers"].append(e)
-        assert e["principaux"] == 1 and pg.evaluate(f"[calc.escaliers[{k}].principal, calc.escaliers[{k}].L]") == [True, 10] and "principal" in e["fiche"], e
+        assert e["principaux"] == 1 and pg.evaluate(f"[calc.escaliers[{k}].principal, calc.escaliers[{k}].L, S.escAuto]") == [True, 10, False] and "principal" in e["fiche"], e
         pg.click("#b-annuler"); pg.wait_for_timeout(200)
         q = E(*de); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-suppr"); pg.wait_for_timeout(250)
         e = pg.evaluate(ES); r["escaliers"].append(e)
@@ -139,12 +160,12 @@ with sync_playwright() as p:
         assert pg.evaluate("calc.escaliers.length") == e["n"]
         pg.click("#b-tracer"); pg.click("#b-annuler"); pg.wait_for_timeout(200)
         # Sans aucun escalier, toutes les places sont non desservies : en rouge dans ce calque.
-        r["rouges"] = pg.evaluate("(() => { const g = S.escaliers; S.escaliers = []; calculer(); const x = [rouges().length === calc.pl.length, calc.liens.noeuds.length]; S.escaliers = g; calculer(); return [...x, rouges().length]; })()")
+        r["rouges"] = pg.evaluate("(() => { const g = S.escaliers; S.escAuto = false; S.escaliers = []; calculer(); const x = [rouges().length === calc.pl.length, calc.liens.noeuds.length]; S.escaliers = g; S.escAuto = true; calculer(); return [...x, rouges().length]; })()")
         assert r["rouges"] == [True, 0, 0], r["rouges"]
         pg.click('#calques button[data-c="0"]'); pg.wait_for_timeout(200); pg.mouse.click(5, 5); pg.wait_for_timeout(200)
         r["escaliers_retablis"] = pg.evaluate(ES)
         # Sans aucun escalier, des places ne sont desservies par rien : le principe est violé, sans teinter tout le plan.
-        r["escalier_aucun"] = pg.evaluate("(() => { const g = S.escaliers; S.escaliers = []; calculer(); const x = [calc.principes.filter((p) => !p.ok).map((p) => p.id), document.querySelector('#s-escaliers').textContent, calc.loin.length]; S.escaliers = g; calculer(); return x; })()")
+        r["escalier_aucun"] = pg.evaluate("(() => { const g = S.escaliers; S.escAuto = false; S.escaliers = []; calculer(); const x = [calc.principes.filter((p) => !p.ok).map((p) => p.id), document.querySelector('#s-escaliers').textContent, calc.loin.length]; S.escaliers = g; S.escAuto = true; calculer(); return x; })()")
         assert r["escalier_aucun"] == [["escaliers"], "aucun", 0], r["escalier_aucun"]
         assert r["escaliers_retablis"]["n"] == r["escaliers"][0]["n"] and r["escaliers_retablis"]["places"] == base, r["escaliers_retablis"]
         # Surfaces : chaussées, bandes et rangées se joignent sans se recouvrir ni laisser de vide. La somme de leurs aires
