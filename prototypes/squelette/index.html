@@ -84,14 +84,17 @@ button:disabled { opacity: .35; }
 // puis, si on le veut, une rangée de places (longitudinales, en épi ou perpendiculaires).
 // L'enveloppe de toutes les branches est l'emprise du bâtiment. Prototype d'interaction en
 // JavaScript, à part du moteur Rust : il sert à juger l'idée, pas à produire un plan.
-// Cotes : NF P 91-100, tableau 2 (allée, profondeur de rangée, largeur de place), places de 2,50 m à 90°.
+// Cotes (charte, décision 8) : entre la norme NF P 91-100 (tab. 2) et le Neufert (p. 272-273), la plus généreuse.
+// Les voies sont à double sens : allée de 6,00 m à 90°, bande piétonne comprise (Neufert ; norme au-delà de vingt
+// places desservies), et voie sans place de 6,00 m. Places de 2,50 m partout (Neufert). À 60° : profondeur 5,30 m
+// (Neufert), allée 4,00 m. À 45° : profondeur 4,80 m et allée 3,50 m (norme, mieux-disante). En long : 5,70 m (Neufert).
 // ============================================================================
 const TYPES = {
-  aucun: { nom: "Voie", allee: 5.5, prof: 0, pas: 0, angle: 0 },
-  "0": { nom: "0°", allee: 3.5, prof: 2.5, pas: 5.0, angle: 0 },
-  "45": { nom: "45°", allee: 3.5, prof: 4.8, pas: 2.2 / Math.sin(Math.PI / 4), angle: 45 },
-  "60": { nom: "60°", allee: 4.0, prof: 5.15, pas: 2.25 / Math.sin(Math.PI / 3), angle: 60 },
-  "90": { nom: "90°", allee: 5.0, prof: 5.0, pas: 2.5, angle: 90 },
+  aucun: { nom: "Voie", allee: 6.0, prof: 0, pas: 0, angle: 0 },
+  "0": { nom: "0°", allee: 3.5, prof: 2.5, pas: 5.7, angle: 0 },
+  "45": { nom: "45°", allee: 3.5, prof: 4.8, pas: 2.5 / Math.sin(Math.PI / 4), angle: 45 },
+  "60": { nom: "60°", allee: 4.0, prof: 5.3, pas: 2.5 / Math.sin(Math.PI / 3), angle: 60 },
+  "90": { nom: "90°", allee: 6.0, prof: 5.0, pas: 2.5, angle: 90 },
 };
 // Systèmes porteurs (charte, section 5 ; sources en section 14). `travees` : nombre de places entre deux appuis ;
 // `section` : côté du poteau ou épaisseur du voile ; `portee` : portée nette à ne pas dépasser. `rang` : l'appui
@@ -820,16 +823,20 @@ addEventListener("keydown", (ev) => { if ((ev.ctrlKey || ev.metaKey) && ev.key =
 
 // ---- Départ : le dernier essai, sinon une boucle avec une antenne.
 try { const s = JSON.parse(localStorage.getItem("parkimo.squelette.5") || "null"); if (s && s.noeuds && s.branches) S = s; } catch (e) { /* stockage indisponible */ }
-const neuf = !S.branches.length;
+// L'exemple d'avant la décision 8 (module de 15 m), resté tel quel, laisse la place au nouveau (module de 16 m).
+const EXEMPLE = (y) => ({ noeuds: [[0, 0], [60, 0], [60, y], [0, y], [90, 0]], branches: [{ a: 0, b: 1, g: "90", d: "90", pieton: "auto" }, { a: 1, b: 2, g: "aucun", d: "90", pieton: "auto" }, { a: 2, b: 3, g: "90", d: "90", pieton: "auto" }, { a: 3, b: 0, g: "aucun", d: "90", pieton: "auto" }, { a: 1, b: 4, g: "60", d: "45", pieton: "auto" }], pn: [], pb: [] });
+const ancien = (S.v || 0) < 3 && JSON.stringify([S.noeuds, S.branches]) === JSON.stringify([EXEMPLE(15).noeuds, EXEMPLE(15).branches]) && !(S.rampes || []).length;
+const neuf = !S.branches.length || ancien;
 // Essai enregistré avant la logique d'ensemble : ses bandes posées à la main ou absentes passent en « auto ».
-if (!S.v) { for (const b of S.branches) if (b.pieton !== "aucun") b.pieton = "auto"; S.v = 2; }
-if (neuf) S = { noeuds: [[0, 0], [60, 0], [60, 15], [0, 15], [90, 0]], branches: [{ a: 0, b: 1, g: "90", d: "90", pieton: "auto" }, { a: 1, b: 2, g: "aucun", d: "90", pieton: "auto" }, { a: 2, b: 3, g: "90", d: "90", pieton: "auto" }, { a: 3, b: 0, g: "aucun", d: "90", pieton: "auto" }, { a: 1, b: 4, g: "60", d: "45", pieton: "auto" }], pn: [], pb: [] };
+if (!S.v) for (const b of S.branches) if (b.pieton !== "aucun") b.pieton = "auto";
+if (neuf) S = EXEMPLE(16);
+S.v = 3;
 if (!SYSTEMES[S.systeme]) S.systeme = "beton"; // par défaut la grande portée béton : aucun appui dans le plateau
 if (S.auto === undefined) S.auto = true; // un essai enregistré avant la trame automatique la reçoit
 pointer();
 new ResizeObserver(taille).observe(cv); taille(); calculer();
 // Structure de l'exemple : la trame automatique, et des travées pleines qui contreventent dans les deux sens.
-if (neuf) { const x0 = Math.min(...S.pn.map((p) => p[0])), y0 = Math.min(...S.pn.map((p) => p[1])); for (const b of S.pb) { const A = S.pn[b.a], B = S.pn[b.b]; if ((A[0] === x0 && B[0] === x0 && Math.min(A[1], B[1]) >= 2.5 && Math.max(A[1], B[1]) <= 17.5) || (A[1] === y0 && B[1] === y0 && Math.max(A[0], B[0]) <= 2.5)) b.plein = true; } calculer(); }
+if (neuf) { const x0 = Math.min(...S.pn.map((p) => p[0])), y0 = Math.min(...S.pn.map((p) => p[1])); for (const b of S.pb) { const A = S.pn[b.a], B = S.pn[b.b]; if ((A[0] === x0 && B[0] === x0 && Math.min(A[1], B[1]) >= 3 && Math.max(A[1], B[1]) <= 19) || (A[1] === y0 && B[1] === y0 && Math.max(A[0], B[0]) <= 3)) b.plein = true; } calculer(); }
 cadrer();
 </script>
 </body>

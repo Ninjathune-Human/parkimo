@@ -1,6 +1,6 @@
 # Parkimo : charte des principes
 
-Version 5 du 13 novembre 2026. Elle intègre les huit décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
+Version 6 du 13 novembre 2026. Elle intègre les huit décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
 
 ## À quoi sert cette charte
 
@@ -75,7 +75,7 @@ La structure n'est pas une règle fixe : elle dépend du système porteur, chois
 Trois règles accompagnent ce tableau :
 
 1. **La trame se compte entre nus.** L'entraxe vaut le nombre de places multiplié par leur largeur, plus la section de l'appui. Un entraxe de 7,20 m avec des poteaux de 0,40 m ne laisse que 6,80 m pour trois places.
-2. **Une rangée à 90° de la norme tient sous une grande portée** : 5,00 + 5,00 + 5,00 = 15,00 m de mur à mur (NF P 91-100), pour 16,00 m de portée courante. Aucun poteau dans le plateau.
+2. **Le module à 90° est celui de la grande portée** : 5,00 + 6,00 + 5,00 = 16,00 m de mur à mur, soit la portée courante relevée chez les constructeurs. Aucun poteau dans le plateau.
 3. **Tenue au feu** : structure R 90 et planchers REI 90 pour un parc de plus de deux niveaux jusqu'à 28 m ; une dalle pleine sans poutre fait alors 0,20 m au moins. Pour un parc largement ventilé en acier, ArcelorMittal annonce une justification particulière au feu, sans protection rapportée : à vérifier dans l'arrêté du 9 mai 2006.
 
 Les sources sont en section 14. Ce sont des valeurs d'esquisse : le bureau d'études structure les confirme projet par projet.
@@ -139,7 +139,7 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 5. **Largeur de place** : 2,50 m de préférence ; 2,40 m si la structure y gagne ; 2,30 m à la marge, pour gagner une place.
 6. **Niveaux** : même squelette ; structures et distributions se superposent.
 7. **Rampes** : l'entrée en S n'est pas le principe général. Une rampe à 90° d'une voie se branche directement dessus, sans S.
-8. **Norme et Neufert** : le Neufert n'est pas une norme mais un guide de bonnes pratiques. Les normes donnent des minima, souvent peu pratiques, d'autant que les véhicules grandissent. Le Neufert l'emporte sur la norme quand il est mieux-disant.
+8. **Norme et Neufert** : le Neufert n'est pas une norme mais un guide de bonnes pratiques. Les normes donnent des minima, souvent peu pratiques, d'autant que les véhicules grandissent. Le Neufert l'emporte sur la norme quand il est mieux-disant. Les voies sont à double sens : l'allée fait 6,00 m, circulation piétonne incluse.
 
 ## 10. Ce qui reste à fixer
 
@@ -152,6 +152,7 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 6. Rangées en épi : elles ne sont pas encore comptées entre nus (ni section d'appui, ni surlargeur le long d'un voile), et leurs poutres en travers sont de biais quand les deux côtés n'ont pas le même pas.
 7. Obstacle au milieu d'une rangée (rampe) : la trame n'est pas recalée après lui, une place peut s'y perdre.
 8. Contreventement : il ne suit pas les voies quand le plan se déforme.
+9. Places resserrées : le Neufert associe une allée de 6,50 m aux places de 2,30 m. Le resserrement à la marge garde l'allée de 6,00 m ; la norme l'admet.
 
 Fixé depuis la version 1 : section des appuis et portées (section 5) ; hauteur d'étage de 2,80 m et pente de 15 % (section 11) ; largeur d'une rampe branchée, 3,25 m en sens unique et 6,50 m en double sens, « coupler » voulant dire pour elle double sens (section 11).
 
@@ -159,17 +160,17 @@ Fixé depuis la version 1 : section des appuis et portées (section 5) ; hauteur
 
 Les dimensions ne sont pas dans le code mais dans un tableau, avec leur source.
 
-**Règle de choix (décision 8)** : entre la norme (NF P 91-100) et le Neufert, la valeur la plus généreuse est retenue. La norme reste le plancher : on ne descend jamais dessous. Le tableau ci-dessous n'applique pas encore cette règle partout : les allées à 90° et les places en épi et en long y sont aux minima de la norme, à relever.
+**Règle de choix (décision 8)** : entre la norme (NF P 91-100) et le Neufert, la valeur la plus généreuse est retenue. La norme reste le plancher : on ne descend jamais dessous. Les voies du squelette sont à double sens.
 
 Valeurs en place aujourd'hui :
 
 | Valeur | Aujourd'hui | Source |
 |---|---|---|
-| Places à 90° : largeur, profondeur, allée | 2,50 m ; 5,00 m ; 5,00 m | décision 5 ; allée NF P 91-100 tab. 2 |
-| Places à 60° : largeur, profondeur, allée | 2,25 m ; 5,15 m ; 4,00 m | NF P 91-100 tab. 2 |
-| Places à 45° : largeur, profondeur, allée | 2,20 m ; 4,80 m ; 3,50 m | NF P 91-100 tab. 2 |
-| Places en long : longueur, largeur, allée | 5,00 m ; 2,50 m ; 3,50 m | NF P 91-100 tab. 2 |
-| Voie sans stationnement | 5,50 m | NF P 91-100 § 3.3 (double sens) |
+| Places à 90° : largeur, profondeur, allée | 2,50 m ; 5,00 m ; 6,00 m, bande piétonne comprise | décisions 5 et 8 ; allée à double sens : Neufert p. 272, et NF P 91-100 § 3.1.2 au-delà de vingt places (norme en sens unique : 5,00 m) |
+| Places à 60° : largeur, profondeur, allée | 2,50 m ; 5,30 m ; 4,00 m | Neufert p. 272 (norme : 2,25 m ; 5,15 m ; 4,00 m) |
+| Places à 45° : largeur, profondeur, allée | 2,50 m ; 4,80 m ; 3,50 m | largeur : Neufert (norme : 2,20 m) ; profondeur et allée : NF P 91-100 tab. 2, mieux-disante (Neufert : 4,65 m ; 3,00 m) |
+| Places en long : longueur, largeur, allée | 5,70 m ; 2,50 m ; 3,50 m | longueur : Neufert p. 272 (norme : 5,00 m) ; largeur : NF P 91-100 tab. 2 (Neufert : 2,00 m) |
+| Voie sans stationnement | 6,00 m | double sens, comme l'allée (norme : 5,50 m) |
 | Bande piétonne | 0,80 m, dans la voie | règle de l'utilisateur |
 | Voie de rampe | 3,25 m en sens unique ; 6,50 m en double sens | Neufert p. 274-276 ; minima NF P 91-100 § 3.3 : 3,00 m et 5,50 m |
 | Giration : rayon à l'axe, largeur balayée | 6,50 m ; 2 × 2,00 m | moteur Parkimo (`giration.rs`) |
@@ -190,7 +191,7 @@ Chaque lot est livré et vérifié seul ; le prototype reste utilisable entre de
 
 1. **Registre des principes** (fait le 13 novembre, sept principes) : les contrôles de la section 8 deviennent un tableau dans le code, affiché au bilan (principes respectés, principes violés) et rejoué sur les plans au hasard.
 2. **Emprises et arbitrage** (fait le 13 novembre) : une seule règle fait céder les emprises selon l'ordre de la section 2, à la place des retraits écrits à la main. Le principe des surfaces, trop global, est remplacé par deux principes précis : voies qui se croisent sans nœud, rangées qui se recouvrent. Les 36 plans au hasard en défaut s'expliquent par ces deux cas, qui sont des alertes de conception et non des défauts du logiciel.
-3. **Trame commune** (fait le 13 novembre, pour les rangées à 90°) : places et structure réglées ensemble, quatre systèmes porteurs au choix, places comptées entre nus, largeurs 2,50 / 2,40 / 2,30, neuvième principe (portée). Sur l'exemple : 123 places en grande portée, 118 avec des voiles, 113 avec des poteaux.
+3. **Trame commune** (fait le 13 novembre, pour les rangées à 90°) : places et structure réglées ensemble, quatre systèmes porteurs au choix, places comptées entre nus, largeurs 2,50 / 2,40 / 2,30, neuvième principe (portée). Sur l'exemple, aux cotes de la décision 8 (module de 16 m) : 119 places en grande portée béton, 118 en acier, 117 avec des voiles, 113 avec des poteaux.
 4. **Rampes** (fait le 13 novembre) : une voie du squelette peut être une rampe, branchée directement, en sens unique ou double, d'un étage ou d'un demi-niveau ; sa pente est le dixième principe. Elle n'a ni place ni bande piétonne, et le réseau piéton traverse son entrée. La rampe en rangée garde ses épures. La trame passe par alignement de voies : l'entrée d'une rampe n'interrompt que la rangée qu'elle coupe.
 5. **Niveaux** sur un même squelette.
 

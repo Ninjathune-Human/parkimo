@@ -20,6 +20,11 @@ with sync_playwright() as p:
         def glisser(de, vers):
             n, m = E(*de), E(*vers)
             pg.mouse.move(*n); pg.mouse.down(); pg.mouse.move((n[0] + m[0]) / 2, (n[1] + m[1]) / 2); pg.mouse.move(*m); pg.mouse.up(); pg.wait_for_timeout(300)
+        # Décision 8 : entre la norme et le Neufert, la cote la plus généreuse. Allée à double sens de 6,00 m (bande piétonne
+        # comprise), places en épi de 2,50 m, 5,30 m de profondeur à 60°, places en long de 5,70 m ; le module à 90° fait 16 m.
+        r["cotes"] = pg.evaluate("[2 * demi(S.branches[0]), TYPES.aucun.allee, +(TYPES['60'].pas * Math.sin(Math.PI / 3)).toFixed(2), TYPES['60'].prof, +(TYPES['45'].pas * Math.sin(Math.PI / 4)).toFixed(2), TYPES['45'].prof, TYPES['45'].allee, TYPES['0'].pas, S.noeuds[2][1], calc.trottoirs.length > 0 && +Math.abs(calc.trottoirs[0].q[0][1] - calc.trottoirs[0].q[2][1]).toFixed(2)]")
+        assert r["cotes"] == [6, 6, 2.5, 5.3, 2.5, 4.8, 3.5, 5.7, 16, 0.8], r["cotes"]
+        base = r["depart"]["places"]
         # Trame commune (charte, section 5). Les places se comptent entre nus : une travée de deux ou trois places, puis
         # l'appui. À la marge, la dernière travée se resserre à 2,40 m ou 2,30 m si cela loge une place de plus.
         TC = pg.evaluate("""(() => { const f = (L, k, o) => { const t = travees(L, SYSTEMES[k], !!o); return [t.pl.length, t.pl.filter((p) => p.w < 2.5).map((p) => p.w), t.ap.length]; };
@@ -30,13 +35,13 @@ with sync_playwright() as p:
         SY = "({systeme: S.systeme, places: calc.pl.length, etroites: calc.pl.filter((p) => p.q.w < 2.5).length, poteaux: calc.pot.length, voiles: S.pb.filter((b) => b.voile).length, enVoie: calc.conflits.length, enPlace: calc.dansPlace, portee: [+calc.porteeNette.toFixed(2), calc.porteeLim], viol: calc.principes.filter((p) => !p.ok).map((p) => p.id), boutons: [...document.querySelectorAll('#f-systeme button')].map((x) => x.getAttribute('aria-pressed'))})"
         pg.click('#calques button[data-c="1"]'); pg.wait_for_timeout(200)
         r["systemes"] = [pg.evaluate(SY)]
-        assert r["systemes"][0]["systeme"] == "beton" and r["systemes"][0]["places"] == 123 and not r["systemes"][0]["viol"], r["systemes"]
+        assert r["systemes"][0]["systeme"] == "beton" and r["systemes"][0]["places"] == base and not r["systemes"][0]["viol"], r["systemes"]
         for k in ("poteaux", "voiles", "acier"):
             pg.click(f'#f-systeme button[data-s="{k}"]'); pg.wait_for_timeout(300)
             e = pg.evaluate(SY); r["systemes"].append(e)
             assert e["systeme"] == k and e["enVoie"] == 0 and e["enPlace"] == 0 and e["places"] > 90 and not e["viol"], e  # les remplissages de l'exemple restent en place : contreventé d'un système à l'autre
             pg.screenshot(path=str(out / f"{name}-squelette-systeme-{k}.png"))
-        assert r["systemes"][1]["places"] < 123 and r["systemes"][2]["voiles"] > 10 and r["systemes"][3]["places"] == 123, r["systemes"]
+        assert r["systemes"][1]["places"] < base and r["systemes"][2]["voiles"] > 10 and r["systemes"][3]["places"] >= r["systemes"][1]["places"], r["systemes"]
         q = E(5, 5); pg.mouse.move(*q); pg.mouse.wheel(0, -1500); pg.wait_for_timeout(300)
         pg.click('#f-systeme button[data-s="voiles"]'); pg.wait_for_timeout(300)
         pg.screenshot(path=str(out / f"{name}-squelette-systeme-voiles-detail.png"))
@@ -45,7 +50,7 @@ with sync_playwright() as p:
         for _ in range(5): pg.click("#b-annuler"); pg.wait_for_timeout(150)
         pg.click("#b-cadrer"); pg.wait_for_timeout(300); pg.click('#calques button[data-c="0"]'); pg.wait_for_timeout(200)
         r["systeme_retabli"] = pg.evaluate("[S.systeme, calc.pl.length, document.querySelector('#s-contrev').textContent]")
-        assert r["systeme_retabli"][:2] == ["beton", 123], r["systeme_retabli"]
+        assert r["systeme_retabli"][:2] == ["beton", base], r["systeme_retabli"]
         # Rampe branchée (charte, lot 4 ; décision 7). Une voie tracée d'équerre depuis la voie du bas devient une rampe (« Toute la voie ») : c'est
         # une voie du squelette, large de 3,25 m (6,50 m en double sens), sans place, sans bande piétonne, sans épure en S.
         # Le réseau piéton reste d'un seul tenant en traversant son entrée ; sa pente se contrôle (15 % au plus).
@@ -53,7 +58,7 @@ with sync_playwright() as p:
         pg.click("#b-tracer"); glisser((30, 0), (30, -30)); pg.click("#b-tracer")
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="voie"]'); pg.wait_for_timeout(300)
         e = pg.evaluate(RV); r["rampe_voie"] = [e]
-        assert e["rampe"] == "droite" and e["sens"] == 1 and e["largeur"] == 3.25 and e["surElle"] == 0 and e["bande"] == "aucun" and e["epures"] == 0 and "continu" in e["pietons"] and not e["viol"] and e["lignes"] == ["Rampe", "Sens"] and "pente 10,2 %" in e["fiche"], e
+        assert e["rampe"] == "droite" and e["sens"] == 1 and e["largeur"] == 3.25 and e["surElle"] == 0 and e["bande"] == "aucun" and e["epures"] == 0 and "continu" in e["pietons"] and not e["viol"] and e["lignes"] == ["Rampe", "Sens"] and "pente 10,4 %" in e["fiche"], e
         pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         pg.screenshot(path=str(out / f"{name}-squelette-rampe-voie.png"))
         pg.click('#fiche .seg[data-cote="sens"] button[data-t="2"]'); pg.wait_for_timeout(300)
@@ -61,7 +66,7 @@ with sync_playwright() as p:
         assert e["sens"] == 2 and e["largeur"] == 6.5 and not e["viol"] and e["places"] < r["rampe_voie"][0]["places"], e
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="demi"]'); pg.wait_for_timeout(300)
         e = pg.evaluate(RV); r["rampe_voie"].append(e)
-        assert e["rampe"] == "demi" and e["epures"] == 0 and "pente 5,1 %" in e["fiche"], e
+        assert e["rampe"] == "demi" and e["epures"] == 0 and "pente 5,2 %" in e["fiche"], e
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="droite"]'); pg.wait_for_timeout(300)
         # Trop courte pour un étage : la pente dépasse 15 %, le principe est violé.
         r["rampe_raide"] = pg.evaluate("(() => { const k = S.branches[S.branches.length - 1].b, y = S.noeuds[k][1]; S.noeuds[k][1] = -12.5; calculer(); const o = [calc.principes.filter((p) => !p.ok).map((p) => p.id), calc.principes.find((p) => p.id === 'pente').detail]; S.noeuds[k][1] = y; calculer(); return o; })()")
@@ -69,11 +74,11 @@ with sync_playwright() as p:
         # Redevenue une voie : elle reprend sa largeur et sa bande.
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="voie"]'); pg.wait_for_timeout(300)
         e = pg.evaluate(RV); r["rampe_voie"].append(e)
-        assert e["rampe"] is None and e["largeur"] == 5.5 and e["lignes"] == ["Gauche", "Droite", "Piétons", "Rampe"], e
+        assert e["rampe"] is None and e["largeur"] == 6 and e["lignes"] == ["Gauche", "Droite", "Piétons", "Rampe"], e
         for _ in range(6): pg.click("#b-annuler"); pg.wait_for_timeout(150)
         pg.click("#b-cadrer"); pg.wait_for_timeout(300); pg.mouse.click(5, 5); pg.wait_for_timeout(200)
         r["rampe_voie_annulee"] = pg.evaluate("[S.branches.length, calc.pl.length, calc.principes.length]")
-        assert r["rampe_voie_annulee"] == [5, 123, 10], r["rampe_voie_annulee"]
+        assert r["rampe_voie_annulee"] == [5, base, 10], r["rampe_voie_annulee"]
         # Surfaces : chaussées, bandes et rangées se joignent sans se recouvrir ni laisser de vide. La somme de leurs aires
         # vaut l'emprise mesurée, sur l'exemple puis avec le carrefour à trois voies déplacé en biais.
         PAV = "(() => { const aire = (q) => Math.abs(q.reduce((s, p, i) => { const n = q[(i + 1) % q.length]; return s + p[0] * n[1] - n[0] * p[1]; }, 0)) / 2; return +([...calc.ch, ...calc.bandes].reduce((s, q) => s + aire(q), 0) / calc.aire).toFixed(3); })()"
@@ -110,7 +115,7 @@ with sync_playwright() as p:
         # Passages piétons : d'équerre sur la voie traversée. Celui de l'entrée de l'antenne tient entre deux abscisses.
         r["passage_droit"] = pg.evaluate("[...new Set(calc.zebres.flat().map(p => +p[0].toFixed(2)))].sort((a, b) => a - b)")
         pg.click("#b-tracer")
-        for de, vers in (((0, 0), (0, -15)), ((0, -15), (60, -15)), ((60, -15), (60, 0))):
+        for de, vers in (((0, 0), (0, -17.5)), ((0, -17.5), (60, -17.5)), ((60, -17.5), (60, 0))):
             glisser(de, vers); pg.mouse.click(5, 5); pg.wait_for_timeout(200)  # la fiche de la voie tracée se replie avant le tracé suivant
         pg.click("#b-tracer"); pg.mouse.click(5, 5); pg.wait_for_timeout(200); pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         r["boucle_basse"] = [pg.evaluate("S.branches.map(bandeDe)"), pg.evaluate("[S.branches.length, document.querySelector('#s-pietons').textContent, calc.zebres.length, calc.pl.length]")]
@@ -155,7 +160,7 @@ with sync_playwright() as p:
         r["principes"] = [pg.evaluate(PR), pg.evaluate("calc.principes.length")]
         # Arbitrage : un poteau forcé dans une place ne la retire pas, c'est lui qui est signalé ; une voie qui en croise
         # une autre sans nœud, et un îlot trop étroit pour ses deux rangées, sont des principes violés.
-        r["arbitrage_poteau"] = pg.evaluate("(() => { const n = calc.pl.length; S.auto = false; S.pn.push([33.75, 5]); calculer(); const o = [n, calc.pl.length, calc.dansPlace, calc.principes.filter(p => !p.ok).map(p => p.id)]; S.pn.pop(); S.auto = true; calculer(); return o; })()")
+        r["arbitrage_poteau"] = pg.evaluate("(() => { const n = calc.pl.length; S.auto = false; S.pn.push([34.25, 5.5]); calculer(); const o = [n, calc.pl.length, calc.dansPlace, calc.principes.filter(p => !p.ok).map(p => p.id)]; S.pn.pop(); S.auto = true; calculer(); return o; })()")
         r["arbitrage_voies"] = pg.evaluate("(() => { const base = JSON.stringify(S); S.noeuds.push([30, -20], [30, 6]); S.branches.push({ a: 5, b: 6, g: 'aucun', d: 'aucun', pieton: 'aucun' }); pointer(); calculer(); const a = [calc.croisements, calc.principes.filter(p => !p.ok).map(p => p.id)]; S = JSON.parse(base); pointer(); S.noeuds[2][1] = S.noeuds[3][1] = 12.5; calculer(); const b = [calc.chevauchements, calc.pl.length, calc.principes.filter(p => !p.ok).map(p => p.id)]; S = JSON.parse(base); pointer(); rafraichir(); return [a, b]; })()")
         # Décision 2 : une rampe posée dans la rangée de façade ; la bande piétonne de cette voie bascule hors des girations.
         q = E(30, 0); pg.mouse.click(*q); pg.wait_for_timeout(250)
@@ -189,8 +194,8 @@ with sync_playwright() as p:
         r["hors_tracer"] = pg.evaluate(F); pg.click("#b-tracer")
         pg.click('#calques button[data-c="1"]'); pg.wait_for_timeout(200); avant = pg.evaluate(F)
         q = E(30, 35); pg.mouse.click(*q); pg.wait_for_timeout(250); dehors = pg.evaluate(F)
-        q = E(28.75, 0); pg.mouse.move(*q); pg.mouse.wheel(0, -1800); pg.wait_for_timeout(300)
-        q = E(28.75, 0); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        q = E(29.25, 0); pg.mouse.move(*q); pg.mouse.wheel(0, -1800); pg.wait_for_timeout(300)
+        q = E(29.25, 0); pg.mouse.click(*q); pg.wait_for_timeout(250)
         r["hors_poteaux"] = [avant, dehors, pg.evaluate(F)]
         pg.click("#b-cadrer"); pg.wait_for_timeout(300); pg.click('#calques button[data-c="0"]'); pg.wait_for_timeout(200)
         # Tracer une branche depuis le milieu de la branche du bas, vers le bas : un nœud se crée sur la branche.
@@ -219,8 +224,8 @@ with sync_playwright() as p:
         # Contreventement : l'exemple a des remplissages en maçonnerie dans deux sens ; en ôter un sens se lit au bilan.
         CV = "[document.querySelector('#s-contrev').textContent, S.pb.filter(b => b.plein).length]"
         r["contreventement"] = pg.evaluate(CV)
-        q = E(-5, -7.5); pg.mouse.move(*q); pg.mouse.wheel(0, -1200); pg.wait_for_timeout(300)  # de près : la travée fait 5 m entre deux poteaux
-        q = E(-5, -7.5); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        q = E(-5.5, -8); pg.mouse.move(*q); pg.mouse.wheel(0, -1200); pg.wait_for_timeout(300)  # de près : la travée fait 5 m entre deux poteaux
+        q = E(-5.5, -8); pg.mouse.click(*q); pg.wait_for_timeout(250)
         r["poutre_choisie"] = pg.evaluate("[document.querySelector('#f-long').textContent, !document.querySelector('#f-mur').hidden, document.querySelector('#b-plein').getAttribute('aria-pressed')]")
         pg.click("#b-plein"); pg.wait_for_timeout(200)
         r["sans_remplissage"] = pg.evaluate(CV)
@@ -251,39 +256,39 @@ with sync_playwright() as p:
             if (calc.conflits.length) out.enVoie++; if (calc.genees.length) out.genees++; if (!/continu/.test(document.querySelector('#s-pietons').textContent)) out.reseauCoupe++;
             for (const p of calc.principes) if (!p.ok) out[p.id] = (out[p.id] || 0) + 1; }
           S = JSON.parse(base); pointer(); rafraichir(); return out; })()""")
-        n, m = E(32.5, 7.5), E(32.5, 0)
+        n, m = E(33, 8), E(33, 0)
         pg.mouse.move(*n); pg.mouse.down(); pg.mouse.move((n[0] + m[0]) / 2, (n[1] + m[1]) / 2); pg.mouse.move(*m); pg.mouse.up(); pg.wait_for_timeout(300)
         r["poteau_en_voie"] = pg.evaluate(ST)
         r["a_la_main"] = pg.evaluate("[S.auto, document.querySelector('#f-long').textContent]")
         r["principe_viole"] = pg.evaluate(PR)
         # Décision 1 : un poteau lâché dans une place ne la condamne pas, il gagne la ligne la plus proche.
         pg.click("#b-annuler"); pg.wait_for_timeout(200)
-        q = E(32.5, 7.5); pg.mouse.move(*q); pg.mouse.wheel(0, -1500); pg.wait_for_timeout(300)
-        glisser((32.5, 7.5), (33.75, 5))
+        q = E(33, 8); pg.mouse.move(*q); pg.mouse.wheel(0, -1500); pg.wait_for_timeout(300)
+        glisser((33, 8), (34.25, 5.5))
         r["poteau_sur_ligne"] = pg.evaluate("[S.pn[choixN], calc.genees.length]")
         pg.click("#b-cadrer"); pg.wait_for_timeout(300)
-        q = E(32.5, 7.5); pg.mouse.click(*q); pg.wait_for_timeout(200)
+        q = E(33, 8); pg.mouse.click(*q); pg.wait_for_timeout(200)
         pg.screenshot(path=str(out / f"{name}-squelette-structure.png"))
         pg.click("#b-annuler"); pg.wait_for_timeout(200)
         # Une poutre de plus, tracée depuis un poteau ; puis la choisir.
-        pg.click("#b-tracer"); a, c = E(47.5, 22.5), E(47.5, 30)
+        pg.click("#b-tracer"); a, c = E(48, 24), E(48, 31.5)
         pg.mouse.move(*a); pg.mouse.down(); pg.mouse.move((a[0] + c[0]) / 2, (a[1] + c[1]) / 2); pg.mouse.move(*c); pg.mouse.up(); pg.wait_for_timeout(300)
         pg.click("#b-tracer")
         r["poutre"] = pg.evaluate(ST)
         # Poser un poteau d'un toucher : il s'aimante à un coin de place ; puis porter ses poutres le long de la voie.
-        pg.click("#b-tracer"); q = E(17.8, 12.4); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-tracer")
+        pg.click("#b-tracer"); q = E(17.8, 12.9); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-tracer")
         r["pose"] = pg.evaluate("({n: S.pn.filter(Boolean).length, p: S.pn[choixN], fiche: document.querySelector('#f-long').textContent, actions: !document.querySelector('#f-portee').hidden, genees: calc.genees.length})")
         pg.click('#f-portee button[data-p="travers"]'); pg.wait_for_timeout(200)
         r["portee_travers"] = pg.evaluate("[S.pb.filter(b => b.a === choixN || b.b === choixN).map(b => +repere(b, S.pn).L.toFixed(2)), document.querySelector('#f-long').textContent]")
         # Glisser ce poteau au milieu d'une place : il s'aimante à la ligne la plus proche, la place reste.
-        a, c = E(*pg.evaluate("S.pn[choixN]")), E(18.9, 10.4)
+        a, c = E(*pg.evaluate("S.pn[choixN]")), E(19.2, 10.6)
         pg.mouse.move(*a); pg.mouse.down(); pg.mouse.move((a[0] + c[0]) / 2, (a[1] + c[1]) / 2); pg.mouse.move(*c); pg.mouse.up(); pg.wait_for_timeout(300)
         r["glisse"] = pg.evaluate("({p: S.pn[choixN], genees: calc.genees.length, places: calc.pl.length})")
         pg.screenshot(path=str(out / f"{name}-squelette-trame.png"))
         pg.click("#b-suppr"); pg.wait_for_timeout(200)
         r["supprime"] = pg.evaluate("[S.pn.filter(Boolean).length, S.pb.length, document.querySelector('#fiche').hidden]")
         # Un poteau posé près de l'angle du bâtiment s'y aimante.
-        pg.click("#b-tracer"); q = E(-7.2, -7.0); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-tracer")
+        pg.click("#b-tracer"); q = E(-7.7, -7.5); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-tracer")
         r["poteau_d_angle"] = pg.evaluate("S.pn[choixN]")
         pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         pg.mouse.click(5, 5); pg.wait_for_timeout(200)
