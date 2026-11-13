@@ -1,6 +1,6 @@
 # Parkimo : charte des principes
 
-Version 2 du 13 novembre 2026. Elle intègre les sept décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
+Version 3 du 13 novembre 2026. Elle intègre les sept décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
 
 ## À quoi sert cette charte
 
@@ -86,7 +86,13 @@ La largeur de place se choisit avec la trame, dans cet ordre de préférence :
 2. **2,40 m** si la structure y gagne.
 3. **2,30 m** à la marge, seulement pour gagner une place.
 
-Le logiciel choisit, rangée par rangée, le nombre de places par travée et la largeur qui servent le mieux les objectifs de la section 7.
+Le logiciel règle la trame voie par voie, ainsi :
+
+1. Les deux rangées à 90° d'une voie partagent leurs files. La trame est réglée sur la longueur commune aux deux côtés, depuis le même bout quel que soit le sens de la voie, puis prolongée de chaque côté jusqu'au bout de sa rangée.
+2. Une longueur reçoit un appui, une travée, un appui, et ainsi de suite : des travées de trois places, les dernières de deux.
+3. Le plus de places possible à 2,50 m. Puis, à la marge, une place de plus si la dernière travée, resserrée à 2,40 m ou à défaut 2,30 m, la loge. Jamais plus d'une travée resserrée par bout de rangée.
+4. Système à appuis dans la rangée (poteaux, voiles) : un poteau au fond, un second à 0,65 m de l'allée (NF P 91-100, tab. 3), un voile entre les deux pour le système à voiles. Grande portée : un poteau au fond seulement.
+5. Rangées en épi ou en long : elles gardent le pas de la norme ; une file toutes les trois places, toutes les deux si la portée du système l'exige.
 
 ## 6. Une seule règle de raccord
 
@@ -120,8 +126,8 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 | Toute place est accessible depuis une voie | places sans accès = 0 | non mesuré |
 | Toute rampe est circulable | épure libre de façade, de place et d'autre rampe | contrôlé contre les poteaux seulement |
 | Toute voie est reliée à une entrée | voies isolées = 0 | non mesuré |
-| La structure est contreventée | travées pleines dans deux sens | mesuré, sans calcul ; violé dès que le plan est déformé, les travées pleines ne suivant pas |
-| Portée maximale respectée | plus longue portée ≤ limite du système porteur | affichée ; limites fixées en section 5, contrôle à brancher au lot 3 |
+| La structure est contreventée | travées pleines dans deux sens | mesuré, sans calcul ; un remplissage reste là où il a été posé quand on change de système ; violé dès que le plan est déformé, les travées pleines ne suivant pas les voies |
+| Portée maximale respectée | plus longue portée nette ≤ limite du système porteur | mesuré ; respecté sur l'exemple dans les quatre systèmes ; violé sur 43 des 60 plans déformés au hasard, la trame automatique lançant encore des poutres jusqu'à 20 m en travers |
 
 ## 9. Décisions de l'utilisateur, 13 novembre 2026
 
@@ -140,6 +146,10 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 3. Section d'un poteau béton dans un parc français : la valeur de 0,40 m vient de guides britanniques, faute de source française chiffrée. À confirmer.
 4. Dimensions minimales au feu d'un poteau et d'un voile (NF EN 1992-1-2, valeurs tabulées) : non relevées en ligne, à lire dans la norme.
 5. Structure du parking du Pré aux Pêcheurs à Antibes : aucune source publique trouvée ; la portée de 16 m y reste une indication de l'utilisateur.
+
+6. Rangées en épi : elles ne sont pas encore comptées entre nus (ni section d'appui, ni surlargeur le long d'un voile), et leurs poutres en travers sont de biais quand les deux côtés n'ont pas le même pas.
+7. Obstacle au milieu d'une rangée (rampe) : la trame n'est pas recalée après lui, une place peut s'y perdre.
+8. Contreventement : il ne suit pas les voies quand le plan se déforme.
 
 Fixé depuis la version 1 : section des appuis et portées (section 5) ; hauteur d'étage de 2,80 m et pente de 15 % (section 11).
 
@@ -174,7 +184,7 @@ Chaque lot est livré et vérifié seul ; le prototype reste utilisable entre de
 
 1. **Registre des principes** (fait le 13 novembre, sept principes) : les contrôles de la section 8 deviennent un tableau dans le code, affiché au bilan (principes respectés, principes violés) et rejoué sur les plans au hasard.
 2. **Emprises et arbitrage** (fait le 13 novembre) : une seule règle fait céder les emprises selon l'ordre de la section 2, à la place des retraits écrits à la main. Le principe des surfaces, trop global, est remplacé par deux principes précis : voies qui se croisent sans nœud, rangées qui se recouvrent. Les 36 plans au hasard en défaut s'expliquent par ces deux cas, qui sont des alertes de conception et non des défauts du logiciel.
-3. **Trame commune** : places et structure réglées ensemble, systèmes porteurs et portées de la section 5, largeurs 2,50 / 2,40 / 2,30.
+3. **Trame commune** (fait le 13 novembre, pour les rangées à 90°) : places et structure réglées ensemble, quatre systèmes porteurs au choix, places comptées entre nus, largeurs 2,50 / 2,40 / 2,30, neuvième principe (portée). Sur l'exemple : 123 places en grande portée, 118 avec des voiles, 113 avec des poteaux.
 4. **Rampes** : la rampe perpendiculaire devient une voie du squelette ; la rampe en rangée garde ses épures ; les cheminements les évitent.
 5. **Niveaux** sur un même squelette.
 

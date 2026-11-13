@@ -41,7 +41,7 @@ button:disabled { opacity: .35; }
 .seg button[aria-pressed="true"] { background: var(--verre); color: var(--label); box-shadow: 0 1px 4px rgba(0,0,0,.18); font-weight: 600; }
 #fiche .bas { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--label-2); }
 #f-portee { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-#f-portee[hidden], #f-mur[hidden], #f-trame[hidden] { display: none; }
+#f-portee[hidden], #f-mur[hidden], #f-trame[hidden], #f-systeme[hidden] { display: none; }
 #f-mur, #f-trame { display: grid; }
 #b-plein[aria-pressed="true"], #b-trame[aria-pressed="true"] { background: var(--mur); color: var(--fond); }
 #f-portee button, #f-mur button, #f-trame button { min-height: 40px; padding: 0 6px; font-size: 13px; background: color-mix(in srgb, var(--os) 18%, transparent); border-radius: 12px; }
@@ -65,6 +65,7 @@ button:disabled { opacity: .35; }
   <div class="ligne"><span>Piétons</span><div class="seg" data-cote="pieton"><button data-t="auto">Auto</button><button data-t="aucun">Aucune</button><button data-t="g">Gauche</button><button data-t="d">Droite</button></div></div>
   <div class="ligne"><span>Rampe</span><div class="seg" data-cote="rampe"><button data-t="droite">Droite</button><button data-t="demi">Demi-niveau</button></div></div>
   <div id="f-portee" hidden><button data-p="long">Poutres le long de la voie</button><button data-p="travers">Poutres en travers</button></div>
+  <div id="f-systeme" class="seg" role="group" aria-label="Système porteur" hidden></div>
   <div id="f-trame" hidden><button id="b-trame" aria-pressed="true">Trame automatique</button></div>
   <div id="f-mur" hidden><button id="b-plein" aria-pressed="false">Remplissage en maçonnerie</button></div>
   <div class="bas"><span id="f-long"></span><button id="b-suppr">Supprimer</button></div>
@@ -91,6 +92,18 @@ const TYPES = {
   "60": { nom: "60°", allee: 4.0, prof: 5.15, pas: 2.25 / Math.sin(Math.PI / 3), angle: 60 },
   "90": { nom: "90°", allee: 5.0, prof: 5.0, pas: 2.5, angle: 90 },
 };
+// Systèmes porteurs (charte, section 5 ; sources en section 14). `travees` : nombre de places entre deux appuis ;
+// `section` : côté du poteau ou épaisseur du voile ; `portee` : portée nette à ne pas dépasser. `rang` : l'appui
+// tient dans la rangée, entre deux travées, et les places se comptent entre nus ; sinon il est au fond de la rangée
+// et rien ne tombe dans le plateau.
+const SYSTEMES = {
+  poteaux: { nom: "Poteaux", travees: [3, 2], section: 0.4, portee: 10, rang: true },
+  voiles: { nom: "Voiles", travees: [3, 2], section: 0.2, portee: 7.5, rang: true, voile: true },
+  acier: { nom: "Portée acier", travees: [2], section: 0.2, portee: 16.5 },
+  beton: { nom: "Portée béton", travees: [3, 2], section: 0.4, portee: 16.5 },
+};
+const LARGEURS = [2.5, 2.4, 2.3]; // largeur d'une place à 90°, par ordre de préférence (décision 5)
+const RETRAIT = 0.65; // un poteau à 0,65 m de l'allée ne demande aucune surlargeur (NF P 91-100, tab. 3)
 const PAS = 2.5, AIMANT = 16; // trame des longueurs (m), rayon d'aimantation (px)
 const $ = (s) => document.querySelector(s), cv = $("#plan"), ctx = cv.getContext("2d");
 let W = 0, H = 0, DPR = 1, vue = { s: 6, ox: 0, oy: 0 };
@@ -211,6 +224,48 @@ function places(b, cote, rangee) {
   for (let k = k0; k < k1; k++) { const a = k * t.pas, q = [r.P(a + biais, s * (h + t.prof)), r.P(a + t.pas + biais, s * (h + t.prof)), r.P(a + t.pas, s * h), r.P(a, s * h)]; if (tient(q, rangee)) { q.k = k; out.push(q); } }
   return out;
 }
+// ---- Trame commune (charte, section 5) : places et appuis d'une rangée à 90° se règlent ensemble.
+// N places se découpent en travées de trois, les dernières de deux (une seule place : une travée d'une place).
+function decoupe(N, tailles) {
+  if (N < 2) return N ? [1] : [];
+  if (!tailles.includes(3)) return [...Array(N >> 1).fill(2), ...(N % 2 ? [1] : [])];
+  const r = N % 3; return [...Array((N - (r === 1 ? 4 : r)) / 3).fill(3), ...(r === 1 ? [2, 2] : r === 2 ? [2] : [])];
+}
+// Une longueur libre L reçoit un appui, une travée, un appui, et ainsi de suite (`ouvert` : le premier appui existe déjà).
+// Le plus de places possible à 2,50 m ; puis, à la marge, une de plus si la dernière travée resserrée à 2,40 m ou
+// 2,30 m la loge. Rend les places (départ, largeur), l'axe des appuis et la longueur prise.
+function travees(L, sys, ouvert) {
+  const s = sys.rang ? sys.section : 0, long = (t, w) => t.reduce((m, n, k) => m + n * (k === t.length - 1 ? w : LARGEURS[0]) + s, ouvert ? 0 : s);
+  let N = Math.floor(L / LARGEURS[2]) + 1, t, w = LARGEURS[0];
+  do { N--; t = decoupe(N, sys.travees); } while (N > 0 && long(t, w) > L + 1e-6);
+  const t1 = decoupe(N + 1, sys.travees), w1 = LARGEURS.slice(1).find((x) => long(t1, x) <= L + 1e-6);
+  if (w1) { t = t1; w = w1; }
+  const pl = [], ap = []; let x = 0;
+  if (t.length && !ouvert) { ap.push(s / 2); x = s; }
+  t.forEach((n, k) => { const l = k === t.length - 1 ? w : LARGEURS[0]; for (let m = 0; m < n; m++) { pl.push({ x, w: l }); x += l; } ap.push(x + s / 2); x += s; });
+  return { pl, ap, fin: x };
+}
+// Les rangées à 90° d'une voie partagent leurs files : la trame est réglée sur la longueur commune aux deux côtés,
+// comptée depuis le même bout quel que soit le sens de la voie (deux voies parallèles tombent d'accord), puis
+// prolongée de chaque côté jusqu'au bout de sa rangée. Rend, par côté, les places et l'abscisse des appuis.
+function disposer(i, B) {
+  const b = S.branches[i], r = repere(b), h = demi(b), sys = SYSTEMES[S.systeme], out = { g: { pl: [], ap: [] }, d: { pl: [], ap: [] } };
+  const inv = r.u[0] < -1e-9 || (Math.abs(r.u[0]) < 1e-9 && r.u[1] < 0), sg = inv ? -1 : 1, al = (p) => (p[0] - r.A[0]) * r.u[0] + (p[1] - r.A[1]) * r.u[1];
+  const cotes = ["g", "d"].filter((c) => TYPES[b[c]].angle === 90).map((c) => { const a0 = Math.max(al(B[i].a[c][2]), al(B[i].a[c][3])), a1 = Math.min(al(B[i].b[c][2]), al(B[i].b[c][3])); return { c, c0: inv ? -a1 : a0, c1: inv ? -a0 : a1 }; }).filter((x) => x.c1 - x.c0 >= LARGEURS[2]);
+  if (!cotes.length) return out;
+  let m0 = Math.max(...cotes.map((x) => x.c0)), m1 = Math.min(...cotes.map((x) => x.c1));
+  if (m1 - m0 < 2 * PAS) { const x = cotes.reduce((m, y) => (y.c1 - y.c0 > m.c1 - m.c0 ? y : m)); m0 = x.c0; m1 = x.c1; } // pas de longueur commune : la plus longue rangée règle la trame
+  const M = travees(m1 - m0, sys, false);
+  for (const x of cotes) {
+    const t = TYPES[b[x.c]], s = x.c === "g" ? 1 : -1, o = out[x.c];
+    const parts = x.c0 <= m0 + 1e-6 && x.c1 >= m1 - 1e-6 ? [[m0, 1, M], [m0, -1, travees(m0 - x.c0, sys, true)], [m0 + M.fin, 1, travees(x.c1 - m0 - M.fin, sys, true)]] : [[x.c0, 1, travees(x.c1 - x.c0, sys, false)]];
+    for (const [dep, d, T] of parts) {
+      for (const p of T.pl) { const u = sg * (dep + d * p.x), v = sg * (dep + d * (p.x + p.w)), lo = Math.min(u, v), hi = Math.max(u, v), q = [r.P(lo, s * (h + t.prof)), r.P(hi, s * (h + t.prof)), r.P(hi, s * h), r.P(lo, s * h)]; q.w = p.w; q.lo = lo; q.hi = hi; o.pl.push(q); }
+      for (const v of T.ap) o.ap.push(sg * (dep + d * v));
+    }
+  }
+  return out;
+}
 // Un polygone tient-il dans un quadrilatère convexe ? (2 cm de tolérance au bord)
 const tient = (p, q) => p.every((v) => { let s = 0; for (let i = 0; i < q.length; i++) { const a = q[i], b = q[(i + 1) % q.length], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (!l) continue; const d = ((b[0] - a[0]) * (v[1] - a[1]) - (b[1] - a[1]) * (v[0] - a[0])) / l; if (Math.abs(d) < 0.02) continue; if (s && Math.sign(d) !== s) return false; s = Math.sign(d); } return true; });
 // Deux quadrilatères convexes se recouvrent-ils ? (axes séparateurs, avec une tolérance de 5 cm)
@@ -248,6 +303,7 @@ const PRINCIPES = [
   { id: "reseau", nom: "Réseau piéton d'un seul tenant", mesure: (c) => [c.troncons <= 1, `${c.troncons} tronçons`] },
   { id: "girations", nom: "Cheminements hors des girations", mesure: (c) => [!c.bandesEpure, `${c.bandesEpure} bande${c.bandesEpure > 1 ? "s" : ""}`] },
   { id: "rampes", nom: "Rampes dans une rangée assez longue", mesure: (c) => [!c.aReplacer, `${c.aReplacer} à replacer`] },
+  { id: "portee", nom: "Portée dans la limite du système", mesure: (c) => [c.porteeNette <= c.porteeLim + 0.01, `${c.porteeNette.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m pour ${c.porteeLim.toLocaleString("fr-FR")} m`] },
   { id: "contreventement", nom: "Structure contreventée dans deux sens", mesure: (c) => [!c.pot.length || c.contrev === 2, c.contrev ? "1 sens" : "à prévoir"] },
 ];
 // Un poteau ne tient pas dans une place (la structure cède aux places) : lâché dedans, il gagne la ligne la plus
@@ -259,12 +315,14 @@ function horsPlace(p) {
   return best.q.map((v) => +v.toFixed(3));
 }
 // Tant que la trame est automatique (`S.auto`), la structure est refaite à chaque changement des voies :
-// elle s'adapte à chaque branche. Les travées pleines dont les deux poteaux n'ont pas bougé restent pleines.
+// elle s'adapte à chaque branche. Un remplissage reste là où il a été posé : la travée refaite est pleine si elle
+// suit, sur plus de la moitié de sa longueur, un remplissage d'avant (à 0,30 m près).
 function calculer() {
   if (S.auto) {
-    const murs = S.pb.filter((b) => b.plein && S.pn[b.a] && S.pn[b.b]).map((b) => [S.pn[b.a], S.pn[b.b]]), pres = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 0.05;
+    const murs = S.pb.filter((b) => b.plein && !b.voile && S.pn[b.a] && S.pn[b.b]).map((b) => [S.pn[b.a], S.pn[b.b]]);
+    const suit = (A, B, m) => { const ex = m[1][0] - m[0][0], ey = m[1][1] - m[0][1], l = Math.hypot(ex, ey) || 1, t = (p) => ((p[0] - m[0][0]) * ex + (p[1] - m[0][1]) * ey) / l, e = (p) => Math.abs((p[0] - m[0][0]) * ey - (p[1] - m[0][1]) * ex) / l; return e(A) < 0.3 && e(B) < 0.3 && Math.min(l, Math.max(t(A), t(B))) - Math.max(0, Math.min(t(A), t(B))) > 0.5 * Math.hypot(B[0] - A[0], B[1] - A[1]); };
     S.pn = []; S.pb = []; mesurer(); trame();
-    for (const b of S.pb) { const A = S.pn[b.a], B = S.pn[b.b]; if (murs.some((m) => (pres(m[0], A) && pres(m[1], B)) || (pres(m[0], B) && pres(m[1], A)))) b.plein = true; }
+    for (const b of S.pb) { const A = S.pn[b.a], B = S.pn[b.b]; if (murs.some((m) => suit(A, B, m))) b.plein = true; }
   }
   mesurer();
 }
@@ -317,7 +375,11 @@ function mesurer() {
   for (const t of trottoirs) E.push({ nature: "pieton", genre: "bande", i: t.i, q: t.q });
   // Places : la voie la plus longue pose les siennes d'abord, donc les garde ; chacune cède selon l'arbitrage.
   const ordre = S.branches.map((_, i) => i).sort((x, y) => repere(S.branches[y]).L - repere(S.branches[x]).L || x - y);
-  for (const i of ordre) { const b = S.branches[i]; for (const c of ["g", "d"]) { if (!TYPES[b[c]].prof) continue; const q = quad(i, c, 2, 3); bandes.push(q); rangees.push({ i, q }); for (const p of places(b, c, q)) { if (cedeQuad(p, "place", E)) continue; pl.push({ i, c, q: p }); E.push({ nature: "place", genre: "place", i, q: p }); } } }
+  // À 90°, places et appuis viennent de la trame commune ; un appui reste s'il borde une place qui a tenu.
+  const appuis = [], sys = SYSTEMES[S.systeme], sr = sys.rang ? sys.section / 2 : 0;
+  for (const i of ordre) { const b = S.branches[i], D = disposer(i, B); for (const c of ["g", "d"]) { if (!TYPES[b[c]].prof) continue; const q = quad(i, c, 2, 3), droit = TYPES[b[c]].angle === 90, tenues = []; bandes.push(q); rangees.push({ i, q });
+    for (const p of droit ? D[c].pl : places(b, c, q)) { if ((droit && !tient(p, q)) || cedeQuad(p, "place", E)) continue; pl.push({ i, c, q: p }); tenues.push(p); E.push({ nature: "place", genre: "place", i, q: p }); }
+    if (droit) for (const a of D[c].ap) if (tenues.some((p) => Math.abs(p.lo - a - sr) < 0.02 || Math.abs(p.hi - a + sr) < 0.02)) appuis.push({ i, c, a }); } }
   // Structure : un poteau dans une circulation de voitures, un poteau dans une place (la place reste, c'est lui qui est mal posé).
   const conflits = pot.filter((c) => E.some((e) => e.nature === "voiture" && dedans(c, e.q, MARGE.voiture)));
   for (const o of pl) if (pot.some((c) => dedans(c, o.q, MARGE.place))) genees.push(o.q);
@@ -334,7 +396,7 @@ function mesurer() {
     const bb = rects.map((q) => [Math.min(...q.map((p) => p[0])), Math.min(...q.map((p) => p[1])), Math.max(...q.map((p) => p[0])), Math.max(...q.map((p) => p[1]))]);
     for (let x = x0 + 0.25; x < x1; x += 0.5) for (let y = y0 + 0.25; y < y1; y += 0.5) if (rects.some((q, k) => x >= bb[k][0] && x <= bb[k][2] && y >= bb[k][1] && y <= bb[k][3] && dans([x, y], q))) aire += 0.25;
   }
-  calc = { ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords, rampes, emprises: E, croisements, chevauchements, dansPlace };
+  calc = { ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords, rampes, emprises: E, croisements, chevauchements, dansPlace, appuis, porteeNette: Math.max(0, portee - sys.section), porteeLim: sys.portee };
   $("#s-structure").textContent = pot.length ? `${pot.length} poteaux · ${portee.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m${conflits.length ? ` · ${conflits.length} en voie` : ""}` : "–";
   $("#s-structure").style.color = conflits.length ? css("--rouge") : "";
   // Contreventement : des travées remplies en maçonnerie dans deux sens (deux directions nettement distinctes).
@@ -371,6 +433,9 @@ function dessiner() {
   ctx.fillStyle = css("--dalle"); for (const q of tout) { ctx.beginPath(); chemin(q); ctx.fill(); } // un par un : deux pleins de sens contraires ne se trouent pas
   ctx.fillStyle = css("--enrobe"); ctx.beginPath(); for (const q of calc.ch) chemin(q); ctx.fill();
   ctx.fillStyle = css("--place"); ctx.beginPath(); for (const p of calc.pl) chemin(p.q); ctx.fill();
+  // Places resserrées à la marge : assombries, plus fort à 2,30 m qu'à 2,40 m, et cotées dès qu'on est assez près.
+  ctx.fillStyle = css("--mur"); for (const p of calc.pl) if (p.q.w < LARGEURS[0]) { ctx.globalAlpha = p.q.w < LARGEURS[1] ? 0.26 : 0.14; ctx.beginPath(); chemin(p.q); ctx.fill(); } ctx.globalAlpha = 1;
+  if (vue.s > 13) { ctx.font = "600 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; for (const p of calc.pl) if (p.q.w < LARGEURS[0]) { const e = versE(centre(p.q)); ctx.fillText(p.q.w.toLocaleString("fr-FR", { minimumFractionDigits: 2 }), e[0], e[1]); } }
   // Rampes : un plein teinté et trois chevrons dans le sens de la voie ; en rouge pointillé si elle est à replacer.
   calc.rampes.forEach((x, k) => {
     // Épures de giration : la surface balayée à l'entrée et à la sortie, et l'axe de la trajectoire.
@@ -395,7 +460,7 @@ function dessiner() {
   ctx.globalAlpha = calque ? 1 : 0.55;
   S.pb.forEach((br, i) => {
     const A = versE(S.pn[br.a]), B = versE(S.pn[br.b]), sel = calque && i === choix;
-    if (br.plein) { ctx.strokeStyle = css("--mur"); ctx.lineWidth = Math.max(7, 0.7 * vue.s); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); }
+    if (br.plein) { ctx.strokeStyle = css("--mur"); ctx.lineWidth = br.voile ? Math.max(3, SYSTEMES.voiles.section * vue.s) : Math.max(7, 0.7 * vue.s); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); }
     ctx.strokeStyle = css(calque ? "--os" : "--mur"); ctx.lineWidth = sel ? 4 : calque ? 2 : 1.2;
     ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
   });
@@ -532,43 +597,58 @@ function porter(k, sens) {
   return n;
 }
 
-// Trame automatique, quelle que soit la forme. Sur chaque voie, des files en travers partent du bout des
-// rangées (tête d'îlot) puis reviennent toutes les trois places ; la dernière travée s'ajuste. Chaque file
-// pose un poteau sur la génératrice du fond de chaque rangée, ou au bord de la chaussée si ce bord est une
-// façade. Les angles du bâtiment ferment les files. Poutres : le long des génératrices et en travers des voies.
+// Trame automatique, quelle que soit la forme. Rangées à 90° : chaque appui de la trame commune pose un poteau au
+// fond de la rangée ; si le système tient ses appuis dans la rangée, un second à 0,65 m de l'allée, et un voile
+// entre les deux quand c'est un système à voiles. Rangées en épi ou en long : des files depuis le bout des rangées,
+// toutes les trois ou deux places, avec le même second poteau en épi. Bord de chaussée en façade : un poteau en face de chaque file. Les angles du bâtiment
+// ferment les files. Poutres : le long des génératrices et en travers des voies.
 function trame() {
-  const pts = [], poutres = [], rects = [...calc.ch, ...calc.bandes];
+  const pts = [], poutres = [], liens = [], rects = [...calc.ch, ...calc.bandes], sys = SYSTEMES[S.systeme];
   const ajoute = (p, dirs) => {
     // Un poteau à moins d'un mètre d'un autre ne se pose pas ; au même point (rangées dos à dos), il partage ses poutres.
     let k = pts.findIndex((o) => Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) < 1);
-    if (k >= 0 && Math.hypot(pts[k].p[0] - p[0], pts[k].p[1] - p[1]) > 0.05) return;
-    if (k < 0) { if (cedePoint(p, "structure", calc.emprises)) return; k = pts.push({ p: p.map((v) => +v.toFixed(3)), dirs: [] }) - 1; }
-    pts[k].dirs.push(...dirs);
+    if (k >= 0 && Math.hypot(pts[k].p[0] - p[0], pts[k].p[1] - p[1]) > 0.05) return -1;
+    if (k < 0) { if (cedePoint(p, "structure", calc.emprises)) return -1; k = pts.push({ p: p.map((v) => +v.toFixed(3)), dirs: [] }) - 1; }
+    pts[k].dirs.push(...dirs); return k;
   };
+  const net = sys.portee + sys.section + 0.01; // entraxe à ne pas dépasser
   S.branches.forEach((b, i) => {
-    const r = repere(b), h = demi(b), n = [-r.u[1], r.u[0]];
-    const cotes = ["g", "d"].map((c) => { const t = TYPES[b[c]], s = c === "g" ? 1 : -1, ks = new Set(); for (const o of calc.pl) if (o.i === i && o.c === c) { ks.add(o.q.k); ks.add(o.q.k + 1); } return { t, s, ks }; });
-    const rg = cotes.filter((x) => x.ks.size); if (!rg.length && cotes.some((x) => x.t.prof)) return;
-    const pas = rg.length ? rg[0].t.pas : PAS, a0 = rg.length ? Math.max(...rg.map((x) => Math.min(...x.ks) * x.t.pas)) : 0, a1 = rg.length ? Math.min(...rg.map((x) => Math.max(...x.ks) * x.t.pas)) : r.L;
-    if (a1 - a0 < pas) return;
-    // Files comptées depuis le même bout quel que soit le sens de la branche, pour que deux voies parallèles tombent d'accord.
-    const inv = r.u[0] < -1e-9 || (Math.abs(r.u[0]) < 1e-9 && r.u[1] < 0), as = [];
-    for (let d = 0; d < a1 - a0 - 1e-6; d += 3 * pas) as.push(d);
-    if (as.length > 1 && a1 - a0 - as[as.length - 1] < 1.5 * pas) as[as.length - 1] = a1 - a0; else as.push(a1 - a0);
-    for (const x of cotes) for (const d of as) {
-      const a = inv ? a1 - d : a0 + d, dirs = [{ d: r.u, tol: 0.3 }, { d: [-r.u[0], -r.u[1]], tol: 0.3 }, { d: [-x.s * n[0], -x.s * n[1]], tol: pas / 2 + 0.1 }];
-      if (x.t.prof) { const k = Math.round(a / x.t.pas); if (x.ks.has(k)) ajoute(r.P(k * x.t.pas + biaisDe(x.t, x.s), x.s * (h + x.t.prof)), dirs); }
-      else if (!rects.some((q) => dans(r.P(a, x.s * (h + 0.3)), q))) ajoute(r.P(a, x.s * h), dirs);
+    const r = repere(b), h = demi(b), n = [-r.u[1], r.u[0]], long = [{ d: r.u, tol: 0.3 }, { d: [-r.u[0], -r.u[1]], tol: 0.3 }];
+    const inv = r.u[0] < -1e-9 || (Math.abs(r.u[0]) < 1e-9 && r.u[1] < 0); // files comptées depuis le même bout quel que soit le sens de la voie
+    const cotes = ["g", "d"].map((c) => { const t = TYPES[b[c]], s = c === "g" ? 1 : -1, ks = new Set(); if (t.angle !== 90) for (const o of calc.pl) if (o.i === i && o.c === c) { ks.add(o.q.k); ks.add(o.q.k + 1); } return { c, t, s, ks, d: [-s * n[0], -s * n[1]] }; });
+    const face = 2 * h + 2 * RETRAIT + 0.1; // du poteau du bord de l'allée à celui d'en face : pas plus loin, il ne saute pas jusqu'au fond
+    for (const x of cotes) {
+      if (x.t.angle === 90) {
+        // Rangée à 90° : les appuis de la trame commune.
+        x.as = calc.appuis.filter((o) => o.i === i && o.c === x.c).map((o) => o.a); const travers = { d: x.d, tol: PAS / 2 + 0.1 };
+        for (const a of x.as) { const fond = ajoute(r.P(a, x.s * (h + x.t.prof)), sys.rang ? long : [...long, travers]); if (sys.rang) liens.push([fond, ajoute(r.P(a, x.s * (h + RETRAIT)), [{ ...travers, max: face }])]); }
+      } else if (x.ks.size) {
+        // Rangée en épi ou en long : une file toutes les trois places, toutes les deux si la portée du système l'exige ;
+        // la dernière travée s'ajuste dans cette limite. En épi, le second poteau suit la ligne de la place, penchée.
+        const k0 = Math.min(...x.ks), k1 = Math.max(...x.ks), nt = [3, 2].find((k) => k * x.t.pas <= net) || 1, ks = [], pied = sys.rang && x.t.prof >= 4, travers = { d: x.d, tol: x.c === "d" && cotes[0].t.prof ? -1 : nt * x.t.pas / 2 + 0.1 }; // deux rangées en épi face à face n'ont pas le même pas : un seul côté lance les poutres en travers
+        for (let k = 0; k < k1 - k0; k += nt) ks.push(k);
+        if (ks.length > 1 && k1 - k0 - ks[ks.length - 1] < 2 && (k1 - k0 - ks[ks.length - 2]) * x.t.pas <= net) ks[ks.length - 1] = k1 - k0; else ks.push(k1 - k0);
+        x.as = ks.map((k) => (inv ? k1 - k : k0 + k) * x.t.pas);
+        for (const a of x.as) { const fond = ajoute(r.P(a + biaisDe(x.t, x.s), x.s * (h + x.t.prof)), pied ? long : [...long, travers]); if (pied) liens.push([fond, ajoute(r.P(a + biaisDe(x.t, x.s) * RETRAIT / x.t.prof, x.s * (h + RETRAIT)), [{ ...travers, max: face }])]); }
+      }
     }
+    // Bord de chaussée en façade : un poteau en face de chaque file de la rangée d'en face ; voie sans rangée : tous les 7,50 m.
+    cotes.forEach((x, m) => {
+      if (x.t.prof) return; const autre = cotes[1 - m]; let as = autre.as;
+      if (!as) { if (autre.t.prof) return; as = []; for (let a = 0; a < r.L - 1e-6; a += 3 * PAS) as.push(a); as.push(r.L); }
+      for (const a of as) if (!rects.some((q) => dans(r.P(a, x.s * (h + 0.3)), q))) ajoute(r.P(a, x.s * h), [...long, { d: x.d, tol: PAS / 2 + 0.1 }]);
+    });
   });
   for (const x of calc.rampes) if (!x.hors) for (const p of x.corps) ajoute(p, [{ d: x.u, tol: 0.3 }, { d: [-x.u[0], -x.u[1]], tol: 0.3 }]); // les quatre coins d'une rampe
   for (const a of calc.angles) if (a.x) ajoute(a.x, [1, 3].map((m) => { const v = [a.q[m][0] - a.x[0], a.q[m][1] - a.x[1]], l = Math.hypot(v[0], v[1]); return l > 0.01 ? { d: [v[0] / l, v[1] / l], tol: 0.3 } : null; }).filter(Boolean));
-  pts.forEach((o, k) => { for (const { d, tol } of o.dirs) {
-    let best = -1, bx = 20.01;
+  pts.forEach((o, k) => { for (const { d, tol, max } of o.dirs) {
+    let best = -1, bx = (max || 20) + 0.01;
     pts.forEach((q, j) => { if (j === k) return; const x = (q.p[0] - o.p[0]) * d[0] + (q.p[1] - o.p[1]) * d[1], y = Math.abs((q.p[0] - o.p[0]) * d[1] - (q.p[1] - o.p[1]) * d[0]); if (x > 0.5 && y <= tol && x < bx) { bx = x; best = j; } });
-    if (bx > (tol > 0.3 ? 20 : 15)) best = -1; // 15 m au plus le long d'une génératrice, 20 m en travers d'une voie
+    if (bx > (max || (tol > 0.3 ? 20 : 15))) best = -1; // 15 m au plus le long d'une génératrice, 20 m en travers d'une voie
     if (best >= 0 && !poutres.some((b) => (b.a === k && b.b === best) || (b.a === best && b.b === k))) poutres.push({ a: k, b: best });
   } });
+  // Du poteau du fond à celui du bord de l'allée : une poutre, ou un voile (travée pleine) dans un système à voiles.
+  for (const [a, b] of liens) { if (a < 0 || b < 0) continue; let v = poutres.find((x) => (x.a === a && x.b === b) || (x.a === b && x.b === a)); if (!v) poutres.push(v = { a, b }); if (sys.voile) v.plein = v.voile = true; }
   S.pn = pts.map((o) => o.p); S.pb = poutres; pointer();
 }
 
@@ -639,23 +719,26 @@ cv.addEventListener("wheel", (ev) => { ev.preventDefault(); const e = pos(ev), m
 
 // ---- Fiche de la branche choisie : ce qui se développe à gauche et à droite de l'axe.
 for (const seg of document.querySelectorAll('#fiche .seg[data-cote="g"], #fiche .seg[data-cote="d"]')) for (const k of Object.keys(TYPES)) { const b = document.createElement("button"); b.textContent = TYPES[k].nom; b.dataset.t = k; seg.append(b); }
+for (const k of Object.keys(SYSTEMES)) { const x = document.createElement("button"); x.textContent = SYSTEMES[k].nom; x.dataset.s = k; $("#f-systeme").append(x); }
+$("#f-systeme").addEventListener("click", (ev) => { const x = ev.target.closest("button[data-s]"); if (!x || x.dataset.s === S.systeme) return; garder(); S.systeme = x.dataset.s; rafraichir(); fiche(); enregistrer(); });
 function fiche() {
   const rampe = !calque && choixR >= 0 && calc ? calc.rampes[choixR] : null;
   if (rampe) {
-    $("#fiche").hidden = false; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = true; $("#b-suppr").hidden = false; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
+    $("#fiche").hidden = false; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = true; $("#b-suppr").hidden = false; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
     $("#f-long").textContent = `${RAMPES[S.rampes[choixR].type].nom} · ${rampe.L} m${rampe.hors ? " · à replacer dans une rangée assez longue" : ` · ${(rampe.L + 2 * GIR.s).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m avec les girations${rampe.couple ? " · couplée" : ""}`}`; return;
   }
   const poteau = calque && choixN >= 0 && NO[choixN], b = BR[choix];
   const libre = !!calque && !b && !poteau && ficheTrame; // rien de choisi dans la structure : la fiche est celle de la trame entière
-  $("#fiche").hidden = !b && !poteau && !libre; $("#f-portee").hidden = !poteau; $("#f-mur").hidden = !calque || !!poteau || !b; $("#f-trame").hidden = !libre; $("#b-suppr").hidden = libre;
+  $("#fiche").hidden = !b && !poteau && !libre; $("#f-portee").hidden = !poteau; $("#f-mur").hidden = !calque || !!poteau || !b; $("#f-trame").hidden = $("#f-systeme").hidden = !libre; $("#b-suppr").hidden = libre;
   for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = !!calque;
-  if (libre) { const n = calc ? calc.pot.length : 0; $("#b-trame").setAttribute("aria-pressed", String(!!S.auto)); $("#f-long").textContent = (n ? `${n} poteau${n > 1 ? "x" : ""}` : "Aucun poteau") + (S.auto ? " · suit les voies" : " · à la main"); return; }
+  if (libre) { const n = calc ? calc.pot.length : 0, nb = (v) => v.toLocaleString("fr-FR", { maximumFractionDigits: 1 }); $("#b-trame").setAttribute("aria-pressed", String(!!S.auto)); for (const x of $("#f-systeme").children) x.setAttribute("aria-pressed", String(x.dataset.s === S.systeme));
+    $("#f-long").textContent = (n ? `${n} poteau${n > 1 ? "x" : ""} · portée ${nb(calc.porteeNette)} m sur ${nb(calc.porteeLim)} m` : "Aucun poteau") + (S.auto ? " · suit les voies" : " · à la main"); return; }
   if (poteau) { const n = BR.filter((x) => x.a === choixN || x.b === choixN).length; $("#f-long").textContent = `Poteau · ${n} poutre${n > 1 ? "s" : ""}${calc.conflits.includes(poteau) ? " · dans une voie" : ""}`; return; }
   if (!b) return;
   if (calque) { $("#b-plein").setAttribute("aria-pressed", String(!!b.plein)); $("#f-long").textContent = `${b.plein ? "Travée pleine" : "Poutre"} · portée ${repere(b, NO).L.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m`; return; }
   for (const seg of document.querySelectorAll("#fiche .seg")) for (const x of seg.children) x.setAttribute("aria-pressed", String((b[seg.dataset.cote] || "aucun") === x.dataset.t));
-  const n = calc ? calc.pl.filter((p) => p.i === choix).length : 0;
-  $("#f-long").textContent = `${repere(b).L.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m · chaussée ${(2 * demi(b)).toLocaleString("fr-FR")} m · ${n} places`;
+  const ici = calc ? calc.pl.filter((p) => p.i === choix) : [], n = ici.length, serre = LARGEURS.slice(1).map((w) => [w, ici.filter((p) => p.q.w === w).length]).filter((x) => x[1]).map(([w, k]) => ` · ${k} à ${w.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} m`).join("");
+  $("#f-long").textContent = `${repere(b).L.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m · chaussée ${(2 * demi(b)).toLocaleString("fr-FR")} m · ${n} places${serre}`;
 }
 $("#fiche").addEventListener("click", (ev) => { const x = ev.target.closest(".seg button"), b = S.branches[choix]; if (!x || !b || calque) return; garder();
   // Une rampe du type touché se pose au milieu de la voie, dans sa première rangée ; on la glisse ensuite où l'on veut.
@@ -694,10 +777,11 @@ const neuf = !S.branches.length;
 // Essai enregistré avant la logique d'ensemble : ses bandes posées à la main ou absentes passent en « auto ».
 if (!S.v) { for (const b of S.branches) if (b.pieton !== "aucun") b.pieton = "auto"; S.v = 2; }
 if (neuf) S = { noeuds: [[0, 0], [60, 0], [60, 15], [0, 15], [90, 0]], branches: [{ a: 0, b: 1, g: "90", d: "90", pieton: "auto" }, { a: 1, b: 2, g: "aucun", d: "90", pieton: "auto" }, { a: 2, b: 3, g: "90", d: "90", pieton: "auto" }, { a: 3, b: 0, g: "aucun", d: "90", pieton: "auto" }, { a: 1, b: 4, g: "60", d: "45", pieton: "auto" }], pn: [], pb: [] };
+if (!SYSTEMES[S.systeme]) S.systeme = "beton"; // par défaut la grande portée béton : aucun appui dans le plateau
 if (S.auto === undefined) S.auto = true; // un essai enregistré avant la trame automatique la reçoit
 pointer();
 new ResizeObserver(taille).observe(cv); taille(); calculer();
-// Structure de l'exemple : la trame automatique, et trois travées pleines qui contreventent dans les deux sens.
+// Structure de l'exemple : la trame automatique, et des travées pleines qui contreventent dans les deux sens.
 if (neuf) { const x0 = Math.min(...S.pn.map((p) => p[0])), y0 = Math.min(...S.pn.map((p) => p[1])); for (const b of S.pb) { const A = S.pn[b.a], B = S.pn[b.b]; if ((A[0] === x0 && B[0] === x0 && Math.min(A[1], B[1]) >= 2.5 && Math.max(A[1], B[1]) <= 17.5) || (A[1] === y0 && B[1] === y0 && Math.max(A[0], B[0]) <= 2.5)) b.plein = true; } calculer(); }
 cadrer();
 </script>

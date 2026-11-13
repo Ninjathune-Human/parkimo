@@ -17,6 +17,32 @@ with sync_playwright() as p:
         r = {"vue": name, "depart": pg.evaluate(ETAT)}
         r["angles"] = pg.evaluate("calc.angles.map(a => a.x)")
         E = lambda x, y: pg.evaluate(f"versE([{x}, {y}])")
+        # Trame commune (charte, section 5). Les places se comptent entre nus : une travée de deux ou trois places, puis
+        # l'appui. À la marge, la dernière travée se resserre à 2,40 m ou 2,30 m si cela loge une place de plus.
+        TC = pg.evaluate("""(() => { const f = (L, k, o) => { const t = travees(L, SYSTEMES[k], !!o); return [t.pl.length, t.pl.filter((p) => p.w < 2.5).map((p) => p.w), t.ap.length]; };
+          return { beton60: f(60, "beton"), poteaux60: f(60, "poteaux"), voiles60: f(60, "voiles"), marge240: f(12.4, "beton"), marge230: f(12.2, "beton"), coin: f(5, "poteaux", true), acier: f(12.5, "acier") }; })()""")
+        assert TC == {"beton60": [24, [], 9], "poteaux60": [22, [], 9], "voiles60": [23, [], 9], "marge240": [5, [2.4, 2.4], 3], "marge230": [5, [2.3, 2.3], 3], "coin": [2, [2.3, 2.3], 1], "acier": [5, [], 4]}, TC
+        # Sur l'exemple : le système par défaut (grande portée béton) garde les places de l'essai ; chaque autre système
+        # se choisit dans la fiche de la structure, ne met aucun poteau dans une place ni dans une voie, et sa portée se contrôle.
+        SY = "({systeme: S.systeme, places: calc.pl.length, etroites: calc.pl.filter((p) => p.q.w < 2.5).length, poteaux: calc.pot.length, voiles: S.pb.filter((b) => b.voile).length, enVoie: calc.conflits.length, enPlace: calc.dansPlace, portee: [+calc.porteeNette.toFixed(2), calc.porteeLim], viol: calc.principes.filter((p) => !p.ok).map((p) => p.id), boutons: [...document.querySelectorAll('#f-systeme button')].map((x) => x.getAttribute('aria-pressed'))})"
+        pg.click('#calques button[data-c="1"]'); pg.wait_for_timeout(200)
+        r["systemes"] = [pg.evaluate(SY)]
+        assert r["systemes"][0]["systeme"] == "beton" and r["systemes"][0]["places"] == 123 and not r["systemes"][0]["viol"], r["systemes"]
+        for k in ("poteaux", "voiles", "acier"):
+            pg.click(f'#f-systeme button[data-s="{k}"]'); pg.wait_for_timeout(300)
+            e = pg.evaluate(SY); r["systemes"].append(e)
+            assert e["systeme"] == k and e["enVoie"] == 0 and e["enPlace"] == 0 and e["places"] > 90 and not e["viol"], e  # les remplissages de l'exemple restent en place : contreventé d'un système à l'autre
+            pg.screenshot(path=str(out / f"{name}-squelette-systeme-{k}.png"))
+        assert r["systemes"][1]["places"] < 123 and r["systemes"][2]["voiles"] > 10 and r["systemes"][3]["places"] == 123, r["systemes"]
+        q = E(5, 5); pg.mouse.move(*q); pg.mouse.wheel(0, -1500); pg.wait_for_timeout(300)
+        pg.click('#f-systeme button[data-s="voiles"]'); pg.wait_for_timeout(300)
+        pg.screenshot(path=str(out / f"{name}-squelette-systeme-voiles-detail.png"))
+        pg.click('#f-systeme button[data-s="poteaux"]'); pg.wait_for_timeout(300)
+        pg.screenshot(path=str(out / f"{name}-squelette-systeme-poteaux-detail.png"))
+        for _ in range(5): pg.click("#b-annuler"); pg.wait_for_timeout(150)
+        pg.click("#b-cadrer"); pg.wait_for_timeout(300); pg.click('#calques button[data-c="0"]'); pg.wait_for_timeout(200)
+        r["systeme_retabli"] = pg.evaluate("[S.systeme, calc.pl.length, document.querySelector('#s-contrev').textContent]")
+        assert r["systeme_retabli"][:2] == ["beton", 123], r["systeme_retabli"]
         # Surfaces : chaussées, bandes et rangées se joignent sans se recouvrir ni laisser de vide. La somme de leurs aires
         # vaut l'emprise mesurée, sur l'exemple puis avec le carrefour à trois voies déplacé en biais.
         PAV = "(() => { const aire = (q) => Math.abs(q.reduce((s, p, i) => { const n = q[(i + 1) % q.length]; return s + p[0] * n[1] - n[0] * p[1]; }, 0)) / 2; return +([...calc.ch, ...calc.bandes].reduce((s, q) => s + aire(q), 0) / calc.aire).toFixed(3); })()"
@@ -165,10 +191,12 @@ with sync_playwright() as p:
         # Contreventement : l'exemple a des remplissages en maçonnerie dans deux sens ; en ôter un sens se lit au bilan.
         CV = "[document.querySelector('#s-contrev').textContent, S.pb.filter(b => b.plein).length]"
         r["contreventement"] = pg.evaluate(CV)
-        q = E(-2.5, -7.5); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        q = E(-5, -7.5); pg.mouse.move(*q); pg.mouse.wheel(0, -1200); pg.wait_for_timeout(300)  # de près : la travée fait 5 m entre deux poteaux
+        q = E(-5, -7.5); pg.mouse.click(*q); pg.wait_for_timeout(250)
         r["poutre_choisie"] = pg.evaluate("[document.querySelector('#f-long').textContent, !document.querySelector('#f-mur').hidden, document.querySelector('#b-plein').getAttribute('aria-pressed')]")
         pg.click("#b-plein"); pg.wait_for_timeout(200)
         r["sans_remplissage"] = pg.evaluate(CV)
+        pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         pg.screenshot(path=str(out / f"{name}-squelette-contreventement.png"))
         pg.click("#b-annuler"); pg.wait_for_timeout(200)
         r["remplissage_retabli"] = pg.evaluate(CV)
