@@ -53,7 +53,7 @@ Dans cet ordre, chaque couche ne lisant que les précédentes :
 
 1. **Squelette** : nœuds et voies, donnés par l'utilisateur. Une rampe perpendiculaire en fait partie.
 2. **Chaussées et carrefours**, déduits du squelette.
-3. **Objets posés** : rampes en rangée, plus tard circulations verticales et locaux, avec leurs réserves.
+3. **Objets posés** : rampes en rangée, escaliers, plus tard locaux, avec leurs réserves.
 4. **Cheminements piétons** : bandes et passages.
 5. **Trame commune** : les places et la structure se règlent ensemble (section 5).
 6. **Contrôles** : les principes de la section 8.
@@ -142,7 +142,6 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 6. **Niveaux** : même squelette ; structures et distributions se superposent.
 7. **Rampes** : l'entrée en S n'est pas le principe général. Une rampe à 90° d'une voie se branche directement dessus, sans S.
 8. **Norme et Neufert** : le Neufert n'est pas une norme mais un guide de bonnes pratiques. Les normes donnent des minima, souvent peu pratiques, d'autant que les véhicules grandissent. Le Neufert l'emporte sur la norme quand il est mieux-disant. Les voies sont à double sens : l'allée fait 6,00 m, circulation piétonne incluse.
-
 9. **Circulations verticales** : selon les règles des ERP. La distance se mesure depuis le centre de la place, puis par les circulations piétonnes, jusqu'à l'entrée de l'escalier. Un des escaliers est l'« escalier principal » : accolés à lui, deux ascenseurs. On choisit lequel est le principal, et la position de chacun.
 
 ## 10. Ce qui reste à fixer
