@@ -16,6 +16,14 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: non
 #bilan .n { font-size: 34px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; }
 #bilan .n small { font-size: 15px; font-weight: 400; color: var(--label-2); margin-left: 4px; }
 #bilan dl { margin: 6px 0 0; display: grid; grid-template-columns: auto auto; gap: 2px 14px; font-size: 13px; }
+#principes { margin-top: 2px; font-size: 13px; }
+#principes summary { display: grid; grid-template-columns: auto 1fr 14px; gap: 14px; align-items: center; cursor: pointer; list-style: none; min-height: 24px; color: var(--label-2); }
+#principes summary::-webkit-details-marker { display: none; }
+#principes summary span:last-of-type { text-align: right; color: var(--label); font-variant-numeric: tabular-nums; }
+#principes summary::after { content: ""; width: 7px; height: 7px; border-right: 1.5px solid var(--label-2); border-bottom: 1.5px solid var(--label-2); transform: rotate(45deg) translateY(-2px); transition: transform .15s; justify-self: end; }
+#principes[open] summary::after { transform: rotate(-135deg) translateY(-2px); }
+#l-principes { list-style: none; margin: 4px 0 2px; padding: 0; display: grid; gap: 3px; max-width: 270px; }
+#l-principes li { display: grid; grid-template-columns: 1fr auto; gap: 10px; } #l-principes li span { color: var(--label-2); text-align: right; } #l-principes li.non span { color: var(--rouge); }
 #bilan dt { color: var(--label-2); } #bilan dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 #barre { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom)); display: flex; gap: 4px; padding: 6px; border-radius: 30px; }
 button { font: inherit; color: var(--label); background: none; border: 0; min-height: 44px; min-width: 44px; padding: 0 16px; border-radius: 22px; cursor: pointer; font-weight: 600; white-space: nowrap; }
@@ -48,6 +56,7 @@ button:disabled { opacity: .35; }
   <h1>Essai du squelette</h1>
   <div class="n"><span id="s-places">0</span><small>places</small></div>
   <dl><dt>Emprise</dt><dd id="s-emprise">–</dd><dt>Par place</dt><dd id="s-ratio">–</dd><dt>Branches</dt><dd id="s-branches">0</dd><dt>Piétons</dt><dd id="s-pietons">–</dd><dt>Rampes</dt><dd id="s-rampes">–</dd><dt>Structure</dt><dd id="s-structure">–</dd><dt>Contreventement</dt><dd id="s-contrev">–</dd></dl>
+  <details id="principes"><summary><span>Principes</span><span id="s-principes">–</span></summary><ul id="l-principes"></ul></details>
 </section>
 <div id="aide" class="verre">Glissez un nœud ou une branche · touchez une branche pour la régler</div>
 <section id="fiche" class="verre" hidden aria-label="Branche choisie">
@@ -220,6 +229,25 @@ const dedans = (pt, q, m) => { let s = 0; for (let i = 0; i < 4; i++) { const a 
 const dans = (pt, q) => { let s = 0; for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4], c = (b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0]); if (Math.abs(c) < 1e-9) continue; if (s && Math.sign(c) !== s) return false; s = Math.sign(c); } return true; };
 
 // ---- Calcul : chaussées, places qui tiennent (hors des autres chaussées et des places déjà posées), emprise.
+// ---- Registre des principes (charte, section 8). Un principe est une ligne : son nom et sa mesure sur le plan
+// calculé, qui rend s'il est respecté et un détail. Le bilan et les essais lisent ce tableau.
+const PRINCIPES = [
+  { id: "surfaces", nom: "Surfaces sans recouvrement ni vide", mesure: (c) => [Math.abs(c.pavage - 1) < 0.03, `rapport ${c.pavage.toFixed(3).replace(".", ",")}`] },
+  { id: "poteau-voie", nom: "Aucun poteau dans une circulation", mesure: (c) => [!c.conflits.length, `${c.conflits.length} poteau${c.conflits.length > 1 ? "x" : ""}`] },
+  { id: "poteau-place", nom: "Aucun poteau dans une place", mesure: (c) => [!c.genees.length, `${c.genees.length} place${c.genees.length > 1 ? "s" : ""}`] },
+  { id: "reseau", nom: "Réseau piéton d'un seul tenant", mesure: (c) => [c.troncons <= 1, `${c.troncons} tronçons`] },
+  { id: "girations", nom: "Cheminements hors des girations", mesure: (c) => [!c.bandesEpure, `${c.bandesEpure} bande${c.bandesEpure > 1 ? "s" : ""}`] },
+  { id: "rampes", nom: "Rampes dans une rangée assez longue", mesure: (c) => [!c.aReplacer, `${c.aReplacer} à replacer`] },
+  { id: "contreventement", nom: "Structure contreventée dans deux sens", mesure: (c) => [!c.pot.length || c.contrev === 2, c.contrev ? "1 sens" : "à prévoir"] },
+];
+// Un poteau ne tient pas dans une place (la structure cède aux places) : lâché dedans, il gagne la ligne la plus
+// proche de cette place, côté ou fond, jamais le bord de l'allée.
+function horsPlace(p) {
+  const st = calc && [...calc.pl.map((o) => o.q), ...calc.genees].find((q) => dedans(p, q, 0.15)); if (!st) return p;
+  let best = null;
+  st.forEach((a, i) => { if (i === 2) return; const b = st[(i + 1) % 4], ex = b[0] - a[0], ey = b[1] - a[1], t = Math.max(0, Math.min(1, ((p[0] - a[0]) * ex + (p[1] - a[1]) * ey) / (ex * ex + ey * ey || 1))), q = [a[0] + ex * t, a[1] + ey * t], d = Math.hypot(q[0] - p[0], q[1] - p[1]); if (!best || d < best.d) best = { d, q }; });
+  return best.q.map((v) => +v.toFixed(3));
+}
 // Tant que la trame est automatique (`S.auto`), la structure est refaite à chaque changement des voies :
 // elle s'adapte à chaque branche. Les travées pleines dont les deux poteaux n'ont pas bougé restent pleines.
 function calculer() {
@@ -291,6 +319,13 @@ function mesurer() {
   const murs = S.pb.filter((b) => b.plein).map((b) => repere(b, S.pn).u), sens = !murs.length ? 0 : murs.some((u) => Math.abs(u[0] * murs[0][1] - u[1] * murs[0][0]) > 0.5) ? 2 : 1;
   $("#s-contrev").textContent = pot.length ? ["à prévoir", "1 sens", "2 sens"][sens] : "–";
   $("#s-contrev").style.color = pot.length && sens < 2 ? css("--rouge") : "";
+  // Les principes, mesurés sur ce plan.
+  const surf = (q) => Math.abs(q.reduce((m, p, i) => { const n = q[(i + 1) % q.length]; return m + p[0] * n[1] - n[0] * p[1]; }, 0)) / 2, epq = rampes.flatMap((x) => x.epures.flatMap((e) => e.quads));
+  Object.assign(calc, { contrev: sens, troncons, aReplacer, pavage: aire ? [...ch, ...bandes].reduce((m, q) => m + surf(q), 0) / aire : 1, bandesEpure: trottoirs.filter((t) => epq.some((q) => recouvre(t.q, q))).length });
+  calc.principes = PRINCIPES.map((p) => { const [ok, detail] = p.mesure(calc); return { id: p.id, nom: p.nom, ok, detail }; });
+  const viol = calc.principes.filter((p) => !p.ok).length;
+  $("#s-principes").textContent = `${calc.principes.length - viol} sur ${calc.principes.length}`; $("#s-principes").style.color = viol ? css("--rouge") : "";
+  $("#l-principes").innerHTML = calc.principes.map((p) => `<li class="${p.ok ? "oui" : "non"}">${p.nom}<span>${p.ok ? "respecté" : p.detail}</span></li>`).join("");
   $("#s-places").textContent = pl.length; $("#s-branches").textContent = S.branches.length;
   $("#s-emprise").textContent = aire ? Math.round(aire).toLocaleString("fr-FR") + " m²" : "–";
   $("#s-ratio").textContent = pl.length ? (aire / pl.length).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " m²" : "–";
@@ -421,8 +456,8 @@ function aimantVoie(g, m) {
   return [dx, dy];
 }
 // Logique d'ensemble des bandes piétonnes en « auto » : on cherche le cheminement le plus direct. Dans l'ordre :
-// un réseau d'un seul tenant ; le moins de traversées de chaussée possible (on ne traverse pas quand on peut
-// aller tout droit) ; la bande côté façade extérieure quand la voie en longe une (une cour fermée n'est pas une façade).
+// un réseau d'un seul tenant ; des bandes hors des épures de giration des rampes ; le moins de traversées de
+// chaussée possible (on ne traverse pas quand on peut aller tout droit) ; la bande côté façade extérieure quand la voie en longe une (une cour fermée n'est pas une façade).
 function bandesAuto() {
   COTE = new Map(); const autos = S.branches.filter((b) => b.pieton === "auto"); if (!autos.length) return;
   const geo = noeuds(), B = geo.bouts, rects = [...S.branches.map((_, i) => [B[i].a.d[0], B[i].b.d[0], B[i].b.g[0], B[i].a.g[0]]), ...geo.nd, ...geo.cales];
@@ -431,7 +466,12 @@ function bandesAuto() {
   const libre = (P, n) => !rects.some((q) => dans(P, q) || q.some((a, i) => { const b = q[(i + 1) % q.length], ex = b[0] - a[0], ey = b[1] - a[1], den = n[0] * ey - n[1] * ex; if (Math.abs(den) < 1e-9) return false; const t = ((a[0] - P[0]) * ey - (a[1] - P[1]) * ex) / den, u = ((a[0] - P[0]) * n[1] - (a[1] - P[1]) * n[0]) / den; return t > 0 && u >= 0 && u <= 1; }));
   const facade = (b, c) => { const r = repere(b), s = c === "g" ? 1 : -1, n = [-r.u[1] * s, r.u[0] * s], e = s * (demi(b) + TYPES[b[c]].prof + 0.5); return [0.25, 0.5, 0.75].filter((f) => libre(r.P(r.L * f, e), n)).length >= 2; };
   const voulu = new Map(); for (const b of autos) { const g = facade(b, "g"), d = facade(b, "d"); if (g !== d) voulu.set(b, g ? "g" : "d"); COTE.set(b, voulu.get(b) || "d"); }
-  const cout = () => { const r = reseau(noeuds()); return r.troncons * 1e6 + r.passages.length * 1e3 + autos.filter((b) => voulu.has(b) && COTE.get(b) !== voulu.get(b)).length; };
+  // Épures de giration des rampes : une bande qui en traverse une coûte plus qu'une traversée de chaussée.
+  const epq = (S.rampes || []).map((ra) => poser(ra, B)).flatMap((x) => x.epures.flatMap((e) => e.quads));
+  const cout = () => {
+    const g2 = noeuds(), r = reseau(g2), dans = epq.length ? S.branches.filter((b, i) => { const c = bandeDe(b); return pw(b, c) && epq.some((q) => recouvre([g2.bouts[i].a[c][0], g2.bouts[i].b[c][0], g2.bouts[i].b[c][1], g2.bouts[i].a[c][1]], q)); }).length : 0;
+    return r.troncons * 1e6 + dans * 1e4 + r.passages.length * 1e3 + autos.filter((b) => voulu.has(b) && COTE.get(b) !== voulu.get(b)).length;
+  };
   // Amélioration pas à pas : on retourne la bande d'une voie tant que le réseau y gagne.
   let best = cout();
   for (let tour = 0, mieux = true; mieux && tour < 6; tour++) { mieux = false; for (const b of autos) { const c = COTE.get(b); COTE.set(b, c === "g" ? "d" : "g"); const v = cout(); if (v < best) { best = v; mieux = true; } else COTE.set(b, c); } }
@@ -561,14 +601,14 @@ function fin(ev) {
     if (g.fantome && Math.hypot(g.fantome[1][0] - g.de[0], g.fantome[1][1] - g.de[1]) >= (calque ? 1 : PAS - 1e-6)) { garder(); const a = noeudEn(g.e, g.de), b = noeudEn(versE(g.fantome[1]), g.fantome[1]); if (calque) S.auto = false; if (a !== b) { BR.push(calque ? { a, b } : { a, b, g: "90", d: "90" }); if (!calque) BR[BR.length - 1].pieton = "auto"; choix = BR.length - 1; choixN = -1; } }
     // Structure : un simple toucher pose un poteau, aimanté à la trame du stationnement.
     // Hors du dessin, le toucher désélectionne tout et replie la fiche.
-    else if (calque && !g.bouge) { const m = versM(g.e[0], g.e[1]), t = cible(g.e, m); choix = -1; if (t.k >= 0) choixN = t.k; else if (dansDessin(t.p) || dansDessin(m)) { garder(); S.auto = false; choixN = NO.push(t.p) - 1; } else { choixN = -1; ficheTrame = false; } }
+    else if (calque && !g.bouge) { const m = versM(g.e[0], g.e[1]), t = cible(g.e, m); choix = -1; if (t.k >= 0) choixN = t.k; else if (dansDessin(t.p) || dansDessin(m)) { garder(); S.auto = false; choixN = NO.push(horsPlace(t.p)) - 1; } else { choixN = -1; ficheTrame = false; } }
     else if (!g.bouge) choix = choixN = -1;
   } else if (!g.bouge) {
     const m = versM(e[0], e[1]), k = calque ? noeudPres(e) : -1, c = branchePres(m, Math.max(AIMANT / vue.s, 2));
     choixR = -1; choixN = k; choix = k >= 0 ? -1 : g.genre === "branche" ? g.i : c ? c.i : -1;
     if (calque && k < 0 && choix < 0) ficheTrame = dansDessin(m); // rien touché : dans le dessin, la fiche de la trame ; dehors, tout se replie
   }
-  else if (g.genre === "noeud") { passe.push(g.avant); $("#b-annuler").disabled = false; if (g.vers >= 0) fusionner(g.vers, g.k); else if (!calque) { const c = branchePres(NO[g.k], AIMANT / vue.s, g.k); if (c) { NO[g.k] = c.p; fusionner(couper(c.i, c.p), g.k); } } choix = -1; choixN = calque ? (g.vers >= 0 ? g.vers : g.k) : -1; }
+  else if (g.genre === "noeud") { passe.push(g.avant); $("#b-annuler").disabled = false; if (g.vers >= 0) fusionner(g.vers, g.k); else if (!calque) { const c = branchePres(NO[g.k], AIMANT / vue.s, g.k); if (c) { NO[g.k] = c.p; fusionner(couper(c.i, c.p), g.k); } } else NO[g.k] = horsPlace(NO[g.k]); choix = -1; choixN = calque ? (g.vers >= 0 ? g.vers : g.k) : -1; }
   else if (g.genre === "branche") { passe.push(g.avant); $("#b-annuler").disabled = false; const b = BR[g.i]; for (const k of [b.a, b.b]) { const v = noeudPres(versE(NO[k]), k); if (v >= 0) fusionner(v, k); } }
   rafraichir(); fiche(); enregistrer();
 }

@@ -100,16 +100,16 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 
 | Principe | Mesure | État dans le prototype |
 |---|---|---|
-| Les surfaces ne se recouvrent pas et ne laissent pas de vide | somme des aires / emprise = 1 | mesuré : 1,000 sur l'exemple, 1,007 avec un carrefour en biais |
+| Les surfaces ne se recouvrent pas et ne laissent pas de vide | somme des aires / emprise = 1 | mesuré : 1,000 sur l'exemple, 1,007 avec un carrefour en biais ; violé sur 36 des 60 plans déformés au hasard, cause à établir au lot 2 |
 | Aucun poteau dans une circulation de voitures | nombre de poteaux en voie ou dans une épure = 0 | mesuré : 0 sur 60 déformations |
-| Aucun poteau dans une place | nombre de poteaux dans une place = 0 | la trame automatique le respecte ; un poteau posé à la main condamne encore la place, à corriger |
+| Aucun poteau dans une place | nombre de poteaux dans une place = 0 | mesuré : 0 sur 60 déformations ; un poteau lâché à la main dans une place gagne la ligne la plus proche |
 | Le réseau piéton est d'un seul tenant | nombre de tronçons = 1 | mesuré : 60 sur 60 |
 | Un passage piéton est d'équerre sur la voie traversée | angle = 90° | appliqué, non mesuré |
-| Un cheminement ne traverse pas une épure de giration | bandes dans une épure = 0, de préférence | non appliqué |
+| Un cheminement ne traverse pas une épure de giration | bandes dans une épure = 0, de préférence | appliqué et mesuré : la bande bascule de l'autre côté de la voie |
 | Toute place est accessible depuis une voie | places sans accès = 0 | non mesuré |
 | Toute rampe est circulable | épure libre de façade, de place et d'autre rampe | contrôlé contre les poteaux seulement |
 | Toute voie est reliée à une entrée | voies isolées = 0 | non mesuré |
-| La structure est contreventée | travées pleines dans deux sens | mesuré, sans calcul |
+| La structure est contreventée | travées pleines dans deux sens | mesuré, sans calcul ; violé dès que le plan est déformé, les travées pleines ne suivant pas |
 | Portée maximale respectée | plus longue portée ≤ limite du système porteur | affichée, limites à fixer |
 
 ## 9. Décisions de l'utilisateur, 13 novembre 2026
@@ -152,7 +152,7 @@ Les dimensions ne sont pas dans le code mais dans un tableau, avec leur source. 
 
 Chaque lot est livré et vérifié seul ; le prototype reste utilisable entre deux lots.
 
-1. **Registre des principes** : les contrôles de la section 8 deviennent un tableau dans le code, affiché au bilan (principes respectés, principes violés) et rejoué sur les plans au hasard.
+1. **Registre des principes** (fait le 13 novembre, sept principes) : les contrôles de la section 8 deviennent un tableau dans le code, affiché au bilan (principes respectés, principes violés) et rejoué sur les plans au hasard.
 2. **Emprises et arbitrage** : une seule fonction fait céder les emprises selon l'ordre de la section 2, à la place des retraits écrits à la main.
 3. **Trame commune** : places et structure réglées ensemble, systèmes porteurs, largeurs 2,50 / 2,40 / 2,30.
 4. **Rampes** : la rampe perpendiculaire devient une voie du squelette ; la rampe en rangée garde ses épures ; les cheminements les évitent.

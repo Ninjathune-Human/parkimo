@@ -96,6 +96,16 @@ with sync_playwright() as p:
         for _ in range(5): pg.click("#b-annuler"); pg.wait_for_timeout(200)
         r["rampes_annulees"] = pg.evaluate("[(S.rampes || []).length, calc.pl.length]")
         pg.mouse.click(5, 5); pg.wait_for_timeout(200)
+        # Registre des principes (charte, section 8) : tous respectés sur l'exemple, affichés au bilan.
+        PR = "[document.querySelector('#s-principes').textContent, calc.principes.filter(p => !p.ok).map(p => p.id)]"
+        r["principes"] = [pg.evaluate(PR), pg.evaluate("calc.principes.length")]
+        # Décision 2 : une rampe posée dans la rangée de façade ; la bande piétonne de cette voie bascule hors des girations.
+        q = E(30, 0); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        pg.click('#fiche .seg[data-cote="rampe"] button[data-t="droite"]'); pg.wait_for_timeout(250)
+        glisser((30, 5), (30, -5))
+        r["bande_hors_giration"] = [pg.evaluate("[calc.rampes[0].i, calc.rampes[0].c, bandeDe(S.branches[0])]"), pg.evaluate(PR), pg.evaluate("calc.zebres.length")]
+        for _ in range(2): pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        pg.mouse.click(5, 5); pg.wait_for_timeout(200)
         # Bandes piétonnes : un réseau continu au départ ; en ôter sur les deux pignons le coupe en tronçons.
         PI = "[document.querySelector('#s-pietons').textContent, calc.trottoirs.length, calc.zebres.length > 0, calc.pl.length]"
         r["pietons"] = pg.evaluate(PI)
@@ -178,12 +188,21 @@ with sync_playwright() as p:
         # Soixante déformations au hasard : la trame automatique ne met jamais de poteau dans une voie ni dans une place.
         r["alea"] = pg.evaluate("""(() => { let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647; const base = JSON.stringify(S), out = { essais: 0, enVoie: 0, genees: 0, reseauCoupe: 0 };
           for (let n = 0; n < 60; n++) { S = JSON.parse(base); pointer(); for (const N of S.noeuds) { N[0] += Math.round((rnd() * 30 - 15) / 2.5) * 2.5; N[1] += Math.round((rnd() * 30 - 15) / 2.5) * 2.5; } calculer(); out.essais++;
-            if (calc.conflits.length) out.enVoie++; if (calc.genees.length) out.genees++; if (!/continu/.test(document.querySelector('#s-pietons').textContent)) out.reseauCoupe++; }
+            if (calc.conflits.length) out.enVoie++; if (calc.genees.length) out.genees++; if (!/continu/.test(document.querySelector('#s-pietons').textContent)) out.reseauCoupe++;
+            for (const p of calc.principes) if (!p.ok) out[p.id] = (out[p.id] || 0) + 1; }
           S = JSON.parse(base); pointer(); rafraichir(); return out; })()""")
         n, m = E(32.5, 7.5), E(32.5, 0)
         pg.mouse.move(*n); pg.mouse.down(); pg.mouse.move((n[0] + m[0]) / 2, (n[1] + m[1]) / 2); pg.mouse.move(*m); pg.mouse.up(); pg.wait_for_timeout(300)
         r["poteau_en_voie"] = pg.evaluate(ST)
         r["a_la_main"] = pg.evaluate("[S.auto, document.querySelector('#f-long').textContent]")
+        r["principe_viole"] = pg.evaluate(PR)
+        # Décision 1 : un poteau lâché dans une place ne la condamne pas, il gagne la ligne la plus proche.
+        pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        q = E(32.5, 7.5); pg.mouse.move(*q); pg.mouse.wheel(0, -1500); pg.wait_for_timeout(300)
+        glisser((32.5, 7.5), (33.75, 5))
+        r["poteau_sur_ligne"] = pg.evaluate("[S.pn[choixN], calc.genees.length]")
+        pg.click("#b-cadrer"); pg.wait_for_timeout(300)
+        q = E(32.5, 7.5); pg.mouse.click(*q); pg.wait_for_timeout(200)
         pg.screenshot(path=str(out / f"{name}-squelette-structure.png"))
         pg.click("#b-annuler"); pg.wait_for_timeout(200)
         # Une poutre de plus, tracée depuis un poteau ; puis la choisir.
