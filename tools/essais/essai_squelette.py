@@ -78,7 +78,47 @@ with sync_playwright() as p:
         for _ in range(6): pg.click("#b-annuler"); pg.wait_for_timeout(150)
         pg.click("#b-cadrer"); pg.wait_for_timeout(300); pg.mouse.click(5, 5); pg.wait_for_timeout(200)
         r["rampe_voie_annulee"] = pg.evaluate("[S.branches.length, calc.pl.length, calc.principes.length]")
-        assert r["rampe_voie_annulee"] == [5, base, 10], r["rampe_voie_annulee"]
+        assert r["rampe_voie_annulee"] == [5, base, 11], r["rampe_voie_annulee"]
+        # Circulations verticales (ERP, articles PS 13 et PS 24). Un escalier est un noyau posé dans une rangée : deux places,
+        # quatre pour l'escalier principal qui loge deux ascenseurs. La distance se mesure du centre de la place, par les
+        # circulations piétonnes, jusqu'à la porte : 40 m au plus entre deux escaliers, 25 m en cul-de-sac.
+        ES = "({n: calc.escaliers.length, principaux: calc.escaliers.filter((x) => x.principal).length, longs: calc.escaliers.map((x) => x.L), hors: calc.escaliers.filter((x) => x.hors).length, max: +calc.distMax.toFixed(1), loin: calc.loin.length, viol: calc.principes.filter((p) => !p.ok).map((p) => p.id), bilan: document.querySelector('#s-escaliers').textContent, places: calc.pl.length, murs: S.pb.filter((b) => b.noyau).length, contrev: document.querySelector('#s-contrev').textContent, fiche: document.querySelector('#fiche').hidden ? null : document.querySelector('#f-long').textContent})"
+        e = pg.evaluate(ES); r["escaliers"] = [e]
+        assert e["n"] >= 2 and e["principaux"] == 1 and sorted(set(e["longs"])) == [5, 10] and e["hors"] == 0 and 0 < e["max"] <= 40 and e["loin"] == 0 and not e["viol"] and e["murs"] >= 8 and e["places"] == base, e
+        # La place la plus proche d'un escalier : du centre de la place à la bande, le long de la bande, puis jusqu'à la porte.
+        r["escalier_proche"] = pg.evaluate("(() => { const x = calc.escaliers.find((o) => !o.principal), o = calc.pl.filter((p) => p.i === x.i && p.c === x.c).sort((p, q) => p.dist - q.dist)[0]; return [+o.dist.toFixed(2), o.limite]; })()")
+        assert 3 < r["escalier_proche"][0] < 8, r["escalier_proche"]
+        # Un escalier glissé contre l'escalier principal : des places passent hors distance, le principe est violé.
+        k = pg.evaluate("calc.escaliers.findIndex((o) => !o.principal)")
+        de = pg.evaluate(f"centre(calc.escaliers[{k}].corps)"); vers = pg.evaluate("(() => { const x = calc.escaliers.find((o) => o.principal), c = centre(x.corps); return [c[0] + x.r.u[0] * 12.5, c[1] + x.r.u[1] * 12.5]; })()")
+        glisser(de, vers)
+        e = pg.evaluate(ES); r["escaliers"].append(e)
+        assert e["loin"] > 0 and e["viol"] == ["escaliers"] and e["hors"] == 0, e
+        pg.screenshot(path=str(out / f"{name}-squelette-escalier-loin.png"))
+        pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        # On le touche : sa fiche. « Escalier principal » lui donne les deux ascenseurs, et les retire à l'autre.
+        q = E(*de); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        r["escalier_choisi"] = pg.evaluate("[document.querySelector('#f-long').textContent, document.querySelector('#b-principal').getAttribute('aria-pressed'), [...document.querySelectorAll('#fiche .ligne')].filter((l) => !l.hidden).length]")
+        assert r["escalier_choisi"][0].startswith("Escalier") and r["escalier_choisi"][1:] == ["false", 0], r["escalier_choisi"]
+        pg.click("#b-principal"); pg.wait_for_timeout(250)
+        e = pg.evaluate(ES); r["escaliers"].append(e)
+        assert e["principaux"] == 1 and pg.evaluate(f"[calc.escaliers[{k}].principal, calc.escaliers[{k}].L]") == [True, 10] and "principal" in e["fiche"], e
+        pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        q = E(*de); pg.mouse.click(*q); pg.wait_for_timeout(250); pg.click("#b-suppr"); pg.wait_for_timeout(250)
+        e = pg.evaluate(ES); r["escaliers"].append(e)
+        assert e["n"] == r["escaliers"][0]["n"] - 1 and e["principaux"] == 1, e
+        pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        # Un escalier de plus, depuis la ligne « Piétons » de la fiche d'une voie.
+        q = E(30, 0); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        pg.click('#fiche .seg[data-cote="pieton"] button[data-t="escalier"]'); pg.wait_for_timeout(250)
+        e = pg.evaluate(ES); r["escaliers"].append(e)
+        assert e["n"] == r["escaliers"][0]["n"] + 1 and e["principaux"] == 1 and e["fiche"].startswith("Escalier"), e
+        pg.click("#b-annuler"); pg.wait_for_timeout(200); pg.mouse.click(5, 5); pg.wait_for_timeout(200)
+        r["escaliers_retablis"] = pg.evaluate(ES)
+        # Sans aucun escalier, des places ne sont desservies par rien : le principe est violé, sans teinter tout le plan.
+        r["escalier_aucun"] = pg.evaluate("(() => { const g = S.escaliers; S.escaliers = []; calculer(); const x = [calc.principes.filter((p) => !p.ok).map((p) => p.id), document.querySelector('#s-escaliers').textContent, calc.loin.length]; S.escaliers = g; calculer(); return x; })()")
+        assert r["escalier_aucun"] == [["escaliers"], "aucun", 0], r["escalier_aucun"]
+        assert r["escaliers_retablis"]["n"] == r["escaliers"][0]["n"] and r["escaliers_retablis"]["places"] == base, r["escaliers_retablis"]
         # Surfaces : chaussées, bandes et rangées se joignent sans se recouvrir ni laisser de vide. La somme de leurs aires
         # vaut l'emprise mesurée, sur l'exemple puis avec le carrefour à trois voies déplacé en biais.
         PAV = "(() => { const aire = (q) => Math.abs(q.reduce((s, p, i) => { const n = q[(i + 1) % q.length]; return s + p[0] * n[1] - n[0] * p[1]; }, 0)) / 2; return +([...calc.ch, ...calc.bandes].reduce((s, q) => s + aire(q), 0) / calc.aire).toFixed(3); })()"

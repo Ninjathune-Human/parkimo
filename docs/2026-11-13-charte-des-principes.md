@@ -1,6 +1,6 @@
 # Parkimo : charte des principes
 
-Version 6 du 13 novembre 2026. Elle intègre les huit décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
+Version 7 du 13 novembre 2026. Elle intègre les neuf décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
 
 ## À quoi sert cette charte
 
@@ -22,7 +22,8 @@ Chaque élément déclare trois choses et rien d'autre : ce qu'il **occupe**, ce
 | Place | son quadrilatère dans la rangée | rien | stationnement |
 | Poteau, voile | sa section, sur une ligne de place ou un fond de rangée | rien | structure |
 | Travée pleine | sa ligne entre deux poteaux | rien | structure |
-| Circulation verticale | à définir | à définir | circulation piétons |
+| Escalier | son noyau, posé dans une rangée : 5,00 m de long sur la profondeur de la rangée, soit deux places | rien ; sa porte donne sur l'allée, et la bande piétonne d'en face se gagne par un passage au droit de la porte | circulation piétons ; ses murs sont de la structure |
+| Escalier principal | le même noyau, allongé à 10,00 m (quatre places) : deux ascenseurs accolés à l'escalier | rien | circulation piétons ; ses murs sont de la structure |
 
 ## 2. Qui cède : l'ordre de priorité
 
@@ -33,7 +34,7 @@ Quand deux emprises incompatibles se rencontrent, la moins prioritaire cède : e
 3. Stationnement (rangées, places)
 4. Structure (poteaux, voiles, travées pleines)
 
-Les places remplissent tout ce qui reste après les circulations : c'est la règle du maximum de places. La structure cède aux places : un poteau ne condamne jamais une place, il se déplace sur une autre ligne.
+Un noyau d'escalier fait céder les places et les poteaux : aucune place ne s'y pose, et ses quatre coins portent ses murs, qui contreventent dans les deux sens. Les places remplissent tout ce qui reste après les circulations : c'est la règle du maximum de places. La structure cède aux places : un poteau ne condamne jamais une place, il se déplace sur une autre ligne.
 
 ## 3. Ce qui peut se superposer
 
@@ -126,9 +127,10 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 | Toute place est accessible depuis une voie | places sans accès = 0 | non mesuré |
 | Toute rampe est circulable | épure libre de façade, de place et d'autre rampe | contrôlé contre les poteaux seulement |
 | Une rampe branchée ne dépasse pas 15 % | hauteur (2,80 m, ou 1,40 m en demi-niveau) sur sa longueur propre, entre les bords des voies reliées | mesuré ; raccordements de pente en haut et en bas non contrôlés |
+| Toute place est à 40 m au plus d'un escalier, 25 m en cul-de-sac | distance du centre de la place à la porte de l'escalier, par les circulations piétonnes : jusqu'à la bande, le long de la bande, puis jusqu'à la porte. 40 m si un autre escalier se gagne par l'autre bout, ou si le cul-de-sac fait 25 m au plus avant que les chemins vers deux escaliers se séparent ; 25 m sinon | mesuré (onzième principe) ; respecté sur l'exemple avec quatre escaliers, 37,3 m au plus ; les places trop loin sont teintées ; un plan sans escalier le viole ; violé sur 44 des 60 plans déformés au hasard : un escalier garde sa position, se loge dans la rangée la plus proche et ne se replace pas seul |
 | Toute voie est reliée à une entrée | voies isolées = 0 | non mesuré |
 | La structure est contreventée | travées pleines dans deux sens | mesuré, sans calcul ; un remplissage reste là où il a été posé quand on change de système ; violé dès que le plan est déformé, les travées pleines ne suivant pas les voies |
-| Portée maximale respectée | plus longue portée nette ≤ limite du système porteur | mesuré ; respecté sur l'exemple dans les quatre systèmes ; violé sur 43 des 60 plans déformés au hasard, la trame automatique lançant encore des poutres jusqu'à 20 m en travers |
+| Portée maximale respectée | plus longue portée nette ≤ limite du système porteur | mesuré ; respecté sur l'exemple dans les quatre systèmes ; violé sur 40 des 60 plans déformés au hasard, la trame automatique lançant encore des poutres jusqu'à 20 m en travers |
 
 ## 9. Décisions de l'utilisateur, 13 novembre 2026
 
@@ -141,10 +143,12 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 7. **Rampes** : l'entrée en S n'est pas le principe général. Une rampe à 90° d'une voie se branche directement dessus, sans S.
 8. **Norme et Neufert** : le Neufert n'est pas une norme mais un guide de bonnes pratiques. Les normes donnent des minima, souvent peu pratiques, d'autant que les véhicules grandissent. Le Neufert l'emporte sur la norme quand il est mieux-disant. Les voies sont à double sens : l'allée fait 6,00 m, circulation piétonne incluse.
 
+9. **Circulations verticales** : selon les règles des ERP. La distance se mesure depuis le centre de la place, puis par les circulations piétonnes, jusqu'à l'entrée de l'escalier. Un des escaliers est l'« escalier principal » : accolés à lui, deux ascenseurs. On choisit lequel est le principal, et la position de chacun.
+
 ## 10. Ce qui reste à fixer
 
 1. Rampe branchée : raccordements de pente en haut et en bas (NF P 91-100 : rayons de 10 m et 15 m), et giration à son entrée, que la décision 7 n'exige pas.
-2. Emprise et réserve d'une circulation verticale.
+2. Escaliers : le noyau de deux places (5,00 × 5,00 m) et celui de quatre places pour l'escalier principal sont des hypothèses de travail, déduites des minima du règlement (volées et sas de 0,90 m, sas de 3 m², sas d'ascenseur de 5 m² et 1,50 m de large) et de deux cabines courantes de 630 kg. À confirmer, comme le nombre et la taille des ascenseurs.
 3. Section d'un poteau béton dans un parc français : la valeur de 0,40 m vient de guides britanniques, faute de source française chiffrée. À confirmer.
 4. Dimensions minimales au feu d'un poteau et d'un voile (NF EN 1992-1-2, valeurs tabulées) : non relevées en ligne, à lire dans la norme.
 5. Structure du parking du Pré aux Pêcheurs à Antibes : aucune source publique trouvée ; la portée de 16 m y reste une indication de l'utilisateur.
@@ -153,6 +157,8 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 7. Obstacle au milieu d'une rangée (rampe) : la trame n'est pas recalée après lui, une place peut s'y perdre.
 8. Contreventement : il ne suit pas les voies quand le plan se déforme.
 9. Places resserrées : le Neufert associe une allée de 6,50 m aux places de 2,30 m. Le resserrement à la marge garde l'allée de 6,00 m ; la norme l'admet.
+10. Escaliers : le texte relevé est la version consolidée de 2009 de l'arrêté du 9 mai 2006 ; à relire dans sa version en vigueur. Les 50 m et 30 m des parcs largement ventilés ne sont pas proposés. Le règlement mesure dans l'axe des voies ; la mesure par les bandes piétonnes (décision 9) est un peu plus sévère.
+11. Escaliers : un escalier et une rampe posés dans la même rangée peuvent se recouvrir, rien ne les départage encore. Les escaliers ne se placent pas seuls : sur un plan nouveau, ils sont à poser.
 
 Fixé depuis la version 1 : section des appuis et portées (section 5) ; hauteur d'étage de 2,80 m et pente de 15 % (section 11) ; largeur d'une rampe branchée, 3,25 m en sens unique et 6,50 m en double sens, « coupler » voulant dire pour elle double sens (section 11).
 
@@ -183,6 +189,8 @@ Valeurs en place aujourd'hui :
 | Voile béton | 0,20 m | section 14, source 16 |
 | Hauteur d'étage | 2,80 m (2,10 m libres et 0,70 m de plancher en acier de 16 m) | section 14, source 2 ; NF P 91-100 § 3.2 demande 2,20 m sous plafond et 2,00 m sous poutre |
 | Pente de rampe | 15 % | Neufert p. 274 ; section 14, source 2 (15 % couverte, 10 % à ciel ouvert) ; plafond NF P 91-100 : 18 % |
+| Escalier : distance depuis une place | 40 m entre deux escaliers ; 25 m en cul-de-sac | arrêté du 9 mai 2006 modifié, article PS 13 § 1 (section 14, source 20) ; mesure : décision 9 |
+| Escalier : noyau | 5,00 m de rangée (deux places) ; 10,00 m pour l'escalier principal et ses deux ascenseurs | hypothèse de travail ; minima : articles PS 13 § 3 et § 5, PS 24 (section 14, source 20) |
 | Pas d'accroche des nœuds | 2,50 m, angles de 15° | prototype |
 
 ## 12. Reconstruction, lot par lot
@@ -193,7 +201,8 @@ Chaque lot est livré et vérifié seul ; le prototype reste utilisable entre de
 2. **Emprises et arbitrage** (fait le 13 novembre) : une seule règle fait céder les emprises selon l'ordre de la section 2, à la place des retraits écrits à la main. Le principe des surfaces, trop global, est remplacé par deux principes précis : voies qui se croisent sans nœud, rangées qui se recouvrent. Les 36 plans au hasard en défaut s'expliquent par ces deux cas, qui sont des alertes de conception et non des défauts du logiciel.
 3. **Trame commune** (fait le 13 novembre, pour les rangées à 90°) : places et structure réglées ensemble, quatre systèmes porteurs au choix, places comptées entre nus, largeurs 2,50 / 2,40 / 2,30, neuvième principe (portée). Sur l'exemple, aux cotes de la décision 8 (module de 16 m) : 119 places en grande portée béton, 118 en acier, 117 avec des voiles, 113 avec des poteaux.
 4. **Rampes** (fait le 13 novembre) : une voie du squelette peut être une rampe, branchée directement, en sens unique ou double, d'un étage ou d'un demi-niveau ; sa pente est le dixième principe. Elle n'a ni place ni bande piétonne, et le réseau piéton traverse son entrée. La rampe en rangée garde ses épures. La trame passe par alignement de voies : l'entrée d'une rampe n'interrompt que la rangée qu'elle coupe.
-5. **Niveaux** sur un même squelette.
+5. **Circulations verticales** (fait le 13 novembre) : escaliers posés dans les rangées, déplaçables d'une rangée à l'autre, dont un escalier principal avec deux ascenseurs ; distance mesurée par les circulations piétonnes, onzième principe. Sur l'exemple, quatre escaliers (trois sur la boucle, un dans l'antenne) prennent onze places : 108 places en grande portée béton, 107 en acier, 105 avec des voiles, 102 avec des poteaux.
+6. **Niveaux** sur un même squelette.
 
 ## 13. Méthode de travail
 
@@ -202,7 +211,7 @@ Chaque lot est livré et vérifié seul ; le prototype reste utilisable entre de
 3. On corrige la charte, puis la règle dans le code, et on ajoute sa mesure aux contrôles.
 4. Les contrôles sont rejoués sur les plans au hasard : la correction vaut pour tous.
 
-## 14. Sources des valeurs de structure
+## 14. Sources des valeurs de structure et de sécurité
 
 Relevé du 13 novembre 2026 : constructeurs, industriels, organismes professionnels, réalisations publiées. Chaque ligne dit ce que la source établit.
 
@@ -236,3 +245,7 @@ Relevé du 13 novembre 2026 : constructeurs, industriels, organismes professionn
 
 18. Arrêté du 31 janvier 1986, article 81 (parcs des bâtiments d'habitation) : stabilité au feu d'une heure et demie au-delà de deux niveaux, jusqu'à 28 m. Notice de sécurité d'un parc de neuf niveaux à Cagnes-sur-Mer, article PS 6 : structures R 90, planchers REI 90.
 19. Guide belge d'application de l'Eurocode 2, tableau repris de l'EN 1992-1-2 (tableau 5.9) : dalle sans poutre de 200 mm pour REI 90.
+
+**Circulations verticales**
+
+20. Règlement de sécurité des ERP, parcs de stationnement couverts (type PS), arrêté du 9 mai 2006 modifié, version consolidée du 4 novembre 2009 : article PS 13 § 1, 40 m jusqu'à un escalier si l'on a le choix entre deux escaliers ou sorties opposés, 25 m sinon (50 m et 30 m dans un parc largement ventilé), un cul-de-sac de 25 m au plus menant à une circulation à deux issues gardant 40 m au total, distance mesurée dans l'axe des voies depuis l'axe de la place la plus éloignée ; § 3, escaliers, accès et sas de 0,90 m au moins ; § 5, sas de 3 m² au moins ; article PS 24, ascenseurs isolés comme les escaliers, sas de 5 m² et de 1,50 m de large au moins. https://cdn.paris.fr/paris/2020/02/26/f4979047d7656590288cc102ac87d65c.ai
