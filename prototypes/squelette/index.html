@@ -229,12 +229,22 @@ const dedans = (pt, q, m) => { let s = 0; for (let i = 0; i < 4; i++) { const a 
 const dans = (pt, q) => { let s = 0; for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4], c = (b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0]); if (Math.abs(c) < 1e-9) continue; if (s && Math.sign(c) !== s) return false; s = Math.sign(c); } return true; };
 
 // ---- Calcul : chaussées, places qui tiennent (hors des autres chaussées et des places déjà posées), emprise.
+// ---- Arbitrage (charte, sections 2 et 3). Tout ce qui est posé sur le plan est une emprise : une nature et un
+// quadrilatère. Une seule règle fait céder : une emprise ne se pose pas si elle recouvre une emprise que sa nature
+// exclut. Les circulations sont posées d'abord, puis les places, puis la structure ; à nature égale, la première
+// posée reste. Une place cède aux circulations, aux réserves des rampes et aux places déjà posées ; la structure
+// cède aux circulations de voitures et aux places (elle tient au bord, jamais dedans).
+const EXCLUT = { place: ["voiture", "pieton", "reserve", "place"], structure: ["voiture", "place"] };
+const MARGE = { voiture: 0.02, place: 0.15 }; // un poteau au bord d'une chaussée, ou sur une ligne de place, n'est pas dedans
+const cedeQuad = (q, nature, E) => E.find((e) => EXCLUT[nature].includes(e.nature) && recouvre(q, e.q));
+const cedePoint = (p, nature, E) => E.find((e) => EXCLUT[nature].includes(e.nature) && dedans(p, e.q, MARGE[e.nature] || 0));
 // ---- Registre des principes (charte, section 8). Un principe est une ligne : son nom et sa mesure sur le plan
 // calculé, qui rend s'il est respecté et un détail. Le bilan et les essais lisent ce tableau.
 const PRINCIPES = [
-  { id: "surfaces", nom: "Surfaces sans recouvrement ni vide", mesure: (c) => [Math.abs(c.pavage - 1) < 0.03, `rapport ${c.pavage.toFixed(3).replace(".", ",")}`] },
+  { id: "croisements", nom: "Deux voies ne se croisent qu'à un nœud", mesure: (c) => [!c.croisements, `${c.croisements} croisement${c.croisements > 1 ? "s" : ""}`] },
+  { id: "rangees", nom: "Deux rangées ne se recouvrent pas", mesure: (c) => [!c.chevauchements, `${c.chevauchements} recouvrement${c.chevauchements > 1 ? "s" : ""}`] },
   { id: "poteau-voie", nom: "Aucun poteau dans une circulation", mesure: (c) => [!c.conflits.length, `${c.conflits.length} poteau${c.conflits.length > 1 ? "x" : ""}`] },
-  { id: "poteau-place", nom: "Aucun poteau dans une place", mesure: (c) => [!c.genees.length, `${c.genees.length} place${c.genees.length > 1 ? "s" : ""}`] },
+  { id: "poteau-place", nom: "Aucun poteau dans une place", mesure: (c) => [!c.dansPlace, `${c.dansPlace} poteau${c.dansPlace > 1 ? "x" : ""}`] },
   { id: "reseau", nom: "Réseau piéton d'un seul tenant", mesure: (c) => [c.troncons <= 1, `${c.troncons} tronçons`] },
   { id: "girations", nom: "Cheminements hors des girations", mesure: (c) => [!c.bandesEpure, `${c.bandesEpure} bande${c.bandesEpure > 1 ? "s" : ""}`] },
   { id: "rampes", nom: "Rampes dans une rangée assez longue", mesure: (c) => [!c.aReplacer, `${c.aReplacer} à replacer`] },
@@ -299,11 +309,23 @@ function mesurer() {
   $("#s-pietons").textContent = trottoirs.length ? `${Math.round(lin)} m · ${troncons === 1 ? "réseau continu" : troncons + " tronçons"}` : "–";
   $("#s-pietons").style.color = troncons > 1 ? css("--rouge") : "";
   // Structure : poteaux (nœuds portant une poutre), ceux qui tombent dans une voie, portée la plus longue.
-  const pot = S.pn.filter(Boolean);
-  const gir = rampes.filter((x) => !x.hors).flatMap((x) => [x.q, ...x.epures.flatMap((e) => e.quads)]);
-  const conflits = pot.filter((c) => ch.some((q) => dedans(c, q, 0.02)) || gir.some((q) => dedans(c, q, 0.02))); // 2 cm de marge : un poteau au bord d'une chaussée n'est pas dedans
-  const portee = S.pb.reduce((m, b) => Math.max(m, repere(b, S.pn).L), 0);
-  S.branches.forEach((b, i) => { for (const c of ["g", "d"]) { if (!TYPES[b[c]].prof) continue; const q = quad(i, c, 2, 3); bandes.push(q); for (const p of places(b, c, q)) { if (ch.some((r, j) => j !== i && recouvre(p, r)) || trottoirs.some((t) => t.i !== i && recouvre(p, t.q)) || rampes.some((x) => !x.hors && recouvre(p, x.zone))) continue; if (pl.some((o) => o.i !== i && recouvre(p, o.q))) continue; if (pot.some((c) => dedans(c, p, 0.15))) { genees.push(p); continue; } pl.push({ i, c, q: p }); } } });
+  const pot = S.pn.filter(Boolean), portee = S.pb.reduce((m, b) => Math.max(m, repere(b, S.pn).L), 0);
+  // Les emprises, posées dans l'ordre des priorités : circulations de voitures, piétons, puis places.
+  const E = [], nb = S.branches.length, rangees = [];
+  ch.forEach((q, k) => E.push({ nature: "voiture", genre: k < nb ? "chaussee" : "carrefour", i: k < nb ? k : -1, q }));
+  for (const x of rampes) if (!x.hors) { E.push({ nature: "voiture", genre: "rampe", q: x.q }, { nature: "reserve", genre: "giration", q: x.zone }); for (const e of x.epures) for (const q of e.quads) E.push({ nature: "voiture", genre: "epure", q }); }
+  for (const t of trottoirs) E.push({ nature: "pieton", genre: "bande", i: t.i, q: t.q });
+  // Places : la voie la plus longue pose les siennes d'abord, donc les garde ; chacune cède selon l'arbitrage.
+  const ordre = S.branches.map((_, i) => i).sort((x, y) => repere(S.branches[y]).L - repere(S.branches[x]).L || x - y);
+  for (const i of ordre) { const b = S.branches[i]; for (const c of ["g", "d"]) { if (!TYPES[b[c]].prof) continue; const q = quad(i, c, 2, 3); bandes.push(q); rangees.push({ i, q }); for (const p of places(b, c, q)) { if (cedeQuad(p, "place", E)) continue; pl.push({ i, c, q: p }); E.push({ nature: "place", genre: "place", i, q: p }); } } }
+  // Structure : un poteau dans une circulation de voitures, un poteau dans une place (la place reste, c'est lui qui est mal posé).
+  const conflits = pot.filter((c) => E.some((e) => e.nature === "voiture" && dedans(c, e.q, MARGE.voiture)));
+  for (const o of pl) if (pot.some((c) => dedans(c, o.q, MARGE.place))) genees.push(o.q);
+  const dansPlace = pot.filter((c) => pl.some((o) => dedans(c, o.q, MARGE.place))).length;
+  // Voies qui se croisent sans nœud commun, rangées de voies différentes qui se recouvrent.
+  let croisements = 0, chevauchements = 0;
+  for (let i = 0; i < nb; i++) for (let j = 0; j < i; j++) { const a = S.branches[i], b = S.branches[j]; if (a.a !== b.a && a.a !== b.b && a.b !== b.a && a.b !== b.b && recouvre(ch[i], ch[j])) croisements++; }
+  rangees.forEach((x, k) => { for (let j = 0; j < k; j++) if (rangees[j].i !== x.i && recouvre(x.q, rangees[j].q)) chevauchements++; });
   // Emprise : réunion des chaussées et des rangées, mesurée sur une grille de 0,5 m.
   const an = geo.coins, rects = [...ch, ...bandes]; let aire = 0;
   if (rects.length) {
@@ -312,7 +334,7 @@ function mesurer() {
     const bb = rects.map((q) => [Math.min(...q.map((p) => p[0])), Math.min(...q.map((p) => p[1])), Math.max(...q.map((p) => p[0])), Math.max(...q.map((p) => p[1]))]);
     for (let x = x0 + 0.25; x < x1; x += 0.5) for (let y = y0 + 0.25; y < y1; y += 0.5) if (rects.some((q, k) => x >= bb[k][0] && x <= bb[k][2] && y >= bb[k][1] && y <= bb[k][3] && dans([x, y], q))) aire += 0.25;
   }
-  calc = { ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords, rampes, gir };
+  calc = { ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords, rampes, emprises: E, croisements, chevauchements, dansPlace };
   $("#s-structure").textContent = pot.length ? `${pot.length} poteaux · ${portee.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m${conflits.length ? ` · ${conflits.length} en voie` : ""}` : "–";
   $("#s-structure").style.color = conflits.length ? css("--rouge") : "";
   // Contreventement : des travées remplies en maçonnerie dans deux sens (deux directions nettement distinctes).
@@ -520,7 +542,7 @@ function trame() {
     // Un poteau à moins d'un mètre d'un autre ne se pose pas ; au même point (rangées dos à dos), il partage ses poutres.
     let k = pts.findIndex((o) => Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) < 1);
     if (k >= 0 && Math.hypot(pts[k].p[0] - p[0], pts[k].p[1] - p[1]) > 0.05) return;
-    if (k < 0) { if (calc.gir.some((q) => dedans(p, q, 0.02)) || calc.ch.some((q) => dedans(p, q, 0.02)) || calc.pl.some((o) => dedans(p, o.q, 0.15))) return; k = pts.push({ p: p.map((v) => +v.toFixed(3)), dirs: [] }) - 1; }
+    if (k < 0) { if (cedePoint(p, "structure", calc.emprises)) return; k = pts.push({ p: p.map((v) => +v.toFixed(3)), dirs: [] }) - 1; }
     pts[k].dirs.push(...dirs);
   };
   S.branches.forEach((b, i) => {

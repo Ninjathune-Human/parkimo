@@ -99,6 +99,10 @@ with sync_playwright() as p:
         # Registre des principes (charte, section 8) : tous respectés sur l'exemple, affichés au bilan.
         PR = "[document.querySelector('#s-principes').textContent, calc.principes.filter(p => !p.ok).map(p => p.id)]"
         r["principes"] = [pg.evaluate(PR), pg.evaluate("calc.principes.length")]
+        # Arbitrage : un poteau forcé dans une place ne la retire pas, c'est lui qui est signalé ; une voie qui en croise
+        # une autre sans nœud, et un îlot trop étroit pour ses deux rangées, sont des principes violés.
+        r["arbitrage_poteau"] = pg.evaluate("(() => { const n = calc.pl.length; S.auto = false; S.pn.push([33.75, 5]); calculer(); const o = [n, calc.pl.length, calc.dansPlace, calc.principes.filter(p => !p.ok).map(p => p.id)]; S.pn.pop(); S.auto = true; calculer(); return o; })()")
+        r["arbitrage_voies"] = pg.evaluate("(() => { const base = JSON.stringify(S); S.noeuds.push([30, -20], [30, 6]); S.branches.push({ a: 5, b: 6, g: 'aucun', d: 'aucun', pieton: 'aucun' }); pointer(); calculer(); const a = [calc.croisements, calc.principes.filter(p => !p.ok).map(p => p.id)]; S = JSON.parse(base); pointer(); S.noeuds[2][1] = S.noeuds[3][1] = 12.5; calculer(); const b = [calc.chevauchements, calc.pl.length, calc.principes.filter(p => !p.ok).map(p => p.id)]; S = JSON.parse(base); pointer(); rafraichir(); return [a, b]; })()")
         # Décision 2 : une rampe posée dans la rangée de façade ; la bande piétonne de cette voie bascule hors des girations.
         q = E(30, 0); pg.mouse.click(*q); pg.wait_for_timeout(250)
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="droite"]'); pg.wait_for_timeout(250)

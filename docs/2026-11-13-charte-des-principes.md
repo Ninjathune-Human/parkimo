@@ -100,9 +100,11 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 
 | Principe | Mesure | État dans le prototype |
 |---|---|---|
-| Les surfaces ne se recouvrent pas et ne laissent pas de vide | somme des aires / emprise = 1 | mesuré : 1,000 sur l'exemple, 1,007 avec un carrefour en biais ; violé sur 36 des 60 plans déformés au hasard, cause à établir au lot 2 |
+| Deux voies ne se croisent qu'à un nœud | chaussées de voies sans nœud commun qui se recouvrent = 0 | mesuré ; alerte de conception : 20 des 60 plans déformés au hasard |
+| Deux rangées ne se recouvrent pas | rangées de voies différentes qui se recouvrent = 0 | mesuré ; alerte de conception : 51 des 60 plans déformés au hasard (îlots trop étroits). L'arbitrage tranche : la voie la plus longue garde ses places |
+| Une emprise posée n'en recouvre aucune qu'elle exclut | garanti par l'arbitrage unique | appliqué aux places et aux poteaux de la trame automatique |
 | Aucun poteau dans une circulation de voitures | nombre de poteaux en voie ou dans une épure = 0 | mesuré : 0 sur 60 déformations |
-| Aucun poteau dans une place | nombre de poteaux dans une place = 0 | mesuré : 0 sur 60 déformations ; un poteau lâché à la main dans une place gagne la ligne la plus proche |
+| Aucun poteau dans une place | nombre de poteaux dans une place = 0 | mesuré : 0 sur 60 déformations ; un poteau lâché à la main dans une place gagne la ligne la plus proche ; s'il s'y retrouve quand même, la place reste et c'est le poteau qui est signalé |
 | Le réseau piéton est d'un seul tenant | nombre de tronçons = 1 | mesuré : 60 sur 60 |
 | Un passage piéton est d'équerre sur la voie traversée | angle = 90° | appliqué, non mesuré |
 | Un cheminement ne traverse pas une épure de giration | bandes dans une épure = 0, de préférence | appliqué et mesuré : la bande bascule de l'autre côté de la voie |
@@ -153,7 +155,7 @@ Les dimensions ne sont pas dans le code mais dans un tableau, avec leur source. 
 Chaque lot est livré et vérifié seul ; le prototype reste utilisable entre deux lots.
 
 1. **Registre des principes** (fait le 13 novembre, sept principes) : les contrôles de la section 8 deviennent un tableau dans le code, affiché au bilan (principes respectés, principes violés) et rejoué sur les plans au hasard.
-2. **Emprises et arbitrage** : une seule fonction fait céder les emprises selon l'ordre de la section 2, à la place des retraits écrits à la main.
+2. **Emprises et arbitrage** (fait le 13 novembre) : une seule règle fait céder les emprises selon l'ordre de la section 2, à la place des retraits écrits à la main. Le principe des surfaces, trop global, est remplacé par deux principes précis : voies qui se croisent sans nœud, rangées qui se recouvrent. Les 36 plans au hasard en défaut s'expliquent par ces deux cas, qui sont des alertes de conception et non des défauts du logiciel.
 3. **Trame commune** : places et structure réglées ensemble, systèmes porteurs, largeurs 2,50 / 2,40 / 2,30.
 4. **Rampes** : la rampe perpendiculaire devient une voie du squelette ; la rampe en rangée garde ses épures ; les cheminements les évitent.
 5. **Niveaux** sur un même squelette.
