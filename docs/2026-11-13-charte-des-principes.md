@@ -1,6 +1,6 @@
 # Parkimo : charte des principes
 
-Version 3 du 13 novembre 2026. Elle intègre les sept décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
+Version 4 du 13 novembre 2026. Elle intègre les sept décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
 
 ## À quoi sert cette charte
 
@@ -14,7 +14,7 @@ Chaque élément déclare trois choses et rien d'autre : ce qu'il **occupe**, ce
 |---|---|---|---|
 | Voie | sa chaussée | rien | circulation voitures |
 | Carrefour | la surface entre les voies qui se rencontrent | rien | circulation voitures |
-| Rampe perpendiculaire à une voie | sa chaussée : c'est une voie du squelette, sans stationnement, branchée directement | rien | circulation voitures |
+| Rampe branchée sur une voie | sa chaussée : c'est une voie du squelette, sans stationnement ni bande piétonne, branchée directement ; 3,25 m en sens unique, 6,50 m en double sens | rien | circulation voitures |
 | Rampe parallèle à une voie, dans une rangée | sa voie de 3,25 m | ses deux épures de giration (entrée et sortie en S) | circulation voitures |
 | Bande piétonne | 0,80 m dans la largeur de la voie | rien | circulation piétons |
 | Passage piéton | 0,80 m en travers d'une voie, d'équerre | rien | circulation piétons |
@@ -88,7 +88,7 @@ La largeur de place se choisit avec la trame, dans cet ordre de préférence :
 
 Le logiciel règle la trame voie par voie, ainsi :
 
-1. Les deux rangées à 90° d'une voie partagent leurs files. La trame est réglée sur la longueur commune aux deux côtés, depuis le même bout quel que soit le sens de la voie, puis prolongée de chaque côté jusqu'au bout de sa rangée.
+1. Les rangées à 90° partagent leurs files, par alignement : des voies qui se prolongent à travers un nœud (l'entrée d'une rampe ou d'une autre voie) forment une seule file. La trame est réglée sur la longueur commune aux deux côtés, depuis le même bout quel que soit le sens des voies, puis prolongée de chaque côté jusqu'au bout de sa rangée. Elle ne s'interrompt pas à une entrée : les places à cheval tombent, et chaque suite de places reçoit un appui à ses deux bouts.
 2. Une longueur reçoit un appui, une travée, un appui, et ainsi de suite : des travées de trois places, les dernières de deux.
 3. Le plus de places possible à 2,50 m. Puis, à la marge, une place de plus si la dernière travée, resserrée à 2,40 m ou à défaut 2,30 m, la loge. Jamais plus d'une travée resserrée par bout de rangée.
 4. Système à appuis dans la rangée (poteaux, voiles) : un poteau au fond, un second à 0,65 m de l'allée (NF P 91-100, tab. 3), un voile entre les deux pour le système à voiles. Grande portée : un poteau au fond seulement.
@@ -125,6 +125,7 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 | Un cheminement ne traverse pas une épure de giration | bandes dans une épure = 0, de préférence | appliqué et mesuré : la bande bascule de l'autre côté de la voie |
 | Toute place est accessible depuis une voie | places sans accès = 0 | non mesuré |
 | Toute rampe est circulable | épure libre de façade, de place et d'autre rampe | contrôlé contre les poteaux seulement |
+| Une rampe branchée ne dépasse pas 15 % | hauteur (2,80 m, ou 1,40 m en demi-niveau) sur sa longueur propre, entre les bords des voies reliées | mesuré ; raccordements de pente en haut et en bas non contrôlés |
 | Toute voie est reliée à une entrée | voies isolées = 0 | non mesuré |
 | La structure est contreventée | travées pleines dans deux sens | mesuré, sans calcul ; un remplissage reste là où il a été posé quand on change de système ; violé dès que le plan est déformé, les travées pleines ne suivant pas les voies |
 | Portée maximale respectée | plus longue portée nette ≤ limite du système porteur | mesuré ; respecté sur l'exemple dans les quatre systèmes ; violé sur 43 des 60 plans déformés au hasard, la trame automatique lançant encore des poutres jusqu'à 20 m en travers |
@@ -141,7 +142,7 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 
 ## 10. Ce qui reste à fixer
 
-1. Largeur d'une rampe perpendiculaire à double sens, et ce que « coupler » veut dire pour elle.
+1. Rampe branchée : raccordements de pente en haut et en bas (NF P 91-100 : rayons de 10 m et 15 m), et giration à son entrée, que la décision 7 n'exige pas.
 2. Emprise et réserve d'une circulation verticale.
 3. Section d'un poteau béton dans un parc français : la valeur de 0,40 m vient de guides britanniques, faute de source française chiffrée. À confirmer.
 4. Dimensions minimales au feu d'un poteau et d'un voile (NF EN 1992-1-2, valeurs tabulées) : non relevées en ligne, à lire dans la norme.
@@ -151,7 +152,7 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 7. Obstacle au milieu d'une rangée (rampe) : la trame n'est pas recalée après lui, une place peut s'y perdre.
 8. Contreventement : il ne suit pas les voies quand le plan se déforme.
 
-Fixé depuis la version 1 : section des appuis et portées (section 5) ; hauteur d'étage de 2,80 m et pente de 15 % (section 11).
+Fixé depuis la version 1 : section des appuis et portées (section 5) ; hauteur d'étage de 2,80 m et pente de 15 % (section 11) ; largeur d'une rampe branchée, 3,25 m en sens unique et 6,50 m en double sens, « coupler » voulant dire pour elle double sens (section 11).
 
 ## 11. Les valeurs sont des données
 
@@ -165,7 +166,7 @@ Les dimensions ne sont pas dans le code mais dans un tableau, avec leur source. 
 | Places en long : longueur, largeur, allée | 5,00 m ; 2,50 m ; 3,50 m | NF P 91-100 tab. 2 |
 | Voie sans stationnement | 5,50 m | NF P 91-100 § 3.3 (double sens) |
 | Bande piétonne | 0,80 m, dans la voie | règle de l'utilisateur |
-| Voie de rampe | 3,25 m | Neufert p. 274-276 (sens unique) |
+| Voie de rampe | 3,25 m en sens unique ; 6,50 m en double sens | Neufert p. 274-276 ; minima NF P 91-100 § 3.3 : 3,00 m et 5,50 m |
 | Giration : rayon à l'axe, largeur balayée | 6,50 m ; 2 × 2,00 m | moteur Parkimo (`giration.rs`) |
 | Rampe droite | 20 m (2,80 m à 15 %) | Neufert, arrondi au pas |
 | Trame de structure | deux ou trois places par travée, comptées entre nus | décision 4 ; section 5 |
@@ -185,7 +186,7 @@ Chaque lot est livré et vérifié seul ; le prototype reste utilisable entre de
 1. **Registre des principes** (fait le 13 novembre, sept principes) : les contrôles de la section 8 deviennent un tableau dans le code, affiché au bilan (principes respectés, principes violés) et rejoué sur les plans au hasard.
 2. **Emprises et arbitrage** (fait le 13 novembre) : une seule règle fait céder les emprises selon l'ordre de la section 2, à la place des retraits écrits à la main. Le principe des surfaces, trop global, est remplacé par deux principes précis : voies qui se croisent sans nœud, rangées qui se recouvrent. Les 36 plans au hasard en défaut s'expliquent par ces deux cas, qui sont des alertes de conception et non des défauts du logiciel.
 3. **Trame commune** (fait le 13 novembre, pour les rangées à 90°) : places et structure réglées ensemble, quatre systèmes porteurs au choix, places comptées entre nus, largeurs 2,50 / 2,40 / 2,30, neuvième principe (portée). Sur l'exemple : 123 places en grande portée, 118 avec des voiles, 113 avec des poteaux.
-4. **Rampes** : la rampe perpendiculaire devient une voie du squelette ; la rampe en rangée garde ses épures ; les cheminements les évitent.
+4. **Rampes** (fait le 13 novembre) : une voie du squelette peut être une rampe, branchée directement, en sens unique ou double, d'un étage ou d'un demi-niveau ; sa pente est le dixième principe. Elle n'a ni place ni bande piétonne, et le réseau piéton traverse son entrée. La rampe en rangée garde ses épures. La trame passe par alignement de voies : l'entrée d'une rampe n'interrompt que la rangée qu'elle coupe.
 5. **Niveaux** sur un même squelette.
 
 ## 13. Méthode de travail

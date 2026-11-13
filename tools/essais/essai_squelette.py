@@ -17,6 +17,9 @@ with sync_playwright() as p:
         r = {"vue": name, "depart": pg.evaluate(ETAT)}
         r["angles"] = pg.evaluate("calc.angles.map(a => a.x)")
         E = lambda x, y: pg.evaluate(f"versE([{x}, {y}])")
+        def glisser(de, vers):
+            n, m = E(*de), E(*vers)
+            pg.mouse.move(*n); pg.mouse.down(); pg.mouse.move((n[0] + m[0]) / 2, (n[1] + m[1]) / 2); pg.mouse.move(*m); pg.mouse.up(); pg.wait_for_timeout(300)
         # Trame commune (charte, section 5). Les places se comptent entre nus : une travée de deux ou trois places, puis
         # l'appui. À la marge, la dernière travée se resserre à 2,40 m ou 2,30 m si cela loge une place de plus.
         TC = pg.evaluate("""(() => { const f = (L, k, o) => { const t = travees(L, SYSTEMES[k], !!o); return [t.pl.length, t.pl.filter((p) => p.w < 2.5).map((p) => p.w), t.ap.length]; };
@@ -43,6 +46,34 @@ with sync_playwright() as p:
         pg.click("#b-cadrer"); pg.wait_for_timeout(300); pg.click('#calques button[data-c="0"]'); pg.wait_for_timeout(200)
         r["systeme_retabli"] = pg.evaluate("[S.systeme, calc.pl.length, document.querySelector('#s-contrev').textContent]")
         assert r["systeme_retabli"][:2] == ["beton", 123], r["systeme_retabli"]
+        # Rampe branchée (charte, lot 4 ; décision 7). Une voie tracée d'équerre depuis la voie du bas devient une rampe (« Toute la voie ») : c'est
+        # une voie du squelette, large de 3,25 m (6,50 m en double sens), sans place, sans bande piétonne, sans épure en S.
+        # Le réseau piéton reste d'un seul tenant en traversant son entrée ; sa pente se contrôle (15 % au plus).
+        RV = "(() => { const b = S.branches[S.branches.length - 1], i = S.branches.length - 1; return { rampe: b.rampe || null, sens: b.sens || null, largeur: +(2 * demi(b)).toFixed(2), places: calc.pl.length, surElle: calc.pl.filter((p) => p.i === i).length, bande: bandeDe(b), epures: calc.rampes.length, pietons: document.querySelector('#s-pietons').textContent, bilan: document.querySelector('#s-rampes').textContent, viol: calc.principes.filter((p) => !p.ok).map((p) => p.id), lignes: [...document.querySelectorAll('#fiche .ligne')].filter((l) => !l.hidden).map((l) => l.firstElementChild.textContent), fiche: document.querySelector('#f-long').textContent }; })()"
+        pg.click("#b-tracer"); glisser((30, 0), (30, -30)); pg.click("#b-tracer")
+        pg.click('#fiche .seg[data-cote="rampe"] button[data-t="voie"]'); pg.wait_for_timeout(300)
+        e = pg.evaluate(RV); r["rampe_voie"] = [e]
+        assert e["rampe"] == "droite" and e["sens"] == 1 and e["largeur"] == 3.25 and e["surElle"] == 0 and e["bande"] == "aucun" and e["epures"] == 0 and "continu" in e["pietons"] and not e["viol"] and e["lignes"] == ["Rampe", "Sens"] and "pente 10,2 %" in e["fiche"], e
+        pg.click("#b-cadrer"); pg.wait_for_timeout(300)
+        pg.screenshot(path=str(out / f"{name}-squelette-rampe-voie.png"))
+        pg.click('#fiche .seg[data-cote="sens"] button[data-t="2"]'); pg.wait_for_timeout(300)
+        e = pg.evaluate(RV); r["rampe_voie"].append(e)
+        assert e["sens"] == 2 and e["largeur"] == 6.5 and not e["viol"] and e["places"] < r["rampe_voie"][0]["places"], e
+        pg.click('#fiche .seg[data-cote="rampe"] button[data-t="demi"]'); pg.wait_for_timeout(300)
+        e = pg.evaluate(RV); r["rampe_voie"].append(e)
+        assert e["rampe"] == "demi" and e["epures"] == 0 and "pente 5,1 %" in e["fiche"], e
+        pg.click('#fiche .seg[data-cote="rampe"] button[data-t="droite"]'); pg.wait_for_timeout(300)
+        # Trop courte pour un étage : la pente dépasse 15 %, le principe est violé.
+        r["rampe_raide"] = pg.evaluate("(() => { const k = S.branches[S.branches.length - 1].b, y = S.noeuds[k][1]; S.noeuds[k][1] = -12.5; calculer(); const o = [calc.principes.filter((p) => !p.ok).map((p) => p.id), calc.principes.find((p) => p.id === 'pente').detail]; S.noeuds[k][1] = y; calculer(); return o; })()")
+        assert r["rampe_raide"][0] == ["pente"], r["rampe_raide"]
+        # Redevenue une voie : elle reprend sa largeur et sa bande.
+        pg.click('#fiche .seg[data-cote="rampe"] button[data-t="voie"]'); pg.wait_for_timeout(300)
+        e = pg.evaluate(RV); r["rampe_voie"].append(e)
+        assert e["rampe"] is None and e["largeur"] == 5.5 and e["lignes"] == ["Gauche", "Droite", "Piétons", "Rampe"], e
+        for _ in range(6): pg.click("#b-annuler"); pg.wait_for_timeout(150)
+        pg.click("#b-cadrer"); pg.wait_for_timeout(300); pg.mouse.click(5, 5); pg.wait_for_timeout(200)
+        r["rampe_voie_annulee"] = pg.evaluate("[S.branches.length, calc.pl.length, calc.principes.length]")
+        assert r["rampe_voie_annulee"] == [5, 123, 10], r["rampe_voie_annulee"]
         # Surfaces : chaussées, bandes et rangées se joignent sans se recouvrir ni laisser de vide. La somme de leurs aires
         # vaut l'emprise mesurée, sur l'exemple puis avec le carrefour à trois voies déplacé en biais.
         PAV = "(() => { const aire = (q) => Math.abs(q.reduce((s, p, i) => { const n = q[(i + 1) % q.length]; return s + p[0] * n[1] - n[0] * p[1]; }, 0)) / 2; return +([...calc.ch, ...calc.bandes].reduce((s, q) => s + aire(q), 0) / calc.aire).toFixed(3); })()"
@@ -53,9 +84,6 @@ with sync_playwright() as p:
         pg.screenshot(path=str(out / f"{name}-squelette-noeud-biais.png"))
         pg.click("#b-annuler"); pg.wait_for_timeout(200); pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         # Un nœud glissé emmène ce qui ne tient au reste que par lui : ici l'antenne suit le nœud du carrefour, la boucle reste.
-        def glisser(de, vers):
-            n, m = E(*de), E(*vers)
-            pg.mouse.move(*n); pg.mouse.down(); pg.mouse.move((n[0] + m[0]) / 2, (n[1] + m[1]) / 2); pg.mouse.move(*m); pg.mouse.up(); pg.wait_for_timeout(300)
         glisser((60, 0), (65, 0.4))
         r["antenne_suit"] = pg.evaluate("S.noeuds.map(p => p.map(v => +v.toFixed(2)))")
         pg.click("#b-annuler"); pg.wait_for_timeout(200)
