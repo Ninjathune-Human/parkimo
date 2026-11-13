@@ -159,11 +159,11 @@ Les dimensions ne sont pas dans le code mais dans un tableau, avec leur source. 
 | Giration : rayon à l'axe, largeur balayée | 6,50 m ; 2 × 2,00 m | moteur Parkimo (`giration.rs`) |
 | Rampe droite | 20 m (2,80 m à 15 %) | Neufert, arrondi au pas |
 | Trame de structure | deux ou trois places par travée, comptées entre nus | décision 4 ; section 5 |
-| Portée en travers : poteaux et poutres béton | 7,50 m, 10 m au plus | section 14, sources 9 à 12 |
-| Portée en travers : grande portée | 16,00 m, 16,50 m au plus | section 14, sources 1 à 8 |
-| Poteau béton | 0,40 × 0,40 m | section 14, source 10 ; à confirmer |
+| Portée en travers : poteaux et poutres béton | 7,50 m, 10 m au plus | section 14, sources 13 à 15 |
+| Portée en travers : grande portée | 16,00 m, 16,50 m au plus | section 14, sources 1 à 12 |
+| Poteau béton | 0,40 × 0,40 m | section 14, source 13 ; à confirmer |
 | Poteau acier | 0,20 m | section 14, source 4 |
-| Voile béton | 0,20 m | section 14, source 13 |
+| Voile béton | 0,20 m | section 14, source 16 |
 | Hauteur d'étage | 2,80 m (2,10 m libres et 0,70 m de plancher en acier de 16 m) | section 14, source 2 ; NF P 91-100 § 3.2 demande 2,20 m sous plafond et 2,00 m sous poutre |
 | Pente de rampe | 15 % | Neufert p. 274 ; section 14, source 2 (15 % couverte, 10 % à ciel ouvert) ; plafond NF P 91-100 : 18 % |
 | Pas d'accroche des nœuds | 2,50 m, angles de 15° | prototype |
