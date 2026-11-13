@@ -1,6 +1,6 @@
 # Parkimo : charte des principes
 
-Version 4 du 13 novembre 2026. Elle intègre les sept décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
+Version 5 du 13 novembre 2026. Elle intègre les huit décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
 
 ## À quoi sert cette charte
 
@@ -139,6 +139,7 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 5. **Largeur de place** : 2,50 m de préférence ; 2,40 m si la structure y gagne ; 2,30 m à la marge, pour gagner une place.
 6. **Niveaux** : même squelette ; structures et distributions se superposent.
 7. **Rampes** : l'entrée en S n'est pas le principe général. Une rampe à 90° d'une voie se branche directement dessus, sans S.
+8. **Norme et Neufert** : le Neufert n'est pas une norme mais un guide de bonnes pratiques. Les normes donnent des minima, souvent peu pratiques, d'autant que les véhicules grandissent. Le Neufert l'emporte sur la norme quand il est mieux-disant.
 
 ## 10. Ce qui reste à fixer
 
@@ -156,7 +157,11 @@ Fixé depuis la version 1 : section des appuis et portées (section 5) ; hauteur
 
 ## 11. Les valeurs sont des données
 
-Les dimensions ne sont pas dans le code mais dans un tableau, avec leur source. Valeurs en place aujourd'hui :
+Les dimensions ne sont pas dans le code mais dans un tableau, avec leur source.
+
+**Règle de choix (décision 8)** : entre la norme (NF P 91-100) et le Neufert, la valeur la plus généreuse est retenue. La norme reste le plancher : on ne descend jamais dessous. Le tableau ci-dessous n'applique pas encore cette règle partout : les allées à 90° et les places en épi et en long y sont aux minima de la norme, à relever.
+
+Valeurs en place aujourd'hui :
 
 | Valeur | Aujourd'hui | Source |
 |---|---|---|
