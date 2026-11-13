@@ -88,9 +88,32 @@ with sync_playwright() as p:
         # La place la plus proche d'un escalier : du centre de la place à la bande, le long de la bande, puis jusqu'à la porte.
         r["escalier_proche"] = pg.evaluate("(() => { const x = calc.escaliers.find((o) => !o.principal), o = calc.pl.filter((p) => p.i === x.i && p.c === x.c).sort((p, q) => p.dist - q.dist)[0]; return [+o.dist.toFixed(2), o.limite]; })()")
         assert 3 < r["escalier_proche"][0] < 8, r["escalier_proche"]
-        # Un escalier glissé contre l'escalier principal : des places passent hors distance, le principe est violé.
+        # Trois calques : Voies, Poteaux, Escaliers. Les escaliers ne se manient que dans le leur, et ne se posent
+        # que là : la ligne « Piétons » d'une voie n'a plus de bouton d'escalier.
         k = pg.evaluate("calc.escaliers.findIndex((o) => !o.principal)")
         de = pg.evaluate(f"centre(calc.escaliers[{k}].corps)"); vers = pg.evaluate("(() => { const x = calc.escaliers.find((o) => o.principal), c = centre(x.corps); return [c[0] + x.r.u[0] * 12.5, c[1] + x.r.u[1] * 12.5]; })()")
+        q = E(*de); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        r["calques"] = pg.evaluate("[[...document.querySelectorAll('#calques button')].map((b) => b.textContent), document.querySelectorAll('#fiche .seg[data-cote=\"pieton\"] button').length, choixE]")
+        assert r["calques"] == [["Voies", "Poteaux", "Escaliers"], 4, -1], r["calques"]
+        pg.mouse.click(5, 5); pg.wait_for_timeout(200)
+        pg.click('#calques button[data-c="2"]'); pg.wait_for_timeout(300)
+        # Le réseau des escaliers : un nœud à la porte de chacun, des liens d'escalier à escalier par les bandes piétonnes,
+        # et de chaque escalier un lien jusqu'à la place la plus éloignée qu'il dessert.
+        LI = """(() => { const l = calc.liens, R = (x) => +x.toFixed(1), long = (p) => p.slice(1).reduce((t, q, k) => t + Math.hypot(q[0] - p[k][0], q[1] - p[k][1]), 0), pres = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.01;
+          return { noeuds: l.noeuds.length, entre: l.entre.map((x) => [x.de, x.vers, R(x.long), R(long(x.pts)), pres(x.pts[0], l.noeuds[x.vers]) && pres(x.pts[x.pts.length - 1], l.noeuds[x.de])]),
+            places: l.places.map((x) => [x.j, R(x.dist), R(long(x.pts)), calc.pl.some((o) => pres(centre(o.q), x.pts[0])) && pres(x.pts[x.pts.length - 1], l.noeuds[x.j])]), max: R(calc.distMax),
+            barre: (() => { const b = document.querySelector('#barre').getBoundingClientRect(), f = [...document.querySelectorAll('#barre button')]; return [b.left >= 0 && b.right <= innerWidth, f.every((x) => x.scrollWidth <= x.clientWidth), f.every((x) => x.getBoundingClientRect().height >= 40)]; })() }; })()"""
+        li = pg.evaluate(LI); r["liens"] = li; n = e["n"]
+        assert li["noeuds"] == n and len(li["places"]) == n and sorted(x[0] for x in li["places"]) == list(range(n)), li
+        assert set(sum(([x[0], x[1]] for x in li["entre"]), [])) == set(range(n)) and all(x[4] and abs(x[2] - x[3]) < 3 for x in li["entre"]), li
+        assert all(x[3] and x[1] <= 40 and abs(x[1] - x[2]) < 3 for x in li["places"]) and max(x[1] for x in li["places"]) == li["max"], li
+        assert li["barre"] == [True, True, True], li["barre"]
+        pg.screenshot(path=str(out / f"{name}-squelette-escaliers.png"))
+        # Dans ce calque, les voies ne se saisissent pas : glisser sur un nœud ne déplace que la vue.
+        glisser([0, 0], [5, 5]); pg.click("#b-cadrer"); pg.wait_for_timeout(300)
+        r["voie_inerte"] = pg.evaluate("[S.noeuds[0], choix]")
+        assert r["voie_inerte"] == [[0, 0], -1], r["voie_inerte"]
+        # Un escalier glissé contre l'escalier principal : des places passent hors distance, le principe est violé.
         glisser(de, vers)
         e = pg.evaluate(ES); r["escaliers"].append(e)
         assert e["loin"] > 0 and e["viol"] == ["escaliers"] and e["hors"] == 0, e
@@ -98,8 +121,8 @@ with sync_playwright() as p:
         pg.click("#b-annuler"); pg.wait_for_timeout(200)
         # On le touche : sa fiche. « Escalier principal » lui donne les deux ascenseurs, et les retire à l'autre.
         q = E(*de); pg.mouse.click(*q); pg.wait_for_timeout(250)
-        r["escalier_choisi"] = pg.evaluate("[document.querySelector('#f-long').textContent, document.querySelector('#b-principal').getAttribute('aria-pressed'), [...document.querySelectorAll('#fiche .ligne')].filter((l) => !l.hidden).length]")
-        assert r["escalier_choisi"][0].startswith("Escalier") and r["escalier_choisi"][1:] == ["false", 0], r["escalier_choisi"]
+        r["escalier_choisi"] = pg.evaluate("[document.querySelector('#f-long').textContent, document.querySelector('#b-principal').getAttribute('aria-pressed'), [...document.querySelectorAll('#fiche .ligne')].filter((l) => !l.hidden).length, (() => { const f = document.querySelector('#fiche').getBoundingClientRect(), b = document.querySelector('#barre').getBoundingClientRect(); return f.bottom <= b.top; })()]")
+        assert r["escalier_choisi"][0].startswith("Escalier") and r["escalier_choisi"][1:] == ["false", 0, True], r["escalier_choisi"]
         pg.click("#b-principal"); pg.wait_for_timeout(250)
         e = pg.evaluate(ES); r["escaliers"].append(e)
         assert e["principaux"] == 1 and pg.evaluate(f"[calc.escaliers[{k}].principal, calc.escaliers[{k}].L]") == [True, 10] and "principal" in e["fiche"], e
@@ -108,12 +131,17 @@ with sync_playwright() as p:
         e = pg.evaluate(ES); r["escaliers"].append(e)
         assert e["n"] == r["escaliers"][0]["n"] - 1 and e["principaux"] == 1, e
         pg.click("#b-annuler"); pg.wait_for_timeout(200)
-        # Un escalier de plus, depuis la ligne « Piétons » de la fiche d'une voie.
-        q = E(30, 0); pg.mouse.click(*q); pg.wait_for_timeout(250)
-        pg.click('#fiche .seg[data-cote="pieton"] button[data-t="escalier"]'); pg.wait_for_timeout(250)
+        # « Tracer », puis un toucher dans une rangée : un escalier de plus. Hors de toute rangée, rien ne se pose.
+        pg.click("#b-tracer"); q = E(40, -5.5); pg.mouse.click(*q); pg.wait_for_timeout(250)
         e = pg.evaluate(ES); r["escaliers"].append(e)
-        assert e["n"] == r["escaliers"][0]["n"] + 1 and e["principaux"] == 1 and e["fiche"].startswith("Escalier"), e
-        pg.click("#b-annuler"); pg.wait_for_timeout(200); pg.mouse.click(5, 5); pg.wait_for_timeout(200)
+        assert e["n"] == r["escaliers"][0]["n"] + 1 and e["principaux"] == 1 and e["hors"] == 0 and e["fiche"].startswith("Escalier"), e
+        q = E(40, -40); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        assert pg.evaluate("calc.escaliers.length") == e["n"]
+        pg.click("#b-tracer"); pg.click("#b-annuler"); pg.wait_for_timeout(200)
+        # Sans aucun escalier, toutes les places sont non desservies : en rouge dans ce calque.
+        r["rouges"] = pg.evaluate("(() => { const g = S.escaliers; S.escaliers = []; calculer(); const x = [rouges().length === calc.pl.length, calc.liens.noeuds.length]; S.escaliers = g; calculer(); return [...x, rouges().length]; })()")
+        assert r["rouges"] == [True, 0, 0], r["rouges"]
+        pg.click('#calques button[data-c="0"]'); pg.wait_for_timeout(200); pg.mouse.click(5, 5); pg.wait_for_timeout(200)
         r["escaliers_retablis"] = pg.evaluate(ES)
         # Sans aucun escalier, des places ne sont desservies par rien : le principe est violé, sans teinter tout le plan.
         r["escalier_aucun"] = pg.evaluate("(() => { const g = S.escaliers; S.escaliers = []; calculer(); const x = [calc.principes.filter((p) => !p.ok).map((p) => p.id), document.querySelector('#s-escaliers').textContent, calc.loin.length]; S.escaliers = g; calculer(); return x; })()")

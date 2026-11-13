@@ -1,6 +1,6 @@
 # Parkimo : charte des principes
 
-Version 7 du 13 novembre 2026. Elle intègre les neuf décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
+Version 8 du 13 novembre 2026. Elle intègre les dix décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
 
 ## À quoi sert cette charte
 
@@ -127,10 +127,10 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 | Toute place est accessible depuis une voie | places sans accès = 0 | non mesuré |
 | Toute rampe est circulable | épure libre de façade, de place et d'autre rampe | contrôlé contre les poteaux seulement |
 | Une rampe branchée ne dépasse pas 15 % | hauteur (2,80 m, ou 1,40 m en demi-niveau) sur sa longueur propre, entre les bords des voies reliées | mesuré ; raccordements de pente en haut et en bas non contrôlés |
-| Toute place est à 40 m au plus d'un escalier, 25 m en cul-de-sac | distance du centre de la place à la porte de l'escalier, par les circulations piétonnes : jusqu'à la bande, le long de la bande, puis jusqu'à la porte. 40 m si un autre escalier se gagne par l'autre bout, ou si le cul-de-sac fait 25 m au plus avant que les chemins vers deux escaliers se séparent ; 25 m sinon | mesuré (onzième principe) ; respecté sur l'exemple avec quatre escaliers, 37,3 m au plus ; les places trop loin sont teintées ; un plan sans escalier le viole ; violé sur 44 des 60 plans déformés au hasard : un escalier garde sa position, se loge dans la rangée la plus proche et ne se replace pas seul |
+| Toute place est à 40 m au plus d'un escalier, 25 m en cul-de-sac | distance du centre de la place à la porte de l'escalier, par les circulations piétonnes : jusqu'à la bande, le long des bandes en tournant à leurs coins, puis jusqu'à la porte. 40 m si un autre escalier se gagne par l'autre bout, ou si le cul-de-sac fait 25 m au plus avant que les chemins vers deux escaliers se séparent ; 25 m sinon | mesuré (onzième principe) ; respecté sur l'exemple avec quatre escaliers, 37,5 m au plus ; les places non desservies sont en rouge ; un plan sans escalier le viole ; violé sur 48 des 60 plans déformés au hasard : un escalier garde sa position, se loge dans la rangée la plus proche et ne se replace pas seul |
 | Toute voie est reliée à une entrée | voies isolées = 0 | non mesuré |
 | La structure est contreventée | travées pleines dans deux sens | mesuré, sans calcul ; un remplissage reste là où il a été posé quand on change de système ; violé dès que le plan est déformé, les travées pleines ne suivant pas les voies |
-| Portée maximale respectée | plus longue portée nette ≤ limite du système porteur | mesuré ; respecté sur l'exemple dans les quatre systèmes ; violé sur 40 des 60 plans déformés au hasard, la trame automatique lançant encore des poutres jusqu'à 20 m en travers |
+| Portée maximale respectée | plus longue portée nette ≤ limite du système porteur | mesuré ; respecté sur l'exemple dans les quatre systèmes et sur les 60 plans déformés au hasard : la trame automatique ne lance plus de poutre au-delà de la portée du système. Là où une poutre manque de ce fait, rien ne le signale encore |
 
 ## 9. Décisions de l'utilisateur, 13 novembre 2026
 
@@ -143,6 +143,7 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 7. **Rampes** : l'entrée en S n'est pas le principe général. Une rampe à 90° d'une voie se branche directement dessus, sans S.
 8. **Norme et Neufert** : le Neufert n'est pas une norme mais un guide de bonnes pratiques. Les normes donnent des minima, souvent peu pratiques, d'autant que les véhicules grandissent. Le Neufert l'emporte sur la norme quand il est mieux-disant. Les voies sont à double sens : l'allée fait 6,00 m, circulation piétonne incluse.
 9. **Circulations verticales** : selon les règles des ERP. La distance se mesure depuis le centre de la place, puis par les circulations piétonnes, jusqu'à l'entrée de l'escalier. Un des escaliers est l'« escalier principal » : accolés à lui, deux ascenseurs. On choisit lequel est le principal, et la position de chacun.
+10. **Calque des escaliers** : à côté de « Voies » et « Poteaux », un calque « Escaliers ». Il montre un réseau de nœuds : un nœud par escalier, des liens d'escalier à escalier, et de chaque escalier un lien jusqu'à la place la plus éloignée qu'il dessert. Les places non desservies y sont en rouge.
 
 ## 10. Ce qui reste à fixer
 
@@ -157,7 +158,7 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 8. Contreventement : il ne suit pas les voies quand le plan se déforme.
 9. Places resserrées : le Neufert associe une allée de 6,50 m aux places de 2,30 m. Le resserrement à la marge garde l'allée de 6,00 m ; la norme l'admet.
 10. Escaliers : le texte relevé est la version consolidée de 2009 de l'arrêté du 9 mai 2006 ; à relire dans sa version en vigueur. Les 50 m et 30 m des parcs largement ventilés ne sont pas proposés. Le règlement mesure dans l'axe des voies ; la mesure par les bandes piétonnes (décision 9) est un peu plus sévère.
-11. Escaliers : un escalier et une rampe posés dans la même rangée peuvent se recouvrir, rien ne les départage encore. Les escaliers ne se placent pas seuls : sur un plan nouveau, ils sont à poser.
+11. Escaliers : un escalier et une rampe posés dans la même rangée peuvent se recouvrir, rien ne les départage encore. Les escaliers ne se placent pas seuls : sur un plan nouveau, ils sont à poser. À un nœud de trois voies ou plus, et entre deux bandes en vis-à-vis, le chemin mesuré coupe tout droit d'un bout de bande à l'autre.
 
 Fixé depuis la version 1 : section des appuis et portées (section 5) ; hauteur d'étage de 2,80 m et pente de 15 % (section 11) ; largeur d'une rampe branchée, 3,25 m en sens unique et 6,50 m en double sens, « coupler » voulant dire pour elle double sens (section 11).
 
@@ -200,7 +201,7 @@ Chaque lot est livré et vérifié seul ; le prototype reste utilisable entre de
 2. **Emprises et arbitrage** (fait le 13 novembre) : une seule règle fait céder les emprises selon l'ordre de la section 2, à la place des retraits écrits à la main. Le principe des surfaces, trop global, est remplacé par deux principes précis : voies qui se croisent sans nœud, rangées qui se recouvrent. Les 36 plans au hasard en défaut s'expliquent par ces deux cas, qui sont des alertes de conception et non des défauts du logiciel.
 3. **Trame commune** (fait le 13 novembre, pour les rangées à 90°) : places et structure réglées ensemble, quatre systèmes porteurs au choix, places comptées entre nus, largeurs 2,50 / 2,40 / 2,30, neuvième principe (portée). Sur l'exemple, aux cotes de la décision 8 (module de 16 m) : 119 places en grande portée béton, 118 en acier, 117 avec des voiles, 113 avec des poteaux.
 4. **Rampes** (fait le 13 novembre) : une voie du squelette peut être une rampe, branchée directement, en sens unique ou double, d'un étage ou d'un demi-niveau ; sa pente est le dixième principe. Elle n'a ni place ni bande piétonne, et le réseau piéton traverse son entrée. La rampe en rangée garde ses épures. La trame passe par alignement de voies : l'entrée d'une rampe n'interrompt que la rangée qu'elle coupe.
-5. **Circulations verticales** (fait le 13 novembre) : escaliers posés dans les rangées, déplaçables d'une rangée à l'autre, dont un escalier principal avec deux ascenseurs ; distance mesurée par les circulations piétonnes, onzième principe. Sur l'exemple, quatre escaliers (trois sur la boucle, un dans l'antenne) prennent onze places : 108 places en grande portée béton, 107 en acier, 105 avec des voiles, 102 avec des poteaux.
+5. **Circulations verticales** (fait le 13 novembre) : escaliers posés dans les rangées, déplaçables d'une rangée à l'autre, dont un escalier principal avec deux ascenseurs ; distance mesurée par les circulations piétonnes, coins des bandes compris, onzième principe. Les escaliers se manient dans leur calque (décision 10) : « Tracer » puis un toucher dans une rangée en pose un. Sur l'exemple, quatre escaliers (trois sur la boucle, un dans l'antenne) prennent onze places : 108 places en grande portée béton, 107 en acier, 106 avec des voiles, 102 avec des poteaux.
 6. **Niveaux** sur un même squelette.
 
 ## 13. Méthode de travail
