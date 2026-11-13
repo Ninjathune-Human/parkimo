@@ -71,13 +71,16 @@ with sync_playwright() as p:
         r["anneau"] = pg.evaluate("[S.branches.map(bandeDe), calc.zebres.length, document.querySelector('#s-pietons').textContent]")
         pg.screenshot(path=str(out / f"{name}-squelette-anneau.png"))
         pg.click("#b-annuler"); pg.wait_for_timeout(200); pg.click("#b-cadrer"); pg.wait_for_timeout(300)
-        # Rampes, par typologie. Une rampe droite ajoutée depuis la fiche d'une voie prend 20 m de rangée : huit places
-        # en moins, les poteaux s'adaptent. On la glisse où l'on veut, elle s'aimante à la rangée la plus proche.
+        # Rampes, par typologie. Une rampe droite ajoutée depuis la fiche d'une voie prend, dans la rangée, ses 20 m
+        # plus une giration en S à chaque bout (8,46 m) : seize places en moins, aucun poteau dans la voie de rampe ni
+        # dans les épures. On la glisse où l'on veut, elle s'aimante à la rangée la plus proche qui peut la recevoir.
         # Une seconde, dos à dos : couplées ; glissée ailleurs : séparées. On la choisit, on la supprime.
         RP = "[S.rampes.length, calc.rampes.map(x => [x.i, x.c, x.a]), calc.pl.length, calc.conflits.length, calc.genees.length, document.querySelector('#s-rampes').textContent]"
         q = E(30, 0); pg.mouse.click(*q); pg.wait_for_timeout(250)
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="droite"]'); pg.wait_for_timeout(250)
         r["rampe"] = [pg.evaluate(RP), pg.evaluate("document.querySelector('#f-long').textContent")]
+        # Un poteau posé à la main dans une épure de giration est signalé comme dans une voie.
+        r["rampe_epure"] = pg.evaluate("(() => { const x = calc.rampes[0], e = x.epures[0].axe, p = [(e[3][0] + e[4][0]) / 2, (e[3][1] + e[4][1]) / 2]; S.auto = false; S.pn.push(p); calculer(); const n = calc.conflits.length; S.pn.pop(); S.auto = true; calculer(); return [x.epures.length, +GIR.s.toFixed(2), n, calc.conflits.length]; })()")
         glisser((30, 5), (30, 10))
         r["rampe_glissee"] = pg.evaluate(RP)
         q = E(30, 0); pg.mouse.click(*q); pg.wait_for_timeout(250)
