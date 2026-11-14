@@ -265,6 +265,29 @@ with sync_playwright() as p:
         for _ in range(5): pg.click("#b-annuler"); pg.wait_for_timeout(200)
         r["rampes_annulees"] = pg.evaluate("[(S.rampes || []).length, calc.pl.length]")
         pg.mouse.click(5, 5); pg.wait_for_timeout(200)
+        # Emprise : un rectangle tracé reçoit une première implantation, la meilleure parmi plusieurs, que les modules affinent ensuite.
+        EM = """(() => { const o = {}; const dedans = (r) => { const P = [...calc.ch, ...calc.bandes, ...calc.pl.map((p) => p.q)].flat(); return Math.min(...P.map((p) => p[0])) >= r[0] - 0.05 && Math.max(...P.map((p) => p[0])) <= r[2] + 0.05 && Math.min(...P.map((p) => p[1])) >= r[1] - 0.05 && Math.max(...P.map((p) => p[1])) <= r[3] + 0.05; };
+          const sauve = JSON.stringify(S);
+          for (const [l, w] of [[60, 32], [32, 60], [90, 48], [40, 17], [25, 70], [70, 20]]) { const r = [10, -5, 10 + l, -5 + w], n = emprise(r); o[l + "x" + w] = n ? { places: calc.pl.length, dedans: dedans(r), viol: calc.principes.filter((p) => !p.ok).map((p) => p.id), escaliers: calc.escaliers.length, loin: calc.loin.length, par: +(l * w / calc.pl.length).toFixed(1), emprise: S.emprise } : null; }
+          o.petit = emprise([0, 0, 10, 10]) ? "applique" : "refuse"; o.intact = JSON.stringify(S) !== sauve ? "modifie" : "intact";
+          S = JSON.parse(sauve); pointer(); calculer(); return o; })()"""
+        r["emprise"] = pg.evaluate(EM)
+        for k, v in r["emprise"].items():
+            if k in ("petit", "intact"): continue
+            assert v and v["dedans"] and not v["viol"] and v["loin"] == 0 and v["escaliers"] >= 1 and v["par"] <= 36, (k, v)
+        assert r["emprise"]["petit"] == "refuse", r["emprise"]
+        # Le geste : le bouton « Emprise », un rectangle tiré sur le plan ; annuler rend le plan d'avant.
+        if name == "iphone": pg.click("#bilan-det > summary") if pg.evaluate("document.querySelector('#bilan-det').open") else None
+        av = pg.evaluate("[calc.pl.length, S.emprise || null, passe.length]")
+        pg.click("#b-emprise"); assert pg.evaluate("document.querySelector('#b-emprise').getAttribute('aria-pressed')") == "true"
+        a, c = ([50, 220], [340, 560]) if name == "iphone" else ([500, 350], [1000, 740])
+        pg.mouse.move(*a); pg.mouse.down(); pg.mouse.move(*[(a[0] + c[0]) / 2, (a[1] + c[1]) / 2], steps=3); pg.mouse.move(*c, steps=3)
+        r["emprise_trace"] = pg.evaluate("S.emprise || null"); pg.mouse.up(); pg.wait_for_timeout(500)
+        ap = pg.evaluate("({ pl: calc.pl.length, emprise: S.emprise, esc: calc.escaliers.length, viol: calc.principes.filter((p) => !p.ok).length, bouton: document.querySelector('#b-emprise').getAttribute('aria-pressed'), annuler: !document.querySelector('#b-annuler').disabled })")
+        r["emprise_geste"] = ap; assert ap["emprise"] and ap["pl"] > 20 and ap["esc"] >= 1 and ap["viol"] == 0 and ap["bouton"] == "false" and ap["annuler"], ap
+        pg.screenshot(path=str(out / f"{name}-emprise.png"))
+        pg.click("#b-annuler"); pg.wait_for_timeout(300)
+        assert pg.evaluate("[calc.pl.length, S.emprise || null]") == [av[0], av[1]], "annuler ne rend pas le plan d'avant"
         # Registre des principes (charte, section 8) : tous respectés sur l'exemple, affichés au bilan.
         PR = "[document.querySelector('#s-principes').textContent, calc.principes.filter(p => !p.ok).map(p => p.id)]"
         r["principes"] = [pg.evaluate(PR), pg.evaluate("calc.principes.length")]

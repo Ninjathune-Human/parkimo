@@ -91,6 +91,7 @@ button:disabled { opacity: .35; }
 </section>
 <nav id="barre" class="verre">
   <div class="seg" id="calques" role="group" aria-label="Calque à modifier"><button data-c="0" aria-pressed="true">Voies</button><button data-c="1" aria-pressed="false">Poteaux</button><button data-c="2" aria-pressed="false">Escaliers</button></div>
+  <button id="b-emprise" aria-pressed="false">Emprise</button>
   <button id="b-tracer" aria-pressed="false">Tracer</button>
   <button id="b-annuler" disabled>Annuler</button>
   <button id="b-cadrer">Cadrer</button>
@@ -129,7 +130,7 @@ const RETRAIT = 0.65; // un poteau à 0,65 m de l'allée ne demande aucune surla
 const PAS = 2.5, AIMANT = 16; // trame des longueurs (m), rayon d'aimantation (px)
 const $ = (s) => document.querySelector(s), cv = $("#plan"), ctx = cv.getContext("2d");
 let W = 0, H = 0, DPR = 1, vue = { s: 6, ox: 0, oy: 0 };
-let S = { noeuds: [], branches: [], pn: [], pb: [] }, choix = -1, tracer = false, passe = [], calc = null;
+let S = { noeuds: [], branches: [], pn: [], pb: [] }, choix = -1, tracer = false, modeEmp = false, passe = [], calc = null;
 // Deux squelettes superposés, même fonctionnement : les voies (`noeuds`, `branches`) et la structure
 // (`pn`, `pb` : un nœud est un poteau, une branche une poutre). `NO` et `BR` désignent celui qu'on modifie.
 let actif = 0, calque = 0, NO, BR, choixN = -1; // actif : 0 voies, 1 poteaux, 2 escaliers ; calque : le squelette de la structure est en main ; choixN : poteau choisi
@@ -739,6 +740,9 @@ function dessiner() {
     L.noeuds.forEach((p, j) => { const e = versE(p), sel = L.de[j] === choixE; ctx.beginPath(); ctx.arc(e[0], e[1], 7, 0, 2 * Math.PI); ctx.fillStyle = css("--fond"); ctx.fill(); ctx.strokeStyle = css("--accent"); ctx.lineWidth = sel ? 4.5 : 2.5; ctx.stroke(); });
     ctx.lineJoin = "miter"; ctx.lineCap = "butt";
   }
+  const lim = geste && geste.rect ? geste.rect : S.emprise;
+  if (lim) { const A = versE([lim[0], lim[3]]), B = versE([lim[2], lim[1]]); ctx.strokeStyle = css("--accent"); ctx.lineWidth = 1.5; ctx.setLineDash([8, 6]); ctx.strokeRect(A[0], A[1], B[0] - A[0], B[1] - A[1]); ctx.setLineDash([]);
+    if (geste && geste.rect) { ctx.fillStyle = css("--accent"); ctx.globalAlpha = 0.08; ctx.fillRect(A[0], A[1], B[0] - A[0], B[1] - A[1]); ctx.globalAlpha = 1; ctx.font = "600 13px -apple-system, system-ui, sans-serif"; ctx.textAlign = "center"; ctx.fillText(`${(lim[2] - lim[0]).toLocaleString("fr-FR")} × ${(lim[3] - lim[1]).toLocaleString("fr-FR")} m`, (A[0] + B[0]) / 2, A[1] - 8); ctx.textAlign = "start"; } }
   if (geste && geste.guide) { const A = versE(geste.guide[0]), B = versE(geste.guide[1]); ctx.strokeStyle = css("--accent"); ctx.lineWidth = 1.5; ctx.setLineDash([2, 5]); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]); } // l'alignement trouvé
   if (geste && geste.fantome) { const A = versE(geste.fantome[0]), B = versE(geste.fantome[1]); ctx.strokeStyle = css(calque ? "--os" : "--accent"); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); }
 }
@@ -746,10 +750,66 @@ let attente = false;
 function rafraichir(recalc = true) { if (recalc) calculer(); if (!attente) { attente = true; requestAnimationFrame(() => { attente = false; dessiner(); }); } }
 function taille() { DPR = Math.min(window.devicePixelRatio || 1, 2.5); W = cv.clientWidth; H = cv.clientHeight; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); rafraichir(false); }
 function cadrer() {
-  const pts = (calc ? [...calc.ch, ...calc.bandes] : []).flat(); if (!pts.length) { vue = { s: 6, ox: W / 2, oy: H / 2 }; return rafraichir(false); }
+  const pts = (calc ? [...calc.ch, ...calc.bandes, ...(S.emprise ? [[[S.emprise[0], S.emprise[1]], [S.emprise[2], S.emprise[3]]]] : [])] : []).flat(); if (!pts.length) { vue = { s: 6, ox: W / 2, oy: H / 2 }; return rafraichir(false); }
   const x0 = Math.min(...pts.map((p) => p[0])), x1 = Math.max(...pts.map((p) => p[0])), y0 = Math.min(...pts.map((p) => p[1])), y1 = Math.max(...pts.map((p) => p[1]));
   const etroit = W < 760, haut = etroit ? Math.ceil($("#bilan").getBoundingClientRect().bottom) + 12 : 40, bas = etroit ? Math.ceil(H - $("#barre").getBoundingClientRect().top) + 12 : 110;
   vue.s = Math.min((W - 60) / (x1 - x0), (H - haut - bas) / (y1 - y0), 14); vue.ox = W / 2 - (x0 + x1) / 2 * vue.s; vue.oy = haut + (H - haut - bas) / 2 + (y0 + y1) / 2 * vue.s; rafraichir(false);
+}
+
+// ---- Emprise : on trace un rectangle, le moteur y essaie des implantations (voies parallèles, un ou deux rattachements
+// aux extrémités, rangées de chaque côté) et garde la meilleure. Le plan obtenu est ordinaire : les modules l'affinent.
+// Candidates : angle des rangées intérieures (90°, 60°, 45°), nombre de voies, rangées de rive (une autre inclinaison peut
+// mieux remplir le reste), voie de rattachement en boucle ou en peigne, avec ou sans rangée sur elle, dans les deux sens.
+// Les plus prometteuses (estimation par longueur de rangée) passent au vrai calcul ; seules comptent celles qui tiennent dans
+// le rectangle ; entre les trois meilleures, avec leurs escaliers placés, on prend celle qui respecte les principes puis
+// compte le plus de places.
+const MIN_PLACES = 8;
+function candidates(r) {
+  const [x0, y0, x1, y1] = r, W = x1 - x0, H = y1 - y0, sortie = [], rives = ["90", "60", "45", "0", "aucun"], prof = (k) => TYPES[k].prof, pitch = (k) => (TYPES[k].pas ? TYPES[k].pas : 0);
+  for (const o of [0, 1]) {
+    const Lu = o ? H : W, Dv = o ? W : H;
+    for (const T of ["90", "60", "45"]) for (const tt of rives) for (const tb of rives) for (let n = 1; n <= 8; n++) {
+      const lan = [], demis = []; for (let j = 0; j < n; j++) { const b = { g: j === n - 1 ? tt : T, d: j === 0 ? tb : T }; lan.push(b); demis.push(demi(b)); }
+      let D = prof(tb) + demis[0]; const v = [D]; for (let j = 1; j < n; j++) { D += demis[j - 1] + 2 * prof(T) + demis[j]; v.push(D); } D += demis[n - 1] + prof(tt);
+      if (D > Dv + 1e-6) continue;
+      const decal = (Dv - D) / 2;
+      for (const forme of n === 1 ? ["seule"] : ["boucle", "gauche", "droite"]) for (const ec of n === 1 ? ["aucun"] : ["aucun", "90"]) {
+        const a = forme === "droite" || forme === "seule" ? 0 : 3, b = forme === "gauche" || forme === "seule" ? Lu : Lu - 3, l = b - a;
+        if (l < 5) continue;
+        // Les rangées vont d'une voie de rattachement à l'autre : chacune leur ôte sa largeur (6 m) à chaque bout.
+        const lr = Lu - 6 * (forme === "boucle" ? 2 : forme === "seule" ? 0 : 1); let est = 0; for (const x of lan) est += (pitch(x.g) ? Math.max(0, lr) / pitch(x.g) : 0) + (pitch(x.d) ? Math.max(0, lr) / pitch(x.d) : 0);
+        sortie.push({ o, T, tt, tb, n, v: v.map((x) => x + decal), lan, forme, ec, a, b, Lu, est });
+      }
+    }
+  }
+  return sortie;
+}
+function construire(c, r) {
+  const [x0, y0] = r, P = (u, w) => (c.o ? [x0 + w, y0 + u] : [x0 + u, y0 + w]), sw = (g, d) => (c.o ? { g: d, d: g } : { g, d }), noeuds = [], branches = [], gauche = [], droite = [];
+  c.lan.forEach((x, j) => {
+    const na = noeuds.push(P(c.a, c.v[j])) - 1, nb = noeuds.push(P(c.b, c.v[j])) - 1; gauche.push(na); droite.push(nb);
+    branches.push({ a: na, b: nb, ...sw(x.g, x.d), pieton: "auto" });
+  });
+  if (c.n > 1) for (const [cote, liste, ex, boucle] of [["g", gauche, "gauche", c.forme !== "droite"], ["d", droite, "droite", c.forme !== "gauche"]]) {
+    if (!boucle) continue;
+    for (let j = 0; j + 1 < c.n; j++) { const e = c.ec; const gb = cote === "g" ? { g: "aucun", d: e } : { g: e, d: "aucun" }; branches.push({ a: liste[j], b: liste[j + 1], ...sw(gb.g, gb.d), pieton: "auto" }); }
+  }
+  return { noeuds, branches };
+}
+function emprise(r) {
+  const sauve = JSON.stringify(S), base = JSON.parse(sauve), cible = (c) => { S = { ...base, ...construire(c, r), pn: [], pb: [], rampes: [], escaliers: [], escAuto: false, auto: true, emprise: r }; cleEsc = null; pointer(); calculer(); };
+  const dedans = () => { const Q = [...calc.ch, ...calc.bandes, ...calc.pl.map((p) => p.q)].flat(); return Math.min(...Q.map((p) => p[0])) >= r[0] - 0.05 && Math.max(...Q.map((p) => p[0])) <= r[2] + 0.05 && Math.min(...Q.map((p) => p[1])) >= r[1] - 0.05 && Math.max(...Q.map((p) => p[1])) <= r[3] + 0.05; };
+  const vus = {}, tous = candidates(r).sort((a, b) => b.est - a.est).filter((c) => { const k = [c.o, c.T, c.n, c.forme, c.ec].join(); vus[k] = (vus[k] || 0) + 1; return vus[k] <= 2; }).slice(0, 24), tenus = [];
+  for (const c of tous) { cible(c); if (dedans()) tenus.push({ c, n: calc.pl.length }); }
+  tenus.sort((a, b) => b.n - a.n);
+  let meilleur = null;
+  for (const t of tenus.slice(0, 3)) {
+    cible(t.c); S.escAuto = true; calculer();
+    const x = { c: t.c, viol: calc.principes.filter((p) => !p.ok).length, n: calc.pl.length, ok: dedans() };
+    if (x.ok && (!meilleur || x.viol < meilleur.viol || (x.viol === meilleur.viol && x.n > meilleur.n))) meilleur = x;
+  }
+  if (!meilleur || meilleur.n < MIN_PLACES) { S = JSON.parse(sauve); pointer(); calculer(); return false; }
+  cible(meilleur.c); S.escAuto = true; calculer(); choix = choixN = choixR = choixE = -1; return true;
 }
 
 // ---- Historique et enregistrement.
@@ -920,10 +980,12 @@ function trame() {
 
 // ---- Gestes : un doigt, un stylet ou la souris ; deux doigts pour zoomer.
 const doigts = new Map(); let geste = null, pince = null;
+const arrondi = (m) => [Math.round(m[0] * 2) / 2, Math.round(m[1] * 2) / 2];
 const pos = (ev) => { const r = cv.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; };
 cv.addEventListener("pointerdown", (ev) => {
   cv.setPointerCapture(ev.pointerId); const e = pos(ev); doigts.set(ev.pointerId, e);
   if (doigts.size === 2) { const [a, b] = [...doigts.values()]; pince = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], v: { ...vue } }; if (geste && geste.avant) { S = JSON.parse(geste.avant); pointer(); calculer(); } geste = null; return; }
+  if (modeEmp) { geste = { genre: "emprise", e, de: arrondi(versM(e[0], e[1])) }; return; }
   // Calque des escaliers : ni nœud ni branche ne se saisit, seuls les escaliers se manient.
   const m = versM(e[0], e[1]), k = actif === 2 ? -1 : noeudPres(e), c = actif !== 2 && k < 0 ? branchePres(m, Math.max(AIMANT / vue.s, 2)) : null;
   const ra = !actif && !tracer && calc ? calc.rampes.findIndex((x) => dans(m, x.corps)) : -1;
@@ -940,6 +1002,7 @@ cv.addEventListener("pointermove", (ev) => {
   if (!doigts.has(ev.pointerId)) return; const e = pos(ev); doigts.set(ev.pointerId, e);
   if (pince && doigts.size === 2) { const [a, b] = [...doigts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]), c = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], s = Math.max(1.2, Math.min(40, pince.v.s * d / pince.d)); const wx = (pince.m[0] - pince.v.ox) / pince.v.s, wy = (pince.v.oy - pince.m[1]) / pince.v.s; vue = { s, ox: c[0] - wx * s, oy: c[1] + wy * s }; return rafraichir(false); }
   if (!geste) return; const m = versM(e[0], e[1]);
+  if (geste.genre === "emprise") { const q = arrondi(m); geste.bouge = true; geste.rect = [Math.min(geste.de[0], q[0]), Math.min(geste.de[1], q[1]), Math.max(geste.de[0], q[0]), Math.max(geste.de[1], q[1])]; return rafraichir(false); }
   if (!geste.bouge && Math.hypot(e[0] - geste.e[0], e[1] - geste.e[1]) < 5) return; geste.bouge = true;
   if (calque && S.auto && geste.genre !== "trace") S.auto = false; // un poteau ou une poutre glissé à la main : la trame ne suit plus les voies
   if (geste.genre === "vue") { vue.ox += e[0] - geste.e[0]; vue.oy += e[1] - geste.e[1]; geste.e = e; return rafraichir(false); }
@@ -967,6 +1030,11 @@ function fin(ev) {
   const e = doigts.get(ev.pointerId) || pos(ev); doigts.delete(ev.pointerId);
   if (pince) { if (doigts.size < 2) pince = null; return; }
   const g = geste; geste = null; if (!g) return;
+  if (g.genre === "emprise") {
+    const q = g.rect; modeEmp = false; modes();
+    if (q && q[2] - q[0] >= 8 && q[3] - q[1] >= 8) { const avant = JSON.stringify(S); if (emprise(q)) { passe.push(avant); $("#b-annuler").disabled = false; fiche(); enregistrer(); cadrer(); return; } $("#aide").textContent = "Emprise trop petite pour une implantation"; $("#aide").classList.remove("lu"); }
+    return rafraichir(false);
+  }
   if (g.genre === "rampe") {
     if (!g.bouge) { choixR = g.k; choix = choixN = choixE = -1; }
     else { passe.push(g.avant); $("#b-annuler").disabled = false; const x = calc.rampes[g.k]; if (!x.hors) S.rampes[g.k].p = centre(x.corps); }
@@ -1062,11 +1130,13 @@ $("#b-suppr").addEventListener("click", () => {
   if (calque && (choixN >= 0 || choix >= 0)) { garder(); S.auto = false; }
   if (calque && choixN >= 0) { const r = BR.filter((b) => b.a !== choixN && b.b !== choixN); BR.length = 0; BR.push(...r); NO[choixN] = null; choixN = -1; rafraichir(); fiche(); enregistrer(); return; }
   if (choix < 0) return; if (!calque) garder(); BR.splice(choix, 1); choix = -1; rafraichir(); fiche(); enregistrer(); });
-$("#b-tracer").addEventListener("click", () => { tracer = !tracer; $("#b-tracer").setAttribute("aria-pressed", String(tracer)); cv.style.cursor = tracer ? "crosshair" : "grab"; aide(); });
+function modes() { $("#b-tracer").setAttribute("aria-pressed", String(tracer)); $("#b-emprise").setAttribute("aria-pressed", String(modeEmp)); cv.style.cursor = tracer || modeEmp ? "crosshair" : "grab"; aide(); }
+$("#b-tracer").addEventListener("click", () => { tracer = !tracer; modeEmp = false; modes(); });
+$("#b-emprise").addEventListener("click", () => { modeEmp = !modeEmp; tracer = false; modes(); });
 $("#bilan-det").open = innerWidth > 760;
 cv.addEventListener("pointerdown", () => $("#aide").classList.add("lu"), { passive: true });
 function aide() {
-  $("#aide").classList.remove("lu"); $("#aide").textContent = actif === 2
+  $("#aide").classList.remove("lu"); $("#aide").textContent = modeEmp ? "Tirez un rectangle : il reçoit une première implantation, à affiner ensuite" : actif === 2
     ? (tracer ? "Touchez une rangée pour y poser un escalier" : "Glissez un escalier · touchez-le pour le régler")
     : calque
     ? (tracer ? "Touchez pour poser un poteau · tirez pour tracer une poutre" : "Glissez un poteau : il s'aimante aux lignes des places · touchez-le pour porter ses poutres")

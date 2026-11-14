@@ -1,6 +1,6 @@
 # Parkimo : charte des principes
 
-Version 10 du 14 novembre 2026. Elle intègre les onze décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
+Version 11 du 14 novembre 2026. Elle intègre les onze décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
 
 ## À quoi sert cette charte
 
@@ -216,6 +216,14 @@ Chaque lot est livré et vérifié seul ; le prototype reste utilisable entre de
 ## 13 bis. Surface du plan sur petit écran
 
 Sous 760 px de large (iPhone), le plan prime sur les cartouches. Le bilan est replié au départ en une ligne : nombre de places, principes respectés (en rouge s'il en manque) et un chevron ; un toucher sur la ligne le déplie, et il défile s'il dépasse l'écran. Sur PC et iPad large il reste déplié. La barre basse passe de 106 à 98 px, l'aide s'efface au premier toucher du plan et revient quand on change de calque ou de mode. « Cadrer » mesure la place réellement libre entre le bilan et la barre au lieu d'une marge fixe.
+
+## 13 ter. Emprise et première implantation
+
+Le bouton « Emprise » s'arme, puis on tire un rectangle (au demi-mètre, 8 m minimum de côté) : le plan est remplacé par une première implantation, annulable d'un geste. Le rectangle reste affiché en tirets ; il n'est pas encore un principe mesuré.
+
+Le moteur essaie des implantations en voies parallèles, dans les deux sens : rangées intérieures à 90°, 60° ou 45°, de un à huit modules, rangées de rive de n'importe quelle inclinaison (ou aucune), voie de rattachement en boucle (deux bouts), en peigne (un bout) ou sans, avec ou sans rangée sur elle. Les vingt-quatre plus prometteuses (estimation par longueur de rangée, deux par famille) passent au vrai calcul du moteur ; seules celles qui tiennent entièrement dans le rectangle comptent. Pour les trois qui ont le plus de places, les escaliers sont placés automatiquement, puis on garde celle qui viole le moins de principes, à égalité celle qui a le plus de places. Moins de huit places : l'emprise est refusée et le plan reste intact. Le plan obtenu est ordinaire : voies, rangées, poteaux et escaliers s'affinent avec les modules existants.
+
+Limites : pas de rampe ni de niveaux dans l'implantation (lot 6) ; une seule inclinaison pour toutes les rangées intérieures ; la marge qui reste sur le côté du rectangle n'est pas exploitée.
 
 ## 14. Sources des valeurs de structure et de sécurité
 
