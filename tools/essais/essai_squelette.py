@@ -133,12 +133,12 @@ with sync_playwright() as p:
         # et de chaque escalier un lien jusqu'à la place la plus éloignée qu'il dessert.
         LI = """(() => { const l = calc.liens, R = (x) => +x.toFixed(1), long = (p) => p.slice(1).reduce((t, q, k) => t + Math.hypot(q[0] - p[k][0], q[1] - p[k][1]), 0), pres = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.01;
           return { noeuds: l.noeuds.length, entre: l.entre.map((x) => [x.de, x.vers, R(x.long), R(long(x.pts)), pres(x.pts[0], l.noeuds[x.vers]) && pres(x.pts[x.pts.length - 1], l.noeuds[x.de])]),
-            places: l.places.map((x) => [x.j, R(x.dist), R(long(x.pts)), calc.pl.some((o) => pres(centre(o.q), x.pts[0])) && pres(x.pts[x.pts.length - 1], l.noeuds[x.j])]), max: R(calc.distMax),
+            places: l.places.map((x) => [x.j, R(x.dist), R(long(x.pts)), calc.pl.some((o) => { const c = centre(o.q), d = axePlace(o.q), v = [x.pts[0][0] - c[0], x.pts[0][1] - c[1]]; return Math.abs(v[0] * d[1] - v[1] * d[0]) < 0.01 && Math.hypot(...v) < 8; }) && pres(x.pts[x.pts.length - 1], l.noeuds[x.j])]), max: R(calc.distMax),
             barre: (() => { const b = document.querySelector('#barre').getBoundingClientRect(), f = [...document.querySelectorAll('#barre button')]; return [b.left >= 0 && b.right <= innerWidth, f.every((x) => x.scrollWidth <= x.clientWidth), f.every((x) => x.getBoundingClientRect().height >= 40)]; })() }; })()"""
         li = pg.evaluate(LI); r["liens"] = li; n = e["n"]
         assert li["noeuds"] == n and len(li["places"]) == n and sorted(x[0] for x in li["places"]) == list(range(n)), li
-        assert set(sum(([x[0], x[1]] for x in li["entre"]), [])) == set(range(n)) and all(x[4] and abs(x[2] - x[3]) < 3 for x in li["entre"]), li
-        assert all(x[3] and x[1] <= 40 and abs(x[1] - x[2]) < 3 for x in li["places"]) and max(x[1] for x in li["places"]) == li["max"], li
+        assert set(sum(([x[0], x[1]] for x in li["entre"]), [])) == set(range(n)) and all(x[4] and abs(x[2] - x[3]) < 0.05 for x in li["entre"]), li
+        assert all(x[3] and x[1] <= 40 and abs(x[1] - x[2]) < 0.05 for x in li["places"]) and max(x[1] for x in li["places"]) == li["max"], li
         assert li["barre"] == [True, True, True], li["barre"]
         pg.screenshot(path=str(out / f"{name}-squelette-escaliers.png"))
         # Rien de choisi : la fiche du placement, « Placement automatique » enfoncé.
@@ -288,16 +288,46 @@ with sync_playwright() as p:
         pg.screenshot(path=str(out / f"{name}-emprise.png"))
         pg.click("#b-annuler"); pg.wait_for_timeout(300)
         assert pg.evaluate("[calc.pl.length, S.emprise || null]") == [av[0], av[1]], "annuler ne rend pas le plan d'avant"
-        # Traversées : un piéton passe d'une voie à sa voisine entre les places ; un escalier dessert les travées voisines.
-        TR = """(() => { const sauve = JSON.stringify(S), o = {};
-          S = { ...S, v: 5, noeuds: [[0, 0], [90, 0], [0, 16], [90, 16]], branches: [{ a: 0, b: 1, g: "90", d: "90", pieton: "auto" }, { a: 2, b: 3, g: "90", d: "90", pieton: "auto" }, { a: 0, b: 2, g: "aucun", d: "aucun", pieton: "auto" }], pn: [], pb: [], rampes: [], escAuto: false, auto: true, escaliers: [{ p: [45, 5.5] }], emprise: undefined }; pointer(); calculer();
-          const en_face = calc.pl.filter((q) => q.i === 1 && Math.abs(centre(q.q)[0] - 45) < 6).map((q) => q.dist), meme = calc.pl.filter((q) => q.i === 0 && Math.abs(centre(q.q)[0] - 45) < 6).map((q) => q.dist);
-          o.en_face = Math.min(...en_face); o.meme = Math.min(...meme); o.loin_bout = Math.max(...calc.pl.filter((q) => q.i === 1).map((q) => q.dist));
-          S = JSON.parse(sauve); pointer(); calculer(); return o; })()"""
-        r["traversees"] = pg.evaluate(TR)
-        assert r["traversees"]["en_face"] < 40 and r["traversees"]["meme"] < 15, r["traversees"]
-        r["six_voies"] = pg.evaluate("(() => { const sauve = JSON.stringify(S); const ok = emprise([0, 0, 96, 74]); const o = { ok, escaliers: calc.escaliers.length, viol: calc.principes.filter((p) => !p.ok).length, places: calc.pl.length, ms: placer.ms, voies: S.branches.length }; S = JSON.parse(sauve); pointer(); calculer(); return o; })()")
-        assert r["six_voies"]["ok"] and r["six_voies"]["viol"] == 0 and r["six_voies"]["escaliers"] <= 8, r["six_voies"]
+        # Mesure de l'article PS 13 § 1 : dans l'axe des circulations des véhicules, depuis l'axe de la place (son point de
+        # rencontre avec l'axe de la voie) jusqu'à la porte de l'escalier. 40 m / 25 m en parc enterré, 50 m / 30 m en parc
+        # largement ventilé. Pas de traversée entre les voitures garées.
+        PS = """(() => { const sauve = JSON.stringify(S), o = {}, X = (q) => centre(q)[0];
+          const plan = (br, no, esc, parc) => { S = { ...S, v: 5, noeuds: no, branches: br, pn: [], pb: [], rampes: [], escAuto: false, auto: true, escaliers: esc, parc, emprise: undefined }; cleEsc = null; pointer(); calculer(); };
+          // 1. Une voie seule, un escalier côté gauche : porte à x = 30, à 3 m de l'axe.
+          plan([{ a: 0, b: 1, g: "90", d: "90", pieton: "auto" }], [[0, 0], [60, 0]], [{ p: [30, 5.5] }], "enterre");
+          const porte = calc.escaliers[0].a + 2.5; o.porte = porte;
+          o.ecart90 = Math.max(...calc.pl.filter((q) => q.dist < Infinity).map((q) => Math.abs(q.dist - (Math.abs(X(q.q) - porte) + 3))));
+          o.loin25 = [calc.loin.length, calc.pl.filter((q) => Math.abs(X(q.q) - porte) + 3 > 25.01).length];
+          plan([{ a: 0, b: 1, g: "90", d: "90", pieton: "auto" }], [[0, 0], [60, 0]], [{ p: [30, 5.5] }], "ventile");
+          o.loin30 = [calc.loin.length, calc.pl.filter((q) => Math.abs(X(q.q) - porte) + 3 > 30.01).length];
+          // 2. Places à 45° : le départ est la rencontre de l'axe de la place (son grand côté) avec l'axe de la voie.
+          plan([{ a: 0, b: 1, g: "90", d: "45", pieton: "auto" }], [[0, 0], [60, 0]], [{ p: [30, 5.5] }], "enterre");
+          const p2 = calc.escaliers[0].a + 2.5, cote = (q) => { let m = null; for (let k = 0; k < 4; k++) { const A = q[k], B = q[(k + 1) % 4], l = Math.hypot(B[0] - A[0], B[1] - A[1]); if (!m || l > m.l) m = { l, d: [(B[0] - A[0]) / l, (B[1] - A[1]) / l] }; } return m.d; };
+          o.ecart45 = Math.max(...calc.pl.filter((q) => q.c === "d" && q.dist < Infinity).map((q) => { const c = centre(q.q), d = cote(q.q), s = c[0] - c[1] * d[0] / d[1]; return Math.abs(q.dist - (Math.abs(Math.min(60, Math.max(0, s)) - p2) + Math.abs(s - Math.min(60, Math.max(0, s))) + 3)); }));
+          o.decale45 = calc.pl.filter((q) => q.c === "d").some((q) => Math.abs(q.dist - (Math.abs(X(q.q) - p2) + 3)) > 1);
+          // 3. Deux voies parallèles reliées par une voie à un seul bout : la place d'en face passe par la voie de liaison.
+          plan([{ a: 0, b: 1, g: "90", d: "90", pieton: "auto" }, { a: 2, b: 3, g: "90", d: "90", pieton: "auto" }, { a: 0, b: 2, g: "aucun", d: "aucun", pieton: "auto" }], [[0, 0], [90, 0], [0, 16], [90, 16]], [{ p: [45, 5.5] }], "enterre");
+          const p3 = calc.escaliers[0].a + 2.5, face = calc.pl.filter((q) => q.i === 1);
+          o.ecartFace = Math.max(...face.map((q) => Math.abs(q.dist - (p3 + 16 + Math.abs(X(q.q)) + 3))));
+          S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); return o; })()"""
+        r["ps13"] = pg.evaluate(PS)
+        q_ = r["ps13"]
+        assert q_["ecart90"] < 0.01 and q_["loin25"][0] == q_["loin25"][1] > 0 and q_["loin30"][0] == q_["loin30"][1] < q_["loin25"][0], q_
+        assert q_["ecart45"] < 0.01 and q_["decale45"] and q_["ecartFace"] < 0.01, q_
+        # Le type de parc : dans le calque des escaliers, sans rien de choisi, la fiche porte le choix Enterré / Largement ventilé.
+        if name == "iphone" and not pg.evaluate("document.querySelector('#bilan-det').open"): pass
+        pg.click('#calques button[data-c="2"]'); pg.wait_for_timeout(150)
+        if pg.evaluate("document.querySelector('#fiche').hidden"): pg.mouse.click(*pg.evaluate("versE([200, 200])")); pg.wait_for_timeout(150)
+        PC = "({ parc: S.parc, n: calc.escaliers.length, max: calc.distMax, loin: calc.loin.length, ok: calc.principes.find((p) => p.id === 'escaliers').ok, nom: calc.principes.find((p) => p.id === 'escaliers').nom, boutons: [...document.querySelectorAll('#f-parc button')].map((b) => [b.textContent, b.getAttribute('aria-pressed')]), vu: !document.querySelector('#f-parc').hidden && !document.querySelector('#fiche').hidden })"
+        en = pg.evaluate(PC)
+        assert en["vu"] and en["parc"] == "enterre" and en["boutons"] == [["Enterré", "true"], ["Largement ventilé", "false"]] and en["ok"] and "40 m" in en["nom"], en
+        pg.click('#f-parc button[data-parc="ventile"]'); pg.wait_for_timeout(300)
+        ve = pg.evaluate(PC); r["parc"] = [en, ve]
+        assert ve["parc"] == "ventile" and ve["boutons"][1][1] == "true" and ve["ok"] and ve["n"] <= en["n"] and ve["max"] <= 50 and "50 m" in ve["nom"], ve
+        assert pg.evaluate("JSON.parse(localStorage.getItem('parkimo.squelette.5')).parc") == "ventile"
+        pg.click("#b-annuler"); pg.wait_for_timeout(300)
+        assert pg.evaluate("S.parc") == "enterre" and pg.evaluate("calc.escaliers.length") == en["n"], "annuler ne rend pas le parc enterré"
+        pg.click('#calques button[data-c="0"]'); pg.wait_for_timeout(150)
         # Registre des principes (charte, section 8) : tous respectés sur l'exemple, affichés au bilan.
         PR = "[document.querySelector('#s-principes').textContent, calc.principes.filter(p => !p.ok).map(p => p.id)]"
         r["principes"] = [pg.evaluate(PR), pg.evaluate("calc.principes.length")]
@@ -399,6 +429,8 @@ with sync_playwright() as p:
             if (calc.conflits.length) out.enVoie++; if (calc.genees.length) out.genees++; if (!/continu/.test(document.querySelector('#s-pietons').textContent)) out.reseauCoupe++;
             for (const p of calc.principes) if (!p.ok) out[p.id] = (out[p.id] || 0) + 1; }
           S = JSON.parse(base); pointer(); rafraichir(); return out; })()""")
+        # Sur les plans déformés : jamais de poteau en voie, et aucune poutre au-delà de la portée du système, ni d'escalier trop loin.
+        assert r["alea"]["enVoie"] == 0 and "portee" not in r["alea"] and "escaliers" not in r["alea"], r["alea"]
         n, m = E(33, 8), E(33, 0)
         pg.mouse.move(*n); pg.mouse.down(); pg.mouse.move((n[0] + m[0]) / 2, (n[1] + m[1]) / 2); pg.mouse.move(*m); pg.mouse.up(); pg.wait_for_timeout(300)
         r["poteau_en_voie"] = pg.evaluate(ST)
