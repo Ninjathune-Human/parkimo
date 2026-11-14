@@ -182,18 +182,43 @@ function loger(p, L, B, D) {
   if (best && best.d < 12) return best;
   return { i: -1, L, hors: true, corps: [[p[0] - L / 2, p[1] - 2.5], [p[0] + L / 2, p[1] - 2.5], [p[0] + L / 2, p[1] + 2.5], [p[0] - L / 2, p[1] + 2.5]] };
 }
+// Passages : une place retirée de chaque côté d'une double rangée relie deux voies parallèles adossées. Ce n'est pas une
+// circulation de véhicules : la mesure qui le franchit, d'un axe de voie à l'autre, est une lecture à faire valider.
+// Positions possibles : celles des places d'une rangée à 90° adossée à la rangée d'une voie parallèle.
+function pistes(D) {
+  const out = [], R = S.branches.map((b) => repere(b));
+  S.branches.forEach((bi, i) => { if (bi.rampe) return; const ri = R[i], hi = demi(bi);
+    for (const c of ["g", "d"]) { const t = TYPES[bi[c]], s = c === "g" ? 1 : -1; if (t.angle !== 90 || !t.prof) continue;
+      S.branches.forEach((bj, j) => {
+        if (j <= i || bj.rampe) return; const rj = R[j]; if (Math.abs(ri.u[0] * rj.u[1] - ri.u[1] * rj.u[0]) > 0.02) return;
+        const e = (rj.A[0] - ri.A[0]) * ri.n[0] + (rj.A[1] - ri.A[1]) * ri.n[1], hj = demi(bj); if (Math.sign(e) !== s) return;
+        const cj = (ri.A[0] - rj.A[0]) * rj.n[0] + (ri.A[1] - rj.A[1]) * rj.n[1] > 0 ? "g" : "d", tj = TYPES[bj[cj]];
+        if (!tj.prof || Math.abs(Math.abs(e) - hi - hj - t.prof - tj.prof) > 0.5) return; // deux rangées dos à dos, rien entre elles
+        for (const p of D[i][c].pl) {
+          const a = (p.lo + p.hi) / 2, P = ri.P(a, 0), b = (P[0] - rj.A[0]) * rj.u[0] + (P[1] - rj.A[1]) * rj.u[1]; if (b < 0 || b > rj.L) continue;
+          const Q = rj.P(b, 0), corps = [ri.P(p.lo, s * hi), ri.P(p.hi, s * hi), ri.P(p.hi, e - s * hj), ri.P(p.lo, e - s * hj)];
+          out.push({ i, c, j, a, b, corps, p: centre(corps), w: Math.hypot(P[0] - Q[0], P[1] - Q[1]) });
+        }
+      });
+    }
+  });
+  return out;
+}
+// Un passage enregistré (son centre) retrouve la position possible la plus proche ; il disparaît s'il n'y en a plus.
+const percer = (p, liste) => { let m = null; for (const x of liste) { const d = Math.hypot(x.p[0] - p[0], x.p[1] - p[1]); if (!m || d < m.d) m = { d, x }; } return m && (dans(p, m.x.corps) || m.d < 3) ? m.x : null; };
 // Desserte (article PS 13 § 1) : distance de chaque place à l'escalier le plus proche, et sa limite. La distance se
 // mesure dans l'axe des circulations des véhicules : le réseau est celui des axes des voies (sauf les rampes), qui se
 // rencontrent aux nœuds. Elle part de l'axe de la place, là où il coupe l'axe de sa voie (une place en long, parallèle
 // à la voie, part du droit de son centre), et finit à la porte de l'escalier, à la demi-largeur de la voie de l'axe.
-function desservir(escaliers, pl) {
-  const E = escaliers.filter((x) => !x.hors), N = S.noeuds.length, V = N + E.length, voisins = Array.from({ length: V }, () => []), segs = S.branches.map(() => []);
+function desservir(escaliers, pl, ouverts = []) {
+  const E = escaliers.filter((x) => !x.hors), N = S.noeuds.length, NE = N + E.length, V = NE + 2 * ouverts.length, voisins = Array.from({ length: V }, () => []), segs = S.branches.map(() => []);
   const R = S.branches.map((b) => repere(b)), L = lim();
   const lier = (u, v, w, i, au, av) => { voisins[u].push([v, w, i, au, av]); voisins[v].push([u, w, i, av, au]); };
   S.branches.forEach((b, i) => {
-    if (b.rampe) return; const pts = [{ v: b.a, a: 0 }, ...E.map((x, j) => ({ v: N + j, a: x.a + ESCALIER.long / 2, i: x.i })).filter((o) => o.i === i).sort((o, q) => o.a - q.a), { v: b.b, a: R[i].L }];
+    if (b.rampe) return; const pts = [{ v: b.a, a: 0 }, ...[...E.map((x, j) => ({ v: N + j, a: x.a + ESCALIER.long / 2, i: x.i })).filter((o) => o.i === i), ...ouverts.flatMap((x, k) => (x.i === i ? [{ v: NE + 2 * k, a: x.a }] : x.j === i ? [{ v: NE + 2 * k + 1, a: x.b }] : []))].sort((o, q) => o.a - q.a), { v: b.b, a: R[i].L }];
     for (let k = 1; k < pts.length; k++) { lier(pts[k - 1].v, pts[k].v, Math.abs(pts[k].a - pts[k - 1].a), i, pts[k - 1].a, pts[k].a); segs[i].push({ i, u: pts[k - 1], v: pts[k] }); }
   });
+  ouverts.forEach((x, k) => lier(NE + 2 * k, NE + 2 * k + 1, x.w, -1)); // le passage, d'un axe de voie à l'autre
   // Depuis chaque escalier : distance à tout sommet, le sommet suivant sur le chemin qui y mène, et le tronçon parcouru.
   const cartes = E.map((x, j) => {
     const dist = Array(V).fill(Infinity), vers = Array(V).fill(-1), pas = Array(V).fill(null), fait = Array(V).fill(false); dist[N + j] = 0;
@@ -207,10 +232,10 @@ function desservir(escaliers, pl) {
   const fil = (troncons) => troncons.flatMap((t) => [R[t.i].P(t.de, 0), R[t.i].P(t.a, 0)]).filter((p, k, l) => !k || Math.hypot(p[0] - l[k - 1][0], p[1] - l[k - 1][1]) > 1e-6);
   const liens = { noeuds: cartes.map((m) => m.seuil), entre: [], places: [] }, bouts = cartes.map(() => null);
   cartes.forEach((m, j) => { for (let k = j + 1; k < E.length; k++) {
-    if (m.dist[N + k] === Infinity) continue; let libre = true; for (let c = m.vers[N + k]; c !== N + j; c = m.vers[c]) if (c >= N) libre = false; // un autre escalier sur le chemin : ces deux-là ne sont pas voisins
+    if (m.dist[N + k] === Infinity) continue; let libre = true; for (let c = m.vers[N + k]; c !== N + j; c = m.vers[c]) if (c >= N && c < NE) libre = false; // un autre escalier sur le chemin : ces deux-là ne sont pas voisins
     if (libre) liens.entre.push({ de: j, vers: k, long: m.dist[N + k] + m.porte + cartes[k].porte, pts: [cartes[k].seuil, ...fil(trajet(m, N + k)), m.seuil] });
   } });
-  let max = 0; const loin = [];
+  let max = 0; const loin = [], usage = ouverts.map(() => 0); // usage : nombre de places dont le chemin franchit chaque passage
   for (const o of pl) {
     // Départ : l'axe de la place (la direction de son grand côté) coupe l'axe de la voie ; au-delà d'un bout de la voie,
     // le chemin rejoint d'abord ce bout.
@@ -220,7 +245,7 @@ function desservir(escaliers, pl) {
     if (sg) {
       const voies = cartes.map((m, j) => { const du = Math.abs(a - sg.u.a) + m.dist[sg.u.v], dv = Math.abs(sg.v.a - a) + m.dist[sg.v.v]; return { j, d: Math.min(du, dv) + pas + m.porte, par: du <= dv ? sg.u : sg.v }; }).filter((x) => x.d < Infinity).sort((x, y) => x.d - y.d);
       if (voies.length) {
-        const un = voies[0], m1 = cartes[un.j]; o.dist = un.d; o.vers = { j: un.j, a, par: un.par, c: r.P(brut, 0) }; // c : le départ de la mesure, sur l'axe de la voie
+        const un = voies[0], m1 = cartes[un.j]; o.dist = un.d; for (let c = un.par.v; c >= 0 && c !== N + un.j; c = m1.vers[c]) if (c >= NE) usage[(c - NE) >> 1]++; o.vers = { j: un.j, a, par: un.par, c: r.P(brut, 0) }; // c : le départ de la mesure, sur l'axe de la voie
         // Entre deux escaliers : un autre se gagne par l'autre bout. Sinon cul-de-sac : il garde 40 m s'il fait 25 m au plus
         // jusqu'au point où les chemins vers deux escaliers se séparent.
         if (voies.some((x) => x.par !== un.par)) o.limite = L.dist;
@@ -232,7 +257,7 @@ function desservir(escaliers, pl) {
   }
   // De chaque escalier, la place la plus éloignée qu'il dessert.
   bouts.forEach((o, j) => { if (o) liens.places.push({ j, dist: o.dist, pts: [o.vers.c, ...fil([{ i: o.i, de: o.vers.a, a: o.vers.par.a }, ...trajet(cartes[j], o.vers.par.v)]), cartes[j].seuil] }); });
-  return { max, loin, liens };
+  return { max, loin, liens, usage };
 }
 // S de raccord partant de P dans le sens T et se décalant de GIR.dv vers N : son axe et les quadrilatères qu'il balaie.
 function raccord(P, T, N) {
@@ -453,7 +478,7 @@ function horsPlace(p) {
 let cleEsc = "";
 function placer() {
   const cle = JSON.stringify([S.noeuds, S.branches, S.rampes || [], S.systeme, S.parc]); if (cle === cleEsc) return; cleEsc = cle;
-  const t0 = performance.now(); S.escaliers = []; mesurer();
+  const t0 = performance.now(); S.escaliers = []; S.passages = []; mesurer();
   const pl = calc.pl, libres = calc.emprises.filter((e) => e.nature !== "place"), cands = [], R = S.branches.map((b) => repere(b));
   S.branches.forEach((b, i) => { for (const c of ["g", "d"]) {
     const t = TYPES[b[c]]; if (t.prof < 4 || b.rampe) continue; const r = R[i], s = c === "g" ? 1 : -1, h = demi(b), vus = new Set(), ici = pl.filter((o) => o.i === i && o.c === c).map((o) => centre(o.q));
@@ -463,59 +488,87 @@ function placer() {
       cands.push({ x, rang: `${i}${c}`, k: vus.size });
     }
   } });
-  // De chaque position seule : la distance de chaque place, et le sens dans lequel elle part le long de sa voie.
-  for (const c of cands) { desservir([c.x], pl); c.d = pl.map((o) => o.dist); c.sens = pl.map((o) => (o.vers ? Math.sign(o.vers.par.a - o.vers.a) || 1 : 0)); }
-  // Fond d'un cul-de-sac : toutes les positions à plus de 25 m sont du même côté, et le premier carrefour de ce côté est
-  // trop loin pour que deux escaliers s'y séparent à temps. Une telle place veut un escalier à 25 m, quoi qu'on pose ailleurs.
-  const deg = S.noeuds.map((_, n) => S.branches.filter((b) => !b.rampe && (b.a === n || b.b === n)).length);
-  const carrefour = (i, a, sens) => { let n = sens > 0 ? S.branches[i].b : S.branches[i].a, long = sens > 0 ? R[i].L - a : a;
-    for (let tour = 0; deg[n] === 2 && tour < S.branches.length; tour++) { const j = S.branches.findIndex((o, k) => k !== i && !o.rampe && (o.a === n || o.b === n)); i = j; long += R[j].L; n = S.branches[j].a === n ? S.branches[j].b : S.branches[j].a; }
-    return deg[n] >= 3 ? long : Infinity; };
-  const L = lim(), rayon = pl.map((o, j) => { const sens = cands.filter((c) => c.d[j] > L.impasse + 0.01 && c.d[j] < Infinity).map((c) => c.sens[j]); if (sens.some((v) => v !== sens[0])) return L.dist;
-    const r = R[o.i], q = centre(o.q), a = Math.min(r.L, Math.max(0, (q[0] - r.A[0]) * r.u[0] + (q[1] - r.A[1]) * r.u[1])); return !sens.length || carrefour(o.i, a, sens[0]) > L.impasse + 6 ? L.impasse : L.dist; });
-  // Les places qu'aucune position ne dessert restent hors de portée : elles ne comptent pas dans la recherche.
-  const J = pl.map((_, j) => j).filter((j) => cands.some((c) => c.d[j] <= rayon[j] + 0.01)), P = J.map((j) => pl[j]), N = J.length;
-  for (const c of cands) { c.d = J.map((j) => c.d[j]); c.couv = Uint8Array.from(c.d, (v, k) => (v <= rayon[J[k]] + 0.01 ? 1 : 0)); c.somme = c.d.reduce((t, v) => t + Math.min(v, 200), 0); }
-  const gros = cands.filter((c) => c.k % 2 === 1), ordre = P.map((_, j) => j).sort((a, b) => gros.reduce((t, c) => t + c.couv[a] - c.couv[b], 0)); // d'abord la place que le moins de positions desservent
-  const juges = new Map(); let budget = 500, pas = 0, sols = [];
-  const juger = (l) => { const cle = l.map((c) => cands.indexOf(c)).sort((a, b) => a - b).join(); if (!juges.has(cle)) { budget--; const r = desservir(l.map((c) => c.x), P); juges.set(cle, { l, max: r.max, loin: r.loin.length ? P.findIndex((o) => o.q === r.loin[0]) : -1, neuf: true }); } else juges.get(cle).neuf = false; return juges.get(cle); };
-  let fin = t0 + 1500; // l'essai exhaustif est borné en temps : au-delà, la recherche gloutonne prend le relais
-  const chercher = (l, reste, nb, k) => {
-    if (budget <= 0 || pas++ > 6000 || sols.length >= 40 || performance.now() > fin) return;
-    if (!nb) { // toutes desservies à leur rayon : la mesure tranche ; une place encore en défaut veut un escalier à 25 m
-      const r = juger(l); if (!r.neuf) return; if (r.loin < 0) { sols.push(r); return; }
-      if (l.length < k) for (const c of gros.filter((c) => !l.includes(c) && c.d[r.loin] <= L.impasse).sort((a, b) => a.d[r.loin] - b.d[r.loin])) chercher([...l, c], reste, 0, k);
-      return;
+  const ouvrables = pistes(calc.D).filter((x) => pl.some((o) => o.i === x.i && o.c === x.c && recouvre(o.q, x.corps))); // un passage ne s'ouvre que là où il y a une place à retirer
+  const deg = S.noeuds.map((_, n) => S.branches.filter((b) => !b.rampe && (b.a === n || b.b === n)).length), L = lim();
+  let mesures = 0;
+  // La recherche du plus petit nombre d'escaliers, les passages `ouverts` étant franchissables. Bornée par l'heure `fin`.
+  const recherche = (ouverts, finVoulue) => {
+    const cs = cands.map((c) => ({ ...c })), croix = S.branches.map(() => []); for (const x of ouverts) { croix[x.i].push(x.a); croix[x.j].push(x.b); }
+    // De chaque position seule : la distance de chaque place, et le sens dans lequel elle part le long de sa voie.
+    for (const c of cs) { desservir([c.x], pl, ouverts); c.d = pl.map((o) => o.dist); c.sens = pl.map((o) => (o.vers ? Math.sign(o.vers.par.a - o.vers.a) || 1 : 0)); }
+    // Fond d'un cul-de-sac : toutes les positions à plus de 25 m sont du même côté, et le premier carrefour (ou passage) de ce
+    // côté est trop loin pour que deux escaliers s'y séparent à temps. Une telle place veut un escalier à 25 m.
+    const carrefour = (i, a, sens) => { let pres = Infinity; for (const e of croix[i]) { const d = sens > 0 ? e - a : a - e; if (d > 0.01) pres = Math.min(pres, d); }
+      let n = sens > 0 ? S.branches[i].b : S.branches[i].a, long = sens > 0 ? R[i].L - a : a;
+      for (let tour = 0; deg[n] === 2 && tour < S.branches.length; tour++) { const j = S.branches.findIndex((o, k) => k !== i && !o.rampe && (o.a === n || o.b === n)); i = j; long += R[j].L; n = S.branches[j].a === n ? S.branches[j].b : S.branches[j].a; }
+      return Math.min(pres, deg[n] >= 3 ? long : Infinity); };
+    const rayon = pl.map((o, j) => { const sens = cs.filter((c) => c.d[j] > L.impasse + 0.01 && c.d[j] < Infinity).map((c) => c.sens[j]); if (sens.some((v) => v !== sens[0])) return L.dist;
+      const r = R[o.i], q = centre(o.q), a = Math.min(r.L, Math.max(0, (q[0] - r.A[0]) * r.u[0] + (q[1] - r.A[1]) * r.u[1])); return !sens.length || carrefour(o.i, a, sens[0]) > L.impasse + 6 ? L.impasse : L.dist; });
+    // Les places qu'aucune position ne dessert restent hors de portée : elles ne comptent pas dans la recherche.
+    const J = pl.map((_, j) => j).filter((j) => cs.some((c) => c.d[j] <= rayon[j] + 0.01)), P = J.map((j) => pl[j]), N = J.length;
+    for (const c of cs) { c.d = J.map((j) => c.d[j]); c.couv = Uint8Array.from(c.d, (v, k) => (v <= rayon[J[k]] + 0.01 ? 1 : 0)); c.somme = c.d.reduce((t, v) => t + Math.min(v, 200), 0); }
+    const gros = cs.filter((c) => c.k % 2 === 1), ordre = P.map((_, j) => j).sort((a, b) => gros.reduce((t, c) => t + c.couv[a] - c.couv[b], 0)); // d'abord la place que le moins de positions desservent
+    const juges = new Map(); let budget = 500, pas = 0, sols = [], fin = finVoulue;
+    const juger = (l) => { const cle = l.map((c) => cs.indexOf(c)).sort((a, b) => a - b).join(); if (!juges.has(cle)) { budget--; mesures++; const r = desservir(l.map((c) => c.x), P, ouverts); juges.set(cle, { l, max: r.max, loin: r.loin.length ? P.findIndex((o) => o.q === r.loin[0]) : -1, neuf: true }); } else juges.get(cle).neuf = false; return juges.get(cle); };
+    const chercher = (l, reste, nb, k) => {
+      if (budget <= 0 || pas++ > 6000 || sols.length >= 40 || performance.now() > fin) return;
+      if (!nb) { // toutes desservies à leur rayon : la mesure tranche ; une place encore en défaut veut un escalier à 25 m
+        const r = juger(l); if (!r.neuf) return; if (r.loin < 0) { sols.push(r); return; }
+        if (l.length < k) for (const c of gros.filter((c) => !l.includes(c) && c.d[r.loin] <= L.impasse).sort((a, b) => a.d[r.loin] - b.d[r.loin])) chercher([...l, c], reste, 0, k);
+        return;
+      }
+      if (l.length === k) return;
+      const cible = ordre.find((j) => reste[j]), gain = (c) => { let g = 0; for (let j = 0; j < N; j++) g += reste[j] & c.couv[j]; return g; };
+      if (Math.max(...gros.map(gain)) * (k - l.length) < nb) return; // même les meilleures positions n'y suffiraient pas
+      for (const c of gros.filter((c) => c.couv[cible] && !l.includes(c)).map((c) => [c, gain(c)]).sort((a, b) => b[1] - a[1])) {
+        const r2 = reste.slice(); let n2 = nb; for (let j = 0; j < N; j++) if (r2[j] && c[0].couv[j]) { r2[j] = 0; n2--; }
+        chercher([...l, c[0]], r2, n2, k);
+      }
+    };
+    for (let k = 1; k <= 12 && !sols.length && budget > 0 && pas <= 6000 && N; k++) chercher([], new Uint8Array(N).fill(1), N, k);
+    const abrege = !sols.length || budget <= 0 || pas > 6000 || performance.now() > fin; // faute d'avoir tout essayé, le nombre trouvé n'est pas garanti le plus petit
+    if (!sols.length && N) { // recherche épuisée : de proche en proche la position qui dessert le plus de places, puis on retire les escaliers de trop
+      let l = []; const reste = new Uint8Array(N).fill(1), g = (c) => c.couv.reduce((t, v, j) => t + (reste[j] & v), 0);
+      for (;;) { const c = cs.filter((c) => !l.includes(c)).sort((a, b) => g(b) - g(a))[0]; if (!c || !g(c) || l.length >= 40) break; l.push(c); c.couv.forEach((v, j) => { if (v) reste[j] = 0; }); }
+      for (let r = juger(l), tour = 0; r.loin >= 0 && tour < 20; tour++) { const c = cs.filter((c) => !l.includes(c) && c.d[r.loin] <= L.impasse).sort((a, b) => a.d[r.loin] - b.d[r.loin])[0]; if (!c) break; l = [...l, c]; r = juger(l); }
+      if (juger(l).loin < 0) for (let m = l.length - 1; m >= 0; m--) { const sans = l.filter((_, k) => k !== m); if (sans.length && juger(sans).loin < 0) l = sans; }
+      if (l.length) sols.push(juger(l));
+      // Sur un grand plan : on retranche un escalier tant qu'une implantation plus courte existe, chaque essai étant borné.
+      for (let k = l.length - 1; k >= 1 && sols.length && sols[0].loin < 0; k--) { const garde = sols; sols = []; budget = 80; pas = 0; fin = performance.now() + 500; chercher([], new Uint8Array(N).fill(1), N, k); if (!sols.length) { sols = garde; break; } }
     }
-    if (l.length === k) return;
-    const cible = ordre.find((j) => reste[j]), gain = (c) => { let g = 0; for (let j = 0; j < N; j++) g += reste[j] & c.couv[j]; return g; };
-    if (Math.max(...gros.map(gain)) * (k - l.length) < nb) return; // même les meilleures positions n'y suffiraient pas
-    for (const c of gros.filter((c) => c.couv[cible] && !l.includes(c)).map((c) => [c, gain(c)]).sort((a, b) => b[1] - a[1])) {
-      const r2 = reste.slice(); let n2 = nb; for (let j = 0; j < N; j++) if (r2[j] && c[0].couv[j]) { r2[j] = 0; n2--; }
-      chercher([...l, c[0]], r2, n2, k);
-    }
+    // Affinage : chaque escalier essaie les positions voisines de sa rangée tant que la plus longue distance diminue.
+    sols.sort((a, b) => a.max - b.max); sols = sols.slice(0, 3).map((so) => ({ ...so })); budget = 300;
+    for (const so of sols) for (let tour = 0, mieux = true; mieux && tour < 20 && budget > 0 && so.loin < 0; tour++) { mieux = false;
+      so.l.forEach((c, m) => { for (const v of cs.filter((o) => o.rang === c.rang && Math.abs(o.k - so.l[m].k) === 1 && !so.l.includes(o))) { const l = so.l.slice(); l[m] = v; const r = juger(l); if (r.loin < 0 && r.max < so.max - 1e-6) { so.l = l; so.max = r.max; mieux = true; } } }); }
+    sols.sort((a, b) => a.max - b.max);
+    return { sols, abrege, N, k: sols.length ? sols[0].l.length : 0 };
   };
-  for (let k = 1; k <= 12 && !sols.length && budget > 0 && pas <= 6000 && N; k++) chercher([], new Uint8Array(N).fill(1), N, k);
-  placer.abrege = !sols.length || budget <= 0 || pas > 6000 || performance.now() > fin; // faute d'avoir tout essayé, le nombre trouvé n'est pas garanti le plus petit
-  if (!sols.length && N) { // recherche épuisée : de proche en proche la position qui dessert le plus de places, puis on retire les escaliers de trop
-    let l = []; const reste = new Uint8Array(N).fill(1), g = (c) => c.couv.reduce((t, v, j) => t + (reste[j] & v), 0);
-    for (;;) { const c = cands.filter((c) => !l.includes(c)).sort((a, b) => g(b) - g(a))[0]; if (!c || !g(c) || l.length >= 40) break; l.push(c); c.couv.forEach((v, j) => { if (v) reste[j] = 0; }); }
-    for (let r = juger(l), tour = 0; r.loin >= 0 && tour < 20; tour++) { const c = cands.filter((c) => !l.includes(c) && c.d[r.loin] <= L.impasse).sort((a, b) => a.d[r.loin] - b.d[r.loin])[0]; if (!c) break; l = [...l, c]; r = juger(l); }
-    if (juger(l).loin < 0) for (let m = l.length - 1; m >= 0; m--) { const sans = l.filter((_, k) => k !== m); if (sans.length && juger(sans).loin < 0) l = sans; }
-    if (l.length) sols.push(juger(l));
-    // Sur un grand plan : on retranche un escalier tant qu'une implantation plus courte existe, chaque essai étant borné.
-    for (let k = l.length - 1; k >= 1 && sols.length && sols[0].loin < 0; k--) { const garde = sols; sols = []; budget = 80; pas = 0; fin = performance.now() + 500; chercher([], new Uint8Array(N).fill(1), N, k); if (!sols.length) { sols = garde; break; } }
+  // D'abord sans passage. Puis tous les passages ouverts : s'ils permettent un escalier de moins, on garde ces escaliers et
+  // l'on referme un à un les passages dont on peut se passer, les moins empruntés d'abord (le moins d'escaliers, puis le
+  // moins de passages).
+  let choix = recherche([], t0 + 1500), ouverts = []; placer.k = [choix.k, null]; let abrege = choix.abrege;
+  if (ouvrables.length && choix.k > 1) {
+    const B = recherche(ouvrables, performance.now() + 1000); placer.k[1] = B.k; abrege = abrege || B.abrege;
+    if (B.sols.length && B.k < choix.k) {
+      const X = B.sols[0].l.map((c) => c.x), large = (x) => [x.r.P(x.a, x.s * x.h), x.r.P(x.a + 2 * ESCALIER.long, x.s * x.h), x.r.P(x.a + 2 * ESCALIER.long, x.s * (x.h + x.prof)), x.r.P(x.a, x.s * (x.h + x.prof))]; // la place que prendrait l'escalier principal
+      const seuil = desservir(X, pl, ouvrables).loin.length, tient = (l) => desservir(X, pl, l).loin.length <= seuil;
+      let garde = ouvrables.filter((x) => !X.some((y) => recouvre(x.corps, large(y))));
+      if (tient(garde)) {
+        const utiles = garde.filter((_, k) => desservir(X, pl, garde).usage[k]); if (tient(utiles)) garde = utiles;
+        const u = desservir(X, pl, garde).usage; for (const x of garde.map((x, k) => [x, u[k]]).sort((a, b) => a[1] - b[1]).map((e) => e[0])) { const sans = garde.filter((y) => y !== x); if (tient(sans)) garde = sans; }
+        choix = B; ouverts = garde;
+      }
+    }
   }
-  // Affinage : chaque escalier essaie les positions voisines de sa rangée tant que la plus longue distance diminue.
-  sols.sort((a, b) => a.max - b.max); sols = sols.slice(0, 3).map((so) => ({ ...so })); budget = 300;
-  for (const so of sols) for (let tour = 0, mieux = true; mieux && tour < 20 && budget > 0 && so.loin < 0; tour++) { mieux = false;
-    so.l.forEach((c, m) => { for (const v of cands.filter((o) => o.rang === c.rang && Math.abs(o.k - so.l[m].k) === 1 && !so.l.includes(o))) { const l = so.l.slice(); l[m] = v; const r = juger(l); if (r.loin < 0 && r.max < so.max - 1e-6) { so.l = l; so.max = r.max; mieux = true; } } }); }
-  sols.sort((a, b) => a.max - b.max);
+  placer.abrege = abrege;
+  const sols = choix.sols, N = choix.N;
   // L'escalier principal : le plus central qui ait la place de ses ascenseurs. Le plan entier est mesuré avec lui.
-  const poser = (so, m) => { S.escaliers = so.l.map((c, k) => (k === m ? { p: c.x.r.P(c.x.a + ESCALIER.long, c.x.s * (c.x.h + c.x.prof / 2)), principal: true } : { p: centre(c.x.corps) })); mesurer(); return !calc.escHors && calc.loin.length <= pl.length - N && calc.escaliers[m].a === so.l[m].x.a; };
+  const poser = (so, m) => { S.escaliers = so.l.map((c, k) => (k === m ? { p: c.x.r.P(c.x.a + ESCALIER.long, c.x.s * (c.x.h + c.x.prof / 2)), principal: true } : { p: centre(c.x.corps) })); S.passages = ouverts.map((x) => ({ p: x.p })); mesurer(); return !calc.escHors && calc.loin.length <= pl.length - N && calc.escaliers[m].a === so.l[m].x.a; };
   let fait = false; for (const so of sols) { const centraux = so.l.map((c, m) => m).sort((a, b) => so.l[a].somme - so.l[b].somme); for (const m of centraux) if (poser(so, m)) { fait = true; break; } if (fait) break; }
   if (!fait && sols.length) poser(sols[0], 0);
-  placer.ms = performance.now() - t0; placer.mesures = juges.size; placer.positions = cands.length;
+  // Sur le plan réel, escalier principal compris : chaque passage dont on peut encore se passer est refermé.
+  if (fait && S.passages.length) { const base = calc.loin.length; for (const x of S.passages.slice()) { const avant = S.passages; S.passages = avant.filter((y) => y !== x); mesurer(); if (calc.loin.length > base || calc.escHors) S.passages = avant; } mesurer(); }
+  placer.ms = performance.now() - t0; placer.mesures = mesures; placer.positions = cands.length;
 }
 function calculer() {
   if (S.escAuto && !geste) placer(); // pendant un geste, les escaliers gardent leur place ; ils se replacent quand il s'achève
@@ -584,6 +637,11 @@ function mesurer() {
   const escaliers = (S.escaliers || []).map((e) => { const x = loger(e.p, (e.principal ? 2 : 1) * ESCALIER.long, B, D); x.principal = !!e.principal; return x; });
   for (const x of escaliers) { if (x.hors) continue; E.push({ nature: "noyau", genre: "escalier", q: x.corps });
     const b = S.branches[x.i], c = bandeDe(b), ap = x.a + ESCALIER.long / 2; if (pw(b, c) && c !== x.c) for (let v = -x.h + 0.25; v + 0.5 <= x.h + 1e-9; v += 1) zebres.push([x.r.P(ap - BANDE / 2, v), x.r.P(ap - BANDE / 2, v + 0.5), x.r.P(ap + BANDE / 2, v + 0.5), x.r.P(ap + BANDE / 2, v)]); }
+  // Passages : ils font céder les places de la double rangée ; un noyau d'escalier les ferme. Rayés comme un passage piéton.
+  const Pi = pistes(D), passages = (S.passages || []).map((e) => percer(e.p, Pi)).filter((x, k, l) => x && l.indexOf(x) === k && !escaliers.some((y) => !y.hors && recouvre(x.corps, y.corps)));
+  for (const x of passages) { E.push({ nature: "pieton", genre: "passage", q: x.corps });
+    const [A, B1, , D1] = x.corps, lu = Math.hypot(B1[0] - A[0], B1[1] - A[1]), lv = Math.hypot(D1[0] - A[0], D1[1] - A[1]), u = [(B1[0] - A[0]) / lu, (B1[1] - A[1]) / lu], v = [(D1[0] - A[0]) / lv, (D1[1] - A[1]) / lv], P = (a, t) => [A[0] + u[0] * a + v[0] * t, A[1] + u[1] * a + v[1] * t];
+    for (let t = 0.25; t + 0.5 <= lv + 1e-9; t += 1) zebres.push([P(0.4, t), P(lu - 0.4, t), P(lu - 0.4, t + 0.5), P(0.4, t + 0.5)]); }
   for (const i of ordre) { const b = S.branches[i]; for (const c of ["g", "d"]) { if (!TYPES[b[c]].prof) continue; const q = quad(i, c, 2, 3), droit = TYPES[b[c]].angle === 90; bandes.push(q); rangees.push({ i, q });
     for (const p of droit ? D[i][c].pl : places(b, c, q)) { if ((droit && !tient(p, q)) || cedeQuad(p, "place", E)) continue; p.tenue = true; pl.push({ i, c, q: p }); E.push({ nature: "place", genre: "place", i, q: p }); } } }
   D.forEach((x, i) => { for (const c of ["g", "d"]) for (const o of x[c].ap) if (o.v.some((p) => p.tenue)) appuis.push({ i, c, a: o.a }); });
@@ -607,8 +665,9 @@ function mesurer() {
   $("#s-structure").textContent = pot.length ? `${pot.length} poteaux · ${portee.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m${conflits.length ? ` · ${conflits.length} en voie` : ""}` : "–";
   $("#s-structure").style.color = conflits.length ? css("--rouge") : "";
   // Desserte : distance de chaque place à un escalier, dès qu'il y en a un.
-  const des = escaliers.some((x) => !x.hors) ? desservir(escaliers, pl) : { max: 0, loin: [], liens: { noeuds: [], entre: [], places: [] } }; calc.distMax = des.max; calc.loin = des.loin; calc.liens = des.liens; calc.liens.de = escaliers.map((x, k) => k).filter((k) => !escaliers[k].hors); calc.sansEscalier = !escaliers.length && pl.length > 0;
-  $("#s-escaliers").textContent = escaliers.length ? `${escaliers.length} · ${Math.ceil(des.max - 0.01)} m${des.loin.length ? ` · ${des.loin.length} trop loin` : " au plus"}${calc.escHors ? ` · ${calc.escHors} à replacer` : ""}` : pl.length ? "aucun" : "–";
+  calc.passagesP = passages; const np = passages.length, tp = np ? ` · ${np} passage${np > 1 ? "s" : ""}` : "";
+  const des = escaliers.some((x) => !x.hors) ? desservir(escaliers, pl, passages) : { max: 0, loin: [], liens: { noeuds: [], entre: [], places: [] } }; calc.distMax = des.max; calc.loin = des.loin; calc.liens = des.liens; calc.liens.de = escaliers.map((x, k) => k).filter((k) => !escaliers[k].hors); calc.sansEscalier = !escaliers.length && pl.length > 0;
+  $("#s-escaliers").textContent = escaliers.length ? `${escaliers.length}${tp} · ${Math.ceil(des.max - 0.01)} m${des.loin.length ? ` · ${des.loin.length} trop loin` : " au plus"}${calc.escHors ? ` · ${calc.escHors} à replacer` : ""}` : pl.length ? "aucun" : "–";
   $("#s-escaliers").style.color = des.loin.length || calc.escHors || calc.sansEscalier ? css("--rouge") : "";
   // Contreventement : des travées remplies en maçonnerie dans deux sens (deux directions nettement distinctes).
   const murs = S.pb.filter((b) => b.plein).map((b) => repere(b, S.pn).u), sens = !murs.length ? 0 : murs.some((u) => Math.abs(u[0] * murs[0][1] - u[1] * murs[0][0]) > 0.5) ? 2 : 1;
@@ -794,7 +853,7 @@ function construire(c, r) {
   return { noeuds, branches };
 }
 function emprise(r) {
-  const sauve = JSON.stringify(S), base = JSON.parse(sauve), cible = (c) => { S = { ...base, ...construire(c, r), pn: [], pb: [], rampes: [], escaliers: [], escAuto: false, auto: true, emprise: r }; cleEsc = null; pointer(); calculer(); };
+  const sauve = JSON.stringify(S), base = JSON.parse(sauve), cible = (c) => { S = { ...base, ...construire(c, r), pn: [], pb: [], rampes: [], escaliers: [], passages: [], escAuto: false, auto: true, emprise: r }; cleEsc = null; pointer(); calculer(); };
   const dedans = () => { const Q = [...calc.ch, ...calc.bandes, ...calc.pl.map((p) => p.q)].flat(); return Math.min(...Q.map((p) => p[0])) >= r[0] - 0.05 && Math.max(...Q.map((p) => p[0])) <= r[2] + 0.05 && Math.min(...Q.map((p) => p[1])) >= r[1] - 0.05 && Math.max(...Q.map((p) => p[1])) <= r[3] + 0.05; };
   const vus = {}, tous = candidates(r).sort((a, b) => b.est - a.est).filter((c) => { const k = [c.o, c.T, c.n, c.forme, c.ec].join(); vus[k] = (vus[k] || 0) + 1; return vus[k] <= 2; }).slice(0, 24), tenus = [];
   for (const c of tous) { cible(c); if (dedans()) tenus.push({ c, n: calc.pl.length }); }
@@ -1087,7 +1146,7 @@ function fiche() {
     $("#fiche").hidden = !ficheTrame; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = $("#b-suppr").hidden = true; $("#f-escauto").hidden = $("#f-parc").hidden = false; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
     for (const x of $("#f-parc").children) x.setAttribute("aria-pressed", String(x.dataset.parc === (PARCS[S.parc] ? S.parc : "enterre")));
     const n = calc ? calc.escaliers.length : 0; $("#b-escauto").setAttribute("aria-pressed", String(!!S.escAuto));
-    $("#f-long").textContent = (n ? `${n} escalier${n > 1 ? "s" : ""}` : "Aucun escalier") + (S.escAuto ? ` · suit le plan${placer.abrege ? " · recherche abrégée" : ""}` : " · à la main"); return;
+    const np = calc ? calc.passagesP.length : 0; $("#f-long").textContent = (n ? `${n} escalier${n > 1 ? "s" : ""}` : "Aucun escalier") + (np ? ` · ${np} passage${np > 1 ? "s" : ""}` : "") + (S.escAuto ? ` · suit le plan${placer.abrege ? " · recherche abrégée" : ""}` : " · à la main"); return;
   }
   const poteau = calque && choixN >= 0 && NO[choixN], b = BR[choix];
   const libre = !!calque && !b && !poteau && ficheTrame; // rien de choisi dans la structure : la fiche est celle de la trame entière
@@ -1159,7 +1218,7 @@ addEventListener("keydown", (ev) => { if ((ev.ctrlKey || ev.metaKey) && ev.key =
 try { const s = JSON.parse(localStorage.getItem("parkimo.squelette.5") || "null"); if (s && s.noeuds && s.branches) S = s; } catch (e) { /* stockage indisponible */ }
 // L'exemple d'avant la décision 8 (module de 15 m), resté tel quel, laisse la place au nouveau (module de 16 m).
 const EXEMPLE = (y) => ({ noeuds: [[0, 0], [60, 0], [60, y], [0, y], [90, 0]], branches: [{ a: 0, b: 1, g: "90", d: "90", pieton: "auto" }, { a: 1, b: 2, g: "aucun", d: "90", pieton: "auto" }, { a: 2, b: 3, g: "90", d: "90", pieton: "auto" }, { a: 3, b: 0, g: "aucun", d: "90", pieton: "auto" }, { a: 1, b: 4, g: "60", d: "45", pieton: "auto" }], pn: [], pb: [],
-  escaliers: [], escAuto: true }); // ses escaliers viennent du placement automatique
+  escaliers: [], passages: [], escAuto: true }); // ses escaliers et ses passages viennent du placement automatique
 // Resté tel quel avec les escaliers publiés à la main, il passe lui aussi au placement automatique.
 const publies = [[[27, 21.5], [52.5, -5.5], [76, -4.4], [-5.5, 8]], [[24.5, 21.5], [47.5, -5.5], [76, -4.4], [-5.5, 8]]].map((l) => JSON.stringify(l));
 const ancien = (S.v || 0) < 5 && [15, 16].some((y) => JSON.stringify([S.noeuds, S.branches]) === JSON.stringify([EXEMPLE(y).noeuds, EXEMPLE(y).branches])) && !(S.rampes || []).length && (!(S.escaliers || []).length || publies.includes(JSON.stringify(S.escaliers.map((e) => e.p))));
@@ -1168,6 +1227,7 @@ const neuf = !S.branches.length || ancien;
 if (!S.v) for (const b of S.branches) if (b.pieton !== "aucun") b.pieton = "auto";
 if (neuf) S = EXEMPLE(16);
 S.v = 5;
+if (!Array.isArray(S.passages)) S.passages = [];
 if (!PARCS[S.parc]) S.parc = "enterre"; // par défaut le cas le plus strict : 40 m et 25 m
 if (S.escAuto === undefined) S.escAuto = !(S.escaliers || []).length; // un plan sans escalier les reçoit d'office ; ceux posés à la main restent en place
 if (!SYSTEMES[S.systeme]) S.systeme = "beton"; // par défaut la grande portée béton : aucun appui dans le plateau
