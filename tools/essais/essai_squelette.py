@@ -282,12 +282,22 @@ with sync_playwright() as p:
         pg.click("#b-emprise"); assert pg.evaluate("document.querySelector('#b-emprise').getAttribute('aria-pressed')") == "true"
         a, c = ([50, 220], [340, 560]) if name == "iphone" else ([500, 350], [1000, 740])
         pg.mouse.move(*a); pg.mouse.down(); pg.mouse.move(*[(a[0] + c[0]) / 2, (a[1] + c[1]) / 2], steps=3); pg.mouse.move(*c, steps=3)
-        r["emprise_trace"] = pg.evaluate("S.emprise || null"); pg.mouse.up(); pg.wait_for_timeout(500)
+        r["emprise_trace"] = pg.evaluate("S.emprise || null"); pg.mouse.up(); pg.wait_for_function("!document.querySelector('#aide').textContent.startsWith('Calcul')", timeout=60000); pg.wait_for_timeout(300)
         ap = pg.evaluate("({ pl: calc.pl.length, emprise: S.emprise, esc: calc.escaliers.length, viol: calc.principes.filter((p) => !p.ok).length, bouton: document.querySelector('#b-emprise').getAttribute('aria-pressed'), annuler: !document.querySelector('#b-annuler').disabled })")
         r["emprise_geste"] = ap; assert ap["emprise"] and ap["pl"] > 20 and ap["esc"] >= 1 and ap["viol"] == 0 and ap["bouton"] == "false" and ap["annuler"], ap
         pg.screenshot(path=str(out / f"{name}-emprise.png"))
         pg.click("#b-annuler"); pg.wait_for_timeout(300)
         assert pg.evaluate("[calc.pl.length, S.emprise || null]") == [av[0], av[1]], "annuler ne rend pas le plan d'avant"
+        # Traversées : un piéton passe d'une voie à sa voisine entre les places ; un escalier dessert les travées voisines.
+        TR = """(() => { const sauve = JSON.stringify(S), o = {};
+          S = { ...S, v: 5, noeuds: [[0, 0], [90, 0], [0, 16], [90, 16]], branches: [{ a: 0, b: 1, g: "90", d: "90", pieton: "auto" }, { a: 2, b: 3, g: "90", d: "90", pieton: "auto" }, { a: 0, b: 2, g: "aucun", d: "aucun", pieton: "auto" }], pn: [], pb: [], rampes: [], escAuto: false, auto: true, escaliers: [{ p: [45, 5.5] }], emprise: undefined }; pointer(); calculer();
+          const en_face = calc.pl.filter((q) => q.i === 1 && Math.abs(centre(q.q)[0] - 45) < 6).map((q) => q.dist), meme = calc.pl.filter((q) => q.i === 0 && Math.abs(centre(q.q)[0] - 45) < 6).map((q) => q.dist);
+          o.en_face = Math.min(...en_face); o.meme = Math.min(...meme); o.loin_bout = Math.max(...calc.pl.filter((q) => q.i === 1).map((q) => q.dist));
+          S = JSON.parse(sauve); pointer(); calculer(); return o; })()"""
+        r["traversees"] = pg.evaluate(TR)
+        assert r["traversees"]["en_face"] < 40 and r["traversees"]["meme"] < 15, r["traversees"]
+        r["six_voies"] = pg.evaluate("(() => { const sauve = JSON.stringify(S); const ok = emprise([0, 0, 96, 74]); const o = { ok, escaliers: calc.escaliers.length, viol: calc.principes.filter((p) => !p.ok).length, places: calc.pl.length, ms: placer.ms, voies: S.branches.length }; S = JSON.parse(sauve); pointer(); calculer(); return o; })()")
+        assert r["six_voies"]["ok"] and r["six_voies"]["viol"] == 0 and r["six_voies"]["escaliers"] <= 8, r["six_voies"]
         # Registre des principes (charte, section 8) : tous respectés sur l'exemple, affichés au bilan.
         PR = "[document.querySelector('#s-principes').textContent, calc.principes.filter(p => !p.ok).map(p => p.id)]"
         r["principes"] = [pg.evaluate(PR), pg.evaluate("calc.principes.length")]

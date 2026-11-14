@@ -180,11 +180,27 @@ function loger(p, L, B, D) {
 // Desserte : distance de chaque place à l'escalier le plus proche, et sa limite. Le réseau suit les voies (sauf les
 // rampes) ; chaque escalier s'y rattache au droit de sa porte. La place rejoint la bande piétonne de sa voie (son axe
 // s'il n'y en a pas), la suit, puis gagne la porte.
+// Traversées : d'une voie à sa voisine parallèle, un piéton passe entre les places, tous les CROIX mètres, en ligne droite d'une bande
+// à l'autre. Un escalier dessert ainsi les travées voisines, pas seulement sa propre voie. Une voie parallèle intercalée les interdit.
+const CROIX = 5; let croixMemo = { cle: "", liste: [] };
+function traversees(R, bout, bande) {
+  const B = S.branches, X = [], ok = B.map((b) => !b.rampe), nu = (k, i) => ({ d: (R[k].A[0] - R[i].A[0]) * -R[i].u[1] + (R[k].A[1] - R[i].A[1]) * R[i].u[0], par: Math.abs(R[k].u[0] * R[i].u[1] - R[k].u[1] * R[i].u[0]) <= 0.02 });
+  for (let i = 0; i < B.length; i++) for (let j = i + 1; j < B.length; j++) {
+    if (!ok[i] || !ok[j]) continue; const ri = R[i], rj = R[j], e = nu(j, i); if (!e.par || Math.abs(e.d) < 4 || Math.abs(e.d) > 20) continue;
+    if (B.some((_, k) => { if (k === i || k === j || !ok[k]) return false; const f = nu(k, i); return f.par && f.d * e.d > 0 && Math.abs(f.d) < Math.abs(e.d) - 1; })) continue;
+    const lo = Math.min(...bout[i]), hi = Math.max(...bout[i]), lj = Math.min(...bout[j]), hj = Math.max(...bout[j]);
+    for (let a = lo + CROIX / 2; a <= hi; a += CROIX) {
+      const P = ri.P(a, bande(i)), b = (P[0] - rj.A[0]) * rj.u[0] + (P[1] - rj.A[1]) * rj.u[1]; if (b < lj - 1e-6 || b > hj + 1e-6) continue;
+      const Q = rj.P(b, bande(j)); X.push({ i, a, j, b, w: Math.hypot(P[0] - Q[0], P[1] - Q[1]) });
+    }
+  }
+  return X;
+}
 function desservir(escaliers, pl) {
   // Le graphe des cheminements : chaque voie porte sa bande (son axe, faute de bande) ; ses deux bouts et la porte de
   // chaque escalier en sont les sommets. À un nœud de deux voies, les deux bandes se rejoignent à leur coin, qui allonge
   // ou raccourcit chacune ; ailleurs (nœud à trois voies, bandes en vis-à-vis), on passe tout droit d'un bout à l'autre.
-  const E = escaliers.filter((x) => !x.hors), nb = S.branches.length, N = 2 * nb, V = N + E.length, voisins = Array.from({ length: V }, () => []), segs = [];
+  const E = escaliers.filter((x) => !x.hors), nb = S.branches.length, N = 2 * nb, voisins = Array.from({ length: N + E.length }, () => []), segs = []; let V = N + E.length;
   const bande = (i) => { const b = S.branches[i], c = bandeDe(b); return pw(b, c) ? (c === "g" ? 1 : -1) * (demi(b) - BANDE / 2) : 0; };
   const R = S.branches.map((b) => repere(b)), bout = S.branches.map((b, i) => [0, R[i].L]); // abscisse des deux bouts de la bande
   const lier = (u, v, w, i, au, av) => { voisins[u].push([v, w, i, au, av]); voisins[v].push([u, w, i, av, au]); };
@@ -198,14 +214,18 @@ function desservir(escaliers, pl) {
     }
     for (let x = 0; x < P.length; x++) for (let y = x + 1; y < P.length; y++) { const A = pt(P[x]), B = pt(P[y]); lier(2 * P[x].i + P[x].k, 2 * P[y].i + P[y].k, Math.hypot(A[0] - B[0], A[1] - B[1]), -1); }
   });
+  const cleX = JSON.stringify([S.noeuds, S.branches]); if (croixMemo.cle !== cleX) croixMemo = { cle: cleX, liste: traversees(R, bout, bande) };
+  const X = croixMemo.liste, sur = S.branches.map(() => []);
+  X.forEach((x, k) => { const va = voisins.push([]) - 1, vb = voisins.push([]) - 1; lier(va, vb, x.w, -1); sur[x.i].push({ v: va, a: x.a }); sur[x.j].push({ v: vb, a: x.b }); }); V = voisins.length;
   S.branches.forEach((b, i) => {
-    if (b.rampe) return; const pts = [{ v: 2 * i, a: bout[i][0] }, ...E.map((x, j) => ({ v: N + j, a: x.a + ESCALIER.long / 2, i: x.i })).filter((o) => o.i === i).sort((o, q) => o.a - q.a), { v: 2 * i + 1, a: bout[i][1] }];
+    if (b.rampe) return; const pts = [{ v: 2 * i, a: bout[i][0] }, ...[...E.map((x, j) => ({ v: N + j, a: x.a + ESCALIER.long / 2, i: x.i })).filter((o) => o.i === i), ...sur[i]].sort((o, q) => o.a - q.a), { v: 2 * i + 1, a: bout[i][1] }];
     for (let k = 1; k < pts.length; k++) { lier(pts[k - 1].v, pts[k].v, Math.abs(pts[k].a - pts[k - 1].a), i, pts[k - 1].a, pts[k].a); segs.push({ i, u: pts[k - 1], v: pts[k] }); }
   });
   // Depuis chaque escalier : distance à tout sommet, le sommet suivant sur le chemin qui y mène, et le tronçon parcouru.
   const cartes = E.map((x, j) => {
     const dist = Array(V).fill(Infinity), vers = Array(V).fill(-1), pas = Array(V).fill(null), fait = Array(V).fill(false); dist[N + j] = 0;
-    for (;;) { let u = -1; for (let k = 0; k < V; k++) if (!fait[k] && dist[k] < Infinity && (u < 0 || dist[k] < dist[u])) u = k; if (u < 0) break; fait[u] = true; for (const [v, w, i, au, av] of voisins[u]) if (dist[u] + w < dist[v]) { dist[v] = dist[u] + w; vers[v] = u; pas[v] = { i, de: av, a: au }; } }
+    const tas = [[0, N + j]], monter = (k) => { while (k > 0) { const m = (k - 1) >> 1; if (tas[m][0] <= tas[k][0]) break; [tas[m], tas[k]] = [tas[k], tas[m]]; k = m; } }, descendre = (k) => { for (;;) { let m = k; const g = 2 * k + 1, d = g + 1; if (g < tas.length && tas[g][0] < tas[m][0]) m = g; if (d < tas.length && tas[d][0] < tas[m][0]) m = d; if (m === k) break; [tas[m], tas[k]] = [tas[k], tas[m]]; k = m; } };
+    while (tas.length) { const [, u] = tas[0], dernier = tas.pop(); if (tas.length) { tas[0] = dernier; descendre(0); } if (fait[u]) continue; fait[u] = true; for (const [v, w, i, au, av] of voisins[u]) if (dist[u] + w < dist[v]) { dist[v] = dist[u] + w; vers[v] = u; pas[v] = { i, de: av, a: au }; tas.push([dist[v], v]); monter(tas.length - 1); } }
     const a = x.a + ESCALIER.long / 2;
     return { dist, vers, pas, porte: Math.abs(x.s * x.h - bande(x.i)), seuil: R[x.i].P(a, x.s * x.h) };
   });
@@ -214,15 +234,16 @@ function desservir(escaliers, pl) {
   const fil = (troncons) => troncons.flatMap((t) => [R[t.i].P(t.de, bande(t.i)), R[t.i].P(t.a, bande(t.i))]).filter((p, k, l) => !k || Math.hypot(p[0] - l[k - 1][0], p[1] - l[k - 1][1]) > 1e-6);
   const liens = { noeuds: cartes.map((m) => m.seuil), entre: [], places: [] }, bouts = cartes.map(() => null);
   cartes.forEach((m, j) => { for (let k = j + 1; k < E.length; k++) {
-    if (m.dist[N + k] === Infinity) continue; let libre = true; for (let c = m.vers[N + k]; c !== N + j; c = m.vers[c]) if (c >= N) libre = false; // un autre escalier sur le chemin : ces deux-là ne sont pas voisins
+    if (m.dist[N + k] === Infinity) continue; let libre = true; for (let c = m.vers[N + k]; c !== N + j; c = m.vers[c]) if (c >= N && c < N + E.length) libre = false; // un autre escalier sur le chemin : ces deux-là ne sont pas voisins
     if (libre) liens.entre.push({ de: j, vers: k, long: m.dist[N + k] + m.porte + cartes[k].porte, pts: [cartes[k].seuil, ...fil(trajet(m, N + k)), m.seuil] });
   } });
+  const segsI = S.branches.map((_, i) => segs.filter((x) => x.i === i));
   let max = 0; const loin = [];
   for (const o of pl) {
     // Du centre de la place à la bande ; une place d'angle, dont le centre déborde de la bande, en rejoint d'abord le bout.
     const r = R[o.i], c = centre(o.q), brut = (c[0] - r.A[0]) * r.u[0] + (c[1] - r.A[1]) * r.u[1], a = Math.min(Math.max(bout[o.i][0], bout[o.i][1]), Math.max(Math.min(bout[o.i][0], bout[o.i][1]), brut));
     const pas = Math.abs((c[0] - r.A[0]) * -r.u[1] + (c[1] - r.A[1]) * r.u[0] - bande(o.i)) + Math.abs(brut - a);
-    const sg = segs.find((x) => x.i === o.i && a >= Math.min(x.u.a, x.v.a) - 1e-6 && a <= Math.max(x.u.a, x.v.a) + 1e-6); o.dist = Infinity; o.limite = ESCALIER.impasse; o.vers = null;
+    const sg = segsI[o.i].find((x) => a >= Math.min(x.u.a, x.v.a) - 1e-6 && a <= Math.max(x.u.a, x.v.a) + 1e-6); o.dist = Infinity; o.limite = ESCALIER.impasse; o.vers = null;
     if (sg) {
       const voies = cartes.map((m, j) => { const du = Math.abs(a - sg.u.a) + m.dist[sg.u.v], dv = Math.abs(sg.v.a - a) + m.dist[sg.v.v]; return { j, d: Math.min(du, dv) + pas + m.porte, par: du <= dv ? sg.u : sg.v }; }).filter((x) => x.d < Infinity).sort((x, y) => x.d - y.d);
       if (voies.length) {
@@ -474,9 +495,10 @@ function placer() {
   // Fond d'un cul-de-sac : toutes les positions à plus de 25 m sont du même côté, et le premier carrefour de ce côté est
   // trop loin pour que deux escaliers s'y séparent à temps. Une telle place veut un escalier à 25 m, quoi qu'on pose ailleurs.
   const deg = S.noeuds.map((_, n) => S.branches.filter((b) => !b.rampe && (b.a === n || b.b === n)).length);
-  const carrefour = (i, a, sens) => { let n = sens > 0 ? S.branches[i].b : S.branches[i].a, long = sens > 0 ? R[i].L - a : a;
+  const carrefour = (i, a, sens) => { let croix = Infinity; for (const x of croixMemo.liste) { const e = x.i === i ? x.a : x.j === i ? x.b : null; if (e === null) continue; const d = sens > 0 ? e - a : a - e; if (d > 0.01) croix = Math.min(croix, d); }
+    let n = sens > 0 ? S.branches[i].b : S.branches[i].a, long = sens > 0 ? R[i].L - a : a;
     for (let tour = 0; deg[n] === 2 && tour < S.branches.length; tour++) { const j = S.branches.findIndex((o, k) => k !== i && !o.rampe && (o.a === n || o.b === n)); i = j; long += R[j].L; n = S.branches[j].a === n ? S.branches[j].b : S.branches[j].a; }
-    return deg[n] >= 3 ? long : Infinity; };
+    return Math.min(croix, deg[n] >= 3 ? long : Infinity); };
   const rayon = pl.map((o, j) => { const sens = cands.filter((c) => c.d[j] > ESCALIER.impasse + 0.01 && c.d[j] < Infinity).map((c) => c.sens[j]); if (sens.some((v) => v !== sens[0])) return ESCALIER.dist;
     const r = R[o.i], q = centre(o.q), a = Math.min(r.L, Math.max(0, (q[0] - r.A[0]) * r.u[0] + (q[1] - r.A[1]) * r.u[1])); return !sens.length || carrefour(o.i, a, sens[0]) > ESCALIER.impasse + 6 ? ESCALIER.impasse : ESCALIER.dist; });
   // Les places qu'aucune position ne dessert restent hors de portée : elles ne comptent pas dans la recherche.
@@ -485,8 +507,9 @@ function placer() {
   const gros = cands.filter((c) => c.k % 2 === 1), ordre = P.map((_, j) => j).sort((a, b) => gros.reduce((t, c) => t + c.couv[a] - c.couv[b], 0)); // d'abord la place que le moins de positions desservent
   const juges = new Map(); let budget = 500, pas = 0, sols = [];
   const juger = (l) => { const cle = l.map((c) => cands.indexOf(c)).sort((a, b) => a - b).join(); if (!juges.has(cle)) { budget--; const r = desservir(l.map((c) => c.x), P); juges.set(cle, { l, max: r.max, loin: r.loin.length ? P.findIndex((o) => o.q === r.loin[0]) : -1, neuf: true }); } else juges.get(cle).neuf = false; return juges.get(cle); };
+  let fin = t0 + 1500; // l'essai exhaustif est borné en temps : au-delà, la recherche gloutonne prend le relais
   const chercher = (l, reste, nb, k) => {
-    if (budget <= 0 || pas++ > 6000 || sols.length >= 40) return;
+    if (budget <= 0 || pas++ > 6000 || sols.length >= 40 || performance.now() > fin) return;
     if (!nb) { // toutes desservies à leur rayon : la mesure tranche ; une place encore en défaut veut un escalier à 25 m
       const r = juger(l); if (!r.neuf) return; if (r.loin < 0) { sols.push(r); return; }
       if (l.length < k) for (const c of gros.filter((c) => !l.includes(c) && c.d[r.loin] <= ESCALIER.impasse).sort((a, b) => a.d[r.loin] - b.d[r.loin])) chercher([...l, c], reste, 0, k);
@@ -501,13 +524,15 @@ function placer() {
     }
   };
   for (let k = 1; k <= 12 && !sols.length && budget > 0 && pas <= 6000 && N; k++) chercher([], new Uint8Array(N).fill(1), N, k);
-  placer.abrege = !sols.length || budget <= 0 || pas > 6000; // faute d'avoir tout essayé, le nombre trouvé n'est pas garanti le plus petit
+  placer.abrege = !sols.length || budget <= 0 || pas > 6000 || performance.now() > fin; // faute d'avoir tout essayé, le nombre trouvé n'est pas garanti le plus petit
   if (!sols.length && N) { // recherche épuisée : de proche en proche la position qui dessert le plus de places, puis on retire les escaliers de trop
     let l = []; const reste = new Uint8Array(N).fill(1), g = (c) => c.couv.reduce((t, v, j) => t + (reste[j] & v), 0);
     for (;;) { const c = cands.filter((c) => !l.includes(c)).sort((a, b) => g(b) - g(a))[0]; if (!c || !g(c) || l.length >= 40) break; l.push(c); c.couv.forEach((v, j) => { if (v) reste[j] = 0; }); }
     for (let r = juger(l), tour = 0; r.loin >= 0 && tour < 20; tour++) { const c = cands.filter((c) => !l.includes(c) && c.d[r.loin] <= ESCALIER.impasse).sort((a, b) => a.d[r.loin] - b.d[r.loin])[0]; if (!c) break; l = [...l, c]; r = juger(l); }
     if (juger(l).loin < 0) for (let m = l.length - 1; m >= 0; m--) { const sans = l.filter((_, k) => k !== m); if (sans.length && juger(sans).loin < 0) l = sans; }
     if (l.length) sols.push(juger(l));
+    // Sur un grand plan : on retranche un escalier tant qu'une implantation plus courte existe, chaque essai étant borné.
+    for (let k = l.length - 1; k >= 1 && sols.length && sols[0].loin < 0; k--) { const garde = sols; sols = []; budget = 80; pas = 0; fin = performance.now() + 500; chercher([], new Uint8Array(N).fill(1), N, k); if (!sols.length) { sols = garde; break; } }
   }
   // Affinage : chaque escalier essaie les positions voisines de sa rangée tant que la plus longue distance diminue.
   sols.sort((a, b) => a.max - b.max); sols = sols.slice(0, 3).map((so) => ({ ...so })); budget = 300;
@@ -803,13 +828,15 @@ function emprise(r) {
   for (const c of tous) { cible(c); if (dedans()) tenus.push({ c, n: calc.pl.length }); }
   tenus.sort((a, b) => b.n - a.n);
   let meilleur = null;
+  const debut = performance.now(); // sur un grand plan, le placement des escaliers est long : on n'essaie les suivantes que si le temps le permet
   for (const t of tenus.slice(0, 3)) {
+    if (meilleur && performance.now() - debut > 2500) break;
     cible(t.c); S.escAuto = true; calculer();
-    const x = { c: t.c, viol: calc.principes.filter((p) => !p.ok).length, n: calc.pl.length, ok: dedans() };
+    const x = { c: t.c, viol: calc.principes.filter((p) => !p.ok).length, n: calc.pl.length, ok: dedans(), etat: JSON.stringify(S), cle: cleEsc };
     if (x.ok && (!meilleur || x.viol < meilleur.viol || (x.viol === meilleur.viol && x.n > meilleur.n))) meilleur = x;
   }
   if (!meilleur || meilleur.n < MIN_PLACES) { S = JSON.parse(sauve); pointer(); calculer(); return false; }
-  cible(meilleur.c); S.escAuto = true; calculer(); choix = choixN = choixR = choixE = -1; return true;
+  S = JSON.parse(meilleur.etat); cleEsc = meilleur.cle; pointer(); calculer(); choix = choixN = choixR = choixE = -1; return true;
 }
 
 // ---- Historique et enregistrement.
@@ -1032,7 +1059,11 @@ function fin(ev) {
   const g = geste; geste = null; if (!g) return;
   if (g.genre === "emprise") {
     const q = g.rect; modeEmp = false; modes();
-    if (q && q[2] - q[0] >= 8 && q[3] - q[1] >= 8) { const avant = JSON.stringify(S); if (emprise(q)) { passe.push(avant); $("#b-annuler").disabled = false; fiche(); enregistrer(); cadrer(); return; } $("#aide").textContent = "Emprise trop petite pour une implantation"; $("#aide").classList.remove("lu"); }
+    if (q && q[2] - q[0] >= 8 && q[3] - q[1] >= 8) {
+      $("#aide").textContent = "Calcul de l'implantation…"; $("#aide").classList.remove("lu"); rafraichir(false); // le calcul est long sur un grand plan : on laisse d'abord s'afficher le message
+      setTimeout(() => { const avant = JSON.stringify(S); if (emprise(q)) { passe.push(avant); $("#b-annuler").disabled = false; fiche(); enregistrer(); cadrer(); aide(); } else { $("#aide").textContent = "Emprise trop petite pour une implantation"; rafraichir(false); } }, 40);
+      return;
+    }
     return rafraichir(false);
   }
   if (g.genre === "rampe") {
