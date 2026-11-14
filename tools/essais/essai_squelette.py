@@ -21,7 +21,7 @@ with sync_playwright() as p:
         H_ = "(() => { const q = (s) => document.querySelector(s).getBoundingClientRect(); return { bilan: Math.round(q('#bilan').height), ouvert: document.querySelector('#bilan-det').open, barre: Math.round(q('#barre').height), resume: document.querySelector('#s-resume').textContent, aide: getComputedStyle(document.querySelector('#aide')).display }; })()"
         r["surface"] = pg.evaluate(H_)
         if name == "iphone":
-            assert not r["surface"]["ouvert"] and r["surface"]["bilan"] <= 64 and r["surface"]["barre"] <= 100 and r["surface"]["resume"] == "11 sur 11", r["surface"]
+            assert not r["surface"]["ouvert"] and r["surface"]["bilan"] <= 64 and r["surface"]["barre"] <= 100 and r["surface"]["resume"] == "12 sur 12", r["surface"]
             assert r["surface"]["aide"] != "none", r["surface"]
             pg.screenshot(path=str(out / "iphone-replie.png"))
             pg.click("#bilan-det > summary"); pg.wait_for_timeout(200)
@@ -99,7 +99,7 @@ with sync_playwright() as p:
         for _ in range(6): pg.click("#b-annuler"); pg.wait_for_timeout(150)
         pg.click("#b-cadrer"); pg.wait_for_timeout(300); pg.mouse.click(5, 5); pg.wait_for_timeout(200)
         r["rampe_voie_annulee"] = pg.evaluate("[S.branches.length, calc.pl.length, calc.principes.length]")
-        assert r["rampe_voie_annulee"] == [5, base, 11], r["rampe_voie_annulee"]
+        assert r["rampe_voie_annulee"] == [5, base, 12], r["rampe_voie_annulee"]
         # Circulations verticales (ERP, articles PS 13 et PS 24). Un escalier est un noyau posé dans une rangée : deux places,
         # quatre pour l'escalier principal qui loge deux ascenseurs. La distance se mesure dans l'axe des voies, de l'axe de la
         # place à la porte (article PS 13 § 1) : 40 m au plus entre deux escaliers, 25 m sinon.
@@ -315,6 +315,23 @@ with sync_playwright() as p:
         q_ = r["ps13"]
         assert q_["ecart90"] < 0.01 and q_["loin25"][0] == q_["loin25"][1] > 0 and q_["loin30"][0] == q_["loin30"][1] < q_["loin25"][0], q_
         assert q_["ecart45"] < 0.01 and q_["decale45"] and q_["ecartFace"] < 0.01, q_
+        # Circulation en boucle (décision 15) : toute voie est sur une boucle, sauf une impasse isolée ; un plan fait d'une
+        # seule suite de voies, sans carrefour, est lui-même une branche isolée. Un nœud qui porte une rampe n'est pas une impasse.
+        BO = """(() => { const sauve = JSON.stringify(S), o = {}, v = (a, b, g = "90", d = "90") => ({ a, b, g, d, pieton: "auto" }), w = (a, b) => v(a, b, "aucun", "aucun");
+          const lit = () => { const p = calc.principes.find((x) => x.id === "boucle"); return [p.ok, p.detail, calc.impasses.length]; };
+          o.exemple = lit();
+          const plan = (br, no) => { S = { ...S, noeuds: no, branches: br, pn: [], pb: [], rampes: [], escAuto: false, auto: true, escaliers: [], passages: [], emprise: undefined }; cleEsc = null; pointer(); calculer(); return lit(); };
+          o.peigne = plan([v(0, 1), v(2, 3), v(4, 5), w(0, 2), w(2, 4)], [[0, 0], [0, 60], [16, 0], [16, 60], [32, 0], [32, 60]]);
+          o.boucle = plan([v(0, 1), v(2, 3), w(0, 2), w(1, 3)], [[0, 0], [0, 60], [16, 0], [16, 60]]);
+          o.seule = plan([v(0, 1)], [[0, 0], [60, 0]]);
+          o.equerre = plan([v(0, 1), v(1, 2)], [[0, 0], [60, 0], [60, 40]]);
+          o.deux = plan([v(0, 1), v(2, 3), w(0, 2), w(1, 3), v(1, 4), v(3, 5)], [[0, 0], [0, 60], [16, 0], [16, 60], [0, 90], [16, 90]]);
+          o.rampe = plan([v(0, 1), v(2, 3), w(0, 2), w(1, 3), v(1, 4), { a: 4, b: 5, g: "aucun", d: "aucun", pieton: "auto", rampe: "droite", sens: 1 }], [[0, 0], [0, 60], [16, 0], [16, 60], [0, 90], [0, 112]]);
+          S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); return o; })()"""
+        r["boucle"] = pg.evaluate(BO); q_ = r["boucle"]
+        assert q_["exemple"][0] and q_["exemple"][2] == 1, q_
+        assert q_["peigne"] == [False, "3 impasses", 3] and q_["boucle"][0] and q_["boucle"][2] == 0, q_
+        assert q_["seule"][0] and q_["equerre"][0] and q_["deux"] == [False, "2 impasses", 2] and q_["rampe"][0] and q_["rampe"][2] == 0, q_
         # Passages : une place retirée de chaque côté d'une double rangée relie deux voies parallèles ; la mesure le franchit
         # d'un axe de voie à l'autre. Placement automatique : le moins d'escaliers, puis le moins de passages.
         PA = """(() => { const sauve = JSON.stringify(S), o = {}, X = (q) => centre(q)[0];

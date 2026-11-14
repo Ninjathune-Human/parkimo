@@ -449,6 +449,7 @@ const cedePoint = (p, nature, E) => E.find((e) => EXCLUT[nature].includes(e.natu
 // calculé, qui rend s'il est respecté et un détail. Le bilan et les essais lisent ce tableau.
 const PRINCIPES = [
   { id: "croisements", nom: "Deux voies ne se croisent qu'à un nœud", mesure: (c) => [!c.croisements, `${c.croisements} croisement${c.croisements > 1 ? "s" : ""}`] },
+  { id: "boucle", nom: "Circulation en boucle, une impasse isolée au plus", mesure: (c) => [c.chaine || c.impasses.length <= 1, c.chaine && c.impasses.length ? "une branche isolée" : `${c.impasses.length} impasse${c.impasses.length > 1 ? "s" : ""}`] },
   { id: "rangees", nom: "Deux rangées ne se recouvrent pas", mesure: (c) => [!c.chevauchements, `${c.chevauchements} recouvrement${c.chevauchements > 1 ? "s" : ""}`] },
   { id: "poteau-voie", nom: "Aucun poteau dans une circulation", mesure: (c) => [!c.conflits.length, `${c.conflits.length} poteau${c.conflits.length > 1 ? "x" : ""}`] },
   { id: "poteau-place", nom: "Aucun poteau dans une place", mesure: (c) => [!c.dansPlace, `${c.dansPlace} poteau${c.dansPlace > 1 ? "x" : ""}`] },
@@ -653,6 +654,10 @@ function mesurer() {
   let croisements = 0, chevauchements = 0;
   for (let i = 0; i < nb; i++) for (let j = 0; j < i; j++) { const a = S.branches[i], b = S.branches[j]; if (a.a !== b.a && a.a !== b.b && a.b !== b.a && a.b !== b.b && recouvre(ch[i], ch[j])) croisements++; }
   rangees.forEach((x, k) => { for (let j = 0; j < k; j++) if (rangees[j].i !== x.i && recouvre(x.q, rangees[j].q)) chevauchements++; });
+  // Circulation en boucle (décision 15) : une impasse est un nœud où n'arrive qu'une voie, et pas de rampe (une rampe mène
+  // ailleurs). Une seule est admise : une branche isolée. Un plan sans carrefour, une seule suite de voies, en est une.
+  const degre = S.noeuds.map((_, n) => S.branches.filter((b) => !b.rampe && (b.a === n || b.b === n)).length);
+  const impasses = degre.map((d, n) => (d === 1 && !S.branches.some((b) => b.rampe && (b.a === n || b.b === n)) ? n : -1)).filter((n) => n >= 0), chaine = degre.every((d) => d <= 2);
   // Emprise : réunion des chaussées et des rangées, mesurée sur une grille de 0,5 m.
   const an = geo.coins, rects = [...ch, ...bandes]; let aire = 0;
   if (rects.length) {
@@ -661,7 +666,7 @@ function mesurer() {
     const bb = rects.map((q) => [Math.min(...q.map((p) => p[0])), Math.min(...q.map((p) => p[1])), Math.max(...q.map((p) => p[0])), Math.max(...q.map((p) => p[1]))]);
     for (let x = x0 + 0.25; x < x1; x += 0.5) for (let y = y0 + 0.25; y < y1; y += 0.5) if (rects.some((q, k) => x >= bb[k][0] && x <= bb[k][2] && y >= bb[k][1] && y <= bb[k][3] && dans([x, y], q))) aire += 0.25;
   }
-  calc = { B, D, ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords, rampes, emprises: E, croisements, chevauchements, dansPlace, appuis, rampesVoie, raides, escaliers, escHors: escaliers.filter((x) => x.hors).length, porteeNette: Math.max(0, portee - sys.section), porteeLim: sys.portee };
+  calc = { impasses, chaine, B, D, ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords, rampes, emprises: E, croisements, chevauchements, dansPlace, appuis, rampesVoie, raides, escaliers, escHors: escaliers.filter((x) => x.hors).length, porteeNette: Math.max(0, portee - sys.section), porteeLim: sys.portee };
   $("#s-structure").textContent = pot.length ? `${pot.length} poteaux · ${portee.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m${conflits.length ? ` · ${conflits.length} en voie` : ""}` : "–";
   $("#s-structure").style.color = conflits.length ? css("--rouge") : "";
   // Desserte : distance de chaque place à un escalier, dès qu'il y en a un.
@@ -776,7 +781,8 @@ function dessiner() {
   ctx.globalAlpha = 1;
   if (!actif) S.noeuds.forEach((n, i) => {
     if (!S.branches.some((b) => b.a === i || b.b === i)) return;
-    const e = versE(n); ctx.beginPath(); ctx.arc(e[0], e[1], 7, 0, 2 * Math.PI); ctx.fillStyle = css("--fond"); ctx.fill(); ctx.strokeStyle = css("--accent"); ctx.lineWidth = 2.5; ctx.stroke();
+    const e = versE(n), trop = !calc.chaine && calc.impasses.length > 1 && calc.impasses.includes(i); // impasse en trop : en rouge
+    ctx.beginPath(); ctx.arc(e[0], e[1], 7, 0, 2 * Math.PI); ctx.fillStyle = css("--fond"); ctx.fill(); ctx.strokeStyle = css(trop ? "--rouge" : "--accent"); ctx.lineWidth = 2.5; ctx.stroke();
   });
   // Réseau des escaliers : un nœud à chaque porte, les liens d'escalier à escalier le long des bandes piétonnes, et de
   // chaque escalier, en tirets, le chemin de la place la plus éloignée qu'il dessert, avec sa distance.
@@ -812,10 +818,11 @@ function cadrer() {
   vue.s = Math.min((W - 60) / (x1 - x0), (H - haut - bas) / (y1 - y0), 14); vue.ox = W / 2 - (x0 + x1) / 2 * vue.s; vue.oy = haut + (H - haut - bas) / 2 + (y0 + y1) / 2 * vue.s; rafraichir(false);
 }
 
-// ---- Emprise : on trace un rectangle, le moteur y essaie des implantations (voies parallèles, un ou deux rattachements
-// aux extrémités, rangées de chaque côté) et garde la meilleure. Le plan obtenu est ordinaire : les modules l'affinent.
+// ---- Emprise : on trace un rectangle, le moteur y essaie des implantations (voies parallèles reliées à leurs deux bouts,
+// rangées de chaque côté) et garde la meilleure. Le plan obtenu est ordinaire : les modules l'affinent.
 // Candidates : angle des rangées intérieures (90°, 60°, 45°), nombre de voies, rangées de rive (une autre inclinaison peut
-// mieux remplir le reste), voie de rattachement en boucle ou en peigne, avec ou sans rangée sur elle, dans les deux sens.
+// mieux remplir le reste), voies de rattachement aux deux bouts (la circulation boucle, décision 15), avec ou sans rangée
+// sur elles, dans les deux sens. Une voie seule reste une branche isolée.
 // Les plus prometteuses (estimation par longueur de rangée) passent au vrai calcul ; seules comptent celles qui tiennent dans
 // le rectangle ; entre les trois meilleures, avec leurs escaliers placés, on prend celle qui respecte les principes puis
 // compte le plus de places.
@@ -829,11 +836,11 @@ function candidates(r) {
       let D = prof(tb) + demis[0]; const v = [D]; for (let j = 1; j < n; j++) { D += demis[j - 1] + 2 * prof(T) + demis[j]; v.push(D); } D += demis[n - 1] + prof(tt);
       if (D > Dv + 1e-6) continue;
       const decal = (Dv - D) / 2;
-      for (const forme of n === 1 ? ["seule"] : ["boucle", "gauche", "droite"]) for (const ec of n === 1 ? ["aucun"] : ["aucun", "90"]) {
-        const a = forme === "droite" || forme === "seule" ? 0 : 3, b = forme === "gauche" || forme === "seule" ? Lu : Lu - 3, l = b - a;
+      for (const forme of n === 1 ? ["seule"] : ["boucle"]) for (const ec of n === 1 ? ["aucun"] : ["aucun", "90"]) {
+        const a = forme === "seule" ? 0 : 3, b = forme === "seule" ? Lu : Lu - 3, l = b - a;
         if (l < 5) continue;
         // Les rangées vont d'une voie de rattachement à l'autre : chacune leur ôte sa largeur (6 m) à chaque bout.
-        const lr = Lu - 6 * (forme === "boucle" ? 2 : forme === "seule" ? 0 : 1); let est = 0; for (const x of lan) est += (pitch(x.g) ? Math.max(0, lr) / pitch(x.g) : 0) + (pitch(x.d) ? Math.max(0, lr) / pitch(x.d) : 0);
+        const lr = Lu - (forme === "boucle" ? 12 : 0); let est = 0; for (const x of lan) est += (pitch(x.g) ? Math.max(0, lr) / pitch(x.g) : 0) + (pitch(x.d) ? Math.max(0, lr) / pitch(x.d) : 0);
         sortie.push({ o, T, tt, tb, n, v: v.map((x) => x + decal), lan, forme, ec, a, b, Lu, est });
       }
     }
@@ -846,8 +853,7 @@ function construire(c, r) {
     const na = noeuds.push(P(c.a, c.v[j])) - 1, nb = noeuds.push(P(c.b, c.v[j])) - 1; gauche.push(na); droite.push(nb);
     branches.push({ a: na, b: nb, ...sw(x.g, x.d), pieton: "auto" });
   });
-  if (c.n > 1) for (const [cote, liste, ex, boucle] of [["g", gauche, "gauche", c.forme !== "droite"], ["d", droite, "droite", c.forme !== "gauche"]]) {
-    if (!boucle) continue;
+  if (c.n > 1) for (const [cote, liste] of [["g", gauche], ["d", droite]]) {
     for (let j = 0; j + 1 < c.n; j++) { const e = c.ec; const gb = cote === "g" ? { g: "aucun", d: e } : { g: e, d: "aucun" }; branches.push({ a: liste[j], b: liste[j + 1], ...sw(gb.g, gb.d), pieton: "auto" }); }
   }
   return { noeuds, branches };
