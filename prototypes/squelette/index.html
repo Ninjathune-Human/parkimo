@@ -12,6 +12,14 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--fond);
 canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
 .verre { background: var(--verre); -webkit-backdrop-filter: blur(20px) saturate(1.8); backdrop-filter: blur(20px) saturate(1.8); border: 1px solid var(--trait); box-shadow: 0 8px 28px rgba(0,0,0,.10); }
 #bilan { position: fixed; left: max(16px, env(safe-area-inset-left)); top: calc(16px + env(safe-area-inset-top)); border-radius: 20px; padding: 12px 16px; min-width: 190px; }
+#bilan-det > summary { display: grid; grid-template-columns: 1fr auto auto; column-gap: 12px; align-items: center; cursor: pointer; list-style: none; }
+#bilan-det > summary::-webkit-details-marker { display: none; }
+#bilan-det > summary h1 { grid-column: 1 / -1; }
+#bilan-det > summary::after { content: ""; grid-row: 2; grid-column: 3; width: 8px; height: 8px; border-right: 1.5px solid var(--label-2); border-bottom: 1.5px solid var(--label-2); transform: rotate(-135deg) translate(-2px, -2px); transition: transform .15s; }
+#bilan-det:not([open]) > summary::after { transform: rotate(45deg) translate(-2px, -2px); }
+#bilan-det .resume { grid-row: 2; grid-column: 2; display: none; font-size: 13px; color: var(--label-2); font-variant-numeric: tabular-nums; }
+#bilan-det:not([open]) .resume { display: inline; }
+#bilan-det:not([open]) > summary h1 { display: none; } #bilan-det:not([open]) > summary .n { grid-row: 2; font-size: 24px; }
 #bilan h1 { margin: 0 0 2px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--label-2); }
 #bilan .n { font-size: 34px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; }
 #bilan .n small { font-size: 15px; font-weight: 400; color: var(--label-2); margin-left: 4px; }
@@ -37,8 +45,10 @@ button:disabled { opacity: .35; }
 #barre .seg button { flex: 1 0 auto; padding: 0 10px; }
 /* Écran étroit : les calques ont leur ligne, au-dessus des commandes. La fiche d'une voie, haute, prend leur place le temps du réglage. */
 @media (max-width: 760px) {
-  :root { --barre: 130px; } #barre { flex-wrap: wrap; justify-content: space-between; width: calc(100vw - 24px); border-radius: 26px; } #barre .seg { flex: 0 0 100%; } #barre > button { flex: 1; padding: 0 10px; }
-  body:has(#fiche:not([hidden]) .ligne:not([hidden])) { --barre: 82px; } body:has(#fiche:not([hidden]) .ligne:not([hidden])) #calques { display: none; }
+  :root { --barre: 108px; } #bilan { left: max(8px, env(safe-area-inset-left)); top: calc(8px + env(safe-area-inset-top)); padding: 8px 14px; border-radius: 18px; } #bilan-det[open] { max-height: calc(100vh - var(--barre) - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; }
+  #aide.lu { display: none; }
+  #barre { bottom: calc(8px + env(safe-area-inset-bottom)); padding: 4px; gap: 4px; } #barre { flex-wrap: wrap; justify-content: space-between; width: calc(100vw - 24px); border-radius: 26px; } #barre .seg { flex: 0 0 100%; } #barre > button { flex: 1; padding: 0 10px; min-height: 40px; }
+  body:has(#fiche:not([hidden]) .ligne:not([hidden])) { --barre: 70px; } body:has(#fiche:not([hidden]) .ligne:not([hidden])) #calques { display: none; }
 }
 .ligne { display: grid; grid-template-columns: 62px 1fr; align-items: center; gap: 8px; font-size: 13px; color: var(--label-2); }
 .seg { display: flex; background: rgba(127,127,127,.16); border-radius: 14px; padding: 2px; }
@@ -58,10 +68,11 @@ button:disabled { opacity: .35; }
 <body>
 <canvas id="plan" aria-label="Squelette du parc"></canvas>
 <section id="bilan" class="verre" aria-live="polite">
-  <h1>Essai du squelette</h1>
-  <div class="n"><span id="s-places">0</span><small>places</small></div>
+  <details id="bilan-det" open>
+  <summary><h1>Essai du squelette</h1><div class="n"><span id="s-places">0</span><small>places</small></div><span id="s-resume" class="resume"></span></summary>
   <dl><dt>Emprise</dt><dd id="s-emprise">–</dd><dt>Par place</dt><dd id="s-ratio">–</dd><dt>Branches</dt><dd id="s-branches">0</dd><dt>Piétons</dt><dd id="s-pietons">–</dd><dt>Rampes</dt><dd id="s-rampes">–</dd><dt>Escaliers</dt><dd id="s-escaliers">–</dd><dt>Structure</dt><dd id="s-structure">–</dd><dt>Contreventement</dt><dd id="s-contrev">–</dd></dl>
   <details id="principes"><summary><span>Principes</span><span id="s-principes">–</span></summary><ul id="l-principes"></ul></details>
+  </details>
 </section>
 <div id="aide" class="verre">Glissez un nœud ou une branche · touchez une branche pour la régler</div>
 <section id="fiche" class="verre" hidden aria-label="Branche choisie">
@@ -611,6 +622,7 @@ function mesurer() {
   calc.principes = PRINCIPES.map((p) => { const [ok, detail] = p.mesure(calc); return { id: p.id, nom: p.nom, ok, detail }; });
   const viol = calc.principes.filter((p) => !p.ok).length;
   $("#s-principes").textContent = `${calc.principes.length - viol} sur ${calc.principes.length}`; $("#s-principes").style.color = viol ? css("--rouge") : "";
+  $("#s-resume").textContent = `${calc.principes.length - viol} sur ${calc.principes.length}`; $("#s-resume").style.color = viol ? css("--rouge") : "";
   $("#l-principes").innerHTML = calc.principes.map((p) => `<li class="${p.ok ? "oui" : "non"}">${p.nom}<span>${p.ok ? "respecté" : p.detail}</span></li>`).join("");
   $("#s-places").textContent = pl.length; $("#s-branches").textContent = S.branches.length;
   $("#s-emprise").textContent = aire ? Math.round(aire).toLocaleString("fr-FR") + " m²" : "–";
@@ -736,7 +748,7 @@ function taille() { DPR = Math.min(window.devicePixelRatio || 1, 2.5); W = cv.cl
 function cadrer() {
   const pts = (calc ? [...calc.ch, ...calc.bandes] : []).flat(); if (!pts.length) { vue = { s: 6, ox: W / 2, oy: H / 2 }; return rafraichir(false); }
   const x0 = Math.min(...pts.map((p) => p[0])), x1 = Math.max(...pts.map((p) => p[0])), y0 = Math.min(...pts.map((p) => p[1])), y1 = Math.max(...pts.map((p) => p[1]));
-  const haut = W < 760 ? 150 : 40, bas = 110;
+  const etroit = W < 760, haut = etroit ? Math.ceil($("#bilan").getBoundingClientRect().bottom) + 12 : 40, bas = etroit ? Math.ceil(H - $("#barre").getBoundingClientRect().top) + 12 : 110;
   vue.s = Math.min((W - 60) / (x1 - x0), (H - haut - bas) / (y1 - y0), 14); vue.ox = W / 2 - (x0 + x1) / 2 * vue.s; vue.oy = haut + (H - haut - bas) / 2 + (y0 + y1) / 2 * vue.s; rafraichir(false);
 }
 
@@ -1051,8 +1063,10 @@ $("#b-suppr").addEventListener("click", () => {
   if (calque && choixN >= 0) { const r = BR.filter((b) => b.a !== choixN && b.b !== choixN); BR.length = 0; BR.push(...r); NO[choixN] = null; choixN = -1; rafraichir(); fiche(); enregistrer(); return; }
   if (choix < 0) return; if (!calque) garder(); BR.splice(choix, 1); choix = -1; rafraichir(); fiche(); enregistrer(); });
 $("#b-tracer").addEventListener("click", () => { tracer = !tracer; $("#b-tracer").setAttribute("aria-pressed", String(tracer)); cv.style.cursor = tracer ? "crosshair" : "grab"; aide(); });
+$("#bilan-det").open = innerWidth > 760;
+cv.addEventListener("pointerdown", () => $("#aide").classList.add("lu"), { passive: true });
 function aide() {
-  $("#aide").textContent = actif === 2
+  $("#aide").classList.remove("lu"); $("#aide").textContent = actif === 2
     ? (tracer ? "Touchez une rangée pour y poser un escalier" : "Glissez un escalier · touchez-le pour le régler")
     : calque
     ? (tracer ? "Touchez pour poser un poteau · tirez pour tracer une poutre" : "Glissez un poteau : il s'aimante aux lignes des places · touchez-le pour porter ses poutres")

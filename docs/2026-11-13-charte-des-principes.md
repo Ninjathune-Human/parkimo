@@ -1,6 +1,6 @@
 # Parkimo : charte des principes
 
-Version 9 du 14 novembre 2026. Elle intègre les onze décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
+Version 10 du 14 novembre 2026. Elle intègre les onze décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
 
 ## À quoi sert cette charte
 
@@ -212,6 +212,10 @@ Chaque lot est livré et vérifié seul ; le prototype reste utilisable entre de
 2. On le rattache à un principe de cette charte : violé, mal écrit, ou manquant.
 3. On corrige la charte, puis la règle dans le code, et on ajoute sa mesure aux contrôles.
 4. Les contrôles sont rejoués sur les plans au hasard : la correction vaut pour tous.
+
+## 13 bis. Surface du plan sur petit écran
+
+Sous 760 px de large (iPhone), le plan prime sur les cartouches. Le bilan est replié au départ en une ligne : nombre de places, principes respectés (en rouge s'il en manque) et un chevron ; un toucher sur la ligne le déplie, et il défile s'il dépasse l'écran. Sur PC et iPad large il reste déplié. La barre basse passe de 106 à 98 px, l'aide s'efface au premier toucher du plan et revient quand on change de calque ou de mode. « Cadrer » mesure la place réellement libre entre le bilan et la barre au lieu d'une marge fixe.
 
 ## 14. Sources des valeurs de structure et de sécurité
 

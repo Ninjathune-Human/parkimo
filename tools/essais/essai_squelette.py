@@ -16,6 +16,27 @@ with sync_playwright() as p:
         pg.goto(page_path.as_uri()); pg.wait_for_timeout(600)
         r = {"vue": name, "depart": pg.evaluate(ETAT)}
         r["angles"] = pg.evaluate("calc.angles.map(a => a.x)")
+        # Surface du plan (iPhone) : le bilan est replié au départ (une ligne : places et principes), il se déplie d'un toucher
+        # sur son titre, la barre basse tient sur peu de hauteur, et l'aide s'efface au premier toucher du plan.
+        H_ = "(() => { const q = (s) => document.querySelector(s).getBoundingClientRect(); return { bilan: Math.round(q('#bilan').height), ouvert: document.querySelector('#bilan-det').open, barre: Math.round(q('#barre').height), resume: document.querySelector('#s-resume').textContent, aide: getComputedStyle(document.querySelector('#aide')).display }; })()"
+        r["surface"] = pg.evaluate(H_)
+        if name == "iphone":
+            assert not r["surface"]["ouvert"] and r["surface"]["bilan"] <= 64 and r["surface"]["barre"] <= 100 and r["surface"]["resume"] == "11 sur 11", r["surface"]
+            assert r["surface"]["aide"] != "none", r["surface"]
+            pg.screenshot(path=str(out / "iphone-replie.png"))
+            pg.click("#bilan-det > summary"); pg.wait_for_timeout(200)
+            ouvert = pg.evaluate(H_); assert ouvert["ouvert"] and ouvert["bilan"] > 200, ouvert
+            pg.click("#bilan-det > summary"); pg.wait_for_timeout(200)
+            assert not pg.evaluate("document.querySelector('#bilan-det').open")
+            pg.mouse.click(195, 500); pg.wait_for_timeout(200)
+            assert pg.evaluate(H_)["aide"] == "none", "l'aide reste affichée après un toucher du plan"
+            pg.click('#calques button[data-c="1"]'); pg.wait_for_timeout(150)
+            assert not pg.evaluate("document.querySelector('#aide').classList.contains('lu')"), "l'aide ne revient pas au changement de calque"
+            pg.click('#calques button[data-c="0"]'); pg.wait_for_timeout(150)
+            vu = pg.evaluate("(() => { const b = document.querySelector('#bilan').getBoundingClientRect().bottom, k = document.querySelector('#barre').getBoundingClientRect().top; cadrer(); const pts = calc.ch.flat().map(versE); return [Math.min(...pts.map((p) => p[1])) >= b, Math.max(...pts.map((p) => p[1])) <= k]; })()")
+            assert vu == [True, True], vu
+        else:
+            assert r["surface"]["ouvert"], r["surface"]
         E = lambda x, y: pg.evaluate(f"versE([{x}, {y}])")
         def glisser(de, vers):
             n, m = E(*de), E(*vers)
