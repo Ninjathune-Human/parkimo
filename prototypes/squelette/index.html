@@ -160,6 +160,10 @@ let choixR = -1; // rampe choisie
 // entre deux escaliers, 25 m sinon ; un cul-de-sac de 25 m au plus qui mène à deux escaliers garde 40 m au total.
 // Un parc largement ventilé (article PS 3) peut porter ces distances à 50 m et 30 m. Mesure : voir desservir.
 const ESCALIER = { long: 5 };
+// Deux éléments piétons, escaliers et passages, ne se posent pas à proximité l'un de l'autre : ECART m au moins, centre à
+// centre (décision 16). Le placement automatique s'y tient ; s'il ne trouve rien qui desserve toutes les places, la
+// desserte réglementaire passe avant et le principe signale les éléments trop proches.
+const ECART = 15, proche = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < ECART - 1e-6;
 const PARCS = { enterre: { nom: "Enterré", dist: 40, impasse: 25 }, ventile: { nom: "Largement ventilé", dist: 50, impasse: 30 } };
 const lim = () => PARCS[S.parc] || PARCS.enterre;
 // L'axe d'une place : la direction de son grand côté (le long de la voiture).
@@ -456,6 +460,7 @@ const PRINCIPES = [
   { id: "reseau", nom: "Réseau piéton d'un seul tenant", mesure: (c) => [c.troncons <= 1, `${c.troncons} tronçons`] },
   { id: "girations", nom: "Cheminements hors des girations", mesure: (c) => [!c.bandesEpure, `${c.bandesEpure} bande${c.bandesEpure > 1 ? "s" : ""}`] },
   { id: "rampes", nom: "Rampes dans une rangée assez longue", mesure: (c) => [!c.aReplacer, `${c.aReplacer} à replacer`] },
+  { id: "ecart", nom: `Escaliers et passages à ${ECART} m au moins l'un de l'autre`, mesure: (c) => { const n = c.tropProches.length; return [!n, n ? `${n} paire${n > 1 ? "s" : ""} trop proche${n > 1 ? "s" : ""}` : "aucune paire proche"]; } },
   { id: "escaliers", get nom() { const l = lim(); return `Escalier à ${l.dist} m au plus, ${l.impasse} m sans second escalier`; }, mesure: (c) => [!c.loin.length && !c.escHors && !c.sansEscalier, c.sansEscalier ? "aucun escalier" : c.escHors ? `${c.escHors} à replacer` : `${c.loin.length} place${c.loin.length > 1 ? "s" : ""} trop loin`] },
   { id: "pente", nom: "Rampe à 15 % au plus", mesure: (c) => [!c.raides, `${Math.round(100 * Math.max(0, ...c.rampesVoie.map((x) => x.pente)))} % pour ${100 * PENTE} %`] },
   { id: "portee", nom: "Portée dans la limite du système", mesure: (c) => [c.porteeNette <= c.porteeLim + 0.01, `${c.porteeNette.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m pour ${c.porteeLim.toLocaleString("fr-FR")} m`] },
@@ -493,10 +498,11 @@ function placer() {
   const deg = S.noeuds.map((_, n) => S.branches.filter((b) => !b.rampe && (b.a === n || b.b === n)).length), L = lim();
   let mesures = 0;
   // La recherche du plus petit nombre d'escaliers, les passages `ouverts` étant franchissables. Bornée par l'heure `fin`.
-  const recherche = (ouverts, finVoulue) => {
-    const cs = cands.map((c) => ({ ...c })), croix = S.branches.map(() => []); for (const x of ouverts) { croix[x.i].push(x.a); croix[x.j].push(x.b); }
+  const recherche = (ouverts, finVoulue, ecart) => {
+    const cs = cands.map((c) => ({ ...c, m: centre(c.x.corps) })), libre = (l, c) => !ecart || !l.some((o) => o !== c && proche(o.m, c.m)),
+      hors = (l) => (ecart && ouverts.length ? ouverts.filter((x) => !l.some((c) => proche(x.p, c.m))) : ouverts), /* pas de passage à ECART d'un escalier */ croix = S.branches.map(() => []); for (const x of ouverts) { croix[x.i].push(x.a); croix[x.j].push(x.b); }
     // De chaque position seule : la distance de chaque place, et le sens dans lequel elle part le long de sa voie.
-    for (const c of cs) { desservir([c.x], pl, ouverts); c.d = pl.map((o) => o.dist); c.sens = pl.map((o) => (o.vers ? Math.sign(o.vers.par.a - o.vers.a) || 1 : 0)); }
+    for (const c of cs) { desservir([c.x], pl, hors([c])); c.d = pl.map((o) => o.dist); c.sens = pl.map((o) => (o.vers ? Math.sign(o.vers.par.a - o.vers.a) || 1 : 0)); }
     // Fond d'un cul-de-sac : toutes les positions à plus de 25 m sont du même côté, et le premier carrefour (ou passage) de ce
     // côté est trop loin pour que deux escaliers s'y séparent à temps. Une telle place veut un escalier à 25 m.
     const carrefour = (i, a, sens) => { let pres = Infinity; for (const e of croix[i]) { const d = sens > 0 ? e - a : a - e; if (d > 0.01) pres = Math.min(pres, d); }
@@ -510,18 +516,18 @@ function placer() {
     for (const c of cs) { c.d = J.map((j) => c.d[j]); c.couv = Uint8Array.from(c.d, (v, k) => (v <= rayon[J[k]] + 0.01 ? 1 : 0)); c.somme = c.d.reduce((t, v) => t + Math.min(v, 200), 0); }
     const gros = cs.filter((c) => c.k % 2 === 1), ordre = P.map((_, j) => j).sort((a, b) => gros.reduce((t, c) => t + c.couv[a] - c.couv[b], 0)); // d'abord la place que le moins de positions desservent
     const juges = new Map(); let budget = 500, pas = 0, sols = [], fin = finVoulue;
-    const juger = (l) => { const cle = l.map((c) => cs.indexOf(c)).sort((a, b) => a - b).join(); if (!juges.has(cle)) { budget--; mesures++; const r = desservir(l.map((c) => c.x), P, ouverts); juges.set(cle, { l, max: r.max, loin: r.loin.length ? P.findIndex((o) => o.q === r.loin[0]) : -1, neuf: true }); } else juges.get(cle).neuf = false; return juges.get(cle); };
+    const juger = (l) => { const cle = l.map((c) => cs.indexOf(c)).sort((a, b) => a - b).join(); if (!juges.has(cle)) { budget--; mesures++; const r = desservir(l.map((c) => c.x), P, hors(l)); juges.set(cle, { l, max: r.max, loin: r.loin.length ? P.findIndex((o) => o.q === r.loin[0]) : -1, neuf: true }); } else juges.get(cle).neuf = false; return juges.get(cle); };
     const chercher = (l, reste, nb, k) => {
       if (budget <= 0 || pas++ > 6000 || sols.length >= 40 || performance.now() > fin) return;
       if (!nb) { // toutes desservies à leur rayon : la mesure tranche ; une place encore en défaut veut un escalier à 25 m
         const r = juger(l); if (!r.neuf) return; if (r.loin < 0) { sols.push(r); return; }
-        if (l.length < k) for (const c of gros.filter((c) => !l.includes(c) && c.d[r.loin] <= L.impasse).sort((a, b) => a.d[r.loin] - b.d[r.loin])) chercher([...l, c], reste, 0, k);
+        if (l.length < k) for (const c of gros.filter((c) => !l.includes(c) && c.d[r.loin] <= L.impasse && libre(l, c)).sort((a, b) => a.d[r.loin] - b.d[r.loin])) chercher([...l, c], reste, 0, k);
         return;
       }
       if (l.length === k) return;
       const cible = ordre.find((j) => reste[j]), gain = (c) => { let g = 0; for (let j = 0; j < N; j++) g += reste[j] & c.couv[j]; return g; };
       if (Math.max(...gros.map(gain)) * (k - l.length) < nb) return; // même les meilleures positions n'y suffiraient pas
-      for (const c of gros.filter((c) => c.couv[cible] && !l.includes(c)).map((c) => [c, gain(c)]).sort((a, b) => b[1] - a[1])) {
+      for (const c of gros.filter((c) => c.couv[cible] && !l.includes(c) && libre(l, c)).map((c) => [c, gain(c)]).sort((a, b) => b[1] - a[1])) {
         const r2 = reste.slice(); let n2 = nb; for (let j = 0; j < N; j++) if (r2[j] && c[0].couv[j]) { r2[j] = 0; n2--; }
         chercher([...l, c[0]], r2, n2, k);
       }
@@ -530,8 +536,8 @@ function placer() {
     const abrege = !sols.length || budget <= 0 || pas > 6000 || performance.now() > fin; // faute d'avoir tout essayé, le nombre trouvé n'est pas garanti le plus petit
     if (!sols.length && N) { // recherche épuisée : de proche en proche la position qui dessert le plus de places, puis on retire les escaliers de trop
       let l = []; const reste = new Uint8Array(N).fill(1), g = (c) => c.couv.reduce((t, v, j) => t + (reste[j] & v), 0);
-      for (;;) { const c = cs.filter((c) => !l.includes(c)).sort((a, b) => g(b) - g(a))[0]; if (!c || !g(c) || l.length >= 40) break; l.push(c); c.couv.forEach((v, j) => { if (v) reste[j] = 0; }); }
-      for (let r = juger(l), tour = 0; r.loin >= 0 && tour < 20; tour++) { const c = cs.filter((c) => !l.includes(c) && c.d[r.loin] <= L.impasse).sort((a, b) => a.d[r.loin] - b.d[r.loin])[0]; if (!c) break; l = [...l, c]; r = juger(l); }
+      for (;;) { const c = cs.filter((c) => !l.includes(c) && libre(l, c)).sort((a, b) => g(b) - g(a))[0]; if (!c || !g(c) || l.length >= 40) break; l.push(c); c.couv.forEach((v, j) => { if (v) reste[j] = 0; }); }
+      for (let r = juger(l), tour = 0; r.loin >= 0 && tour < 20; tour++) { const c = cs.filter((c) => !l.includes(c) && c.d[r.loin] <= L.impasse && libre(l, c)).sort((a, b) => a.d[r.loin] - b.d[r.loin])[0]; if (!c) break; l = [...l, c]; r = juger(l); }
       if (juger(l).loin < 0) for (let m = l.length - 1; m >= 0; m--) { const sans = l.filter((_, k) => k !== m); if (sans.length && juger(sans).loin < 0) l = sans; }
       if (l.length) sols.push(juger(l));
       // Sur un grand plan : on retranche un escalier tant qu'une implantation plus courte existe, chaque essai étant borné.
@@ -540,32 +546,38 @@ function placer() {
     // Affinage : chaque escalier essaie les positions voisines de sa rangée tant que la plus longue distance diminue.
     sols.sort((a, b) => a.max - b.max); sols = sols.slice(0, 3).map((so) => ({ ...so })); budget = 300;
     for (const so of sols) for (let tour = 0, mieux = true; mieux && tour < 20 && budget > 0 && so.loin < 0; tour++) { mieux = false;
-      so.l.forEach((c, m) => { for (const v of cs.filter((o) => o.rang === c.rang && Math.abs(o.k - so.l[m].k) === 1 && !so.l.includes(o))) { const l = so.l.slice(); l[m] = v; const r = juger(l); if (r.loin < 0 && r.max < so.max - 1e-6) { so.l = l; so.max = r.max; mieux = true; } } }); }
+      so.l.forEach((c, m) => { for (const v of cs.filter((o) => o.rang === c.rang && Math.abs(o.k - so.l[m].k) === 1 && !so.l.includes(o) && libre(so.l.filter((_, q) => q !== m), o))) { const l = so.l.slice(); l[m] = v; const r = juger(l); if (r.loin < 0 && r.max < so.max - 1e-6) { so.l = l; so.max = r.max; mieux = true; } } }); }
     sols.sort((a, b) => a.max - b.max);
     return { sols, abrege, N, k: sols.length ? sols[0].l.length : 0 };
   };
   // D'abord sans passage. Puis tous les passages ouverts : s'ils permettent un escalier de moins, on garde ces escaliers et
   // l'on referme un à un les passages dont on peut se passer, les moins empruntés d'abord (le moins d'escaliers, puis le
   // moins de passages).
-  let choix = recherche([], t0 + 1500), ouverts = []; placer.k = [choix.k, null]; let abrege = choix.abrege;
+  let choix = recherche([], t0 + 1500, true), ouverts = [];
+  if (!choix.sols.length || choix.sols[0].loin >= 0) { const sans = recherche([], performance.now() + 1500, false); if (sans.sols.length && sans.sols[0].loin < 0) choix = sans; } // la desserte passe avant l'écart
+  placer.k = [choix.k, null]; let abrege = choix.abrege;
   if (ouvrables.length && choix.k > 1) {
-    const B = recherche(ouvrables, performance.now() + 1000); placer.k[1] = B.k; abrege = abrege || B.abrege;
-    if (B.sols.length && B.k < choix.k) {
-      const X = B.sols[0].l.map((c) => c.x), large = (x) => [x.r.P(x.a, x.s * x.h), x.r.P(x.a + 2 * ESCALIER.long, x.s * x.h), x.r.P(x.a + 2 * ESCALIER.long, x.s * (x.h + x.prof)), x.r.P(x.a, x.s * (x.h + x.prof))]; // la place que prendrait l'escalier principal
+    const B = recherche(ouvrables, performance.now() + 1000, true); placer.k[1] = B.k; abrege = abrege || B.abrege;
+    if (B.sols.length && B.k < choix.k) for (const so of B.sols) {
+      // Ses escaliers ; les passages à moins de ECART d'un escalier (ou de la place de l'escalier principal) sont exclus.
+      const X = so.l.map((c) => c.x), large = (x) => [x.r.P(x.a, x.s * x.h), x.r.P(x.a + 2 * ESCALIER.long, x.s * x.h), x.r.P(x.a + 2 * ESCALIER.long, x.s * (x.h + x.prof)), x.r.P(x.a, x.s * (x.h + x.prof))];
       const seuil = desservir(X, pl, ouvrables).loin.length, tient = (l) => desservir(X, pl, l).loin.length <= seuil;
-      let garde = ouvrables.filter((x) => !X.some((y) => recouvre(x.corps, large(y))));
-      if (tient(garde)) {
-        const utiles = garde.filter((_, k) => desservir(X, pl, garde).usage[k]); if (tient(utiles)) garde = utiles;
-        const u = desservir(X, pl, garde).usage; for (const x of garde.map((x, k) => [x, u[k]]).sort((a, b) => a[1] - b[1]).map((e) => e[0])) { const sans = garde.filter((y) => y !== x); if (tient(sans)) garde = sans; }
-        choix = B; ouverts = garde;
-      }
+      const reserve = ouvrables.filter((x) => !X.some((y) => recouvre(x.corps, large(y)) || proche(x.p, centre(y.corps)) || proche(x.p, centre(large(y)))));
+      if (!tient(reserve)) continue;
+      // Les plus empruntés d'abord, chacun à ECART au moins des autres, jusqu'à ce que toutes les places soient desservies.
+      const u = desservir(X, pl, reserve).usage; let garde = [];
+      for (const x of reserve.map((x, k) => [x, u[k]]).filter((e) => e[1]).sort((a, b) => b[1] - a[1]).map((e) => e[0])) { if (garde.some((y) => proche(x.p, y.p))) continue; garde.push(x); if (tient(garde)) break; }
+      if (!tient(garde)) continue;
+      const u2 = desservir(X, pl, garde).usage; for (const x of garde.map((x, k) => [x, u2[k]]).sort((a, b) => a[1] - b[1]).map((e) => e[0])) { const sans = garde.filter((y) => y !== x); if (tient(sans)) garde = sans; }
+      choix = { ...B, sols: [so] }; ouverts = garde; break;
     }
   }
   placer.abrege = abrege;
   const sols = choix.sols, N = choix.N;
   // L'escalier principal : le plus central qui ait la place de ses ascenseurs. Le plan entier est mesuré avec lui.
   const poser = (so, m) => { S.escaliers = so.l.map((c, k) => (k === m ? { p: c.x.r.P(c.x.a + ESCALIER.long, c.x.s * (c.x.h + c.x.prof / 2)), principal: true } : { p: centre(c.x.corps) })); S.passages = ouverts.map((x) => ({ p: x.p })); mesurer(); return !calc.escHors && calc.loin.length <= pl.length - N && calc.escaliers[m].a === so.l[m].x.a; };
-  let fait = false; for (const so of sols) { const centraux = so.l.map((c, m) => m).sort((a, b) => so.l[a].somme - so.l[b].somme); for (const m of centraux) if (poser(so, m)) { fait = true; break; } if (fait) break; }
+  // D'abord un principal qui, allongé, reste à ECART des autres éléments ; à défaut, le premier qui convient.
+  let fait = false; for (const net of [true, false]) { for (const so of sols) { const centraux = so.l.map((c, m) => m).sort((a, b) => so.l[a].somme - so.l[b].somme); for (const m of centraux) if (poser(so, m) && (!net || !calc.tropProches.length)) { fait = true; break; } if (fait) break; } if (fait) break; }
   if (!fait && sols.length) poser(sols[0], 0);
   // Sur le plan réel, escalier principal compris : chaque passage dont on peut encore se passer est refermé.
   if (fait && S.passages.length) { const base = calc.loin.length; for (const x of S.passages.slice()) { const avant = S.passages; S.passages = avant.filter((y) => y !== x); mesurer(); if (calc.loin.length > base || calc.escHors) S.passages = avant; } mesurer(); }
@@ -670,7 +682,7 @@ function mesurer() {
   $("#s-structure").textContent = pot.length ? `${pot.length} poteaux · ${portee.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m${conflits.length ? ` · ${conflits.length} en voie` : ""}` : "–";
   $("#s-structure").style.color = conflits.length ? css("--rouge") : "";
   // Desserte : distance de chaque place à un escalier, dès qu'il y en a un.
-  calc.passagesP = passages; const np = passages.length, tp = np ? ` · ${np} passage${np > 1 ? "s" : ""}` : "";
+  calc.passagesP = passages; { const P = [...escaliers.filter((x) => !x.hors).map((x) => centre(x.corps)), ...passages.map((x) => x.p)]; calc.tropProches = []; P.forEach((a, k) => P.slice(k + 1).forEach((b) => { if (proche(a, b)) calc.tropProches.push([a, b]); })); } const np = passages.length, tp = np ? ` · ${np} passage${np > 1 ? "s" : ""}` : "";
   const des = escaliers.some((x) => !x.hors) ? desservir(escaliers, pl, passages) : { max: 0, loin: [], liens: { noeuds: [], entre: [], places: [] } }; calc.distMax = des.max; calc.loin = des.loin; calc.liens = des.liens; calc.liens.de = escaliers.map((x, k) => k).filter((k) => !escaliers[k].hors); calc.sansEscalier = !escaliers.length && pl.length > 0;
   $("#s-escaliers").textContent = escaliers.length ? `${escaliers.length}${tp} · ${Math.ceil(des.max - 0.01)} m${des.loin.length ? ` · ${des.loin.length} trop loin` : " au plus"}${calc.escHors ? ` · ${calc.escHors} à replacer` : ""}` : pl.length ? "aucun" : "–";
   $("#s-escaliers").style.color = des.loin.length || calc.escHors || calc.sansEscalier ? css("--rouge") : "";

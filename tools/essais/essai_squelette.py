@@ -21,7 +21,7 @@ with sync_playwright() as p:
         H_ = "(() => { const q = (s) => document.querySelector(s).getBoundingClientRect(); return { bilan: Math.round(q('#bilan').height), ouvert: document.querySelector('#bilan-det').open, barre: Math.round(q('#barre').height), resume: document.querySelector('#s-resume').textContent, aide: getComputedStyle(document.querySelector('#aide')).display }; })()"
         r["surface"] = pg.evaluate(H_)
         if name == "iphone":
-            assert not r["surface"]["ouvert"] and r["surface"]["bilan"] <= 64 and r["surface"]["barre"] <= 100 and r["surface"]["resume"] == "12 sur 12", r["surface"]
+            assert not r["surface"]["ouvert"] and r["surface"]["bilan"] <= 64 and r["surface"]["barre"] <= 100 and r["surface"]["resume"] == "13 sur 13", r["surface"]
             assert r["surface"]["aide"] != "none", r["surface"]
             pg.screenshot(path=str(out / "iphone-replie.png"))
             pg.click("#bilan-det > summary"); pg.wait_for_timeout(200)
@@ -99,7 +99,7 @@ with sync_playwright() as p:
         for _ in range(6): pg.click("#b-annuler"); pg.wait_for_timeout(150)
         pg.click("#b-cadrer"); pg.wait_for_timeout(300); pg.mouse.click(5, 5); pg.wait_for_timeout(200)
         r["rampe_voie_annulee"] = pg.evaluate("[S.branches.length, calc.pl.length, calc.principes.length]")
-        assert r["rampe_voie_annulee"] == [5, base, 12], r["rampe_voie_annulee"]
+        assert r["rampe_voie_annulee"] == [5, base, 13], r["rampe_voie_annulee"]
         # Circulations verticales (ERP, articles PS 13 et PS 24). Un escalier est un noyau posé dans une rangée : deux places,
         # quatre pour l'escalier principal qui loge deux ascenseurs. La distance se mesure dans l'axe des voies, de l'axe de la
         # place à la porte (article PS 13 § 1) : 40 m au plus entre deux escaliers, 25 m sinon.
@@ -113,7 +113,7 @@ with sync_playwright() as p:
         # Sur l'exemple : trois escaliers sans passage, deux avec un passage à travers l'îlot.
         AU = "({auto: S.escAuto, n: calc.escaliers.length, principaux: calc.escaliers.filter((x) => x.principal).length, loin: calc.loin.length, hors: calc.escHors, max: +calc.distMax.toFixed(1), viol: calc.principes.filter((p) => !p.ok).map((p) => p.id), p: S.escaliers.map((x) => x.p.map((v) => +v.toFixed(2))), ms: Math.round(placer.ms), abrege: placer.abrege, k: placer.k, passages: S.passages.length})"
         au = pg.evaluate(AU); r["auto"] = [au]
-        assert au["auto"] is True and au["k"] == [3, 2] and au["n"] == 2 and au["passages"] == 1 and au["principaux"] == 1 and au["loin"] == 0 and au["hors"] == 0 and not au["viol"] and au["ms"] < 1500 and au["abrege"] is False, au
+        assert au["auto"] is True and au["k"] == [3, 2] and au["n"] == 2 and au["passages"] == 2 and au["principaux"] == 1 and au["loin"] == 0 and au["hors"] == 0 and not au["viol"] and au["ms"] < 1500 and au["abrege"] is False, au
         # Aucun n'est de trop : sans l'un d'eux, des places ne sont plus desservies.
         r["auto_minimal"] = pg.evaluate("(() => { const g = JSON.stringify(S), out = []; for (let k = 0; k < JSON.parse(g).escaliers.length; k++) { S = JSON.parse(g); pointer(); S.escAuto = false; S.escaliers.splice(k, 1); if (!S.escaliers.some((x) => x.principal)) S.escaliers[0].principal = true; calculer(); out.push(calc.loin.length); } S = JSON.parse(g); pointer(); calculer(); return out; })()")
         assert all(x > 0 for x in r["auto_minimal"]), r["auto_minimal"]
@@ -153,7 +153,7 @@ with sync_playwright() as p:
         # Un escalier glissé contre l'escalier principal : des places passent hors distance, le principe est violé.
         glisser(de, vers)
         e = pg.evaluate(ES); r["escaliers"].append(e)
-        assert e["loin"] > 0 and e["viol"] == ["escaliers"] and e["hors"] == 0, e
+        assert e["loin"] > 0 and e["viol"] == ["ecart", "escaliers"] and e["hors"] == 0, e
         pg.screenshot(path=str(out / f"{name}-squelette-escalier-loin.png"))
         # Un escalier glissé à la main : le placement ne suit plus le plan. « Placement automatique » le rétablit.
         q = E(30, 8); pg.mouse.click(*q); pg.wait_for_timeout(250)
@@ -355,6 +355,18 @@ with sync_playwright() as p:
         assert q_["passages"] == 1 and q_["perdues"] == 2 and q_["w"] == 16 and q_["ecart"] < 0.01, q_
         assert q_["auto"]["k"][1] < q_["auto"]["k"][0] and q_["auto"]["esc"] == q_["auto"]["k"][1] and q_["auto"]["pas"] >= 1 and not q_["auto"]["viol"] and "passage" in q_["auto"]["bilan"], q_
         assert all(q_["minimal"]) and not q_["suit"]["viol"] and q_["suit"]["change"], q_
+        # Écart (décision 16) : deux éléments piétons, escaliers et passages, sont à ECART m au moins centre à centre.
+        EC = """(() => { const sauve = JSON.stringify(S), o = {}, v = (a, b, g = "90", d = "90") => ({ a, b, g, d, pieton: "auto" });
+          const lit = () => { const p = calc.principes.find((x) => x.id === "ecart"); return [p.ok, p.detail]; };
+          o.exemple = lit();
+          const plan = (esc) => { S = { ...S, noeuds: [[0, 0], [90, 0]], branches: [v(0, 1)], pn: [], pb: [], rampes: [], escAuto: false, auto: true, escaliers: esc, passages: [], emprise: undefined }; cleEsc = null; pointer(); calculer(); return lit(); };
+          o.pres = plan([{ p: [20, 5.5] }, { p: [30, 5.5] }]); o.loin = plan([{ p: [20, 5.5] }, { p: [20 + ECART + 5, 5.5] }]);
+          const cles = []; for (const [w, h] of [[96, 74], [90, 48]]) { emprise([0, 0, w, h]); const P = [...calc.escaliers.filter((x) => !x.hors).map((x) => centre(x.corps)), ...calc.passagesP.map((x) => x.p)]; let m = Infinity; P.forEach((a, k) => P.slice(k + 1).forEach((b) => { m = Math.min(m, Math.hypot(a[0] - b[0], a[1] - b[1])); })); cles.push([w, h, calc.pl.length, calc.escaliers.length, calc.passagesP.length, +m.toFixed(1), calc.principes.filter((p) => !p.ok).map((p) => p.id)]); }
+          o.emprises = cles; o.ecart = ECART;
+          S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); return o; })()"""
+        r["ecart"] = pg.evaluate(EC); q_ = r["ecart"]
+        assert q_["exemple"][0] and q_["pres"] == [False, "1 paire trop proche"] and q_["loin"][0], q_
+        assert all(x[5] >= q_["ecart"] - 0.01 and not x[6] for x in q_["emprises"]), q_
         # Le type de parc : dans le calque des escaliers, sans rien de choisi, la fiche porte le choix Enterré / Largement ventilé.
         if name == "iphone" and not pg.evaluate("document.querySelector('#bilan-det').open"): pass
         pg.click('#calques button[data-c="2"]'); pg.wait_for_timeout(150)
@@ -471,7 +483,7 @@ with sync_playwright() as p:
             for (const p of calc.principes) if (!p.ok) out[p.id] = (out[p.id] || 0) + 1; }
           S = JSON.parse(base); pointer(); rafraichir(); return out; })()""")
         # Sur les plans déformés : jamais de poteau en voie, et aucune poutre au-delà de la portée du système, ni d'escalier trop loin.
-        assert r["alea"]["enVoie"] == 0 and "portee" not in r["alea"] and "escaliers" not in r["alea"], r["alea"]
+        assert r["alea"]["enVoie"] == 0 and "portee" not in r["alea"] and "escaliers" not in r["alea"] and "ecart" not in r["alea"], r["alea"]
         n, m = E(33, 8), E(33, 0)
         pg.mouse.move(*n); pg.mouse.down(); pg.mouse.move((n[0] + m[0]) / 2, (n[1] + m[1]) / 2); pg.mouse.move(*m); pg.mouse.up(); pg.wait_for_timeout(300)
         r["poteau_en_voie"] = pg.evaluate(ST)
