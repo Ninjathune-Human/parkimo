@@ -1,6 +1,6 @@
 # Parkimo : charte des principes
 
-Version 21 du 15 novembre 2026. Elle intègre les dix-sept décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
+Version 22 du 15 novembre 2026. Elle intègre les dix-sept décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
 
 ## À quoi sert cette charte
 
@@ -67,18 +67,19 @@ L'utilisateur agit sur les couches 1 et 3, et peut reprendre la main sur 4 et 5.
 
 La structure n'est pas une règle fixe : elle dépend du système porteur, choisi pour l'ouvrage.
 
-| Système porteur | Appuis le long de la rangée | Portée en travers de la rangée | Section retenue |
-|---|---|---|---|
-| Poteaux et poutres, béton | une file toutes les deux ou trois places : 5,00 ou 7,50 m entre nus | 7,50 m courant, 10 m au plus | poteau 0,40 × 0,40 m (0,30 m au moins) |
-| Voiles béton | un voile toutes les deux ou trois places : 5,00 ou 7,50 m entre nus | dalle portant de voile à voile : 5,00 à 7,50 m | voile 0,20 m (usuel 0,15 à 0,20 m, jamais moins de 0,12 m) |
-| Grande portée, acier et béton collaborant | une file par place (2,50 m) ou toutes les deux places (5,00 m), en façade ou en fond de rangée | 16,00 m courant (deux places de 5,00 m et une allée de 6,00 m), 16,50 m au plus | poteau en profilé, environ 0,20 m (HEA 180 relevé pour quatre niveaux) |
-| Grande portée, béton précontraint | une file toutes les deux ou trois places (5,00 ou 7,50 m), en façade ou en fond de rangée | 16,00 m courant, 16,50 m au plus | poteau 0,40 × 0,40 m ; plancher de 0,40 m sans retombée |
+| Système porteur | Appuis le long de la rangée | Portée en travers de la rangée | Section retenue | Plancher : dalle et retombée | Étage |
+|---|---|---|---|---|---|
+| Poteaux et poutres, béton | une file toutes les deux ou trois places : 5,00 ou 7,50 m entre nus | 7,50 m courant, 10 m au plus | poteau 0,40 × 0,40 m (0,30 m au moins) | dalle 0,20 m, poutre plate de 0,15 m de retombée | 2,45 m |
+| Voiles béton | un voile toutes les deux ou trois places : 5,00 ou 7,50 m entre nus | dalle portant de voile à voile : 5,00 à 7,50 m | voile 0,20 m (usuel 0,15 à 0,20 m, jamais moins de 0,12 m) | dalle 0,20 m, sans retombée | 2,40 m |
+| Grande portée, acier et béton collaborant | une file par place (2,50 m) ou toutes les deux places (5,00 m), en façade ou en fond de rangée | 16,00 m courant (deux places de 5,00 m et une allée de 6,00 m), 16,50 m au plus | poteau en profilé, environ 0,20 m (HEA 180 relevé pour quatre niveaux) | dalle 0,14 m sur poutres, 0,70 m de plancher en tout | 2,80 m |
+| Grande portée, béton précontraint | une file toutes les deux ou trois places (5,00 ou 7,50 m), en façade ou en fond de rangée | 16,00 m courant, 16,50 m au plus | poteau 0,40 × 0,40 m | dalle 0,40 m sans retombée | 2,60 m |
 
-Trois règles accompagnent ce tableau :
+Quatre règles accompagnent ce tableau :
 
 1. **La trame se compte entre nus.** L'entraxe vaut le nombre de places multiplié par leur largeur, plus la section de l'appui. Un entraxe de 7,20 m avec des poteaux de 0,40 m ne laisse que 6,80 m pour trois places.
 2. **Le module à 90° est celui de la grande portée** : 5,00 + 6,00 + 5,00 = 16,00 m de mur à mur, soit la portée courante relevée chez les constructeurs. Aucun poteau dans le plateau.
-3. **Tenue au feu** : structure R 90 et planchers REI 90 pour un parc de plus de deux niveaux jusqu'à 28 m ; une dalle pleine sans poutre fait alors 0,20 m au moins. Pour un parc largement ventilé en acier, ArcelorMittal annonce une justification particulière au feu, sans protection rapportée : à vérifier dans l'arrêté du 9 mai 2006.
+3. **Hauteur d'étage** : dalle + la plus grande de 2,20 m (libre sous plafond, NF P 91-100 § 3.2) et 2,10 m + retombée (libre sous poutre ; la norme demande 2,00 m, la source 2 relève 2,10 m). Une rampe d'un étage monte de cette hauteur, une rampe de demi-niveau de sa moitié : changer de système change la pente des rampes. Le plancher porteur est seul compté ; un revêtement ou une isolation s'y ajoutent au projet.
+4. **Tenue au feu** : structure R 90 et planchers REI 90 pour un parc de plus de deux niveaux jusqu'à 28 m ; une dalle pleine sans poutre fait alors 0,20 m au moins. Pour un parc largement ventilé en acier, ArcelorMittal annonce une justification particulière au feu, sans protection rapportée : à vérifier dans l'arrêté du 9 mai 2006. Le logiciel alerte, sans l'interdire, quand la grande portée acier est choisie en parc enterré.
 
 Les sources sont en section 14. Ce sont des valeurs d'esquisse : le bureau d'études structure les confirme projet par projet.
 
@@ -176,8 +177,9 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 14. Passages (décision 14) : un passage n'est pas une circulation de véhicules ; le franchir dans la mesure de l'article PS 13 § 1 est une lecture à faire valider par la commission de sécurité ou le contrôleur technique. Le logiciel n'en ouvre qu'entre deux rangées à 90° adossées l'une à l'autre, au droit d'une place, une place de chaque côté (deux si les trames des deux rangées ne tombent pas en face). Méthode : une recherche sans passage, puis une avec tous les passages possibles ouverts ; si celle-ci demande moins d'escaliers, on garde ses escaliers et l'on referme les passages inutiles un à un, les moins empruntés d'abord, puis une dernière fois sur le plan réel, escalier principal compris. Le jeu obtenu est irréductible (aucun passage ne peut être refermé seul), pas forcément le plus petit. Le choix « le moins d'escaliers » coûte des places sur les grands plans : en boucle (décision 15), 96 × 74 m reçoit 4 escaliers et 9 passages pour 270 places, au lieu de 7 escaliers sans passage ; 90 × 48 m, 3 escaliers et 4 passages au lieu de 5 escaliers, 178 places. Les passages ne se posent ni ne se retirent encore à la main ; un escalier manié à la main les laisse en place.
 15. Circulation en boucle (décision 15) : « une branche isolée » est lue comme une impasse au plus dans le plan, quelle que soit sa longueur. Les entrées depuis la voirie ne sont pas modélisées : un plan fait d'une seule voie, ou d'une seule suite de voies sans carrefour, est admis comme une branche isolée, l'entrée étant supposée à l'un de ses bouts. À confirmer : deux antennes courtes éloignées l'une de l'autre sont refusées.
 16. Écart entre éléments (décision 16) : la valeur de 15 m est un choix du logiciel. Deux doubles rangées voisines sont à 16 m d'axe à axe : 15 m laisse aligner deux éléments d'une double rangée à la suivante, mais interdit un passage collé à un escalier ou deux passages à moins de six places dans une même rangée. À 20 m, aucun passage ne survit sur les grands plans (96 × 74 m : 8 escaliers, aucun passage). La recherche avec passages exclut déjà, pour chaque jeu d'escaliers, les passages à moins de 15 m d'eux ; les passages retenus sont pris des plus empruntés aux moins empruntés, chacun à 15 m des autres. Résultats : exemple, 2 escaliers et 2 passages (108 places, contre 110 avec un passage collé à un escalier) ; 96 × 74 m, 5 escaliers et 5 passages pour 276 places (avant : 4 et 9, 270 places) ; 90 × 48 m, 3 escaliers et 3 passages, 180 places.
+17. Hauteur d'étage (version 22) : elle suit les minima de la norme (2,20 m sous plafond) et la pratique relevée en acier (2,10 m sous poutre). Le Neufert conseille 2,20 m libres plus 0,25 m de signalétique et 0,05 m de revêtement, soit 2,50 m sous structure, et des étages de 2,75 à 3,50 m ; la règle de choix (décision 8) le ferait primer, ce qui donnerait 2,85 m poteaux, 2,70 m voiles, 3,20 m acier et 2,90 m béton précontraint. À trancher.
 
-Fixé depuis la version 1 : section des appuis et portées (section 5) ; hauteur d'étage de 2,80 m et pente de 15 % (section 11) ; largeur d'une rampe branchée, 3,25 m en sens unique et 6,50 m en double sens, « coupler » voulant dire pour elle double sens (section 11).
+Fixé depuis la version 1 : section des appuis et portées (section 5) ; hauteur d'étage, selon le système depuis la version 22, et pente de 15 % (section 11) ; largeur d'une rampe branchée, 3,25 m en sens unique et 6,50 m en double sens, « coupler » voulant dire pour elle double sens (section 11).
 
 ## 11. Les valeurs sont des données
 
@@ -197,14 +199,14 @@ Valeurs en place aujourd'hui :
 | Bande piétonne | 0,80 m, dans la voie | règle de l'utilisateur |
 | Voie de rampe | 3,25 m en sens unique ; 6,50 m en double sens | Neufert p. 274-276 ; minima NF P 91-100 § 3.3 : 3,00 m et 5,50 m |
 | Giration : rayon à l'axe, largeur balayée | 6,50 m ; 2 × 2,00 m | moteur Parkimo (`giration.rs`) |
-| Rampe droite | 20 m (2,80 m à 15 %) | Neufert, arrondi au pas |
+| Rampe droite | 20 m (une hauteur d'étage, 14 % au plus) | Neufert, arrondi au pas |
 | Trame de structure | deux ou trois places par travée, comptées entre nus | décision 4 ; section 5 |
 | Portée en travers : poteaux et poutres béton | 7,50 m, 10 m au plus | section 14, sources 13 à 15 |
 | Portée en travers : grande portée | 16,00 m, 16,50 m au plus | section 14, sources 1 à 12 |
 | Poteau béton | 0,40 × 0,40 m | section 14, source 13 ; à confirmer |
 | Poteau acier | 0,20 m | section 14, source 4 |
 | Voile béton | 0,20 m | section 14, source 16 |
-| Hauteur d'étage | 2,80 m (2,10 m libres et 0,70 m de plancher en acier de 16 m) | section 14, source 2 ; NF P 91-100 § 3.2 demande 2,20 m sous plafond et 2,00 m sous poutre |
+| Hauteur d'étage | selon le système : 2,45 m poteaux, 2,40 m voiles, 2,80 m acier, 2,60 m béton précontraint (section 5, règle 3) | dalles et retombées : section 14, sources 1, 2, 9 et 15, et dalle de 0,20 m au feu (source 19) ; hauteurs libres : NF P 91-100 § 3.2 (2,20 m sous plafond, 2,00 m sous poutre), source 2 (2,10 m) |
 | Pente de rampe | 15 % | Neufert p. 274 ; section 14, source 2 (15 % couverte, 10 % à ciel ouvert) ; plafond NF P 91-100 : 18 % |
 | Escalier : distance depuis une place | parc enterré : 40 m entre deux escaliers, 25 m sinon ; parc largement ventilé : 50 m et 30 m | arrêté du 25 juin 1980 modifié, article PS 13 § 1, version en vigueur (section 14, source 20) ; mesure dans l'axe des voies (décision 9) ; type de parc : décision 13 |
 | Écart entre escaliers et passages | 15 m au moins, centre à centre | décision 16 ; valeur à confirmer (section 10) |

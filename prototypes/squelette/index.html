@@ -121,11 +121,16 @@ const TYPES = {
 // tient dans la rangée, entre deux travées, et les places se comptent entre nus ; sinon il est au fond de la rangée
 // et rien ne tombe dans le plateau.
 const SYSTEMES = {
-  poteaux: { nom: "Poteaux", travees: [3, 2], section: 0.4, portee: 10, rang: true },
-  voiles: { nom: "Voiles", travees: [3, 2], section: 0.2, portee: 7.5, rang: true, voile: true },
-  acier: { nom: "Portée acier", travees: [2], section: 0.2, portee: 16.5 },
-  beton: { nom: "Portée béton", travees: [3, 2], section: 0.4, portee: 16.5 },
+  // dalle : épaisseur du plancher porteur ; retombee : ce qui descend sous la dalle (poutre). Charte, sections 5 et 14.
+  poteaux: { nom: "Poteaux", travees: [3, 2], section: 0.4, portee: 10, rang: true, dalle: 0.2, retombee: 0.15 },
+  voiles: { nom: "Voiles", travees: [3, 2], section: 0.2, portee: 7.5, rang: true, voile: true, dalle: 0.2, retombee: 0 },
+  acier: { nom: "Portée acier", travees: [2], section: 0.2, portee: 16.5, dalle: 0.14, retombee: 0.56, metal: true },
+  beton: { nom: "Portée béton", travees: [3, 2], section: 0.4, portee: 16.5, dalle: 0.4, retombee: 0 },
 };
+// Hauteur libre : 2,20 m sous plafond (NF P 91-100 § 3.2), 2,10 m sous poutre (au-dessus des 2,00 m de la norme).
+const LIBRE = { plafond: 2.2, poutre: 2.1 };
+const etage = (sys) => +(sys.dalle + Math.max(LIBRE.plafond, LIBRE.poutre + sys.retombee)).toFixed(3);
+const hauteurRampe = (type) => (type === "demi" ? 0.5 : 1) * etage(SYSTEMES[S.systeme]); // un étage, ou un demi-niveau
 const LARGEURS = [2.5, 2.4, 2.3]; // largeur d'une place à 90°, par ordre de préférence (décision 5)
 const RETRAIT = 0.65; // un poteau à 0,65 m de l'allée ne demande aucune surlargeur (NF P 91-100, tab. 3)
 const PAS = 2.5, AIMANT = 16; // trame des longueurs (m), rayon d'aimantation (px)
@@ -148,7 +153,7 @@ let actif = 0, calque = 0, NO, BR, choixN = -1; // actif : 0 voies, 1 poteaux, 2
 // Rampe branchée (charte, décision 7) : une voie du squelette peut être une rampe. D'équerre sur une voie, elle s'y
 // branche directement, sans S ni épure : 3,25 m en sens unique, 6,50 m en double sens (Neufert p. 274-276), sans
 // place ni bande piétonne. Sa pente se mesure sur sa longueur propre, entre les bords des voies qu'elle relie.
-const RAMPES = { droite: { nom: "Rampe droite", long: 20, haut: 2.8 }, demi: { nom: "Rampe de demi-niveau", long: 10, haut: 1.4 } };
+const RAMPES = { droite: { nom: "Rampe droite", long: 20 }, demi: { nom: "Rampe de demi-niveau", long: 10 } }; // hauteur : hauteurRampe()
 const PENTE = 0.15; // pente à ne pas dépasser (Neufert ; plafond NF P 91-100 : 18 %)
 const GIR = { r: 6.5, h: 2.0, hs: 1.5, voie: 3.25 }; // rayon à l'axe, demi-largeur balayée en courbe, demi-voie droite, voie de rampe
 GIR.dv = GIR.hs + GIR.voie / 2; GIR.phi = Math.acos(1 - GIR.dv / (2 * GIR.r)); GIR.s = 2 * GIR.r * Math.sin(GIR.phi);
@@ -628,7 +633,7 @@ function mesurer() {
   const rampes = (S.rampes || []).map((ra) => poser(ra, B)), gonfle = (q, e) => { const c = centre(q); return q.map((p) => { const l = Math.hypot(p[0] - c[0], p[1] - c[1]) || 1; return [p[0] + (p[0] - c[0]) / l * e, p[1] + (p[1] - c[1]) / l * e]; }); };
   rampes.forEach((x, k) => { x.couple = !x.hors && rampes.some((y, j) => j !== k && !y.hors && recouvre(gonfle(x.corps, 0.4), y.corps)); });
   // Rampes branchées : leur chaussée, leur longueur propre (entre les bords des voies reliées) et leur pente.
-  const rampesVoie = S.branches.map((b, i) => { if (!b.rampe) return null; const r = repere(b), al = (p) => (p[0] - r.A[0]) * r.u[0] + (p[1] - r.A[1]) * r.u[1], L = Math.max(0.1, Math.min(al(B[i].b.d[0]), al(B[i].b.g[0])) - Math.max(al(B[i].a.d[0]), al(B[i].a.g[0]))); return { i, q: ch[i], u: r.u, L, sens: b.sens === 2 ? 2 : 1, pente: RAMPES[b.rampe].haut / L }; }).filter(Boolean);
+  const rampesVoie = S.branches.map((b, i) => { if (!b.rampe) return null; const r = repere(b), al = (p) => (p[0] - r.A[0]) * r.u[0] + (p[1] - r.A[1]) * r.u[1], L = Math.max(0.1, Math.min(al(B[i].b.d[0]), al(B[i].b.g[0])) - Math.max(al(B[i].a.d[0]), al(B[i].a.g[0]))); return { i, q: ch[i], u: r.u, L, sens: b.sens === 2 ? 2 : 1, pente: hauteurRampe(b.rampe) / L }; }).filter(Boolean);
   const nr = rampes.length, nv = rampesVoie.length, aReplacer = rampes.filter((x) => x.hors).length, raides = rampesVoie.filter((x) => x.pente > PENTE + 1e-4).length;
   $("#s-rampes").textContent = nr + nv ? `${nr ? nr + nv : ""}${nr > 1 ? (rampes.every((x) => x.couple) ? " · couplées" : " · séparées") : ""}${nv ? `${nr ? " · " : ""}${nv} branchée${nv > 1 ? "s" : ""}` : ""}${aReplacer ? ` · ${aReplacer} à replacer` : ""}${raides ? ` · ${raides} trop raide${raides > 1 ? "s" : ""}` : ""}` : "–";
   $("#s-rampes").style.color = aReplacer || raides ? css("--rouge") : "";
@@ -690,7 +695,7 @@ function mesurer() {
     const bb = rects.map((q) => [Math.min(...q.map((p) => p[0])), Math.min(...q.map((p) => p[1])), Math.max(...q.map((p) => p[0])), Math.max(...q.map((p) => p[1]))]);
     for (let x = x0 + 0.25; x < x1; x += 0.5) for (let y = y0 + 0.25; y < y1; y += 0.5) if (rects.some((q, k) => x >= bb[k][0] && x <= bb[k][2] && y >= bb[k][1] && y <= bb[k][3] && dans([x, y], q))) aire += 0.25;
   }
-  calc = { surl, impasses, chaine, B, D, ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords, rampes, emprises: E, croisements, chevauchements, dansPlace, appuis, rampesVoie, raides, escaliers, escHors: escaliers.filter((x) => x.hors).length, porteeNette: Math.max(0, portee - sys.section), porteeLim: sys.portee };
+  calc = { surl, impasses, chaine, B, D, ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords, rampes, emprises: E, croisements, chevauchements, dansPlace, appuis, rampesVoie, raides, escaliers, escHors: escaliers.filter((x) => x.hors).length, etage: etage(sys), alerteFeu: !!sys.metal && S.parc === "enterre", porteeNette: Math.max(0, portee - sys.section), porteeLim: sys.portee };
   $("#s-structure").textContent = pot.length ? `${pot.length} poteaux · ${portee.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m${conflits.length ? ` · ${conflits.length} en voie` : ""}` : "–";
   $("#s-structure").style.color = conflits.length ? css("--rouge") : "";
   // Desserte : distance de chaque place à un escalier, dès qu'il y en a un.
@@ -1216,7 +1221,7 @@ function fiche() {
   $("#fiche").hidden = !b && !poteau && !libre; $("#f-portee").hidden = !poteau; $("#f-mur").hidden = !calque || !!poteau || !b; $("#f-trame").hidden = $("#f-systeme").hidden = !libre; $("#b-suppr").hidden = libre;
   for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = !!calque;
   if (libre) { const n = calc ? calc.pot.length : 0, nb = (v) => v.toLocaleString("fr-FR", { maximumFractionDigits: 1 }); $("#b-trame").setAttribute("aria-pressed", String(!!S.auto)); for (const x of $("#f-systeme").children) x.setAttribute("aria-pressed", String(x.dataset.s === S.systeme));
-    $("#f-long").textContent = (n ? `${n} poteau${n > 1 ? "x" : ""} · portée ${nb(calc.porteeNette)} m sur ${nb(calc.porteeLim)} m` : "Aucun poteau") + (S.auto ? " · suit les voies" : " · à la main"); return; }
+    $("#f-long").textContent = (n ? `${n} poteau${n > 1 ? "x" : ""} · portée ${nb(calc.porteeNette)} m sur ${nb(calc.porteeLim)} m` : "Aucun poteau") + ` · étage ${nb(calc.etage, 2)} m` + (S.auto ? " · suit les voies" : " · à la main") + (calc.alerteFeu ? " · acier en parc enterré : tenue au feu à justifier" : ""); return; }
   if (poteau) { const n = BR.filter((x) => x.a === choixN || x.b === choixN).length; $("#f-long").textContent = `Poteau · ${n} poutre${n > 1 ? "s" : ""}${calc.conflits.includes(poteau) ? " · dans une voie" : ""}`; return; }
   if (!b) return;
   if (calque) { $("#b-plein").setAttribute("aria-pressed", String(!!b.plein)); $("#f-long").textContent = `${b.plein ? "Travée pleine" : "Poutre"} · portée ${repere(b, NO).L.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m`; return; }
