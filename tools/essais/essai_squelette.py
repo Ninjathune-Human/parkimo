@@ -381,6 +381,16 @@ with sync_playwright() as p:
         pg.click("#b-annuler"); pg.wait_for_timeout(300)
         assert pg.evaluate("S.parc") == "enterre" and pg.evaluate("calc.escaliers.length") == en["n"], "annuler ne rend pas le parc enterré"
         pg.click('#calques button[data-c="0"]'); pg.wait_for_timeout(150)
+        # Doigt fantôme : un toucher dont le relevé n'est jamais arrivé ne doit pas transformer le toucher suivant en pincement.
+        FA_ = """(() => { const cv = document.querySelector("#plan"), ev = (t, id, x, y, prim) => cv.dispatchEvent(new PointerEvent(t, { pointerId: id, pointerType: "touch", isPrimary: prim, clientX: x, clientY: y, bubbles: true }));
+          const v0 = { ...vue }, o = {}, etat = JSON.stringify(S);
+          ev("pointerdown", 41, 100, 420, true);
+          ev("pointerdown", 42, 200, 420, true); ev("pointermove", 42, 230, 420, true); ev("pointermove", 42, 260, 420, true);
+          o.zoom = vue.s !== v0.s; o.pince = !!pince; ev("pointerup", 42, 260, 420, true); o.doigts = doigts.size;
+          ev("pointerdown", 43, 100, 420, true); cv.dispatchEvent(new PointerEvent("lostpointercapture", { pointerId: 43, pointerType: "touch", bubbles: true })); o.perdu = doigts.size;
+          S = JSON.parse(etat); pointer(); calculer(); choix = choixN = choixR = choixE = -1; fiche(); vue = v0; rafraichir(false); return o; })()"""
+        r["fantome"] = pg.evaluate(FA_)
+        assert r["fantome"] == {"zoom": False, "pince": False, "doigts": 0, "perdu": 0}, r["fantome"]
         # Registre des principes (charte, section 8) : tous respectés sur l'exemple, affichés au bilan.
         PR = "[document.querySelector('#s-principes').textContent, calc.principes.filter(p => !p.ok).map(p => p.id)]"
         r["principes"] = [pg.evaluate(PR), pg.evaluate("calc.principes.length")]

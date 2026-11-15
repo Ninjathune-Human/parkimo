@@ -1059,7 +1059,11 @@ const doigts = new Map(); let geste = null, pince = null;
 const arrondi = (m) => [Math.round(m[0] * 2) / 2, Math.round(m[1] * 2) / 2];
 const pos = (ev) => { const r = cv.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; };
 cv.addEventListener("pointerdown", (ev) => {
-  cv.setPointerCapture(ev.pointerId); const e = pos(ev); doigts.set(ev.pointerId, e);
+  // Un toucher « premier » signifie qu'aucun autre doigt n'est posé : les doigts dont le relevé s'est perdu sont oubliés,
+  // sans quoi ce doigt seul compterait pour le second d'un pincement.
+  if (ev.isPrimary && doigts.size) { doigts.clear(); pince = null; geste = null; }
+  try { cv.setPointerCapture(ev.pointerId); } catch (_) {} // un pointeur déjà relâché ne se capture plus : le geste continue sans capture
+  const e = pos(ev); doigts.set(ev.pointerId, e);
   if (doigts.size === 2) { const [a, b] = [...doigts.values()]; pince = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], v: { ...vue } }; if (geste && geste.avant) { S = JSON.parse(geste.avant); pointer(); calculer(); } geste = null; return; }
   if (modeEmp) { geste = { genre: "emprise", e, de: arrondi(versM(e[0], e[1])) }; return; }
   // Calque des escaliers : ni nœud ni branche ne se saisit, seuls les escaliers se manient.
@@ -1140,6 +1144,7 @@ function fin(ev) {
   rafraichir(); fiche(); enregistrer();
 }
 cv.addEventListener("pointerup", fin); cv.addEventListener("pointercancel", fin);
+cv.addEventListener("lostpointercapture", (ev) => { if (doigts.has(ev.pointerId)) fin(ev); }); // capture perdue sans relevé : le doigt est levé
 cv.addEventListener("wheel", (ev) => { ev.preventDefault(); const e = pos(ev), m = versM(e[0], e[1]), s = Math.max(1.2, Math.min(40, vue.s * Math.exp(-ev.deltaY * 0.0015))); vue = { s, ox: e[0] - m[0] * s, oy: e[1] + m[1] * s }; rafraichir(false); }, { passive: false });
 
 // ---- Fiche de la branche choisie : ce qui se développe à gauche et à droite de l'axe.
