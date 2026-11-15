@@ -409,6 +409,20 @@ with sync_playwright() as p:
           const ok = calc.principes.every((x) => x.ok || x.id === "contreventement"); S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); return [fond, pp, ok]; })()"""
         r["dos_a_dos"] = pg.evaluate(DOS_)
         assert r["dos_a_dos"][0] == 0 and r["dos_a_dos"][1] >= 6 and r["dos_a_dos"][2], r["dos_a_dos"]
+        # Trame sur l'emprise de 106 x 32 m (remarque du 15 novembre) : aucun poteau surnuméraire, c'est-à-dire dont les
+        # deux voisins de sa file sont à trois places l'un de l'autre au plus (sauf coin de noyau) ; en grande portée, les
+        # poutres franchissent la voie d'un fond de rangée à l'autre (16 m, sous la portée de 16,5 m).
+        TRM_ = """(() => { const sauve = JSON.stringify(S), o = {}; emprise([0, 0, 106, 32]);
+          for (const s of ["beton", "acier", "poteaux", "voiles"]) {
+            S.systeme = s; calculer(); trame(); const sys = SYSTEMES[s], lim = 3 * 2.5 + 2 * (sys.rang ? sys.section : 0) + 0.05;
+            const coins = calc.escaliers.flatMap((x) => x.corps), noyau = (p) => coins.some((c) => Math.hypot(c[0] - p[0], c[1] - p[1]) < 0.6) || calc.escaliers.some((x) => dans(p, x.corps));
+            const lignes = {}; for (const p of S.pn) (lignes[p[1].toFixed(2)] = lignes[p[1].toFixed(2)] || []).push(p);
+            const trop = []; for (const [y, l] of Object.entries(lignes)) { l.sort((a, b) => a[0] - b[0]); for (let k = 1; k + 1 < l.length; k++) if (l[k + 1][0] - l[k - 1][0] <= lim && !noyau(l[k])) trop.push(y + "@" + l[k][0].toFixed(1)); }
+            const travers = S.pb.filter((b) => Math.abs(S.pn[b.a][0] - S.pn[b.b][0]) < 0.3 && Math.abs(S.pn[b.a][1] - S.pn[b.b][1]) > 15).length;
+            o[s] = [trop, travers, calc.pl.length]; }
+          S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); trame(); return o; })()"""
+        r["trame_emprise"] = pg.evaluate(TRM_)
+        assert all(not v[0] for v in r["trame_emprise"].values()) and r["trame_emprise"]["beton"][1] >= 20 and r["trame_emprise"]["acier"][1] >= 30, r["trame_emprise"]
         # Plancher et hauteur libre par système : étage = dalle + retombée + 2,20 m libres sous tout élément fini ;
         # la rampe d'un étage monte de cette hauteur, celle d'un demi-niveau de sa moitié. Acier en parc enterré : une alerte.
         PL_ = """(() => { const sauve = JSON.stringify(S), o = {}; for (const k of ["poteaux", "voiles", "acier", "beton"]) { S.systeme = k; S.parc = "enterre"; S.branches[4].rampe = k === "beton" ? "demi" : "droite"; pointer(); calculer();
