@@ -1,6 +1,6 @@
 # Parkimo : charte des principes
 
-Version 25 du 15 novembre 2026. Elle intègre les dix-neuf décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
+Version 26 du 15 novembre 2026. Elle intègre les dix-neuf décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
 
 ## À quoi sert cette charte
 
@@ -248,9 +248,9 @@ Limites : pas de rampe ni de niveaux dans l'implantation (lot 6) ; une seule inc
 
 ## 13 quater. Calque des rampes
 
-Les rampes se règlent dans leur calque (décision 19), plus dans la fiche des voies. Un toucher sur une voie la choisit : sa ligne « Rampe » y pose une rampe droite ou de demi-niveau dans sa rangée, ou fait de la voie entière une rampe, dont on règle le sens. Les rampes posées et les rampes hélicoïdales se glissent du doigt ; les nœuds et les branches ne bougent pas dans ce calque.
+Les rampes se règlent dans leur calque (décision 19), plus dans la fiche des voies. Le calque ouvre le menu des rampes, sur deux rangs : Droite, Demi-niveau, Hélicoïdale, Toute la voie ; sur iPhone, il laisse visibles les calques. Sans voie choisie, seule l'hélicoïdale se pose, au centre de la vue. Un toucher sur une voie la choisit : le menu y pose une rampe droite ou de demi-niveau dans sa rangée, une rampe hélicoïdale au milieu de son axe, ou fait de la voie entière une rampe, dont on règle le sens (remarque du 15 novembre : l'hélicoïdale ne se trouvait pas). Les rampes posées et les rampes hélicoïdales se glissent du doigt ; les nœuds et les branches ne bougent pas dans ce calque.
 
-Rampe hélicoïdale : « Tracer » puis un toucher la pose, en sens unique ; on la glisse ensuite où l'on veut, au demi-mètre, et le plan se recalcule pendant le geste. Cotes du Neufert p. 275 (rampe courbe à rayon minimal) : en sens unique, mur intérieur à 4,00 m du centre, voie de 4,00 m entre 5,00 et 9,00 m, bord à 9,50 m ; en double sens, intérieur à 4,50 m et bord à 13,10 m. Elles tiennent les minima de la NF P 91-100 § 3.3 (voie courbe de 4,00 m, rayon extérieur de 8,50 m au moins). Un tour monte d'un étage ; la pente se mesure dans l'axe de la voie (intérieure en double sens), à 7,00 m du centre : 2,60 m sur 44 m, 5,9 % en béton précontraint. Son disque est une circulation de voitures : places et poteaux lui cèdent. Elle se raccorde à une voie qu'elle recouvre ; sinon sa fiche l'annonce et son contour passe en rouge pointillé.
+Rampe hélicoïdale : le menu, ou « Tracer » puis un toucher, la pose en sens unique ; on la glisse ensuite où l'on veut, au demi-mètre, et le plan se recalcule pendant le geste. Cotes du Neufert p. 275 (rampe courbe à rayon minimal) : en sens unique, mur intérieur à 4,00 m du centre, voie de 4,00 m entre 5,00 et 9,00 m, bord à 9,50 m ; en double sens, intérieur à 4,50 m et bord à 13,10 m. Elles tiennent les minima de la NF P 91-100 § 3.3 (voie courbe de 4,00 m, rayon extérieur de 8,50 m au moins). Un tour monte d'un étage ; la pente se mesure dans l'axe de la voie (intérieure en double sens), à 7,00 m du centre : 2,60 m sur 44 m, 5,9 % en béton précontraint. Son disque est une circulation de voitures : places et poteaux lui cèdent. Elle se raccorde à une voie qu'elle recouvre ; sinon sa fiche l'annonce et son contour passe en rouge pointillé.
 
 Limites : l'entrée de l'hélice sur la voie n'est pas dessinée (ni giration, ni sens d'entrée) ; le réseau piéton et la mesure des escaliers l'ignorent ; sa structure propre (noyau, voiles) n'est pas modélisée ; le sens double n'est réglé qu'en largeur.
 

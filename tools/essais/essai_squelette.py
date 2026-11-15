@@ -79,7 +79,7 @@ with sync_playwright() as p:
         # Les rampes se règlent dans leur calque : on y choisit la voie d'un toucher.
         pg.click("#b-tracer"); glisser((30, 0), (30, -30)); pg.click("#b-tracer")
         pg.evaluate("document.querySelectorAll('#calques button')[3].click()"); pg.wait_for_timeout(150)
-        q = E(30, -15); pg.mouse.click(*q); pg.wait_for_timeout(250)
+        pg.evaluate("choix = S.branches.length - 1; fiche(); rafraichir(false)"); pg.wait_for_timeout(150) # la fiche du menu peut couvrir la voie : choix direct
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="voie"]'); pg.wait_for_timeout(300)
         e = pg.evaluate(RV); r["rampe_voie"] = [e]
         assert e["rampe"] == "droite" and e["sens"] == 1 and e["largeur"] == 3.25 and e["surElle"] == 0 and e["bande"] == "aucun" and e["epures"] == 0 and "continu" in e["pietons"] and not e["viol"] and e["lignes"] == ["Rampe", "Sens"] and "pente 9,6 %" in e["fiche"]  # 2,60 m d'étage en béton précontraint sur 27 m, e
@@ -436,6 +436,17 @@ with sync_playwright() as p:
         r["helice"] = pg.evaluate(HE_)
         x = r["helice"]
         assert x["calques"] == ["Voies", "Poteaux", "Escaliers", "Rampes"] and not x["voies"] and x["rampes"] and x["places"][1] < x["places"][0] and x["places"][2] == 0 and x["poteaux"] == 0 and abs(x["pente"] - x["etage"]) < 1e-3 and x["raccord"] and x["ok"] and x["glisse"] and x["pose"] == 2, x
+        # Toutes les options des rampes sont dans le menu du calque : sans voie choisie, la fiche propose l'hélicoïdale
+        # (posée au centre de la vue), les autres attendent une voie ; une voie choisie, l'hélice se pose au milieu de son axe.
+        MR_ = """(() => { const sauve = JSON.stringify(S), o = {}, bt = [...document.querySelectorAll("#calques button")], seg = document.querySelector('#fiche .seg[data-cote="rampe"]');
+          S.helices = []; bt[3].click(); choix = -1; fiche(); o.vide = [!document.querySelector("#fiche").hidden && document.querySelector("#fiche").classList.contains("menu"), !seg.closest(".ligne").hidden, [...seg.children].map((x) => [x.dataset.t, x.disabled])];
+          seg.querySelector('[data-t="helice"]').click(); o.pose = [S.helices.length, choixH, calc.helices.length];
+          choixH = -1; choix = 0; fiche(); o.voie = [...seg.children].map((x) => [x.dataset.t, x.disabled]); seg.querySelector('[data-t="helice"]').click();
+          const r = repere(S.branches[0]), m = r.P(r.L / 2, 0), h = S.helices[1]; o.milieu = [Math.hypot(h.p[0] - m[0], h.p[1] - m[1]) < 0.6, calc.helices[1].raccord, choixH, choix];
+          S = JSON.parse(sauve); cleEsc = null; choixH = -1; bt[0].click(); pointer(); calculer(); return o; })()"""
+        r["menu_rampes"] = pg.evaluate(MR_)
+        x = r["menu_rampes"]
+        assert x["vide"] == [True, True, [["droite", True], ["demi", True], ["helice", False], ["voie", True]]] and x["pose"] == [1, 0, 1] and all(not d for _, d in x["voie"]) and x["milieu"] == [True, True, 1, -1], x
         # Doigt fantôme : un toucher dont le relevé n'est jamais arrivé ne doit pas transformer le toucher suivant en pincement.
         FA_ = """(() => { const cv = document.querySelector("#plan"), ev = (t, id, x, y, prim) => cv.dispatchEvent(new PointerEvent(t, { pointerId: id, pointerType: "touch", isPrimary: prim, clientX: x, clientY: y, bubbles: true }));
           const v0 = { ...vue }, o = {}, etat = JSON.stringify(S);

@@ -48,11 +48,12 @@ button:disabled { opacity: .35; }
   :root { --barre: 108px; } #bilan { left: max(8px, env(safe-area-inset-left)); top: calc(8px + env(safe-area-inset-top)); padding: 8px 14px; border-radius: 18px; } #bilan-det[open] { max-height: calc(100vh - var(--barre) - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; }
   #aide.lu { display: none; }
   #barre { bottom: calc(8px + env(safe-area-inset-bottom)); padding: 4px; gap: 4px; } #barre { flex-wrap: wrap; justify-content: space-between; width: calc(100vw - 24px); border-radius: 26px; } #barre .seg { flex: 0 0 100%; } #barre > button { flex: 1; padding: 0 10px; min-height: 40px; }
-  body:has(#fiche:not([hidden]) .ligne:not([hidden])) { --barre: 70px; } body:has(#fiche:not([hidden]) .ligne:not([hidden])) #calques { display: none; }
+  body:has(#fiche:not([hidden]):not(.menu) .ligne:not([hidden])) { --barre: 70px; } body:has(#fiche:not([hidden]):not(.menu) .ligne:not([hidden])) #calques { display: none; } /* le menu des rampes garde les calques */
 }
 .ligne { display: grid; grid-template-columns: 62px 1fr; align-items: center; gap: 8px; font-size: 13px; color: var(--label-2); }
 .seg { display: flex; background: rgba(127,127,127,.16); border-radius: 14px; padding: 2px; }
 .seg button { flex: 1; min-width: 0; min-height: 40px; padding: 0 4px; border-radius: 12px; font-size: 13px; font-weight: 500; }
+.seg[data-cote="rampe"] { display: grid; grid-template-columns: 1fr 1fr; } /* quatre types de rampe, sur deux rangs */
 .seg button[aria-pressed="true"] { background: var(--verre); color: var(--label); box-shadow: 0 1px 4px rgba(0,0,0,.18); font-weight: 600; }
 #fiche .bas { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--label-2); }
 #f-portee { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
@@ -79,7 +80,7 @@ button:disabled { opacity: .35; }
   <div class="ligne"><span>Gauche</span><div class="seg" data-cote="g"></div></div>
   <div class="ligne"><span>Droite</span><div class="seg" data-cote="d"></div></div>
   <div class="ligne"><span>Piétons</span><div class="seg" data-cote="pieton"><button data-t="auto">Auto</button><button data-t="aucun">Aucune</button><button data-t="g">Gauche</button><button data-t="d">Droite</button></div></div>
-  <div class="ligne"><span>Rampe</span><div class="seg" data-cote="rampe"><button data-t="droite">Droite</button><button data-t="demi">Demi-niveau</button><button data-t="voie">Toute la voie</button></div></div>
+  <div class="ligne"><span>Rampe</span><div class="seg" data-cote="rampe"><button data-t="droite">Droite</button><button data-t="demi">Demi-niveau</button><button data-t="helice">Hélicoïdale</button><button data-t="voie">Toute la voie</button></div></div>
   <div class="ligne"><span>Sens</span><div class="seg" data-cote="sens"><button data-t="1">Unique</button><button data-t="2">Double</button></div></div>
   <div id="f-portee" hidden><button data-p="long">Poutres le long de la voie</button><button data-p="travers">Poutres en travers</button></div>
   <div id="f-systeme" class="seg" role="group" aria-label="Système porteur" hidden></div>
@@ -1232,6 +1233,7 @@ for (const k of Object.keys(SYSTEMES)) { const x = document.createElement("butto
 $("#f-parc").addEventListener("click", (ev) => { const x = ev.target.closest("button[data-parc]"); if (!x || x.dataset.parc === S.parc) return; garder(); S.parc = x.dataset.parc; rafraichir(); fiche(); enregistrer(); });
 $("#f-systeme").addEventListener("click", (ev) => { const x = ev.target.closest("button[data-s]"); if (!x || x.dataset.s === S.systeme) return; garder(); S.systeme = x.dataset.s; rafraichir(); fiche(); enregistrer(); });
 function fiche() {
+  $("#fiche").classList.toggle("menu", actif === 3 && choixH < 0 && choixR < 0 && !BR[choix]); // menu des rampes, rien de choisi
   const rampe = actif === 3 && choixR >= 0 && calc ? calc.rampes[choixR] : null, hel = actif === 3 && choixH >= 0 && calc ? calc.helices[choixH] : null, esc = actif === 2 && choixE >= 0 && calc ? calc.escaliers[choixE] : null;
   $("#f-escalier").hidden = !esc; $("#f-escauto").hidden = $("#f-parc").hidden = true;
   if (esc) {
@@ -1256,7 +1258,14 @@ function fiche() {
     const n = calc ? calc.escaliers.length : 0; $("#b-escauto").setAttribute("aria-pressed", String(!!S.escAuto));
     const np = calc ? calc.passagesP.length : 0; $("#f-long").textContent = (n ? `${n} escalier${n > 1 ? "s" : ""}` : "Aucun escalier") + (np ? ` · ${np} passage${np > 1 ? "s" : ""}` : "") + (S.escAuto ? ` · suit le plan${placer.abrege ? " · recherche abrégée" : ""}` : " · à la main"); return;
   }
-  if (actif === 3 && !BR[choix]) { $("#fiche").hidden = true; return; } // calque des rampes, rien de choisi
+  // Calque des rampes, rien de choisi : le menu des rampes, où seule l'hélicoïdale se pose sans voie (au centre de la vue).
+  if (actif === 3 && !BR[choix]) {
+    $("#fiche").hidden = false; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = $("#b-suppr").hidden = true;
+    for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = l.querySelector(".seg").dataset.cote !== "rampe";
+    for (const x of document.querySelector('#fiche .seg[data-cote="rampe"]').children) { x.disabled = x.dataset.t !== "helice"; x.setAttribute("aria-pressed", "false"); }
+    $("#f-long").textContent = "Touchez une voie pour une rampe droite, de demi-niveau ou la voie entière"; return;
+  }
+  for (const x of document.querySelector('#fiche .seg[data-cote="rampe"]').children) x.disabled = false;
   const poteau = calque && choixN >= 0 && NO[choixN], b = BR[choix];
   const libre = !!calque && !b && !poteau && ficheTrame; // rien de choisi dans la structure : la fiche est celle de la trame entière
   $("#fiche").hidden = !b && !poteau && !libre; $("#f-portee").hidden = !poteau; $("#f-mur").hidden = !calque || !!poteau || !b; $("#f-trame").hidden = $("#f-systeme").hidden = !libre; $("#b-suppr").hidden = libre || actif === 3;
@@ -1278,6 +1287,9 @@ function fiche() {
 }
 $("#fiche").addEventListener("click", (ev) => { const x = ev.target.closest(".seg button"), b = S.branches[choix];
   if (x && actif === 3 && choixH >= 0 && x.parentElement.dataset.cote === "sens") { garder(); S.helices[choixH].sens = +x.dataset.t; rafraichir(); fiche(); enregistrer(); return; }
+  // Rampe hélicoïdale : au milieu de l'axe de la voie choisie, ou au centre de la vue ; on la glisse ensuite où l'on veut.
+  if (x && actif === 3 && x.dataset.t === "helice") { garder(); const r = b && repere(b), p = r ? r.P(r.L / 2, 0) : versM(cv.clientWidth / 2, cv.clientHeight / 2);
+    (S.helices = S.helices || []).push({ p: arrondi(p), sens: 1 }); choixH = S.helices.length - 1; choix = choixR = -1; rafraichir(); fiche(); enregistrer(); return; }
   if (!x || !b || calque) return; garder();
   // Une rampe du type touché se pose au milieu de la voie, dans sa première rangée ; on la glisse ensuite où l'on veut.
   const cote = x.parentElement.dataset.cote;
