@@ -389,6 +389,13 @@ with sync_playwright() as p:
           S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); return o; })()"""
         r["trame_emprises"] = pg.evaluate(TR_)
         assert all(x[2] == 0 and x[3] == 0 and not x[4] and (x[0] == 96 or x[5][0] >= 1 and x[5][1] == 0) for x in r["trame_emprises"]), r["trame_emprises"]  # façade droite d'une voie (96 × 74 : dos de rangée) : des poteaux, chacun au bout d'une poutre en travers
+        # Rangée en long face à une rangée à 90° : ses poteaux se posent au droit des files d'en face, dans une surlargeur
+        # entre deux places ; les poutres en travers restent droites, aucun poteau dans une place.
+        SU_ = """(() => { const sauve = JSON.stringify(S), o = []; for (const ty of ["0"]) for (const k of [0, 1]) for (const c of ["g", "d"]) { emprise([0, 0, 100, 40]); S.branches[k][c] = ty; S.escAuto = false; S.escaliers = []; S.passages = []; pointer(); calculer();
+          const P = S.pn; o.push([ty, k, c, calc.pl.length, S.pb.filter((x) => Math.abs(P[x.a][0] - P[x.b][0]) > 0.05 && Math.abs(P[x.a][1] - P[x.b][1]) > 0.05).length, calc.dansPlace, calc.conflits.length]); }
+          S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); return o; })()"""
+        r["surlargeur"] = pg.evaluate(SU_)
+        assert all(x[4] == 0 and x[5] == 0 and x[6] == 0 for x in r["surlargeur"]), r["surlargeur"]
         # Doigt fantôme : un toucher dont le relevé n'est jamais arrivé ne doit pas transformer le toucher suivant en pincement.
         FA_ = """(() => { const cv = document.querySelector("#plan"), ev = (t, id, x, y, prim) => cv.dispatchEvent(new PointerEvent(t, { pointerId: id, pointerType: "touch", isPrimary: prim, clientX: x, clientY: y, bubbles: true }));
           const v0 = { ...vue }, o = {}, etat = JSON.stringify(S);

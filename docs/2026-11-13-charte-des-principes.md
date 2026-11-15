@@ -1,6 +1,6 @@
 # Parkimo : charte des principes
 
-Version 19 du 15 novembre 2026. Elle intègre les seize décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
+Version 20 du 15 novembre 2026. Elle intègre les dix-sept décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
 
 ## À quoi sert cette charte
 
@@ -94,7 +94,7 @@ Le logiciel règle la trame voie par voie, ainsi :
 2. Une longueur reçoit un appui, une travée, un appui, et ainsi de suite : des travées de trois places, les dernières de deux.
 3. Le plus de places possible à 2,50 m. Puis, à la marge, une place de plus si la dernière travée, resserrée à 2,40 m ou à défaut 2,30 m, la loge. Jamais plus d'une travée resserrée par bout de rangée.
 4. Système à appuis dans la rangée (poteaux, voiles) : un poteau au fond, un second à 0,65 m de l'allée (NF P 91-100, tab. 3), un voile entre les deux pour le système à voiles. Grande portée : un poteau au fond seulement.
-5. Rangées en épi ou en long : elles gardent le pas de la norme ; une file toutes les trois places, toutes les deux si la portée du système l'exige.
+5. Rangées en épi ou en long : elles gardent le pas de la norme ; une file toutes les trois places, toutes les deux si la portée du système l'exige. Exception (décision 17) : une rangée en long face à une rangée à 90° sur la même voie prend ses poteaux au droit des files d'en face, chacun dans une surlargeur égale à sa section entre deux places ; les places se calent contre les poteaux et les poutres en travers restent droites. Sur une emprise de 100 × 40 m, une rangée en long de 80 m passe de 14 à 11 places.
 6. Façade d'une voie sans rangée : ses poteaux se posent en dernier, au droit des seules files qui l'abordent et lui envoient une poutre en travers (poteaux à moins de 8 m de l'autre bord de la voie). Un bout de voie ne reçoit un poteau, et un intervalle un poteau de plus, que si l'appui le plus proche est au-delà de la portée du système. Vérifié le 15 novembre sur cinq emprises : chaque poteau de façade porte une poutre (auparavant un poteau tous les 4 m, sans poutre, la voie étant remplie branche par branche).
 7. Deux poteaux ne sont jamais à moins de 2 m l'un de l'autre (au même point, ils n'en font qu'un). Une poutre est droite : en long comme en travers d'une rangée à 90°, elle ne rejoint qu'un poteau à 0,30 m au plus de son axe. Vérifié sur cinq emprises (15 novembre : auparavant, des poteaux à 1 m et 1,5 m l'un de l'autre, des poutres de biais, et des façades sans poteau sur 48 m, des rangées dégénérées étant prises pour de l'intérieur).
 
@@ -155,6 +155,7 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 14. **Passages entre deux zones** : il peut être opportun de supprimer une ou deux places pour ouvrir une perméabilité entre deux zones de stationnement et réduire les distances, de façon dynamique. Quand des passages permettent de se passer d'un escalier, le placement automatique retient le moins d'escaliers, puis le moins de passages, même si cela coûte des places.
 15. **Circulation en boucle** : un parking doit offrir une circulation aisée ; on ne fait pas demi-tour au bout de chaque voie. Le plan de circulation doit permettre de boucler, sauf dans une branche isolée.
 16. **Écart entre éléments** : passages et escaliers ne doivent pas être en surnombre ; une règle empêche de disposer deux éléments à proximité l'un de l'autre.
+17. **Surlargeur** (15 novembre) : quand la trame de stationnement ne tombe pas sur la trame de structure (stationnement longitudinal face à une rangée à 90°), une surlargeur égale aux dimensions du poteau sort de la logique de la trame de stationnement et permet de poser le poteau où la structure le demande. Cette logique fait partie de la conception générale, pour les cas particuliers où la règle générale ne s'applique pas.
 
 ## 10. Ce qui reste à fixer
 
@@ -164,7 +165,7 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 4. Dimensions minimales au feu d'un poteau et d'un voile (NF EN 1992-1-2, valeurs tabulées) : non relevées en ligne, à lire dans la norme.
 5. Structure du parking du Pré aux Pêcheurs à Antibes : aucune source publique trouvée ; la portée de 16 m y reste une indication de l'utilisateur.
 
-6. Rangées en épi : elles ne sont pas encore comptées entre nus (ni section d'appui, ni surlargeur le long d'un voile), et leurs poutres en travers sont de biais quand les deux côtés n'ont pas le même pas.
+6. Rangées en épi : elles ne sont pas encore comptées entre nus (ni section d'appui, ni surlargeur le long d'un voile), et leurs poutres en travers sont de biais quand les deux côtés n'ont pas le même pas. La surlargeur de la décision 17 n'y est pas appliquée : pour loger un poteau entier entre deux places penchées, elle vaut deux sections à 45°, et une rangée à 45° de 80 m passerait de 22 à 11 places. À trancher.
 7. Obstacle au milieu d'une rangée (rampe) : la trame n'est pas recalée après lui, une place peut s'y perdre.
 8. Contreventement : il ne suit pas les voies quand le plan se déforme.
 9. Places resserrées : le Neufert associe une allée de 6,50 m aux places de 2,30 m. Le resserrement à la marge garde l'allée de 6,00 m ; la norme l'admet.

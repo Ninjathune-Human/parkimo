@@ -354,9 +354,20 @@ function noeuds() {
 }
 // Places d'un côté : calées au milieu de la branche ; en épi, penchées dans le sens de marche (on roule à droite).
 const biaisDe = (t, s) => t.angle > 0 && t.angle < 90 ? (t.prof / Math.tan(t.angle * Math.PI / 180)) * -s : 0;
-function places(b, cote, rangee) {
+function places(b, cote, rangee, coupes) {
   const t = TYPES[b[cote]]; if (!t.prof) return [];
   const r = repere(b), h = demi(b), s = cote === "g" ? 1 : -1, biais = biaisDe(t, s);
+  if (coupes && coupes.length) {
+    // Rangée en long face à une rangée à 90° : les poteaux se posent au droit de ses files, chacun dans une surlargeur
+    // égale à sa section, entre deux places. Les places se calent contre les poteaux ; le reste de chaque intervalle
+    // demeure libre.
+    const al = rangee.map((p) => (p[0] - r.A[0]) * r.u[0] + (p[1] - r.A[1]) * r.u[1]), lo = Math.min(...al) - Math.abs(biais) - t.pas, hi = Math.max(...al) + Math.abs(biais) + t.pas;
+    const e = SYSTEMES[S.systeme].section, out = [], pose = (f) => { const a = f - biais, q = [r.P(f, s * (h + t.prof)), r.P(f + t.pas, s * (h + t.prof)), r.P(a + t.pas, s * h), r.P(a, s * h)]; if (tient(q, rangee)) { q.k = out.length; out.push(q); } };
+    const cs = [...coupes].sort((u, v) => u - v);
+    for (let f = cs[0] - e / 2 - t.pas; f >= lo; f -= t.pas) pose(f);
+    cs.forEach((c, m) => { const fin = m + 1 < cs.length ? cs[m + 1] - e / 2 : hi; for (let f = c + e / 2; f + t.pas <= fin + 1e-6; f += t.pas) pose(f); });
+    return out.sort((p, q) => p[0][0] - q[0][0] || p[0][1] - q[0][1]);
+  }
   // Places calées sur le nœud de départ, au pas de la place ; ne restent que celles qui tiennent dans la rangée.
   const al = rangee.map((p) => (p[0] - r.A[0]) * r.u[0] + (p[1] - r.A[1]) * r.u[1]), k0 = Math.floor((Math.min(...al) - Math.abs(biais)) / t.pas) - 1, k1 = Math.ceil((Math.max(...al) + Math.abs(biais)) / t.pas) + 1, out = [];
   for (let k = k0; k < k1; k++) { const a = k * t.pas, q = [r.P(a + biais, s * (h + t.prof)), r.P(a + t.pas + biais, s * (h + t.prof)), r.P(a + t.pas, s * h), r.P(a, s * h)]; if (tient(q, rangee)) { q.k = k; out.push(q); } }
@@ -645,7 +656,7 @@ function mesurer() {
   // Places : la voie la plus longue pose les siennes d'abord, donc les garde ; chacune cède selon l'arbitrage.
   const ordre = S.branches.map((_, i) => i).sort((x, y) => repere(S.branches[y]).L - repere(S.branches[x]).L || x - y);
   // À 90°, places et appuis viennent de la trame commune ; un appui reste s'il borde une place qui a tenu.
-  const appuis = [], sys = SYSTEMES[S.systeme], D = disposer(B, geo);
+  const appuis = [], sys = SYSTEMES[S.systeme], D = disposer(B, geo), surl = {};
   // Escaliers : leur noyau, leur porte ; la bande de l'autre côté de la voie se gagne par un passage, au droit de la porte.
   const escaliers = (S.escaliers || []).map((e) => { const x = loger(e.p, (e.principal ? 2 : 1) * ESCALIER.long, B, D); x.principal = !!e.principal; return x; });
   for (const x of escaliers) { if (x.hors) continue; E.push({ nature: "noyau", genre: "escalier", q: x.corps });
@@ -656,7 +667,8 @@ function mesurer() {
     const [A, B1, , D1] = x.corps, lu = Math.hypot(B1[0] - A[0], B1[1] - A[1]), lv = Math.hypot(D1[0] - A[0], D1[1] - A[1]), u = [(B1[0] - A[0]) / lu, (B1[1] - A[1]) / lu], v = [(D1[0] - A[0]) / lv, (D1[1] - A[1]) / lv], P = (a, t) => [A[0] + u[0] * a + v[0] * t, A[1] + u[1] * a + v[1] * t];
     for (let t = 0.25; t + 0.5 <= lv + 1e-9; t += 1) zebres.push([P(0.4, t), P(lu - 0.4, t), P(lu - 0.4, t + 0.5), P(0.4, t + 0.5)]); }
   for (const i of ordre) { const b = S.branches[i]; for (const c of ["g", "d"]) { if (!TYPES[b[c]].prof) continue; const q = quad(i, c, 2, 3), droit = TYPES[b[c]].angle === 90; bandes.push(q); rangees.push({ i, q });
-    for (const p of droit ? D[i][c].pl : places(b, c, q)) { if ((droit && !tient(p, q)) || cedeQuad(p, "place", E)) continue; p.tenue = true; pl.push({ i, c, q: p }); E.push({ nature: "place", genre: "place", i, q: p }); } } }
+    const o = c === "g" ? "d" : "g", coupes = TYPES[b[c]].prof && !TYPES[b[c]].angle && TYPES[b[o]].angle === 90 && TYPES[b[o]].prof ? D[i][o].ap.map((x) => x.a) : null; if (coupes && coupes.length) surl[i + c] = coupes;
+    for (const p of droit ? D[i][c].pl : places(b, c, q, coupes)) { if ((droit && !tient(p, q)) || cedeQuad(p, "place", E)) continue; p.tenue = true; pl.push({ i, c, q: p }); E.push({ nature: "place", genre: "place", i, q: p }); } } }
   D.forEach((x, i) => { for (const c of ["g", "d"]) for (const o of x[c].ap) if (o.v.some((p) => p.tenue)) appuis.push({ i, c, a: o.a }); });
   // Structure : un poteau dans une circulation de voitures, un poteau dans une place (la place reste, c'est lui qui est mal posé).
   const conflits = pot.filter((c) => E.some((e) => e.nature === "voiture" && dedans(c, e.q, MARGE.voiture)));
@@ -678,7 +690,7 @@ function mesurer() {
     const bb = rects.map((q) => [Math.min(...q.map((p) => p[0])), Math.min(...q.map((p) => p[1])), Math.max(...q.map((p) => p[0])), Math.max(...q.map((p) => p[1]))]);
     for (let x = x0 + 0.25; x < x1; x += 0.5) for (let y = y0 + 0.25; y < y1; y += 0.5) if (rects.some((q, k) => x >= bb[k][0] && x <= bb[k][2] && y >= bb[k][1] && y <= bb[k][3] && dans([x, y], q))) aire += 0.25;
   }
-  calc = { impasses, chaine, B, D, ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords, rampes, emprises: E, croisements, chevauchements, dansPlace, appuis, rampesVoie, raides, escaliers, escHors: escaliers.filter((x) => x.hors).length, porteeNette: Math.max(0, portee - sys.section), porteeLim: sys.portee };
+  calc = { surl, impasses, chaine, B, D, ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords, rampes, emprises: E, croisements, chevauchements, dansPlace, appuis, rampesVoie, raides, escaliers, escHors: escaliers.filter((x) => x.hors).length, porteeNette: Math.max(0, portee - sys.section), porteeLim: sys.portee };
   $("#s-structure").textContent = pot.length ? `${pot.length} poteaux · ${portee.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m${conflits.length ? ` · ${conflits.length} en voie` : ""}` : "–";
   $("#s-structure").style.color = conflits.length ? css("--rouge") : "";
   // Desserte : distance de chaque place à un escalier, dès qu'il y en a un.
@@ -1017,6 +1029,14 @@ function trame() {
         // Rangée à 90° : les appuis de la trame commune.
         x.as = calc.appuis.filter((o) => o.i === i && o.c === x.c).map((o) => o.a); const travers = { d: x.d, tol: 0.3 }; // files alignées d'un côté à l'autre : une poutre droite
         for (const a of x.as) { const fond = ajoute(r.P(a, x.s * (h + x.t.prof)), sys.rang ? long : [...long, travers]); if (sys.rang) liens.push([fond, ajoute(r.P(a, x.s * (h + RETRAIT)), [{ ...travers, max: face }])]); }
+      } else if (x.ks.size && calc.surl[i + x.c]) {
+        // Rangée en long face à une rangée à 90° : un poteau dans chaque surlargeur bordée de places, au droit
+        // de la file d'en face ; aux bouts de la rangée, un poteau seulement si le plus proche est au-delà de la portée.
+        const pr = (q) => (q[0] - r.A[0]) * r.u[0] + (q[1] - r.A[1]) * r.u[1], f = calc.pl.filter((o) => o.i === i && o.c === x.c).flatMap((o) => [pr(o.q[0]), pr(o.q[1])]), f0 = Math.min(...f), f1 = Math.max(...f), e = sys.section;
+        const cs = calc.surl[i + x.c].filter((c) => c > f0 && c < f1 && f.some((v) => Math.abs(v - c) < e / 2 + 0.02)), pied = sys.rang && x.t.prof >= 4, travers = { d: x.d, tol: 0.3 }, biais = biaisDe(x.t, x.s);
+        if (!cs.length || cs[0] - f0 > net - sys.section) cs.unshift(f0); if (cs[cs.length - 1] < f1 - net + sys.section) cs.push(f1);
+        x.as = cs.map((c) => c - biais);
+        for (const a of x.as) { const fond = ajoute(r.P(a + biais, x.s * (h + x.t.prof)), pied ? long : [...long, travers]); if (pied) liens.push([fond, ajoute(r.P(a + biais * RETRAIT / x.t.prof, x.s * (h + RETRAIT)), [{ ...travers, max: face }])]); }
       } else if (x.ks.size) {
         // Rangée en épi ou en long : une file toutes les trois places, toutes les deux si la portée du système l'exige ;
         // la dernière travée s'ajuste dans cette limite. En épi, le second poteau suit la ligne de la place, penchée.
