@@ -385,10 +385,10 @@ with sync_playwright() as p:
         TR_ = """(() => { const sauve = JSON.stringify(S), o = []; for (const [w, h] of [[96, 74], [90, 48], [60, 32], [70, 40], [80, 50]]) { emprise([0, 0, w, h]);
           const P = S.pn; let pres = 0; P.forEach((a, k) => P.slice(k + 1).forEach((c) => { if (Math.hypot(a[0] - c[0], a[1] - c[1]) < 2) pres++; }));
           const biais = S.pb.filter((x) => Math.abs(P[x.a][0] - P[x.b][0]) > 0.05 && Math.abs(P[x.a][1] - P[x.b][1]) > 0.05).length;
-          o.push([w, h, pres, biais, calc.principes.filter((p) => !p.ok).map((p) => p.id), (() => { const y = P.filter((q) => Math.abs(q[0] - w) < 0.1).map((q) => q[1]).sort((a, b) => a - b); return y.length > 1 ? +Math.max(...y.slice(1).map((v, k) => v - y[k])).toFixed(2) : 99; })()]); }
+          o.push([w, h, pres, biais, calc.principes.filter((p) => !p.ok).map((p) => p.id), (() => { const f = P.map((q, k) => k).filter((k) => Math.abs(P[k][0] - w) < 0.1); return [f.length, f.filter((k) => !S.pb.some((x) => (x.a === k || x.b === k) && Math.abs(P[x.a][1] - P[x.b][1]) < 0.05)).length]; })()]); }
           S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); return o; })()"""
         r["trame_emprises"] = pg.evaluate(TR_)
-        assert all(x[2] == 0 and x[3] == 0 and not x[4] and x[5] <= 7.51 for x in r["trame_emprises"]), r["trame_emprises"]  # façade droite : un poteau tous les 7,50 m au plus
+        assert all(x[2] == 0 and x[3] == 0 and not x[4] and (x[0] == 96 or x[5][0] >= 1 and x[5][1] == 0) for x in r["trame_emprises"]), r["trame_emprises"]  # façade droite d'une voie (96 × 74 : dos de rangée) : des poteaux, chacun au bout d'une poutre en travers
         # Doigt fantôme : un toucher dont le relevé n'est jamais arrivé ne doit pas transformer le toucher suivant en pincement.
         FA_ = """(() => { const cv = document.querySelector("#plan"), ev = (t, id, x, y, prim) => cv.dispatchEvent(new PointerEvent(t, { pointerId: id, pointerType: "touch", isPrimary: prim, clientX: x, clientY: y, bubbles: true }));
           const v0 = { ...vue }, o = {}, etat = JSON.stringify(S);

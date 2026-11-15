@@ -1032,11 +1032,16 @@ function trame() {
     cotes.forEach((x, m) => {
       if (x.t.prof) return; const autre = cotes[1 - m]; const pose = (as) => { for (const a of as) if (!rects.some((q) => dans(r.P(a, x.s * (h + 0.3)), q))) ajoute(r.P(a, x.s * h), [...long, { d: x.d, tol: 0.3 }]); };
       if (autre.as) pose(autre.as); else if (!autre.t.prof) facades.push(() => {
-        // Les files des rangées voisines (poteaux à moins de 8 m de l'autre bord de la voie) donnent les positions ; les
-        // bouts de la voie s'y ajoutent, puis un poteau au milieu de tout intervalle de plus de 7,50 m.
-        const as = []; for (const o of pts) { const a = (o.p[0] - r.A[0]) * r.u[0] + (o.p[1] - r.A[1]) * r.u[1], t = x.s * ((o.p[0] - r.A[0]) * n[0] + (o.p[1] - r.A[1]) * n[1]); if (a > -0.5 && a < r.L + 0.5 && t > -h - 8 && t < h + 0.5) as.push(Math.min(r.L, Math.max(0, a))); }
-        as.push(0, r.L); as.sort((u, v) => u - v); const pris = []; for (const a of as) if (!pris.length || a - pris[pris.length - 1] >= 2) pris.push(a);
-        const tout = []; pris.forEach((a, k) => { if (k) { const g = a - pris[k - 1], nb = Math.ceil(g / (3 * PAS) - 1e-6); for (let j = 1; j < nb; j++) tout.push(pris[k - 1] + (g * j) / nb); } tout.push(a); });
+        // Un poteau au droit de chaque file qui aborde la voie (poteau à moins de 8 m de l'autre bord, d'où part une poutre
+        // vers la façade). Entre deux poteaux de la façade, angles compris, un poteau de plus seulement au-delà de la portée.
+        const vers = (o) => o.dirs.some((d) => Math.abs(d.d[0] * r.u[0] + d.d[1] * r.u[1]) < 0.2), pos = (o) => [(o.p[0] - r.A[0]) * r.u[0] + (o.p[1] - r.A[1]) * r.u[1], x.s * ((o.p[0] - r.A[0]) * n[0] + (o.p[1] - r.A[1]) * n[1])];
+        const files = [], appuis = [];
+        for (const o of pts) { const [a, t] = pos(o); if (Math.abs(t - h) < 2 && a > -net && a < r.L + net) appuis.push(a); else if (vers(o) && a > -0.5 && a < r.L + 0.5 && t > -h - 8 && t < h) files.push(Math.min(r.L, Math.max(0, a))); }
+        files.sort((u, v) => u - v); const pris = []; for (const a of files) if (!pris.length || a - pris[pris.length - 1] >= 2) pris.push(a);
+        const tout = [...pris], tous = [...new Set([...appuis, ...pris])].sort((u, v) => u - v);
+        // Un bout de la voie ne reçoit un poteau que si l'appui le plus proche est au-delà de la portée.
+        if (!tous.length || tous[0] > net - sys.section) tous.unshift(0), tout.push(0); if (tous[tous.length - 1] < r.L - net + sys.section) tous.push(r.L), tout.push(r.L);
+        tous.forEach((a, k) => { if (!k) return; const g = a - tous[k - 1], nb = Math.ceil(g / (net - sys.section) - 1e-6); for (let j = 1; j < nb; j++) { const v = tous[k - 1] + (g * j) / nb; if (v > 0 && v < r.L) tout.push(v); } });
         pose(tout);
       });
     });

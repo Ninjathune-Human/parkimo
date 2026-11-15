@@ -1,6 +1,6 @@
 # Parkimo : charte des principes
 
-Version 18 du 15 novembre 2026. Elle intègre les seize décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
+Version 19 du 15 novembre 2026. Elle intègre les seize décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
 
 ## À quoi sert cette charte
 
@@ -95,7 +95,7 @@ Le logiciel règle la trame voie par voie, ainsi :
 3. Le plus de places possible à 2,50 m. Puis, à la marge, une place de plus si la dernière travée, resserrée à 2,40 m ou à défaut 2,30 m, la loge. Jamais plus d'une travée resserrée par bout de rangée.
 4. Système à appuis dans la rangée (poteaux, voiles) : un poteau au fond, un second à 0,65 m de l'allée (NF P 91-100, tab. 3), un voile entre les deux pour le système à voiles. Grande portée : un poteau au fond seulement.
 5. Rangées en épi ou en long : elles gardent le pas de la norme ; une file toutes les trois places, toutes les deux si la portée du système l'exige.
-6. Façade d'une voie sans rangée : ses poteaux se posent en dernier, dans l'alignement des files qui l'abordent (poteaux à moins de 8 m de l'autre bord de la voie) et à ses deux bouts, puis un poteau au milieu de tout intervalle de plus de 7,50 m.
+6. Façade d'une voie sans rangée : ses poteaux se posent en dernier, au droit des seules files qui l'abordent et lui envoient une poutre en travers (poteaux à moins de 8 m de l'autre bord de la voie). Un bout de voie ne reçoit un poteau, et un intervalle un poteau de plus, que si l'appui le plus proche est au-delà de la portée du système. Vérifié le 15 novembre sur cinq emprises : chaque poteau de façade porte une poutre (auparavant un poteau tous les 4 m, sans poutre, la voie étant remplie branche par branche).
 7. Deux poteaux ne sont jamais à moins de 2 m l'un de l'autre (au même point, ils n'en font qu'un). Une poutre est droite : en long comme en travers d'une rangée à 90°, elle ne rejoint qu'un poteau à 0,30 m au plus de son axe. Vérifié sur cinq emprises (15 novembre : auparavant, des poteaux à 1 m et 1,5 m l'un de l'autre, des poutres de biais, et des façades sans poteau sur 48 m, des rangées dégénérées étant prises pour de l'intérieur).
 
 ## 6. Une seule règle de raccord
