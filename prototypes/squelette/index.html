@@ -666,7 +666,7 @@ function mesurer() {
   for (const x of passages) { E.push({ nature: "pieton", genre: "passage", q: x.corps });
     const [A, B1, , D1] = x.corps, lu = Math.hypot(B1[0] - A[0], B1[1] - A[1]), lv = Math.hypot(D1[0] - A[0], D1[1] - A[1]), u = [(B1[0] - A[0]) / lu, (B1[1] - A[1]) / lu], v = [(D1[0] - A[0]) / lv, (D1[1] - A[1]) / lv], P = (a, t) => [A[0] + u[0] * a + v[0] * t, A[1] + u[1] * a + v[1] * t];
     for (let t = 0.25; t + 0.5 <= lv + 1e-9; t += 1) zebres.push([P(0.4, t), P(lu - 0.4, t), P(lu - 0.4, t + 0.5), P(0.4, t + 0.5)]); }
-  for (const i of ordre) { const b = S.branches[i]; for (const c of ["g", "d"]) { if (!TYPES[b[c]].prof) continue; const q = quad(i, c, 2, 3), droit = TYPES[b[c]].angle === 90; bandes.push(q); rangees.push({ i, q });
+  for (const i of ordre) { const b = S.branches[i]; for (const c of ["g", "d"]) { if (!TYPES[b[c]].prof) continue; const q = quad(i, c, 2, 3), droit = TYPES[b[c]].angle === 90; q.i = i; q.droit = droit; bandes.push(q); rangees.push({ i, q });
     const o = c === "g" ? "d" : "g", coupes = TYPES[b[c]].prof && !TYPES[b[c]].angle && TYPES[b[o]].angle === 90 && TYPES[b[o]].prof ? D[i][o].ap.map((x) => x.a) : null; if (coupes && coupes.length) surl[i + c] = coupes;
     for (const p of droit ? D[i][c].pl : places(b, c, q, coupes)) { if ((droit && !tient(p, q)) || cedeQuad(p, "place", E)) continue; p.tenue = true; pl.push({ i, c, q: p }); E.push({ nature: "place", genre: "place", i, q: p }); } } }
   D.forEach((x, i) => { for (const c of ["g", "d"]) for (const o of x[c].ap) if (o.v.some((p) => p.tenue)) appuis.push({ i, c, a: o.a }); });
@@ -1028,7 +1028,13 @@ function trame() {
       if (x.t.angle === 90) {
         // Rangée à 90° : les appuis de la trame commune.
         x.as = calc.appuis.filter((o) => o.i === i && o.c === x.c).map((o) => o.a); const travers = { d: x.d, tol: 0.3 }; // files alignées d'un côté à l'autre : une poutre droite
-        for (const a of x.as) { const fond = ajoute(r.P(a, x.s * (h + x.t.prof)), sys.rang ? long : [...long, travers]); if (sys.rang) liens.push([fond, ajoute(r.P(a, x.s * (h + RETRAIT)), [{ ...travers, max: face }])]); }
+        // Système à poteaux, rangée adossée à une autre rangée à 90° : pas de poteau au fond ; la poutre va d'un poteau de
+        // bord d'allée à l'autre, et les poteaux de bord d'allée portent les poutres en long.
+        const dos = (a) => sys.rang && !sys.voile && calc.bandes.some((q) => q.droit && q.i !== i && dans(r.P(a, x.s * (h + x.t.prof + 1)), q));
+        for (const a of x.as) {
+          if (dos(a)) { ajoute(r.P(a, x.s * (h + RETRAIT)), [...long, { ...travers, max: face }, { d: [-x.d[0], -x.d[1]], tol: 0.3, max: 2 * (x.t.prof - RETRAIT) + 0.1 }]); continue; }
+          const fond = ajoute(r.P(a, x.s * (h + x.t.prof)), sys.rang ? long : [...long, travers]); if (sys.rang) liens.push([fond, ajoute(r.P(a, x.s * (h + RETRAIT)), [{ ...travers, max: face }])]);
+        }
       } else if (x.ks.size && calc.surl[i + x.c]) {
         // Rangée en long face à une rangée à 90° : un poteau dans chaque surlargeur bordée de places, au droit
         // de la file d'en face ; aux bouts de la rangée, un poteau seulement si le plus proche est au-delà de la portée.

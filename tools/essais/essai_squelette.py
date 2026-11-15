@@ -396,6 +396,14 @@ with sync_playwright() as p:
           S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); return o; })()"""
         r["surlargeur"] = pg.evaluate(SU_)
         assert all(x[4] == 0 and x[5] == 0 and x[6] == 0 for x in r["surlargeur"]), r["surlargeur"]
+        # Système à poteaux, rangées à 90° dos à dos (îlot de l'exemple, fond à y = 8) : pas de file au fond ; une poutre
+        # droite d'un poteau de bord d'allée à l'autre (10 - 2 × 0,65 = 8,70 m, sous la portée de 10 m).
+        DOS_ = """(() => { const sauve = JSON.stringify(S); S.systeme = "poteaux"; pointer(); calculer(); const P = S.pn;
+          const fond = P.filter((p) => Math.abs(p[1] - 8) < 0.05 && p[0] > 0 && p[0] < 60).length;
+          const pp = S.pb.filter((b) => Math.abs(P[b.a][0] - P[b.b][0]) < 0.05 && Math.abs(Math.abs(P[b.a][1] - P[b.b][1]) - 8.7) < 0.05 && Math.min(P[b.a][1], P[b.b][1]) > 3).length;
+          const ok = calc.principes.every((x) => x.ok || x.id === "contreventement"); S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); return [fond, pp, ok]; })()"""
+        r["dos_a_dos"] = pg.evaluate(DOS_)
+        assert r["dos_a_dos"][0] == 0 and r["dos_a_dos"][1] >= 6 and r["dos_a_dos"][2], r["dos_a_dos"]
         # Doigt fantôme : un toucher dont le relevé n'est jamais arrivé ne doit pas transformer le toucher suivant en pincement.
         FA_ = """(() => { const cv = document.querySelector("#plan"), ev = (t, id, x, y, prim) => cv.dispatchEvent(new PointerEvent(t, { pointerId: id, pointerType: "touch", isPrimary: prim, clientX: x, clientY: y, bubbles: true }));
           const v0 = { ...vue }, o = {}, etat = JSON.stringify(S);
