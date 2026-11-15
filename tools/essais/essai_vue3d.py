@@ -101,11 +101,46 @@ with sync_playwright() as p:
         apres = pg.evaluate("JSON.stringify(S)"), pg.evaluate("window.vue3d.camera.position.toArray()")
         assert avant[0] == apres[0] and avant[1] != apres[1], "le glisser doit tourner la vue sans modifier le plan"
         pg.screenshot(path=str(out / f"{nom}-tourne.png"))
-        pg.click("#b-emprise"); pg.wait_for_timeout(400)
-        assert not pg.evaluate("document.body.classList.contains('en3d')") and pg.evaluate("document.querySelector('#b-emprise').getAttribute('aria-pressed')") == "true"
+        pg.click("#b-emprise"); pg.wait_for_function("!document.body.classList.contains('en3d')", timeout=8000)
+        assert pg.evaluate("document.querySelector('#b-emprise').getAttribute('aria-pressed')") == "true"
         barre = pg.evaluate("[...document.querySelectorAll('#barre > button')].map((b) => Math.round(b.getBoundingClientRect().top))")
         assert len(set(barre)) == 1, f"[{nom}] les boutons de la barre ne tiennent pas sur une ligne : {barre}"
         ctx.close()
+
+    # Étape 3, la levée. (a) La première image 3D est le plan : mêmes points aux mêmes pixels. (b) Une bascule
+    # interrompue repart en sens inverse. (c) Au retour, le plan est recalé sur le point regardé en 3D, à la même
+    # échelle. (d) Mouvement réduit : pas d'animation. Puis une suite d'images de la levée, pour la vidéo.
+    ctx = b.new_context(viewport={"width": 1280, "height": 800}); pg = ctx.new_page()
+    if vendor: pg.route("https://cdn.jsdelivr.net/**", cdn)
+    pg.on("console", lambda m: errs.append(f"[levee] {m.type}: {m.text}") if m.type == "error" and "favicon" not in (m.location or {}).get("url", "") else None)
+    pg.on("pageerror", lambda e: errs.append(f"[levee] pageerror: {e}"))
+    pg.goto(URL + "?3d"); pg.evaluate("localStorage.clear()"); pg.goto(URL + "?3d"); pg.wait_for_function("window.vue3d", timeout=20000)
+    pg.evaluate("() => { " + SCENARIOS["ventile"] + " pointer(); rafraichir(); }"); pg.wait_for_timeout(300)
+    pts = pg.evaluate("[...calc.ch[0], ...calc.ch[2], ...calc.pl.slice(0, 6).map((p) => p.q[0])]")
+    plan = pg.evaluate("(pts) => pts.map(versE)", pts)
+    pg.screenshot(path=str(out / "levee-0-plan.png"))
+    pg.click("#b-3d"); pg.evaluate("window.vue3d.figer(0)")
+    vu = pg.evaluate("(pts) => pts.map((p) => window.vue3d.projeter(p[0], p[1], 0))", pts)
+    ecart = max(abs(a[0] - c[0]) + abs(a[1] - c[1]) for a, c in zip(plan, vu))
+    print("levée : écart plan / première image 3D", round(ecart, 3), "px"); assert ecart < 1.0, ecart
+    for k, p_ in enumerate([0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1]):
+        pg.evaluate(f"window.vue3d.figer({p_})"); pg.screenshot(path=str(out / f"levee-{k + 1}.png"))
+    # (b) bascule interrompue
+    pg.goto(URL + "?3d"); pg.wait_for_function("window.vue3d", timeout=20000)
+    pg.click("#b-3d"); pg.wait_for_timeout(450); e1 = pg.evaluate("window.vue3d.etat()")
+    pg.click("#b-3d"); pg.wait_for_timeout(50); e2 = pg.evaluate("window.vue3d.etat()")
+    assert e1["sens"] == 1 and e2["sens"] == -1 and e2["anim"], (e1, e2)
+    pg.wait_for_function("!document.body.classList.contains('en3d')", timeout=8000)
+    # (c) retour recalé : en 3D, on s'approche d'un point ; revenu au plan, ce point est au centre, à la même échelle.
+    pg.click("#b-3d"); pg.wait_for_function("window.vue3d.etat().actif && !window.vue3d.etat().anim", timeout=8000)
+    cible = pg.evaluate("(() => { const v = window.vue3d, t = v.controles.target; t.x += 12; t.z -= 4; v.camera.zoom = 1.6; v.camera.updateProjectionMatrix(); v.controles.update(); return [t.x, -t.z]; })()")
+    pg.wait_for_timeout(300); pg.click("#b-3d"); pg.wait_for_function("!document.body.classList.contains('en3d')", timeout=8000)
+    centre = pg.evaluate("(c) => [versE(c), [cv.clientWidth / 2, cv.clientHeight / 2], vue.s]", cible)
+    assert abs(centre[0][0] - centre[1][0]) < 1 and abs(centre[0][1] - centre[1][1]) < 1, centre
+    # (d) mouvement réduit
+    pg.emulate_media(reduced_motion="reduce"); pg.click("#b-3d"); pg.wait_for_timeout(250)
+    assert pg.evaluate("window.vue3d.etat().progres") == 1
+    ctx.close()
     b.close()
 
 print(json.dumps(mesures, indent=1))

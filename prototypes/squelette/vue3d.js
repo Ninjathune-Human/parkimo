@@ -40,7 +40,8 @@ const garderReglages = () => { try { localStorage.setItem("parkimo.vue3d", JSON.
 
 // ---- Interface : le canevas sous les panneaux du squelette, le bouton 3D de la barre, le panneau de la vue.
 document.head.insertAdjacentHTML("beforeend", `<style>
-#vue3d { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; display: none; opacity: 0; transition: opacity .22s ease; }
+#vue3d { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; display: none; opacity: 0; transition: opacity .12s linear; }
+#vue3d.sortie { pointer-events: none; }
 body.en3d #vue3d { display: block; } body.en3d #vue3d.visible { opacity: 1; }
 body.en3d #aide { display: none; }
 #p3d { position: fixed; right: max(16px, env(safe-area-inset-right)); top: calc(16px + env(safe-area-inset-top)); border-radius: 20px; padding: 12px 16px; min-width: 260px; display: none; }
@@ -85,8 +86,8 @@ soleil.castShadow = true; soleil.shadow.bias = -0.0004; soleil.shadow.normalBias
 soleil.shadow.mapSize.set(innerWidth < 760 ? 1024 : 2048, innerWidth < 760 ? 1024 : 2048);
 monde.add(ciel, soleil, soleil.target);
 let composer = null, ao = null, aretesAO = [];
-let W = 0, H = 0, echelle = 6, sc = null, actif = false, sale = true, attente = false, repos = 0, premiere = true, place = false;
-const materiaux = new Map(), lignes = { aretes: new LineMaterial({ linewidth: 1, transparent: true }), marques: new LineMaterial({ linewidth: 1 }) };
+let W = 0, H = 0, echelle = 6, sc = null, actif = false, sale = true, attente = false, repos = 0;
+const materiaux = new Map(), lignes = { aretes: new LineMaterial({ linewidth: 1, transparent: true }), marques: new LineMaterial({ linewidth: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }) };
 
 // Plan (x, y) et cote z vers three.js : y vers le haut, le nord vers -z. Vu du dessus, le plan garde son orientation.
 const V3 = (x, y, z) => [x, z, -y];
@@ -147,8 +148,9 @@ function materiau(m) {
   if (!materiaux.has(m)) {
     // Les volumes reculent d'un cran : leurs arêtes restent visibles. Les sols peints, quelques millimètres au-dessus de
     // la dalle, n'en ont pas besoin ; les avancer ferait passer les marquages dessous.
+    // Les sols peints avancent d'un cran, les marquages de deux : posés sur la même dalle, chacun reste visible.
     const peint = ["enrobe", "place", "constat", "pieton", "zebre"].includes(m);
-    materiaux.set(m, new THREE.MeshLambertMaterial({ color: 0xffffff, polygonOffset: !peint, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+    materiaux.set(m, new THREE.MeshLambertMaterial({ color: 0xffffff, polygonOffset: true, polygonOffsetFactor: peint ? -1 : 1, polygonOffsetUnits: peint ? -2 : 1 }));
   }
   return materiaux.get(m);
 }
@@ -188,14 +190,17 @@ function construire() {
   $("#p3d-resume").textContent = sc.places ? `${sc.niveaux.filter((x) => x.places).length} niv. · ${sc.places.toLocaleString("fr-FR")} pl.` : "aucun plan";
   $("#p3d-constats").textContent = sc.constats.join(" · ");
   window.vue3d.mesure = { scene: +(t1 - t0).toFixed(1), maillage: +(performance.now() - t1).toFixed(1), volumes: sc.volumes.length, rubans: sc.rubans.length, sols: sc.sols.length };
-  if (premiere) { premiere = false; cadrer(); }
 }
 
-function appliquerRendu() {
-  const R = (RENDUS[reglages.rendu] || RENDUS.maquette)();
-  for (const [m, mat] of materiaux) mat.color.set(R.couleurs[m] || "#FF00FF");
-  lignes.aretes.color.set(R.arete); lignes.aretes.opacity = R.opacite; lignes.aretes.linewidth = R.epaisseur;
-  lignes.marques.color.set(R.marque); lignes.marques.linewidth = 1;
+// k : 0, les couleurs du plan, sans lumière (première image de la levée) ; 1, celles du rendu, éclairées.
+function appliquerRendu(k = 1) {
+  const R = (RENDUS[reglages.rendu] || RENDUS.maquette)(), P = k < 1 ? palette || couleursPlan() : null;
+  for (const [m, mat] of materiaux) {
+    mat.color.set(R.couleurs[m] || "#FF00FF");
+    if (P) { mat.emissive.copy(P[m] || mat.color).multiplyScalar(1 - k); mat.color.multiplyScalar(k); } else mat.emissive.setRGB(0, 0, 0);
+  }
+  lignes.aretes.color.set(R.arete); lignes.aretes.opacity = R.opacite * k; lignes.aretes.linewidth = R.epaisseur;
+  lignes.marques.color.set(R.marque); if (P) lignes.marques.color.lerp(P.marque, 1 - k); lignes.marques.linewidth = 1;
   ciel.intensity = R.ciel; ciel.groundColor.set(sombre.matches ? 0x202528 : 0xd8dad6); soleil.intensity = R.soleil; soleil.shadow.intensity = R.ombre;
   monde.background = new THREE.Color(css("--fond") || "#EEF1EF");
   for (const b of document.querySelectorAll("#p3d-rendu button")) b.setAttribute("aria-pressed", String(b.dataset.r === reglages.rendu));
@@ -210,26 +215,31 @@ function ombres() {
   soleil.shadow.needsUpdate = true;
 }
 
-// ---- Caméra : axonométrie orthographique, à 30° environ au-dessus de l'horizon. Cadrer : tout le parc dans la vue
-// libre, sous le même angle. À la première vue, vu du sud-ouest, tourné de 30° au plus si le parc remplit mieux l'écran
-// (un téléphone tenu droit) : la vue reste de biais, jamais dans l'axe du bâtiment.
-const SUD_OUEST = Math.atan2(1, -1); // azimut de la caméra (plan three.js x, z) : vers l'ouest et le sud
-function echelleVue(c, dir) {
-  camera.position.copy(c).add(dir.clone().multiplyScalar(1500)); camera.up.set(0, 1, 0); camera.lookAt(c); camera.updateMatrixWorld();
+// ---- Caméra : axonométrie orthographique, une pose = cible, azimut, inclinaison et échelle (pixels par mètre). Azimut
+// 0 : caméra au sud, le nord en haut de l'écran comme dans le plan. Première vue : du sud-ouest, à 31° au-dessus de
+// l'horizon, tournée de 30° au plus si le parc remplit mieux l'écran (un téléphone tenu droit), jamais dans l'axe.
+const SUD_OUEST = -Math.PI / 4, PENCHE = Math.acos(0.6 / Math.hypot(1, 0.6)), ZENITH = 1e-3;
+const centre = () => new THREE.Vector3(...V3((sc.min[0] + sc.max[0]) / 2, (sc.min[1] + sc.max[1]) / 2, (sc.haut + sc.bas) / 2));
+function poser(P) { echelle = P.s; camera.zoom = 1; cadrage(); controles.target.copy(P.cible); camera.position.copy(P.cible).add(new THREE.Vector3().setFromSphericalCoords(1500, P.phi, P.theta)); camera.up.set(0, 1, 0); camera.lookAt(P.cible); camera.updateMatrixWorld(); }
+function pose() { const o = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controles.target)); return { cible: controles.target.clone(), theta: o.theta, phi: o.phi, s: echelle * camera.zoom }; }
+// Échelle qui loge tout le parc dans la vue libre, pour une cible et une direction données.
+function echelleVue(c, theta, phi) {
+  poser({ cible: c, theta, phi, s: echelle });
   const droite = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0), haut = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
   let ex = 0, ey = 0;
   for (const x of [sc.min[0], sc.max[0]]) for (const y of [sc.min[1], sc.max[1]]) for (const z of [sc.bas, sc.haut]) { const p = new THREE.Vector3(...V3(x, y, z)).sub(c); ex = Math.max(ex, Math.abs(p.dot(droite))); ey = Math.max(ey, Math.abs(p.dot(haut))); }
   const etroit = W < 760, hautLibre = H - (etroit ? 230 : 150), largeLibre = W - (etroit ? 24 : 120);
   return Math.max(0.5, Math.min(largeLibre / (2 * ex), hautLibre / (2 * ey)));
 }
-const azimut = (a) => new THREE.Vector3(Math.cos(a), 0.6, Math.sin(a)).normalize();
+let derniere = null; // la dernière pose 3D, retrouvée au retour en 3D
+function poseCadree(theta = null, phi = PENCHE) {
+  const c = centre();
+  if (theta === null) { let mieux = -1; for (let k = -2; k <= 2; k++) { const t = SUD_OUEST + (k * Math.PI) / 12, e = echelleVue(c, t, phi) * (1 - 0.04 * Math.abs(k)); if (e > mieux) { mieux = e; theta = t; } } }
+  return { cible: c, theta, phi, s: echelleVue(c, theta, phi) };
+}
 function cadrer() {
   if (!sc || !sc.volumes.length) return;
-  const c = new THREE.Vector3(...V3((sc.min[0] + sc.max[0]) / 2, (sc.min[1] + sc.max[1]) / 2, (sc.haut + sc.bas) / 2));
-  let dir = place ? camera.position.clone().sub(controles.target).normalize() : azimut(SUD_OUEST);
-  if (!place) { let mieux = -1; for (let k = -2; k <= 2; k++) { const a = SUD_OUEST + (k * Math.PI) / 12, e = echelleVue(c, azimut(a)) * (1 - 0.04 * Math.abs(k)); if (e > mieux) { mieux = e; dir = azimut(a); } } }
-  place = true; controles.target.copy(c); echelle = echelleVue(c, dir);
-  camera.zoom = 1; cadrage(); controles.update(); demander();
+  const p = pose(); poser(poseCadree(p.theta, p.phi)); controles.update(); demander();
 }
 function cadrage() { camera.left = -W / 2 / echelle; camera.right = W / 2 / echelle; camera.top = H / 2 / echelle; camera.bottom = -H / 2 / echelle; camera.updateProjectionMatrix(); }
 
@@ -245,13 +255,20 @@ function demander() { clearTimeout(repos); if (!attente && actif) { attente = tr
 function image() {
   attente = false; if (!actif) return;
   if (sale) construire();
+  if (anim) {
+    const t = performance.now();
+    if (t >= anim.avant) { if (anim.t !== null) progres = Math.min(1, Math.max(0, progres + (sensAnim * (t - anim.t)) / DUREE)); anim.t = t; }
+    levee(progres); renderer.render(monde, camera);
+    if (sensAnim > 0 && progres >= 1) finEntree(); else if (sensAnim < 0 && progres <= 0) finSortie(); else demander();
+    return;
+  }
   const bouge = controles.update();
   renderer.render(monde, camera);
   if (bouge) demander(); else repos = setTimeout(soigne, 140);
 }
 function soigne() {
   const R = (RENDUS[reglages.rendu] || RENDUS.maquette)();
-  if (!actif || !R.ao) return;
+  if (!actif || anim || !R.ao) return;
   if (!composer) {
     composer = new EffectComposer(renderer); composer.addPass(new RenderPass(monde, camera));
     ao = new GTAOPass(monde, camera, W, H); ao.blendIntensity = 0.85;
@@ -263,19 +280,83 @@ function soigne() {
   composer.render();
 }
 
-// ---- Bascule 2D / 3D : un fondu ; la levée de la maquette depuis le plan viendra au lot 3.
+// ---- Bascule 2D / 3D : la levée (plan claude/plan-vue-3d.md, § 5). La première image 3D est le plan : caméra au
+// zénith calée sur la vue 2D (même échelle, même centre, nord en haut), niveaux aplatis, couleurs du plan sans
+// lumière. Puis, sur une seule courbe, la caméra s'incline vers l'axonométrie, les niveaux montent l'un après
+// l'autre, poteaux et noyaux poussent, les couleurs passent à celles de la maquette. Le retour suit le même chemin à
+// rebours, vers le point regardé en 3D, sur lequel le plan est recalé. Une bascule interrompue repart en sens inverse.
+const reduit = matchMedia("(prefers-reduced-motion: reduce)"), DUREE = 900, FONDU = 120;
+let anim = null, progres = 0, sensAnim = 0, poseA = null, poseB = null, palette = null, fermeture = 0;
+const lisse = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const melangeCss = (a, b, t) => new THREE.Color(css(a)).lerp(new THREE.Color(css(b)), t);
+// La palette du plan (variables du squelette), matière par matière : ce que le canevas 2D dessine au même endroit.
+function couleursPlan() {
+  const c = (v) => new THREE.Color(css(v));
+  return { terrain: c("--fond"), dallage: c("--dalle"), radier: c("--dalle"), dalle: c("--dalle"), couverture: c("--dalle"), enrobe: c("--enrobe"), place: c("--place"),
+    constat: melangeCss("--place", "--rouge", 0.28), pieton: melangeCss("--dalle", "--pieton", 0.7), zebre: c("--marque"), poteau: c("--mur"), poteau_constat: c("--rouge"),
+    poutre: melangeCss("--dalle", "--mur", 0.55), voile: c("--mur"), maconnerie: c("--mur"), noyau: c("--mur"), marche: c("--fond"), palier: c("--fond"), ascenseur: c("--fond"),
+    rampe: c("--rampe"), rampe_constat: c("--rampe"), rive: c("--mur"), allege: c("--mur"), marque: c("--marque") };
+}
+function melange(A, B, k) {
+  const d = Math.atan2(Math.sin(B.theta - A.theta), Math.cos(B.theta - A.theta));
+  return { cible: A.cible.clone().lerp(B.cible, k), theta: A.theta + d * k, phi: A.phi + (B.phi - A.phi) * k, s: Math.exp(Math.log(A.s) + (Math.log(B.s) - Math.log(A.s)) * k) };
+}
+// Les niveaux montent l'un après l'autre depuis le plancher au sol : vers le haut en silo, vers le bas en enterré.
+// Chaque groupe garde sa géométrie ; seul son écrasement (échelle verticale) et sa hauteur changent.
+function etager(p) {
+  if (!sc || !sc.niveaux.length) return;
+  const F = sc.niveaux, T = F.length - 1, ref = Math.max(0, F.findIndex((x) => Math.abs(x.z) < 1e-6)), E = T > 0 ? F[1].z - F[0].z : 1;
+  const rang = (f) => (ref === 0 ? f : f === T ? 1 : T - 1 - f), K = T + 1, d = K > 1 ? Math.min(0.075, 0.6 / (K - 1)) : 0;
+  const ef = F.map((_, f) => Math.max(0.01, lisse(Math.min(1, Math.max(0, (p - rang(f) * d) / (1 - (K - 1) * d))))));
+  for (const g of modele.children) {
+    const f = g.userData.niveau;
+    if (f < 0) { g.scale.y = Math.max(0.01, lisse(p)); g.position.y = 0; g.visible = true; continue; }
+    let h = 0; if (f > ref) for (let k = ref; k < f; k++) h += E * ef[k]; else for (let k = f; k < ref; k++) h -= E * ef[k];
+    g.scale.y = ef[f]; g.position.y = h - F[f].z * ef[f]; g.visible = rang(f) === 0 || ef[f] > 0.012;
+  }
+}
+function levee(p) { const k = lisse(p); poser(melange(poseA, poseB, k)); etager(p); appliquerRendu(lisse(Math.min(1, p / 0.7))); }
+// Pose de départ : le plan tel qu'il est à l'écran. Pose d'arrivée : la vue cadrée si tout le plan est à l'écran,
+// sinon le même point à la même échelle ; sous l'angle de la dernière vue 3D, ou du sud-ouest.
+function zenithPlan() { const s = vue.s, m = [(W / 2 - vue.ox) / s, (vue.oy - H / 2) / s]; return { cible: new THREE.Vector3(m[0], 0, -m[1]), theta: 0, phi: ZENITH, s }; }
+function poseAxo() {
+  const theta = derniere ? derniere.theta : null, phi = derniere ? derniere.phi : PENCHE;
+  const tout = [[sc.min[0], sc.min[1]], [sc.max[0], sc.max[1]]].every(([x, y]) => { const e = [x * vue.s + vue.ox, -y * vue.s + vue.oy]; return e[0] >= -1 && e[0] <= W + 1 && e[1] >= -1 && e[1] <= H + 1; });
+  if (tout) return poseCadree(theta, phi);
+  const A = zenithPlan(); A.cible.y = (sc.haut + sc.bas) / 2; return { cible: A.cible, theta: theta ?? SUD_OUEST, phi, s: A.s };
+}
 function entrer() {
-  if (actif) return; actif = true; document.body.classList.add("en3d"); bouton.setAttribute("aria-pressed", "true");
-  taille(); demander(); requestAnimationFrame(() => toile.classList.add("visible"));
+  if (actif && sensAnim > 0) return;
+  clearTimeout(fermeture); const demiTour = actif; actif = true;
+  document.body.classList.add("en3d"); bouton.setAttribute("aria-pressed", "true"); toile.classList.remove("sortie");
+  taille(); if (sale) construire();
+  if (!demiTour) { palette = couleursPlan(); poseA = zenithPlan(); poseB = poseAxo(); progres = 0; }
+  controles.enabled = false; sensAnim = 1; if (reduit.matches) progres = 1;
+  anim = { avant: performance.now() + (demiTour ? 0 : FONDU), t: null };
+  levee(progres); renderer.render(monde, camera); // l'image de départ est en place avant le fondu
+  toile.classList.add("visible"); demander();
 }
 function sortir() {
-  if (!actif) return; actif = false; clearTimeout(repos); bouton.setAttribute("aria-pressed", "false"); toile.classList.remove("visible");
-  document.body.classList.remove("en3d");
+  if (!actif || sensAnim < 0) return;
+  bouton.setAttribute("aria-pressed", "false"); toile.classList.add("sortie"); clearTimeout(repos); // le plan reprend le doigt aussitôt
+  if (sensAnim === 0) { // depuis la 3D posée : retour au zénith sur le point regardé ; le plan est recalé dessus
+    derniere = pose(); palette = couleursPlan(); poseB = derniere; progres = 1;
+    const c = controles.target, s = derniere.s;
+    poseA = { cible: new THREE.Vector3(c.x, 0, c.z), theta: 0, phi: ZENITH, s };
+    vue = { s, ox: W / 2 - c.x * s, oy: H / 2 - c.z * s }; rafraichir(false);
+  }
+  controles.enabled = false; sensAnim = -1; if (reduit.matches) progres = 0;
+  anim = { avant: 0, t: null }; demander();
 }
-bouton.addEventListener("click", () => (actif ? sortir() : entrer()));
+function finEntree() { anim = null; sensAnim = 0; progres = 1; poser(poseB); etager(1); appliquerRendu(); controles.enabled = true; controles.update(); demander(); }
+function finSortie() {
+  anim = null; sensAnim = 0; progres = 0; actif = false; controles.enabled = true; toile.classList.remove("visible");
+  fermeture = setTimeout(() => { document.body.classList.remove("en3d"); toile.classList.remove("sortie"); }, FONDU);
+}
+bouton.addEventListener("click", () => (actif && sensAnim >= 0 ? sortir() : entrer()));
 // Les commandes du plan gardent leur place : Emprise et Tracer ramènent au plan et entrent dans leur mode ; Cadrer cadre la vue active.
 for (const id of ["#b-emprise", "#b-tracer"]) $(id).addEventListener("click", () => sortir(), { capture: true });
-$("#b-cadrer").addEventListener("click", (ev) => { if (!actif) return; ev.stopImmediatePropagation(); cadrer(); }, { capture: true });
+$("#b-cadrer").addEventListener("click", (ev) => { if (!actif || anim) return; ev.stopImmediatePropagation(); cadrer(); }, { capture: true });
 controles.addEventListener("change", demander);
 new ResizeObserver(taille).observe(toile);
 sombre.addEventListener("change", () => { appliquerRendu(); demander(); });
@@ -287,4 +368,8 @@ $("#p3d-plus").addEventListener("click", () => niveaux(1));
 for (const b of document.querySelectorAll("#p3d-rendu button")) b.addEventListener("click", () => { reglages.rendu = b.dataset.r; garderReglages(); appliquerRendu(); demander(); });
 
 // Le squelette appelle maj() après chaque calcul : la scène sera reconstruite à la prochaine image, si la vue est ouverte.
-window.vue3d = { maj() { sale = true; demander(); }, entrer, sortir, cadrer, camera, controles, modele, mesure: null, scene: () => sc };
+// figer(p) et projeter() servent aux essais : une image de la levée à l'avancement p, et la position à l'écran d'un point.
+window.vue3d = { maj() { sale = true; demander(); }, entrer, sortir, cadrer, camera, controles, modele, mesure: null, scene: () => sc,
+  etat: () => ({ actif, anim: !!anim, progres, sens: sensAnim }),
+  figer(p) { anim = null; sensAnim = 0; progres = p; levee(p); renderer.render(monde, camera); },
+  projeter(x, y, z = 0) { const v = new THREE.Vector3(...V3(x, y, z)).project(camera); return [((v.x + 1) / 2) * W, ((1 - v.y) / 2) * H]; } };
