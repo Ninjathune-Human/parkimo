@@ -1,6 +1,6 @@
 # Parkimo : charte des principes
 
-Version 24 du 15 novembre 2026. Elle intègre les dix-huit décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
+Version 25 du 15 novembre 2026. Elle intègre les dix-neuf décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
 
 ## À quoi sert cette charte
 
@@ -15,6 +15,7 @@ Chaque élément déclare trois choses et rien d'autre : ce qu'il **occupe**, ce
 | Voie | sa chaussée | rien | circulation voitures |
 | Carrefour | la surface entre les voies qui se rencontrent | rien | circulation voitures |
 | Rampe branchée sur une voie | sa chaussée : c'est une voie du squelette, sans stationnement ni bande piétonne, branchée directement ; 3,25 m en sens unique, 6,50 m en double sens | rien | circulation voitures |
+| Rampe hélicoïdale | son disque : 19,00 m de diamètre en sens unique, 26,20 m en double sens ; un noyau plein au centre | rien | circulation voitures |
 | Rampe parallèle à une voie, dans une rangée | sa voie de 3,25 m | ses deux épures de giration (entrée et sortie en S) | circulation voitures |
 | Bande piétonne | 0,80 m dans la largeur de la voie | rien | circulation piétons |
 | Passage piéton | 0,80 m en travers d'une voie, d'équerre | rien | circulation piétons |
@@ -158,6 +159,7 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 16. **Écart entre éléments** : passages et escaliers ne doivent pas être en surnombre ; une règle empêche de disposer deux éléments à proximité l'un de l'autre.
 17. **Surlargeur** (15 novembre) : quand la trame de stationnement ne tombe pas sur la trame de structure (stationnement longitudinal face à une rangée à 90°), une surlargeur égale aux dimensions du poteau sort de la logique de la trame de stationnement et permet de poser le poteau où la structure le demande. Cette logique fait partie de la conception générale, pour les cas particuliers où la règle générale ne s'applique pas.
 18. **Hauteur libre** (15 novembre) : 2,20 m sous tout élément fini ; l'important n'est pas la hauteur sous dalle mais sous poutre. Le Neufert (2,50 m sous structure) n'est pas retenu.
+19. **Calque des rampes et rampe hélicoïdale** (15 novembre) : les rampes ont leur calque, à côté de Voies, Poteaux et Escaliers. On y ajoute une rampe hélicoïdale, que l'on place où l'on veut, de manière dynamique.
 
 ## 10. Ce qui reste à fixer
 
@@ -243,6 +245,14 @@ Le bouton « Emprise » s'arme, puis on tire un rectangle (au demi-mètre, 8 m m
 Le moteur essaie des implantations en voies parallèles, dans les deux sens : rangées intérieures à 90°, 60° ou 45°, de un à huit modules, rangées de rive de n'importe quelle inclinaison (ou aucune), voies reliées à leurs deux bouts par des voies de rattachement, avec ou sans rangée sur elles : la circulation boucle (décision 15). Le peigne (voies reliées par un seul bout) n'est plus proposé ; une voie seule reste possible, comme branche isolée. Les vingt-quatre plus prometteuses (estimation par longueur de rangée, deux par famille) passent au vrai calcul du moteur ; seules celles qui tiennent entièrement dans le rectangle comptent. Pour les trois qui ont le plus de places, les escaliers sont placés automatiquement, puis on garde celle qui viole le moins de principes, à égalité celle qui a le plus de places. Moins de huit places : l'emprise est refusée et le plan reste intact. Le plan obtenu est ordinaire : voies, rangées, poteaux et escaliers s'affinent avec les modules existants.
 
 Limites : pas de rampe ni de niveaux dans l'implantation (lot 6) ; une seule inclinaison pour toutes les rangées intérieures ; la marge qui reste sur le côté du rectangle n'est pas exploitée.
+
+## 13 quater. Calque des rampes
+
+Les rampes se règlent dans leur calque (décision 19), plus dans la fiche des voies. Un toucher sur une voie la choisit : sa ligne « Rampe » y pose une rampe droite ou de demi-niveau dans sa rangée, ou fait de la voie entière une rampe, dont on règle le sens. Les rampes posées et les rampes hélicoïdales se glissent du doigt ; les nœuds et les branches ne bougent pas dans ce calque.
+
+Rampe hélicoïdale : « Tracer » puis un toucher la pose, en sens unique ; on la glisse ensuite où l'on veut, au demi-mètre, et le plan se recalcule pendant le geste. Cotes du Neufert p. 275 (rampe courbe à rayon minimal) : en sens unique, mur intérieur à 4,00 m du centre, voie de 4,00 m entre 5,00 et 9,00 m, bord à 9,50 m ; en double sens, intérieur à 4,50 m et bord à 13,10 m. Elles tiennent les minima de la NF P 91-100 § 3.3 (voie courbe de 4,00 m, rayon extérieur de 8,50 m au moins). Un tour monte d'un étage ; la pente se mesure dans l'axe de la voie (intérieure en double sens), à 7,00 m du centre : 2,60 m sur 44 m, 5,9 % en béton précontraint. Son disque est une circulation de voitures : places et poteaux lui cèdent. Elle se raccorde à une voie qu'elle recouvre ; sinon sa fiche l'annonce et son contour passe en rouge pointillé.
+
+Limites : l'entrée de l'hélice sur la voie n'est pas dessinée (ni giration, ni sens d'entrée) ; le réseau piéton et la mesure des escaliers l'ignorent ; sa structure propre (noyau, voiles) n'est pas modélisée ; le sens double n'est réglé qu'en largeur.
 
 ## 14. Sources des valeurs de structure et de sécurité
 

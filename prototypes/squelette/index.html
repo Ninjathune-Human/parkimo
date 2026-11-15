@@ -91,7 +91,7 @@ button:disabled { opacity: .35; }
   <div class="bas"><span id="f-long"></span><button id="b-suppr">Supprimer</button></div>
 </section>
 <nav id="barre" class="verre">
-  <div class="seg" id="calques" role="group" aria-label="Calque à modifier"><button data-c="0" aria-pressed="true">Voies</button><button data-c="1" aria-pressed="false">Poteaux</button><button data-c="2" aria-pressed="false">Escaliers</button></div>
+  <div class="seg" id="calques" role="group" aria-label="Calque à modifier"><button data-c="0" aria-pressed="true">Voies</button><button data-c="1" aria-pressed="false">Poteaux</button><button data-c="2" aria-pressed="false">Escaliers</button><button data-c="3" aria-pressed="false">Rampes</button></div>
   <button id="b-emprise" aria-pressed="false">Emprise</button>
   <button id="b-tracer" aria-pressed="false">Tracer</button>
   <button id="b-annuler" disabled>Annuler</button>
@@ -139,7 +139,7 @@ let W = 0, H = 0, DPR = 1, vue = { s: 6, ox: 0, oy: 0 };
 let S = { noeuds: [], branches: [], pn: [], pb: [] }, choix = -1, tracer = false, modeEmp = false, passe = [], calc = null;
 // Deux squelettes superposés, même fonctionnement : les voies (`noeuds`, `branches`) et la structure
 // (`pn`, `pb` : un nœud est un poteau, une branche une poutre). `NO` et `BR` désignent celui qu'on modifie.
-let actif = 0, calque = 0, NO, BR, choixN = -1; // actif : 0 voies, 1 poteaux, 2 escaliers ; calque : le squelette de la structure est en main ; choixN : poteau choisi
+let actif = 0, calque = 0, NO, BR, choixN = -1, choixH = -1; // actif : 0 voies, 1 poteaux, 2 escaliers, 3 rampes ; choixH : rampe hélicoïdale choisie ; calque : le squelette de la structure est en main ; choixN : poteau choisi
 // ---- Rampes, par typologie. Une rampe est une brique posée dans une rangée, comme la rampe « le long des
 // allées » du moteur (src/ouvrage/plateau.rs, en_rangee) dont elle reprend le gabarit : une voie de 3,25 m contre
 // l'allée (Neufert, sens unique), abordée et quittée en S depuis la voie de l'allée, à 1,50 m de son bord. Chaque
@@ -158,6 +158,11 @@ const PENTE = 0.15; // pente à ne pas dépasser (Neufert ; plafond NF P 91-100 
 const GIR = { r: 6.5, h: 2.0, hs: 1.5, voie: 3.25 }; // rayon à l'axe, demi-largeur balayée en courbe, demi-voie droite, voie de rampe
 GIR.dv = GIR.hs + GIR.voie / 2; GIR.phi = Math.acos(1 - GIR.dv / (2 * GIR.r)); GIR.s = 2 * GIR.r * Math.sin(GIR.phi);
 let choixR = -1; // rampe choisie
+// Rampe hélicoïdale, posée où l'on veut : un tour monte d'un étage. Cotes du Neufert p. 275 (rampe courbe à rayon mini) :
+// une voie, mur intérieur à 4,00 m, voie de 4,00 m entre 5,00 et 9,00 m, bord à 9,50 m (diamètre 19 m) ; deux voies,
+// intérieur à 4,50 m, bord à 13,10 m (diamètre 26,2 m). NF P 91-100 § 3.3 : voie courbe de 4,00 m, rayon extérieur
+// de 8,50 m au moins ; pente mesurée dans l'axe de la voie (intérieure en double sens), ici à 7,00 m du centre.
+const HELICE = { 1: { int: 4, ext: 9.5, axe: 7 }, 2: { int: 4.5, ext: 13.1, axe: 7 } };
 // ---- Circulations verticales (règlement de sécurité des ERP, type PS : articles PS 13 et PS 24). Un escalier est un
 // noyau posé dans une rangée, comme une rampe : il y prend deux places (5,00 m : volées de 0,90 m au moins et sas de
 // 3 m² au moins). L'escalier principal en prend quatre : il loge, accolés, deux ascenseurs et leur sas (5 m² au moins,
@@ -452,7 +457,7 @@ function recouvre(p, q) {
   return true;
 }
 // Point strictement dans un quadrilatère convexe, à plus de `m` mètres de ses bords.
-const dedans = (pt, q, m) => { let s = 0; for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (!l) continue; const d = ((b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0])) / l; if (Math.abs(d) <= m) return false; if (s && Math.sign(d) !== s) return false; s = Math.sign(d); } return true; };
+const dedans = (pt, q, m) => { let s = 0; for (let i = 0; i < q.length; i++) { const a = q[i], b = q[(i + 1) % q.length], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (!l) continue; const d = ((b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0])) / l; if (Math.abs(d) <= m) return false; if (s && Math.sign(d) !== s) return false; s = Math.sign(d); } return true; };
 const dans = (pt, q) => { let s = 0; for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4], c = (b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0]); if (Math.abs(c) < 1e-9) continue; if (s && Math.sign(c) !== s) return false; s = Math.sign(c); } return true; };
 
 // ---- Calcul : chaussées, places qui tiennent (hors des autres chaussées et des places déjà posées), emprise.
@@ -478,7 +483,7 @@ const PRINCIPES = [
   { id: "rampes", nom: "Rampes dans une rangée assez longue", mesure: (c) => [!c.aReplacer, `${c.aReplacer} à replacer`] },
   { id: "ecart", nom: `Escaliers et passages à ${ECART} m au moins l'un de l'autre`, mesure: (c) => { const n = c.tropProches.length; return [!n, n ? `${n} paire${n > 1 ? "s" : ""} trop proche${n > 1 ? "s" : ""}` : "aucune paire proche"]; } },
   { id: "escaliers", get nom() { const l = lim(); return `Escalier à ${l.dist} m au plus, ${l.impasse} m sans second escalier`; }, mesure: (c) => [!c.loin.length && !c.escHors && !c.sansEscalier, c.sansEscalier ? "aucun escalier" : c.escHors ? `${c.escHors} à replacer` : `${c.loin.length} place${c.loin.length > 1 ? "s" : ""} trop loin`] },
-  { id: "pente", nom: "Rampe à 15 % au plus", mesure: (c) => [!c.raides, `${Math.round(100 * Math.max(0, ...c.rampesVoie.map((x) => x.pente)))} % pour ${100 * PENTE} %`] },
+  { id: "pente", nom: "Rampe à 15 % au plus", mesure: (c) => [!c.raides, `${Math.round(100 * Math.max(0, ...c.rampesVoie.map((x) => x.pente), ...c.helices.map((x) => x.pente)))} % pour ${100 * PENTE} %`] },
   { id: "portee", nom: "Portée dans la limite du système", mesure: (c) => [c.porteeNette <= c.porteeLim + 0.01, `${c.porteeNette.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m pour ${c.porteeLim.toLocaleString("fr-FR")} m`] },
   { id: "contreventement", nom: "Structure contreventée dans deux sens", mesure: (c) => [!c.pot.length || c.contrev === 2, c.contrev ? "1 sens" : "à prévoir"] },
 ];
@@ -499,7 +504,7 @@ function horsPlace(p) {
 // à 25 m pour celles du fond d'un cul-de-sac ; chaque implantation est jugée par la mesure même du principe (desservir).
 let cleEsc = "";
 function placer() {
-  const cle = JSON.stringify([S.noeuds, S.branches, S.rampes || [], S.systeme, S.parc]); if (cle === cleEsc) return; cleEsc = cle;
+  const cle = JSON.stringify([S.noeuds, S.branches, S.rampes || [], S.helices || [], S.systeme, S.parc]); if (cle === cleEsc) return; cleEsc = cle;
   const t0 = performance.now(); S.escaliers = []; S.passages = []; mesurer();
   const pl = calc.pl, libres = calc.emprises.filter((e) => e.nature !== "place"), cands = [], R = S.branches.map((b) => repere(b));
   S.branches.forEach((b, i) => { for (const c of ["g", "d"]) {
@@ -634,8 +639,12 @@ function mesurer() {
   rampes.forEach((x, k) => { x.couple = !x.hors && rampes.some((y, j) => j !== k && !y.hors && recouvre(gonfle(x.corps, 0.4), y.corps)); });
   // Rampes branchées : leur chaussée, leur longueur propre (entre les bords des voies reliées) et leur pente.
   const rampesVoie = S.branches.map((b, i) => { if (!b.rampe) return null; const r = repere(b), al = (p) => (p[0] - r.A[0]) * r.u[0] + (p[1] - r.A[1]) * r.u[1], L = Math.max(0.1, Math.min(al(B[i].b.d[0]), al(B[i].b.g[0])) - Math.max(al(B[i].a.d[0]), al(B[i].a.g[0]))); return { i, q: ch[i], u: r.u, L, sens: b.sens === 2 ? 2 : 1, pente: hauteurRampe(b.rampe) / L }; }).filter(Boolean);
-  const nr = rampes.length, nv = rampesVoie.length, aReplacer = rampes.filter((x) => x.hors).length, raides = rampesVoie.filter((x) => x.pente > PENTE + 1e-4).length;
-  $("#s-rampes").textContent = nr + nv ? `${nr ? nr + nv : ""}${nr > 1 ? (rampes.every((x) => x.couple) ? " · couplées" : " · séparées") : ""}${nv ? `${nr ? " · " : ""}${nv} branchée${nv > 1 ? "s" : ""}` : ""}${aReplacer ? ` · ${aReplacer} à replacer` : ""}${raides ? ` · ${raides} trop raide${raides > 1 ? "s" : ""}` : ""}` : "–";
+  // Rampes hélicoïdales : leur disque (polygone qui contient le cercle) est une circulation de voitures ; elles se
+  // raccordent à une voie qu'elles recouvrent.
+  const helices = (S.helices || []).map((h) => { const g = HELICE[h.sens === 2 ? 2 : 1], n = 24, R = g.ext / Math.cos(Math.PI / n), q = Array.from({ length: n }, (_, k) => [h.p[0] + R * Math.cos((2 * Math.PI * k) / n), h.p[1] + R * Math.sin((2 * Math.PI * k) / n)]);
+    return { ...g, p: h.p, sens: h.sens === 2 ? 2 : 1, q, pente: etage(SYSTEMES[S.systeme]) / (2 * Math.PI * g.axe), raccord: ch.some((c) => recouvre(q, c)) }; });
+  const nr = rampes.length, nv = rampesVoie.length, nh = helices.length, aReplacer = rampes.filter((x) => x.hors).length, raides = [...rampesVoie, ...helices].filter((x) => x.pente > PENTE + 1e-4).length;
+  $("#s-rampes").textContent = nr + nv + nh ? `${nh ? `${nh} hélicoïdale${nh > 1 ? "s" : ""}${nr + nv ? " · " : ""}` : ""}${nr ? nr + nv : ""}${nr > 1 ? (rampes.every((x) => x.couple) ? " · couplées" : " · séparées") : ""}${nv ? `${nr ? " · " : ""}${nv} branchée${nv > 1 ? "s" : ""}` : ""}${aReplacer ? ` · ${aReplacer} à replacer` : ""}${raides ? ` · ${raides} trop raide${raides > 1 ? "s" : ""}` : ""}` : "–";
   $("#s-rampes").style.color = aReplacer || raides ? css("--rouge") : "";
   const res = reseau(geo);
   for (const x of res.passages) {
@@ -657,6 +666,7 @@ function mesurer() {
   const E = [], nb = S.branches.length, rangees = [];
   ch.forEach((q, k) => E.push({ nature: "voiture", genre: k < nb ? "chaussee" : "carrefour", i: k < nb ? k : -1, q }));
   for (const x of rampes) if (!x.hors) { E.push({ nature: "voiture", genre: "rampe", q: x.q }, { nature: "reserve", genre: "giration", q: x.zone }); for (const e of x.epures) for (const q of e.quads) E.push({ nature: "voiture", genre: "epure", q }); }
+  for (const x of helices) E.push({ nature: "voiture", genre: "helice", q: x.q });
   for (const t of trottoirs) E.push({ nature: "pieton", genre: "bande", i: t.i, q: t.q });
   // Places : la voie la plus longue pose les siennes d'abord, donc les garde ; chacune cède selon l'arbitrage.
   const ordre = S.branches.map((_, i) => i).sort((x, y) => repere(S.branches[y]).L - repere(S.branches[x]).L || x - y);
@@ -695,7 +705,7 @@ function mesurer() {
     const bb = rects.map((q) => [Math.min(...q.map((p) => p[0])), Math.min(...q.map((p) => p[1])), Math.max(...q.map((p) => p[0])), Math.max(...q.map((p) => p[1]))]);
     for (let x = x0 + 0.25; x < x1; x += 0.5) for (let y = y0 + 0.25; y < y1; y += 0.5) if (rects.some((q, k) => x >= bb[k][0] && x <= bb[k][2] && y >= bb[k][1] && y <= bb[k][3] && dans([x, y], q))) aire += 0.25;
   }
-  calc = { surl, impasses, chaine, B, D, ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords, rampes, emprises: E, croisements, chevauchements, dansPlace, appuis, rampesVoie, raides, escaliers, escHors: escaliers.filter((x) => x.hors).length, etage: etage(sys), alerteFeu: !!sys.metal && S.parc === "enterre", porteeNette: Math.max(0, portee - sys.section), porteeLim: sys.portee };
+  calc = { helices, surl, impasses, chaine, B, D, ch, bandes, pl, aire, pot, conflits, genees, angles: an, trottoirs, zebres, raccords, rampes, emprises: E, croisements, chevauchements, dansPlace, appuis, rampesVoie, raides, escaliers, escHors: escaliers.filter((x) => x.hors).length, etage: etage(sys), alerteFeu: !!sys.metal && S.parc === "enterre", porteeNette: Math.max(0, portee - sys.section), porteeLim: sys.portee };
   $("#s-structure").textContent = pot.length ? `${pot.length} poteaux · ${portee.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m${conflits.length ? ` · ${conflits.length} en voie` : ""}` : "–";
   $("#s-structure").style.color = conflits.length ? css("--rouge") : "";
   // Desserte : distance de chaque place à un escalier, dès qu'il y en a un.
@@ -754,7 +764,7 @@ function dessiner() {
     ctx.fillStyle = css("--accent"); ctx.globalAlpha = 0.16; for (const e of x.epures) for (const q of e.quads) { ctx.beginPath(); chemin(q); ctx.fill(); } ctx.globalAlpha = 1;
     ctx.strokeStyle = css("--accent"); ctx.lineWidth = 1.2; ctx.setLineDash([4, 4]); ctx.beginPath(); for (const e of x.epures) e.axe.forEach((p, n) => { const P = versE(p); if (n) ctx.lineTo(P[0], P[1]); else ctx.moveTo(P[0], P[1]); }); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = css("--rampe"); ctx.globalAlpha = x.hors ? 0.5 : 1; ctx.beginPath(); chemin(x.q); ctx.fill(); ctx.globalAlpha = 1;
-    ctx.strokeStyle = css(x.hors ? "--rouge" : !calque && k === choixR ? "--accent" : "--mur"); ctx.lineWidth = !calque && k === choixR ? 3 : 1.5; ctx.setLineDash(x.hors ? [5, 4] : []); ctx.beginPath(); chemin(x.q); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = css(x.hors ? "--rouge" : actif === 3 && k === choixR ? "--accent" : "--mur"); ctx.lineWidth = actif === 3 && k === choixR ? 3 : 1.5; ctx.setLineDash(x.hors ? [5, 4] : []); ctx.beginPath(); chemin(x.q); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
     ctx.strokeStyle = css("--mur"); chevrons(centre(x.q), x.u, x.L);
   });
   // Rampes branchées : le même plein, les chevrons dans le sens de la montée ; en double sens, la descente à gauche.
@@ -764,6 +774,17 @@ function dessiner() {
     ctx.strokeStyle = css(x.pente > PENTE + 1e-4 ? "--rouge" : "--mur"); chevrons([c[0] - n[0] * d, c[1] - n[1] * d], x.u, x.L);
     if (d) chevrons([c[0] + n[0] * d, c[1] + n[1] * d], [-x.u[0], -x.u[1]], x.L);
   }
+  // Rampes hélicoïdales : la couronne de la voie, le noyau plein au centre, l'axe de mesure de la pente en tirets et une
+  // flèche de montée ; en rouge pointillé si elle ne recouvre aucune voie.
+  calc.helices.forEach((x, k) => {
+    const C = versE(x.p), rond = (r) => { ctx.beginPath(); ctx.arc(C[0], C[1], r * vue.s, 0, 2 * Math.PI); }, sel = actif === 3 && k === choixH;
+    ctx.fillStyle = css("--rampe"); rond(x.ext); ctx.fill();
+    ctx.fillStyle = css("--fond"); rond(x.int); ctx.fill(); ctx.strokeStyle = css("--mur"); ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.strokeStyle = css(!x.raccord || x.pente > PENTE + 1e-4 ? "--rouge" : sel ? "--accent" : "--mur"); ctx.lineWidth = sel ? 3 : 1.5; ctx.setLineDash(x.raccord ? [] : [5, 4]); rond(x.ext); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = css("--mur"); ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(C[0], C[1], x.axe * vue.s, 0.3, 2 * Math.PI - 0.3); ctx.stroke(); ctx.setLineDash([]);
+    const a = -0.3, t = [C[0] + x.axe * vue.s * Math.cos(a), C[1] + x.axe * vue.s * Math.sin(a)], f = 0.8 * vue.s; // la flèche suit le sens trigonométrique à l'écran
+    ctx.beginPath(); ctx.moveTo(t[0] - f, t[1] + f * 0.2); ctx.lineTo(t[0], t[1]); ctx.lineTo(t[0] + f * 0.2, t[1] + f); ctx.stroke();
+  });
   // Bandes piétonnes : un ruban teinté, zébré de blanc là où il traverse une chaussée.
   ctx.fillStyle = css("--pieton"); ctx.globalAlpha = 0.7; ctx.beginPath(); for (const t of calc.trottoirs) chemin(t.q); ctx.fill(); ctx.globalAlpha = 1;
   ctx.fillStyle = css("--pieton"); ctx.globalAlpha = 0.7; ctx.beginPath(); for (const q of calc.raccords) chemin(q); ctx.fill(); ctx.globalAlpha = 1;
@@ -803,7 +824,7 @@ function dessiner() {
   // Squelette des voies : axes et nœuds.
   ctx.globalAlpha = actif ? 0.4 : 1;
   S.branches.forEach((br, i) => {
-    const A = versE(S.noeuds[br.a]), B = versE(S.noeuds[br.b]), sel = !actif && i === choix;
+    const A = versE(S.noeuds[br.a]), B = versE(S.noeuds[br.b]), sel = (!actif || actif === 3) && i === choix;
     ctx.strokeStyle = css("--accent"); ctx.lineWidth = sel ? 3.5 : 1.5; ctx.setLineDash(sel ? [] : [8, 5]);
     ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); ctx.setLineDash([]);
   });
@@ -888,7 +909,7 @@ function construire(c, r) {
   return { noeuds, branches };
 }
 function emprise(r) {
-  const sauve = JSON.stringify(S), base = JSON.parse(sauve), cible = (c) => { S = { ...base, ...construire(c, r), pn: [], pb: [], rampes: [], escaliers: [], passages: [], escAuto: false, auto: true, emprise: r }; cleEsc = null; pointer(); calculer(); };
+  const sauve = JSON.stringify(S), base = JSON.parse(sauve), cible = (c) => { S = { ...base, ...construire(c, r), pn: [], pb: [], rampes: [], helices: [], escaliers: [], passages: [], escAuto: false, auto: true, emprise: r }; cleEsc = null; pointer(); calculer(); };
   const dedans = () => { const Q = [...calc.ch, ...calc.bandes, ...calc.pl.map((p) => p.q)].flat(); return Math.min(...Q.map((p) => p[0])) >= r[0] - 0.05 && Math.max(...Q.map((p) => p[0])) <= r[2] + 0.05 && Math.min(...Q.map((p) => p[1])) >= r[1] - 0.05 && Math.max(...Q.map((p) => p[1])) <= r[3] + 0.05; };
   const vus = {}, tous = candidates(r).sort((a, b) => b.est - a.est).filter((c) => { const k = [c.o, c.T, c.n, c.forme, c.ec].join(); vus[k] = (vus[k] || 0) + 1; return vus[k] <= 2; }).slice(0, 24), tenus = [];
   for (const c of tous) { cible(c); if (dedans()) tenus.push({ c, n: calc.pl.length }); }
@@ -1112,10 +1133,14 @@ cv.addEventListener("pointerdown", (ev) => {
   if (doigts.size === 2) { const [a, b] = [...doigts.values()]; pince = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], v: { ...vue } }; if (geste && geste.avant) { S = JSON.parse(geste.avant); pointer(); calculer(); } geste = null; return; }
   if (modeEmp) { geste = { genre: "emprise", e, de: arrondi(versM(e[0], e[1])) }; return; }
   // Calque des escaliers : ni nœud ni branche ne se saisit, seuls les escaliers se manient.
-  const m = versM(e[0], e[1]), k = actif === 2 ? -1 : noeudPres(e), c = actif !== 2 && k < 0 ? branchePres(m, Math.max(AIMANT / vue.s, 2)) : null;
-  const ra = !actif && !tracer && calc ? calc.rampes.findIndex((x) => dans(m, x.corps)) : -1;
+  // Calque des rampes : seules les rampes se manient ; une voie s'y choisit d'un toucher, pour lui donner une rampe.
+  const m = versM(e[0], e[1]), k = actif >= 2 ? -1 : noeudPres(e), c = actif !== 2 && actif !== 3 && k < 0 ? branchePres(m, Math.max(AIMANT / vue.s, 2)) : null;
+  const ra = actif === 3 && !tracer && calc ? calc.rampes.findIndex((x) => dans(m, x.corps)) : -1;
+  const he = actif === 3 && !tracer && ra < 0 && calc ? calc.helices.findIndex((x) => Math.hypot(m[0] - x.p[0], m[1] - x.p[1]) <= x.ext) : -1;
   const es = actif === 2 && calc ? calc.escaliers.findIndex((x) => dans(m, x.corps)) : -1;
   if (ra >= 0) geste = { genre: "rampe", k: ra, e, avant: JSON.stringify(S), d: [m[0] - S.rampes[ra].p[0], m[1] - S.rampes[ra].p[1]] };
+  else if (he >= 0) geste = { genre: "helice", k: he, e, avant: JSON.stringify(S), d: [m[0] - S.helices[he].p[0], m[1] - S.helices[he].p[1]] };
+  else if (actif === 3) geste = { genre: "vue", e, pose: tracer };
   else if (es >= 0) geste = { genre: "escalier", k: es, e, avant: JSON.stringify(S), d: [m[0] - S.escaliers[es].p[0], m[1] - S.escaliers[es].p[1]] };
   else if (actif === 2) geste = { genre: "vue", e, pose: tracer };
   else if (tracer) geste = { genre: "trace", e, de: calque ? cible(e, m).p : k >= 0 ? NO[k].slice() : c ? c.p : [Math.round(m[0] / PAS) * PAS, Math.round(m[1] / PAS) * PAS] };
@@ -1133,6 +1158,7 @@ cv.addEventListener("pointermove", (ev) => {
   if (geste.genre === "vue") { vue.ox += e[0] - geste.e[0]; vue.oy += e[1] - geste.e[1]; geste.e = e; return rafraichir(false); }
   if (geste.genre === "trace") { const k = noeudPres(e), c = k < 0 ? branchePres(m, AIMANT / vue.s) : null; geste.fantome = [geste.de, calque ? cible(e, m).p : k >= 0 ? NO[k] : c ? c.p : aligner(geste.de, m)]; return rafraichir(false); }
   if (geste.genre === "escalier") { S.escaliers[geste.k].p = [m[0] - geste.d[0], m[1] - geste.d[1]]; return rafraichir(); } // l'escalier suit le doigt, de rangée en rangée
+  if (geste.genre === "helice") { S.helices[geste.k].p = arrondi([m[0] - geste.d[0], m[1] - geste.d[1]]); return rafraichir(); } // l'hélice suit le doigt, au demi-mètre
   if (geste.genre === "rampe") { S.rampes[geste.k].p = [m[0] - geste.d[0], m[1] - geste.d[1]]; return rafraichir(); } // la rampe suit le doigt, de rangée en rangée
   if (geste.genre === "noeud") {
     // Le nœud suit le doigt : aimanté à un autre nœud, sinon aligné sur son premier voisin.
@@ -1164,8 +1190,10 @@ function fin(ev) {
     }
     return rafraichir(false);
   }
-  if (g.genre === "rampe") {
-    if (!g.bouge) { choixR = g.k; choix = choixN = choixE = -1; }
+  if (g.genre === "helice") {
+    if (!g.bouge) { choixH = g.k; choix = choixN = choixE = choixR = -1; } else { passe.push(g.avant); $("#b-annuler").disabled = false; }
+  } else if (g.genre === "rampe") {
+    if (!g.bouge) { choixR = g.k; choix = choixN = choixE = choixH = -1; }
     else { passe.push(g.avant); $("#b-annuler").disabled = false; const x = calc.rampes[g.k]; if (!x.hors) S.rampes[g.k].p = centre(x.corps); }
   } else if (g.genre === "escalier") {
     if (!g.bouge) { choixE = g.k; choix = choixN = choixR = -1; }
@@ -1176,6 +1204,11 @@ function fin(ev) {
     // Hors du dessin, le toucher désélectionne tout et replie la fiche.
     else if (calque && !g.bouge) { const m = versM(g.e[0], g.e[1]), t = cible(g.e, m); choix = -1; if (t.k >= 0) choixN = t.k; else if (dansDessin(t.p) || dansDessin(m)) { garder(); S.auto = false; choixN = NO.push(horsPlace(t.p)) - 1; } else { choixN = -1; ficheTrame = false; } }
     else if (!g.bouge) choix = choixN = -1;
+  } else if (actif === 3) {
+    // « Tracer », puis un toucher : une rampe hélicoïdale s'y pose, en sens unique. Sinon, un toucher choisit une voie.
+    if (!g.bouge) { const m = versM(e[0], e[1]); choixR = choixH = -1;
+      if (g.pose) { garder(); (S.helices = S.helices || []).push({ p: arrondi(m), sens: 1 }); choixH = S.helices.length - 1; choix = -1; }
+      else { const c = branchePres(m, Math.max(AIMANT / vue.s, 2)); choix = c ? c.i : -1; } }
   } else if (actif === 2) {
     // « Tracer », puis un toucher dans une rangée : un escalier s'y pose ; le premier posé est le principal.
     if (!g.bouge) { choixE = -1; if (!g.pose) ficheTrame = dansDessin(versM(e[0], e[1])); else { const avant = JSON.stringify(S); S.escAuto = false; S.escaliers = S.escaliers || []; S.escaliers.push({ p: versM(e[0], e[1]), principal: !S.escaliers.length }); calculer(); const x = calc.escaliers[S.escaliers.length - 1]; if (x.hors) { S.escaliers.pop(); S.escAuto = JSON.parse(avant).escAuto; } else { passe.push(avant); $("#b-annuler").disabled = false; S.escaliers[S.escaliers.length - 1].p = centre(x.corps); choixE = S.escaliers.length - 1; } } }
@@ -1199,12 +1232,19 @@ for (const k of Object.keys(SYSTEMES)) { const x = document.createElement("butto
 $("#f-parc").addEventListener("click", (ev) => { const x = ev.target.closest("button[data-parc]"); if (!x || x.dataset.parc === S.parc) return; garder(); S.parc = x.dataset.parc; rafraichir(); fiche(); enregistrer(); });
 $("#f-systeme").addEventListener("click", (ev) => { const x = ev.target.closest("button[data-s]"); if (!x || x.dataset.s === S.systeme) return; garder(); S.systeme = x.dataset.s; rafraichir(); fiche(); enregistrer(); });
 function fiche() {
-  const rampe = !actif && choixR >= 0 && calc ? calc.rampes[choixR] : null, esc = actif === 2 && choixE >= 0 && calc ? calc.escaliers[choixE] : null;
+  const rampe = actif === 3 && choixR >= 0 && calc ? calc.rampes[choixR] : null, hel = actif === 3 && choixH >= 0 && calc ? calc.helices[choixH] : null, esc = actif === 2 && choixE >= 0 && calc ? calc.escaliers[choixE] : null;
   $("#f-escalier").hidden = !esc; $("#f-escauto").hidden = $("#f-parc").hidden = true;
   if (esc) {
     $("#fiche").hidden = false; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = true; $("#b-suppr").hidden = false; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
     $("#b-principal").setAttribute("aria-pressed", String(esc.principal));
     $("#f-long").textContent = `${esc.principal ? "Escalier principal" : "Escalier"} · ${esc.L} m${esc.hors ? " · à replacer" : ""}`; return;
+  }
+  if (hel) {
+    $("#fiche").hidden = false; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = true; $("#b-suppr").hidden = false;
+    for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = l.querySelector(".seg").dataset.cote !== "sens";
+    for (const x of document.querySelector('#fiche .seg[data-cote="sens"]').children) x.setAttribute("aria-pressed", String(+x.dataset.t === hel.sens));
+    const nb = (v, k = 1) => v.toLocaleString("fr-FR", { maximumFractionDigits: k });
+    $("#f-long").textContent = `Rampe hélicoïdale · Ø ${nb(2 * hel.ext)} m · pente ${nb(100 * hel.pente)} %${hel.raccord ? "" : " · à raccorder à une voie"}`; return;
   }
   if (rampe) {
     $("#fiche").hidden = false; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = true; $("#b-suppr").hidden = false; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
@@ -1216,9 +1256,10 @@ function fiche() {
     const n = calc ? calc.escaliers.length : 0; $("#b-escauto").setAttribute("aria-pressed", String(!!S.escAuto));
     const np = calc ? calc.passagesP.length : 0; $("#f-long").textContent = (n ? `${n} escalier${n > 1 ? "s" : ""}` : "Aucun escalier") + (np ? ` · ${np} passage${np > 1 ? "s" : ""}` : "") + (S.escAuto ? ` · suit le plan${placer.abrege ? " · recherche abrégée" : ""}` : " · à la main"); return;
   }
+  if (actif === 3 && !BR[choix]) { $("#fiche").hidden = true; return; } // calque des rampes, rien de choisi
   const poteau = calque && choixN >= 0 && NO[choixN], b = BR[choix];
   const libre = !!calque && !b && !poteau && ficheTrame; // rien de choisi dans la structure : la fiche est celle de la trame entière
-  $("#fiche").hidden = !b && !poteau && !libre; $("#f-portee").hidden = !poteau; $("#f-mur").hidden = !calque || !!poteau || !b; $("#f-trame").hidden = $("#f-systeme").hidden = !libre; $("#b-suppr").hidden = libre;
+  $("#fiche").hidden = !b && !poteau && !libre; $("#f-portee").hidden = !poteau; $("#f-mur").hidden = !calque || !!poteau || !b; $("#f-trame").hidden = $("#f-systeme").hidden = !libre; $("#b-suppr").hidden = libre || actif === 3;
   for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = !!calque;
   if (libre) { const n = calc ? calc.pot.length : 0, nb = (v) => v.toLocaleString("fr-FR", { maximumFractionDigits: 1 }); $("#b-trame").setAttribute("aria-pressed", String(!!S.auto)); for (const x of $("#f-systeme").children) x.setAttribute("aria-pressed", String(x.dataset.s === S.systeme));
     $("#f-long").textContent = (n ? `${n} poteau${n > 1 ? "x" : ""} · portée ${nb(calc.porteeNette)} m sur ${nb(calc.porteeLim)} m` : "Aucun poteau") + ` · étage ${nb(calc.etage, 2)} m` + (S.auto ? " · suit les voies" : " · à la main") + (calc.alerteFeu ? " · acier en parc enterré : tenue au feu à justifier" : ""); return; }
@@ -1228,13 +1269,16 @@ function fiche() {
   // Ligne « Rampe » : Droite et Demi-niveau posent une rampe dans une rangée de la voie ; « Toute la voie » fait de la
   // voie elle-même une rampe. Celle-ci n'a ni place ni bande : restent sa hauteur (un étage, un demi-niveau) et son sens.
   const etat = { ...b, sens: String(b.sens === 2 ? 2 : 1) };
-  for (const l of document.querySelectorAll("#fiche .ligne")) { const c = l.querySelector(".seg").dataset.cote; l.hidden = b.rampe ? c !== "rampe" && c !== "sens" : c === "sens"; }
+  // Calque des rampes : seules les lignes Rampe et Sens ; calque des voies : tout sauf elles.
+  for (const l of document.querySelectorAll("#fiche .ligne")) { const c = l.querySelector(".seg").dataset.cote, r = c === "rampe" || c === "sens"; l.hidden = actif === 3 ? !r || (c === "sens" && !b.rampe) : r || !!b.rampe; }
   for (const seg of document.querySelectorAll("#fiche .seg")) for (const x of seg.children) x.setAttribute("aria-pressed", String(x.dataset.t === "voie" ? !!b.rampe : (etat[seg.dataset.cote] || "aucun") === x.dataset.t));
   if (b.rampe) { const x = calc.rampesVoie.find((o) => o.i === choix), nb = (v, k = 1) => v.toLocaleString("fr-FR", { maximumFractionDigits: k }); $("#f-long").textContent = `${RAMPES[b.rampe].nom} · ${nb(x.L)} m · voie ${nb(2 * demi(b), 2)} m · pente ${nb(100 * x.pente)} %${x.pente > PENTE + 1e-4 ? " · trop raide" : ""}`; return; }
   const ici = calc ? calc.pl.filter((p) => p.i === choix) : [], n = ici.length, serre = LARGEURS.slice(1).map((w) => [w, ici.filter((p) => p.q.w === w).length]).filter((x) => x[1]).map(([w, k]) => ` · ${k} à ${w.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} m`).join("");
   $("#f-long").textContent = `${repere(b).L.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m · chaussée ${(2 * demi(b)).toLocaleString("fr-FR")} m · ${n} places${serre}`;
 }
-$("#fiche").addEventListener("click", (ev) => { const x = ev.target.closest(".seg button"), b = S.branches[choix]; if (!x || !b || calque) return; garder();
+$("#fiche").addEventListener("click", (ev) => { const x = ev.target.closest(".seg button"), b = S.branches[choix];
+  if (x && actif === 3 && choixH >= 0 && x.parentElement.dataset.cote === "sens") { garder(); S.helices[choixH].sens = +x.dataset.t; rafraichir(); fiche(); enregistrer(); return; }
+  if (!x || !b || calque) return; garder();
   // Une rampe du type touché se pose au milieu de la voie, dans sa première rangée ; on la glisse ensuite où l'on veut.
   const cote = x.parentElement.dataset.cote;
   // « Toute la voie » : la voie devient une rampe et perd ses rangées ; touché de nouveau, elle redevient une voie.
@@ -1242,7 +1286,7 @@ $("#fiche").addEventListener("click", (ev) => { const x = ev.target.closest(".se
   if (x.dataset.t === "escalier") { const r = repere(b), c = TYPES[b.g].prof >= 4 ? "g" : "d", sc = c === "g" ? 1 : -1; S.escaliers = S.escaliers || []; S.escaliers.push({ p: r.P(r.L / 2, sc * (demi(b) + TYPES[b[c]].prof / 2)), principal: !S.escaliers.length }); choixE = S.escaliers.length - 1; choix = -1; rafraichir(); fiche(); enregistrer(); return; }
   if (cote === "sens") { b.sens = +x.dataset.t; rafraichir(); fiche(); enregistrer(); return; }
   if (cote === "rampe" && b.rampe) { b.rampe = x.dataset.t; rafraichir(); fiche(); enregistrer(); return; } // sur une rampe : sa hauteur
-  if (cote === "rampe") { const r = repere(b), c = TYPES[b.g].prof >= 4 ? "g" : "d", s = c === "g" ? 1 : -1; (S.rampes = S.rampes || []).push({ type: x.dataset.t, p: r.P(r.L / 2, s * (demi(b) + TYPES[b[c]].prof / 2)) }); choixR = S.rampes.length - 1; choix = -1; rafraichir(); fiche(); enregistrer(); return; }
+  if (cote === "rampe") { const r = repere(b), c = TYPES[b.g].prof >= 4 ? "g" : "d", s = c === "g" ? 1 : -1; (S.rampes = S.rampes || []).push({ type: x.dataset.t, p: r.P(r.L / 2, s * (demi(b) + TYPES[b[c]].prof / 2)) }); choixR = S.rampes.length - 1; choix = choixH = -1; rafraichir(); fiche(); enregistrer(); return; }
   b[cote] = x.dataset.t; rafraichir(); fiche(); enregistrer(); });
 $("#f-portee").addEventListener("click", (ev) => {
   const x = ev.target.closest("button[data-p]"); if (!x || choixN < 0) return;
@@ -1256,7 +1300,9 @@ $("#b-trame").addEventListener("click", () => { garder(); S.auto = !S.auto; choi
 $("#b-escauto").addEventListener("click", () => { if (actif !== 2) return; garder(); S.escAuto = !S.escAuto; cleEsc = ""; rafraichir(); fiche(); enregistrer(); });
 $("#b-plein").addEventListener("click", () => { const b = calque && BR[choix]; if (!b) return; garder(); if (b.plein) delete b.plein; else b.plein = true; rafraichir(); fiche(); enregistrer(); });
 $("#b-suppr").addEventListener("click", () => {
-  if (!actif && choixR >= 0) { garder(); S.rampes.splice(choixR, 1); choixR = -1; rafraichir(); fiche(); enregistrer(); return; }
+  if (actif === 3 && choixR >= 0) { garder(); S.rampes.splice(choixR, 1); choixR = -1; rafraichir(); fiche(); enregistrer(); return; }
+  if (actif === 3 && choixH >= 0) { garder(); S.helices.splice(choixH, 1); choixH = -1; rafraichir(); fiche(); enregistrer(); return; }
+  if (actif === 3) return;
   // L'escalier principal supprimé, le premier qui reste le devient.
   if (actif === 2 && choixE >= 0) { garder(); S.escAuto = false; const [e] = S.escaliers.splice(choixE, 1); if (e.principal && S.escaliers.length) S.escaliers[0].principal = true; choixE = -1; rafraichir(); fiche(); enregistrer(); return; }
   // Un poteau part avec ses poutres.
@@ -1269,7 +1315,9 @@ $("#b-emprise").addEventListener("click", () => { modeEmp = !modeEmp; tracer = f
 $("#bilan-det").open = innerWidth > 760;
 cv.addEventListener("pointerdown", () => $("#aide").classList.add("lu"), { passive: true });
 function aide() {
-  $("#aide").classList.remove("lu"); $("#aide").textContent = modeEmp ? "Tirez un rectangle : il reçoit une première implantation, à affiner ensuite" : actif === 2
+  $("#aide").classList.remove("lu"); $("#aide").textContent = modeEmp ? "Tirez un rectangle : il reçoit une première implantation, à affiner ensuite" : actif === 3
+    ? (tracer ? "Touchez pour poser une rampe hélicoïdale" : "Glissez une rampe · touchez une voie pour lui donner une rampe")
+    : actif === 2
     ? (tracer ? "Touchez une rangée pour y poser un escalier" : "Glissez un escalier · touchez-le pour le régler")
     : calque
     ? (tracer ? "Touchez pour poser un poteau · tirez pour tracer une poutre" : "Glissez un poteau : il s'aimante aux lignes des places · touchez-le pour porter ses poutres")
@@ -1277,7 +1325,7 @@ function aide() {
 }
 $("#calques").addEventListener("click", (ev) => {
   const x = ev.target.closest("button[data-c]"); if (!x) return;
-  actif = +x.dataset.c; calque = actif === 1 ? 1 : 0; choix = choixN = choixR = choixE = -1; ficheTrame = true; pointer(); aide(); for (const y of $("#calques").children) y.setAttribute("aria-pressed", String(y === x)); fiche(); rafraichir(false);
+  actif = +x.dataset.c; calque = actif === 1 ? 1 : 0; choix = choixN = choixR = choixE = choixH = -1; ficheTrame = true; pointer(); aide(); for (const y of $("#calques").children) y.setAttribute("aria-pressed", String(y === x)); fiche(); rafraichir(false);
 });
 $("#b-annuler").addEventListener("click", annuler); $("#b-cadrer").addEventListener("click", cadrer);
 addEventListener("keydown", (ev) => { if ((ev.ctrlKey || ev.metaKey) && ev.key === "z") { ev.preventDefault(); annuler(); } });

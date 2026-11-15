@@ -76,7 +76,10 @@ with sync_playwright() as p:
         # une voie du squelette, large de 3,25 m (6,50 m en double sens), sans place, sans bande piétonne, sans épure en S.
         # Le réseau piéton reste d'un seul tenant en traversant son entrée ; sa pente se contrôle (15 % au plus).
         RV = "(() => { const b = S.branches[S.branches.length - 1], i = S.branches.length - 1; return { rampe: b.rampe || null, sens: b.sens || null, largeur: +(2 * demi(b)).toFixed(2), places: calc.pl.length, surElle: calc.pl.filter((p) => p.i === i).length, bande: bandeDe(b), epures: calc.rampes.length, pietons: document.querySelector('#s-pietons').textContent, bilan: document.querySelector('#s-rampes').textContent, viol: calc.principes.filter((p) => !p.ok).map((p) => p.id), lignes: [...document.querySelectorAll('#fiche .ligne')].filter((l) => !l.hidden).map((l) => l.firstElementChild.textContent), fiche: document.querySelector('#f-long').textContent }; })()"
+        # Les rampes se règlent dans leur calque : on y choisit la voie d'un toucher.
         pg.click("#b-tracer"); glisser((30, 0), (30, -30)); pg.click("#b-tracer")
+        pg.evaluate("document.querySelectorAll('#calques button')[3].click()"); pg.wait_for_timeout(150)
+        q = E(30, -15); pg.mouse.click(*q); pg.wait_for_timeout(250)
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="voie"]'); pg.wait_for_timeout(300)
         e = pg.evaluate(RV); r["rampe_voie"] = [e]
         assert e["rampe"] == "droite" and e["sens"] == 1 and e["largeur"] == 3.25 and e["surElle"] == 0 and e["bande"] == "aucun" and e["epures"] == 0 and "continu" in e["pietons"] and not e["viol"] and e["lignes"] == ["Rampe", "Sens"] and "pente 9,6 %" in e["fiche"]  # 2,60 m d'étage en béton précontraint sur 27 m, e
@@ -95,8 +98,9 @@ with sync_playwright() as p:
         # Redevenue une voie : elle reprend sa largeur et sa bande.
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="voie"]'); pg.wait_for_timeout(300)
         e = pg.evaluate(RV); r["rampe_voie"].append(e)
-        assert e["rampe"] is None and e["largeur"] == 6 and e["lignes"] == ["Gauche", "Droite", "Piétons", "Rampe"], e
+        assert e["rampe"] is None and e["largeur"] == 6 and e["lignes"] == ["Rampe"], e
         for _ in range(6): pg.click("#b-annuler"); pg.wait_for_timeout(150)
+        pg.evaluate("document.querySelectorAll('#calques button')[0].click()"); pg.wait_for_timeout(150)
         pg.click("#b-cadrer"); pg.wait_for_timeout(300); pg.mouse.click(5, 5); pg.wait_for_timeout(200)
         r["rampe_voie_annulee"] = pg.evaluate("[S.branches.length, calc.pl.length, calc.principes.length]")
         assert r["rampe_voie_annulee"] == [5, base, 13], r["rampe_voie_annulee"]
@@ -127,7 +131,7 @@ with sync_playwright() as p:
         de = pg.evaluate(f"centre(calc.escaliers[{k}].corps)"); vers = pg.evaluate("(() => { const x = calc.escaliers.find((o) => o.principal), c = centre(x.corps); return [c[0] + x.r.u[0] * 12.5, c[1] + x.r.u[1] * 12.5]; })()")
         q = E(*de); pg.mouse.click(*q); pg.wait_for_timeout(250)
         r["calques"] = pg.evaluate("[[...document.querySelectorAll('#calques button')].map((b) => b.textContent), document.querySelectorAll('#fiche .seg[data-cote=\"pieton\"] button').length, choixE]")
-        assert r["calques"] == [["Voies", "Poteaux", "Escaliers"], 4, -1], r["calques"]
+        assert r["calques"] == [["Voies", "Poteaux", "Escaliers", "Rampes"], 4, -1], r["calques"]
         pg.mouse.click(5, 5); pg.wait_for_timeout(200)
         pg.click('#calques button[data-c="2"]'); pg.wait_for_timeout(300)
         # Le réseau des escaliers : un nœud à la porte de chacun, des liens d'escalier à escalier par l'axe des voies,
@@ -246,6 +250,7 @@ with sync_playwright() as p:
         # dans les épures. On la glisse où l'on veut, elle s'aimante à la rangée la plus proche qui peut la recevoir.
         # Une seconde, dos à dos : couplées ; glissée ailleurs : séparées. On la choisit, on la supprime.
         RP = "[S.rampes.length, calc.rampes.map(x => [x.i, x.c, x.a]), calc.pl.length, calc.conflits.length, calc.genees.length, document.querySelector('#s-rampes').textContent]"
+        pg.evaluate("document.querySelectorAll('#calques button')[3].click()"); pg.wait_for_timeout(150)
         q = E(30, 0); pg.mouse.click(*q); pg.wait_for_timeout(250)
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="droite"]'); pg.wait_for_timeout(250)
         r["rampe"] = [pg.evaluate(RP), pg.evaluate("document.querySelector('#f-long').textContent")]
@@ -265,7 +270,7 @@ with sync_playwright() as p:
         r["rampe_supprimee"] = pg.evaluate(RP)
         for _ in range(5): pg.click("#b-annuler"); pg.wait_for_timeout(200)
         r["rampes_annulees"] = pg.evaluate("[(S.rampes || []).length, calc.pl.length]")
-        pg.mouse.click(5, 5); pg.wait_for_timeout(200)
+        pg.mouse.click(5, 5); pg.wait_for_timeout(200); pg.evaluate("document.querySelectorAll('#calques button')[0].click()"); pg.wait_for_timeout(150)
         # Emprise : un rectangle tracé reçoit une première implantation, la meilleure parmi plusieurs, que les modules affinent ensuite.
         EM = """(() => { const o = {}; const dedans = (r) => { const P = [...calc.ch, ...calc.bandes, ...calc.pl.map((p) => p.q)].flat(); return Math.min(...P.map((p) => p[0])) >= r[0] - 0.05 && Math.max(...P.map((p) => p[0])) <= r[2] + 0.05 && Math.min(...P.map((p) => p[1])) >= r[1] - 0.05 && Math.max(...P.map((p) => p[1])) <= r[3] + 0.05; };
           const sauve = JSON.stringify(S);
@@ -413,6 +418,24 @@ with sync_playwright() as p:
         r["planchers"] = pg.evaluate(PL_)
         e = {"poteaux": 2.55, "voiles": 2.4, "acier": 2.9, "beton": 2.6}
         assert all(abs(r["planchers"][k][0] - v) < 1e-6 and len(r["planchers"][k][1]) == 1 and all(abs(h - v) < 1e-3 for h in r["planchers"][k][1]) for k, v in e.items()) and r["planchers"]["alerte"] and not r["planchers"]["ventile"], r["planchers"]
+        # Calque Rampes : les rampes quittent la fiche des voies. Rampe hélicoïdale : posée par « Tracer » et un toucher,
+        # glissée où l'on veut ; places et poteaux lui cèdent ; sa pente se mesure dans l'axe (un étage par tour).
+        HE_ = """(() => { const sauve = JSON.stringify(S), o = {}, cv = document.querySelector("#plan"), r = cv.getBoundingClientRect();
+          const ev = (t, x, y) => cv.dispatchEvent(new PointerEvent(t, { pointerId: 77, pointerType: "touch", isPrimary: true, clientX: r.left + x, clientY: r.top + y, bubbles: true }));
+          const bt = [...document.querySelectorAll("#calques button")]; o.calques = bt.map((b) => b.textContent);
+          const ligne = () => !document.querySelector('#fiche .seg[data-cote="rampe"]').closest(".ligne").hidden;
+          bt[0].click(); choix = 0; fiche(); o.voies = ligne(); bt[3].click(); choix = 0; fiche(); o.rampes = ligne(); choix = -1;
+          S.helices = []; calculer(); const n0 = calc.pl.length; S.helices = [{ p: [30, 8], sens: 1 }]; calculer();
+          const h = calc.helices[0], c = (q) => q.reduce((m, p) => [m[0] + p[0] / q.length, m[1] + p[1] / q.length], [0, 0]);
+          o.places = [n0, calc.pl.length, calc.pl.filter((x) => { const k = c(x.q); return Math.hypot(k[0] - 30, k[1] - 8) < 9.5; }).length];
+          o.poteaux = S.pn.filter((p) => p && Math.hypot(p[0] - 30, p[1] - 8) < 9.4).length; o.pente = +(h.pente * 2 * Math.PI * 7).toFixed(3); o.etage = calc.etage; o.raccord = h.raccord;
+          o.ok = calc.principes.find((x) => x.id === "pente").ok;
+          const e = versE([30, 8]); ev("pointerdown", e[0], e[1]); ev("pointermove", e[0] + 30, e[1]); ev("pointermove", e[0] + 60, e[1]); ev("pointerup", e[0] + 60, e[1]); o.glisse = S.helices[0].p[0] > 31;
+          tracer = true; const f = versE([30, 40]); ev("pointerdown", f[0], f[1]); ev("pointerup", f[0], f[1]); tracer = false; o.pose = S.helices.length;
+          S = JSON.parse(sauve); cleEsc = null; bt[0].click(); pointer(); calculer(); return o; })()"""
+        r["helice"] = pg.evaluate(HE_)
+        x = r["helice"]
+        assert x["calques"] == ["Voies", "Poteaux", "Escaliers", "Rampes"] and not x["voies"] and x["rampes"] and x["places"][1] < x["places"][0] and x["places"][2] == 0 and x["poteaux"] == 0 and abs(x["pente"] - x["etage"]) < 1e-3 and x["raccord"] and x["ok"] and x["glisse"] and x["pose"] == 2, x
         # Doigt fantôme : un toucher dont le relevé n'est jamais arrivé ne doit pas transformer le toucher suivant en pincement.
         FA_ = """(() => { const cv = document.querySelector("#plan"), ev = (t, id, x, y, prim) => cv.dispatchEvent(new PointerEvent(t, { pointerId: id, pointerType: "touch", isPrimary: prim, clientX: x, clientY: y, bubbles: true }));
           const v0 = { ...vue }, o = {}, etat = JSON.stringify(S);
@@ -431,12 +454,13 @@ with sync_playwright() as p:
         r["arbitrage_poteau"] = pg.evaluate("(() => { const n = calc.pl.length; S.auto = false; S.pn.push([34.25, 5.5]); calculer(); const o = [n, calc.pl.length, calc.dansPlace, calc.principes.filter(p => !p.ok).map(p => p.id)]; S.pn.pop(); S.auto = true; calculer(); return o; })()")
         r["arbitrage_voies"] = pg.evaluate("(() => { const base = JSON.stringify(S); S.noeuds.push([30, -20], [30, 6]); S.branches.push({ a: 5, b: 6, g: 'aucun', d: 'aucun', pieton: 'aucun' }); pointer(); calculer(); const a = [calc.croisements, calc.principes.filter(p => !p.ok).map(p => p.id)]; S = JSON.parse(base); pointer(); S.noeuds[2][1] = S.noeuds[3][1] = 12.5; calculer(); const b = [calc.chevauchements, calc.pl.length, calc.principes.filter(p => !p.ok).map(p => p.id)]; S = JSON.parse(base); pointer(); rafraichir(); return [a, b]; })()")
         # Décision 2 : une rampe posée dans la rangée de façade ; la bande piétonne de cette voie bascule hors des girations.
+        pg.evaluate("document.querySelectorAll('#calques button')[3].click()"); pg.wait_for_timeout(150)
         q = E(30, 0); pg.mouse.click(*q); pg.wait_for_timeout(250)
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="droite"]'); pg.wait_for_timeout(250)
         glisser((30, 5), (30, -5))
         r["bande_hors_giration"] = [pg.evaluate("[calc.rampes[0].i, calc.rampes[0].c, bandeDe(S.branches[0])]"), pg.evaluate(PR), pg.evaluate("calc.zebres.length")]
         for _ in range(2): pg.click("#b-annuler"); pg.wait_for_timeout(200)
-        pg.mouse.click(5, 5); pg.wait_for_timeout(200)
+        pg.mouse.click(5, 5); pg.wait_for_timeout(200); pg.evaluate("document.querySelectorAll('#calques button')[0].click()"); pg.wait_for_timeout(150)
         # Bandes piétonnes : un réseau continu au départ ; en ôter sur les deux pignons le coupe en tronçons.
         PI = "[document.querySelector('#s-pietons').textContent, calc.trottoirs.length, calc.zebres.length > 0, calc.pl.length]"
         r["pietons"] = pg.evaluate(PI)
