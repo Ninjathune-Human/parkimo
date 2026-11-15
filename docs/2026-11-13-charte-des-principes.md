@@ -1,6 +1,6 @@
 # Parkimo : charte des principes
 
-Version 27 du 15 novembre 2026. Elle intègre les dix-neuf décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
+Version 28 du 15 novembre 2026. Elle intègre les vingt décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
 
 ## À quoi sert cette charte
 
@@ -23,9 +23,9 @@ Chaque élément déclare trois choses et rien d'autre : ce qu'il **occupe**, ce
 | Place | son quadrilatère dans la rangée | rien | stationnement |
 | Poteau, voile | sa section, sur une ligne de place ou un fond de rangée | rien | structure |
 | Travée pleine | sa ligne entre deux poteaux | rien | structure |
-| Escalier | son noyau, posé dans une rangée : 5,00 m de long sur la profondeur de la rangée, soit deux places | rien ; sa porte donne sur l'allée, et la bande piétonne d'en face se gagne par un passage au droit de la porte | circulation piétons ; ses murs sont de la structure |
+| Escalier | son noyau, posé dans une rangée, sur la profondeur de la rangée : deux places (5,00 m), trois (7,50 m) si l'escalier à paliers normalisés n'y tient pas (décision 20) | rien ; sa porte donne sur l'allée, et la bande piétonne d'en face se gagne par un passage au droit de la porte | circulation piétons ; ses murs sont de la structure |
 | Passage entre deux voies | une place retirée de chaque côté d'une double rangée adossée (2,50 m de large), d'une voie à l'autre ; rayé comme un passage piéton | rien | circulation piétons |
-| Escalier principal | le même noyau, allongé à 10,00 m (quatre places) : deux ascenseurs accolés à l'escalier | rien | circulation piétons ; ses murs sont de la structure |
+| Escalier principal | le même noyau, allongé de 5,00 m (deux places) : deux ascenseurs accolés à l'escalier | rien | circulation piétons ; ses murs sont de la structure |
 
 ## 2. Qui cède : l'ordre de priorité
 
@@ -161,11 +161,12 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 17. **Surlargeur** (15 novembre) : quand la trame de stationnement ne tombe pas sur la trame de structure (stationnement longitudinal face à une rangée à 90°), une surlargeur égale aux dimensions du poteau sort de la logique de la trame de stationnement et permet de poser le poteau où la structure le demande. Cette logique fait partie de la conception générale, pour les cas particuliers où la règle générale ne s'applique pas.
 18. **Hauteur libre** (15 novembre) : 2,20 m sous tout élément fini ; l'important n'est pas la hauteur sous dalle mais sous poutre. Le Neufert (2,50 m sous structure) n'est pas retenu.
 19. **Calque des rampes et rampe hélicoïdale** (15 novembre) : les rampes ont leur calque, à côté de Voies, Poteaux et Escaliers. On y ajoute une rampe hélicoïdale, que l'on place où l'on veut, de manière dynamique.
+20. **Escalier à paliers normalisés** (15 novembre) : l'escalier est dessiné en détail, paliers normalisés ; quand il ne tient pas dans le noyau de deux places, le noyau s'allonge à trois places. Escalier à deux volées droites et palier intermédiaire, accessible (arrêté du 20 avril 2017, article 7) : volées de 1,20 m entre mains courantes, marches de 16 cm au plus, giron de 28 cm ; paliers aussi profonds que la volée est large (1,20 m) ; murs de 0,20 m. Les deux volées sont côte à côte au fond du noyau, parallèles à l'allée ; devant elles, le sas, sur lequel ouvre la porte, et qui dessert le palier d'étage par une baie de 0,90 m. La hauteur d'étage du système fixe le nombre de marches : poteaux 2,55 m, 16 marches de 15,9 cm, 4,76 m de long avec paliers et murs ; voiles 2,40 m, 15 marches de 16 cm, 4,76 m ; ces deux systèmes gardent le noyau de 5,00 m. Béton précontraint 2,60 m, 17 marches de 15,3 cm, 5,04 m ; acier 2,90 m, 19 marches de 15,3 cm, 5,32 m : noyau de 7,50 m. La fiche d'un escalier donne sa longueur, ses volées et ses marches. Sur l'exemple en béton précontraint : deux escaliers et un passage, 40 m au plus, 110 places ; sur l'emprise de 106 × 32 m, 139 places au lieu de 142.
 
 ## 10. Ce qui reste à fixer
 
 1. Rampe branchée : raccordements de pente en haut et en bas (NF P 91-100 : rayons de 10 m et 15 m), et giration à son entrée, que la décision 7 n'exige pas.
-2. Escaliers : le noyau de deux places (5,00 × 5,00 m) et celui de quatre places pour l'escalier principal sont des hypothèses de travail, déduites des minima du règlement (volées et sas de 0,90 m, sas de 3 m², sas d'ascenseur de 5 m² et 1,50 m de large) et de deux cabines courantes de 630 kg. À confirmer, comme le nombre et la taille des ascenseurs.
+2. Escaliers : le noyau suit l'escalier à paliers normalisés (décision 20). Restent des hypothèses de travail : les volées de 1,20 m (l'accessibilité les impose à un escalier ouvert au public ; le règlement PS se contente de 0,90 m), les paliers aussi profonds que la volée est large, les murs de 0,20 m, et les deux ascenseurs de 630 kg de l'escalier principal sur 5,00 m (sas de 5 m² et 1,50 m de large). À confirmer, comme le nombre et la taille des ascenseurs.
 3. Section d'un poteau béton dans un parc français : la valeur de 0,40 m vient de guides britanniques, faute de source française chiffrée. À confirmer.
 4. Dimensions minimales au feu d'un poteau et d'un voile (NF EN 1992-1-2, valeurs tabulées) : non relevées en ligne, à lire dans la norme.
 5. Structure du parking du Pré aux Pêcheurs à Antibes : aucune source publique trouvée ; la portée de 16 m y reste une indication de l'utilisateur.
@@ -214,7 +215,7 @@ Valeurs en place aujourd'hui :
 | Pente de rampe | 15 % | Neufert p. 274 ; section 14, source 2 (15 % couverte, 10 % à ciel ouvert) ; plafond NF P 91-100 : 18 % |
 | Escalier : distance depuis une place | parc enterré : 40 m entre deux escaliers, 25 m sinon ; parc largement ventilé : 50 m et 30 m | arrêté du 25 juin 1980 modifié, article PS 13 § 1, version en vigueur (section 14, source 20) ; mesure dans l'axe des voies (décision 9) ; type de parc : décision 13 |
 | Écart entre escaliers et passages | 15 m au moins, centre à centre | décision 16 ; valeur à confirmer (section 10) |
-| Escalier : noyau | 5,00 m de rangée (deux places) ; 10,00 m pour l'escalier principal et ses deux ascenseurs | hypothèse de travail ; minima : articles PS 13 § 3 et § 5, PS 24 (section 14, source 20) |
+| Escalier : noyau | 5,00 m de rangée (deux places), 7,50 m (trois) si l'escalier n'y tient pas ; 5,00 m de plus pour les deux ascenseurs de l'escalier principal | décision 20 ; volées de 1,20 m, marches de 16 cm au plus, giron de 28 cm : arrêté du 20 avril 2017, article 7 (section 14, source 21) ; minima : articles PS 13 § 3 et § 5, PS 24 (source 20) |
 | Pas d'accroche des nœuds | 2,50 m, angles de 15° | prototype |
 
 ## 12. Reconstruction, lot par lot
@@ -293,3 +294,4 @@ Relevé du 13 novembre 2026 : constructeurs, industriels, organismes professionn
 **Circulations verticales**
 
 20. Règlement de sécurité contre les risques d'incendie et de panique dans les ERP, arrêté du 25 juin 1980 modifié, dispositions du type PS (arrêté du 9 mai 2006). Article PS 13 § 1, version en vigueur au 24 avril 2025 : 40 m jusqu'à un escalier ou une sortie si les usagers sont entre deux escaliers ou sorties opposés, 25 m sinon ; une partie en cul-de-sac de 25 m au plus débouchant sur une circulation vers deux issues opposées garde 40 m au total ; distances mesurées dans l'axe des circulations des véhicules depuis l'axe de la place la plus éloignée jusqu'à la porte de l'escalier, du sas ou de la sortie ; elles peuvent être portées à 30 et 50 m dans un parc largement ventilé ; un escalier à plusieurs portes ou sas sur un même niveau ne vaut pas deux escaliers opposés. Aucun paragraphe ne mesure de distance à partir de l'escalier (le § 4 traite de l'encloisonnement). Article PS 3 : parc largement ventilé si, à chaque niveau, les ouvertures font au moins 50 % des façades sur deux façades opposées au moins, si ces façades sont à moins de 75 m l'une de l'autre, et si les ouvertures font au moins 5 % du plancher. Version consolidée de 2009 pour PS 13 § 3 et § 5 (escaliers et sas de 0,90 m, sas de 3 m²) et PS 24 (ascenseurs, sas de 5 m² et 1,50 m de large). https://www.legifrance.gouv.fr/loda/article_lc/LEGIARTI000024812186/2025-04-24 ; https://sitesecurite.com/contenu/_erp/erpps/ps05a15.php ; https://cdn.paris.fr/paris/2020/02/26/f4979047d7656590288cc102ac87d65c.ai
+21. Arrêté du 20 avril 2017 relatif à l'accessibilité des ERP lors de leur construction, article 7 (escaliers) : largeur de 1,20 m au moins entre mains courantes, marches de 16 cm de haut au plus, giron de 28 cm au moins, une main courante de chaque côté. Code du travail, article R. 4216-12 : volées de 25 marches au plus, paliers de la largeur de l'escalier. https://www.legifrance.gouv.fr/jorf/article_jo/JORFARTI000001687946 ; https://code.travail.gouv.fr/code-du-travail/r4216-12

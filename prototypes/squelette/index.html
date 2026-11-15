@@ -165,12 +165,20 @@ let choixR = -1; // rampe choisie
 // de 8,50 m au moins ; pente mesurée dans l'axe de la voie (intérieure en double sens), ici à 7,00 m du centre.
 const HELICE = { 1: { int: 4, ext: 9.5, axe: 7 }, 2: { int: 4.5, ext: 13.1, axe: 7 } };
 // ---- Circulations verticales (règlement de sécurité des ERP, type PS : articles PS 13 et PS 24). Un escalier est un
-// noyau posé dans une rangée, comme une rampe : il y prend deux places (5,00 m : volées de 0,90 m au moins et sas de
-// 3 m² au moins). L'escalier principal en prend quatre : il loge, accolés, deux ascenseurs et leur sas (5 m² au moins,
-// 1,50 m de large). La porte est au milieu de l'escalier, côté allée. Toute place en est à 40 m au plus si elle est
+// noyau posé dans une rangée, comme une rampe. Escalier à deux volées droites et palier intermédiaire, accessible
+// (arrêté du 20 avril 2017, art. 7) : volées de 1,20 m entre mains courantes, marches de 16 cm au plus, giron de 28 cm ;
+// paliers aussi profonds que la volée est large (1,20 m) ; murs de 0,20 m. Côté allée, le sas (3 m² au moins, PS 13).
+// Le noyau prend deux places (5,00 m) si l'escalier y tient, trois sinon (décision 20) : la hauteur d'étage en décide.
+// L'escalier principal y ajoute 5,00 m : deux ascenseurs et leur sas (5 m² au moins, 1,50 m de large, PS 24).
+// La porte est au milieu de l'escalier, côté allée. Toute place en est à 40 m au plus si elle est
 // entre deux escaliers, 25 m sinon ; un cul-de-sac de 25 m au plus qui mène à deux escaliers garde 40 m au total.
 // Un parc largement ventilé (article PS 3) peut porter ces distances à 50 m et 30 m. Mesure : voir desservir.
-const ESCALIER = { long: 5 };
+const ESCALIER = { volee: 1.2, jour: 0.1, mur: 0.2, giron: 0.28, marche: 0.16, palier: 1.2, ascenseurs: 5 };
+function escalier(sys) {
+  const E = etage(sys), n = Math.ceil(E / ESCALIER.marche - 1e-9), n1 = Math.ceil(n / 2), course = (n1 - 1) * ESCALIER.giron; // une volée de n1 marches a n1 - 1 girons
+  return { n, h: E / n, n1, n2: n - n1, course, long: 2 * ESCALIER.palier + course + 2 * ESCALIER.mur <= 2 * PAS + 1e-6 ? 2 * PAS : 3 * PAS };
+}
+const escLong = () => escalier(SYSTEMES[S.systeme]).long, escL = (principal) => escLong() + (principal ? ESCALIER.ascenseurs : 0);
 // Deux éléments piétons, escaliers et passages, ne se posent pas à proximité l'un de l'autre : ECART m au moins, centre à
 // centre (décision 16). Le placement automatique s'y tient ; s'il ne trouve rien qui desserve toutes les places, la
 // desserte réglementaire passe avant et le principe signale les éléments trop proches.
@@ -230,7 +238,7 @@ function desservir(escaliers, pl, ouverts = []) {
   const R = S.branches.map((b) => repere(b)), L = lim();
   const lier = (u, v, w, i, au, av) => { voisins[u].push([v, w, i, au, av]); voisins[v].push([u, w, i, av, au]); };
   S.branches.forEach((b, i) => {
-    if (b.rampe) return; const pts = [{ v: b.a, a: 0 }, ...[...E.map((x, j) => ({ v: N + j, a: x.a + ESCALIER.long / 2, i: x.i })).filter((o) => o.i === i), ...ouverts.flatMap((x, k) => (x.i === i ? [{ v: NE + 2 * k, a: x.a }] : x.j === i ? [{ v: NE + 2 * k + 1, a: x.b }] : []))].sort((o, q) => o.a - q.a), { v: b.b, a: R[i].L }];
+    if (b.rampe) return; const pts = [{ v: b.a, a: 0 }, ...[...E.map((x, j) => ({ v: N + j, a: x.a + escLong() / 2, i: x.i })).filter((o) => o.i === i), ...ouverts.flatMap((x, k) => (x.i === i ? [{ v: NE + 2 * k, a: x.a }] : x.j === i ? [{ v: NE + 2 * k + 1, a: x.b }] : []))].sort((o, q) => o.a - q.a), { v: b.b, a: R[i].L }];
     for (let k = 1; k < pts.length; k++) { lier(pts[k - 1].v, pts[k].v, Math.abs(pts[k].a - pts[k - 1].a), i, pts[k - 1].a, pts[k].a); segs[i].push({ i, u: pts[k - 1], v: pts[k] }); }
   });
   ouverts.forEach((x, k) => lier(NE + 2 * k, NE + 2 * k + 1, x.w, -1)); // le passage, d'un axe de voie à l'autre
@@ -239,7 +247,7 @@ function desservir(escaliers, pl, ouverts = []) {
     const dist = Array(V).fill(Infinity), vers = Array(V).fill(-1), pas = Array(V).fill(null), fait = Array(V).fill(false); dist[N + j] = 0;
     const tas = [[0, N + j]], monter = (k) => { while (k > 0) { const m = (k - 1) >> 1; if (tas[m][0] <= tas[k][0]) break; [tas[m], tas[k]] = [tas[k], tas[m]]; k = m; } }, descendre = (k) => { for (;;) { let m = k; const g = 2 * k + 1, d = g + 1; if (g < tas.length && tas[g][0] < tas[m][0]) m = g; if (d < tas.length && tas[d][0] < tas[m][0]) m = d; if (m === k) break; [tas[m], tas[k]] = [tas[k], tas[m]]; k = m; } };
     while (tas.length) { const [, u] = tas[0], dernier = tas.pop(); if (tas.length) { tas[0] = dernier; descendre(0); } if (fait[u]) continue; fait[u] = true; for (const [v, w, i, au, av] of voisins[u]) if (dist[u] + w < dist[v]) { dist[v] = dist[u] + w; vers[v] = u; pas[v] = { i, de: av, a: au }; tas.push([dist[v], v]); monter(tas.length - 1); } }
-    const a = x.a + ESCALIER.long / 2;
+    const a = x.a + escLong() / 2;
     return { dist, vers, pas, porte: x.h, seuil: R[x.i].P(a, x.s * x.h) };
   });
   // Le fil d'un chemin, de bande en bande.
@@ -511,7 +519,7 @@ function placer() {
   S.branches.forEach((b, i) => { for (const c of ["g", "d"]) {
     const t = TYPES[b[c]]; if (t.prof < 4 || b.rampe) continue; const r = R[i], s = c === "g" ? 1 : -1, h = demi(b), vus = new Set(), ici = pl.filter((o) => o.i === i && o.c === c).map((o) => centre(o.q));
     for (let v = 0; v <= r.L; v += PAS) {
-      const x = loger(r.P(v, s * (h + t.prof / 2)), ESCALIER.long, calc.B, calc.D), k = x.hors ? "" : x.a.toFixed(2); if (x.hors || x.i !== i || x.c !== c || vus.has(k)) continue; vus.add(k);
+      const x = loger(r.P(v, s * (h + t.prof / 2)), escLong(), calc.B, calc.D), k = x.hors ? "" : x.a.toFixed(2); if (x.hors || x.i !== i || x.c !== c || vus.has(k)) continue; vus.add(k);
       if (cedeQuad(x.corps, "place", libres) || ici.filter((p) => dans(p, x.corps)).length < (t.angle === 90 ? 2 : 1)) continue; // le noyau ne prend que des places
       cands.push({ x, rang: `${i}${c}`, k: vus.size });
     }
@@ -582,7 +590,7 @@ function placer() {
     const B = recherche(ouvrables, performance.now() + 1000, true); placer.k[1] = B.k; abrege = abrege || B.abrege;
     if (B.sols.length && B.k < choix.k) for (const so of B.sols) {
       // Ses escaliers ; les passages à moins de ECART d'un escalier (ou de la place de l'escalier principal) sont exclus.
-      const X = so.l.map((c) => c.x), large = (x) => [x.r.P(x.a, x.s * x.h), x.r.P(x.a + 2 * ESCALIER.long, x.s * x.h), x.r.P(x.a + 2 * ESCALIER.long, x.s * (x.h + x.prof)), x.r.P(x.a, x.s * (x.h + x.prof))];
+      const X = so.l.map((c) => c.x), large = (x) => [x.r.P(x.a, x.s * x.h), x.r.P(x.a + escL(true), x.s * x.h), x.r.P(x.a + escL(true), x.s * (x.h + x.prof)), x.r.P(x.a, x.s * (x.h + x.prof))];
       const seuil = desservir(X, pl, ouvrables).loin.length, tient = (l) => desservir(X, pl, l).loin.length <= seuil;
       const reserve = ouvrables.filter((x) => !X.some((y) => recouvre(x.corps, large(y)) || proche(x.p, centre(y.corps)) || proche(x.p, centre(large(y)))));
       if (!tient(reserve)) continue;
@@ -597,7 +605,7 @@ function placer() {
   placer.abrege = abrege;
   const sols = choix.sols, N = choix.N;
   // L'escalier principal : le plus central qui ait la place de ses ascenseurs. Le plan entier est mesuré avec lui.
-  const poser = (so, m) => { S.escaliers = so.l.map((c, k) => (k === m ? { p: c.x.r.P(c.x.a + ESCALIER.long, c.x.s * (c.x.h + c.x.prof / 2)), principal: true } : { p: centre(c.x.corps) })); S.passages = ouverts.map((x) => ({ p: x.p })); mesurer(); return !calc.escHors && calc.loin.length <= pl.length - N && calc.escaliers[m].a === so.l[m].x.a; };
+  const poser = (so, m) => { S.escaliers = so.l.map((c, k) => (k === m ? { p: c.x.r.P(c.x.a + escL(true) / 2, c.x.s * (c.x.h + c.x.prof / 2)), principal: true } : { p: centre(c.x.corps) })); S.passages = ouverts.map((x) => ({ p: x.p })); mesurer(); return !calc.escHors && calc.loin.length <= pl.length - N && calc.escaliers[m].a === so.l[m].x.a; };
   // D'abord un principal qui, allongé, reste à ECART des autres éléments ; à défaut, le premier qui convient.
   let fait = false; for (const net of [true, false]) { for (const so of sols) { const centraux = so.l.map((c, m) => m).sort((a, b) => so.l[a].somme - so.l[b].somme); for (const m of centraux) if (poser(so, m) && (!net || !calc.tropProches.length)) { fait = true; break; } if (fait) break; } if (fait) break; }
   if (!fait && sols.length) poser(sols[0], 0);
@@ -674,9 +682,9 @@ function mesurer() {
   // À 90°, places et appuis viennent de la trame commune ; un appui reste s'il borde une place qui a tenu.
   const appuis = [], sys = SYSTEMES[S.systeme], D = disposer(B, geo), surl = {};
   // Escaliers : leur noyau, leur porte ; la bande de l'autre côté de la voie se gagne par un passage, au droit de la porte.
-  const escaliers = (S.escaliers || []).map((e) => { const x = loger(e.p, (e.principal ? 2 : 1) * ESCALIER.long, B, D); x.principal = !!e.principal; return x; });
+  const escaliers = (S.escaliers || []).map((e) => { const x = loger(e.p, escL(e.principal), B, D); x.principal = !!e.principal; return x; });
   for (const x of escaliers) { if (x.hors) continue; E.push({ nature: "noyau", genre: "escalier", q: x.corps });
-    const b = S.branches[x.i], c = bandeDe(b), ap = x.a + ESCALIER.long / 2; if (pw(b, c) && c !== x.c) for (let v = -x.h + 0.25; v + 0.5 <= x.h + 1e-9; v += 1) zebres.push([x.r.P(ap - BANDE / 2, v), x.r.P(ap - BANDE / 2, v + 0.5), x.r.P(ap + BANDE / 2, v + 0.5), x.r.P(ap + BANDE / 2, v)]); }
+    const b = S.branches[x.i], c = bandeDe(b), ap = x.a + escLong() / 2; if (pw(b, c) && c !== x.c) for (let v = -x.h + 0.25; v + 0.5 <= x.h + 1e-9; v += 1) zebres.push([x.r.P(ap - BANDE / 2, v), x.r.P(ap - BANDE / 2, v + 0.5), x.r.P(ap + BANDE / 2, v + 0.5), x.r.P(ap + BANDE / 2, v)]); }
   // Passages : ils font céder les places de la double rangée ; un noyau d'escalier les ferme. Rayés comme un passage piéton.
   const Pi = pistes(D), passages = (S.passages || []).map((e) => percer(e.p, Pi)).filter((x, k, l) => x && l.indexOf(x) === k && !escaliers.some((y) => !y.hors && recouvre(x.corps, y.corps)));
   for (const x of passages) { E.push({ nature: "pieton", genre: "passage", q: x.corps });
@@ -799,10 +807,19 @@ function dessiner() {
     ctx.strokeStyle = css(x.hors ? "--rouge" : sel ? "--accent" : "--mur"); ctx.lineWidth = sel ? 3 : Math.max(2, 0.2 * vue.s); ctx.setLineDash(x.hors ? [5, 4] : []); ctx.beginPath(); chemin(x.corps); ctx.stroke(); ctx.setLineDash([]);
     if (x.hors) return; const P = (a, v) => versE(x.r.P(x.a + a, x.s * (x.h + v))), trait = (A, B) => { ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); };
     ctx.strokeStyle = css("--mur"); ctx.lineWidth = 1; ctx.beginPath();
-    for (let a = 0.9; a <= 4.11; a += 0.4) trait(P(a, 1.9), P(a, x.prof - 0.3)); trait(P(0.3, (1.9 + x.prof - 0.3) / 2), P(4.7, (1.9 + x.prof - 0.3) / 2)); // deux volées
-    if (x.principal) { trait(P(5, 0), P(5, x.prof)); for (const a of [5.5, 7.6]) { const A = P(a, x.prof - 2.4), B = P(a + 1.9, x.prof - 2.4), C = P(a + 1.9, x.prof - 0.3), Dd = P(a, x.prof - 0.3); trait(A, B); trait(B, C); trait(C, Dd); trait(Dd, A); trait(A, C); trait(B, Dd); } }
+    // Au fond, les deux volées côte à côte, parallèles à l'allée ; à un bout le palier d'étage, que le sas dessert, à
+    // l'autre le palier intermédiaire ; une marche par giron, la main courante dans le jour ; devant, le sas.
+    const g = escalier(SYSTEMES[S.systeme]), E = ESCALIER, Ls = escLong(), m = E.mur, f = x.prof - m, v1 = f - E.volee, v0 = v1 - E.jour, vs = v0 - E.volee; // vs : fond du sas
+    const pi = Ls - m - E.palier, a0 = pi - g.course; // palier intermédiaire de pi au mur ; la volée qui monte part de a0
+    trait(P(m + 1.1, vs), P(Ls - m, vs)); trait(P(a0, vs), P(a0, f)); trait(P(pi, vs), P(pi, f)); // cloison du sas, percée de 0,90 m vers le palier d'étage ; départs des volées
+    for (let k = 1; k < g.n1; k++) trait(P(a0 + k * E.giron, vs), P(a0 + k * E.giron, v0)); // première volée, côté sas
+    for (let k = 1; k < g.n2; k++) trait(P(pi - k * E.giron, v1), P(pi - k * E.giron, f)); // seconde volée, au fond
+    trait(P(a0, (v0 + v1) / 2), P(pi, (v0 + v1) / 2)); // main courante dans le jour
+    const fl = (A, B) => { trait(A, B); const d = [B[0] - A[0], B[1] - A[1]], l = Math.hypot(d[0], d[1]) || 1, u = [d[0] / l, d[1] / l], t = Math.min(6, l / 3); trait(B, [B[0] - t * u[0] - t * 0.5 * u[1], B[1] - t * u[1] + t * 0.5 * u[0]]); trait(B, [B[0] - t * u[0] + t * 0.5 * u[1], B[1] - t * u[1] - t * 0.5 * u[0]]); };
+    fl(P(a0 + 0.15, (vs + v0) / 2), P(pi - 0.15, (vs + v0) / 2)); fl(P(pi - 0.15, (v1 + f) / 2), P(pi - (g.n2 - 1) * E.giron + 0.15, (v1 + f) / 2)); // sens de la montée
+    if (x.principal) { trait(P(Ls, 0), P(Ls, x.prof)); for (const a of [Ls + 0.5, Ls + 2.6]) { const A = P(a, x.prof - 2.4), B = P(a + 1.9, x.prof - 2.4), C = P(a + 1.9, x.prof - 0.3), Dd = P(a, x.prof - 0.3); trait(A, B); trait(B, C); trait(C, Dd); trait(Dd, A); trait(A, C); trait(B, Dd); } }
     ctx.stroke();
-    ctx.strokeStyle = css("--accent"); ctx.lineWidth = Math.max(3, 0.25 * vue.s); ctx.beginPath(); trait(P(2.05, 0), P(2.95, 0)); ctx.stroke(); // la porte
+    ctx.strokeStyle = css("--accent"); ctx.lineWidth = Math.max(3, 0.25 * vue.s); ctx.beginPath(); trait(P(Ls / 2 - 0.45, 0), P(Ls / 2 + 0.45, 0)); ctx.stroke(); // la porte, au milieu de l'escalier
   });
   // Places non desservies par un escalier ; plus franches dans le calque des escaliers.
   ctx.fillStyle = css("--rouge"); ctx.globalAlpha = actif === 2 ? 0.5 : 0.28; ctx.beginPath(); for (const q of rouges()) chemin(q); ctx.fill(); ctx.globalAlpha = 1;
@@ -987,7 +1004,7 @@ function bandesAuto() {
   const voulu = new Map(); for (const b of autos) { const g = facade(b, "g"), d = facade(b, "d"); if (g !== d) voulu.set(b, g ? "g" : "d"); COTE.set(b, voulu.get(b) || "d"); }
   // Épures de giration des rampes : une bande qui en traverse une coûte plus qu'une traversée de chaussée.
   const epq = (S.rampes || []).map((ra) => poser(ra, B)).flatMap((x) => x.epures.flatMap((e) => e.quads));
-  const esc = (S.escaliers || []).map((e) => loger(e.p, (e.principal ? 2 : 1) * ESCALIER.long, B, null)).filter((x) => !x.hors);
+  const esc = (S.escaliers || []).map((e) => loger(e.p, escL(e.principal), B, null)).filter((x) => !x.hors);
   const cout = () => {
     const g2 = noeuds(), r = reseau(g2), dans = epq.length ? S.branches.filter((b, i) => { const c = bandeDe(b); return pw(b, c) && epq.some((q) => recouvre([g2.bouts[i].a[c][0], g2.bouts[i].b[c][0], g2.bouts[i].b[c][1], g2.bouts[i].a[c][1]], q)); }).length : 0;
     return r.troncons * 1e6 + dans * 1e4 + (r.passages.length + esc.filter((x) => bandeDe(S.branches[x.i]) !== x.c).length) * 1e3 + autos.filter((b) => voulu.has(b) && COTE.get(b) !== voulu.get(b)).length;
@@ -1052,7 +1069,7 @@ function trame() {
   for (const x of calc.escaliers) if (!x.hors) {
     const u = x.r.u, long = [{ d: u, tol: 0.3 }, { d: [-u[0], -u[1]], tol: 0.3 }], coin = (a, v) => ajoute(x.r.P(x.a + a, x.s * (x.h + v)), long);
     // L'escalier principal : un refend entre l'escalier et les ascenseurs, ses grands murs s'y appuient.
-    const pas = x.principal ? [0, ESCALIER.long, x.L] : [0, x.L], k = [...pas.map((a) => coin(a, 0)), ...pas.reverse().map((a) => coin(a, x.prof))];
+    const pas = x.principal ? [0, escLong(), x.L] : [0, x.L], k = [...pas.map((a) => coin(a, 0)), ...pas.reverse().map((a) => coin(a, x.prof))];
     k.forEach((a, m) => noyaux.push([a, k[(m + 1) % k.length]])); if (x.principal) noyaux.push([k[1], k[4]]);
   }
   S.branches.forEach((b, i) => {
@@ -1243,6 +1260,7 @@ for (const k of Object.keys(SYSTEMES)) { const x = document.createElement("butto
 // Type de parc (article PS 13 § 1) : il fixe les distances aux escaliers ; les escaliers placés d'office suivent.
 $("#f-parc").addEventListener("click", (ev) => { const x = ev.target.closest("button[data-parc]"); if (!x || x.dataset.parc === S.parc) return; garder(); S.parc = x.dataset.parc; rafraichir(); fiche(); enregistrer(); });
 $("#f-systeme").addEventListener("click", (ev) => { const x = ev.target.closest("button[data-s]"); if (!x || x.dataset.s === S.systeme) return; garder(); S.systeme = x.dataset.s; rafraichir(); fiche(); enregistrer(); });
+const nb = (v, k = 1) => v.toLocaleString("fr-FR", { maximumFractionDigits: k });
 function fiche() {
   $("#fiche").classList.toggle("menu", actif === 3 && choixH < 0 && choixR < 0 && !BR[choix]); // menu des rampes, rien de choisi
   const rampe = actif === 3 && choixR >= 0 && calc ? calc.rampes[choixR] : null, hel = actif === 3 && choixH >= 0 && calc ? calc.helices[choixH] : null, esc = actif === 2 && choixE >= 0 && calc ? calc.escaliers[choixE] : null;
@@ -1250,13 +1268,12 @@ function fiche() {
   if (esc) {
     $("#fiche").hidden = false; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = true; $("#b-suppr").hidden = false; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
     $("#b-principal").setAttribute("aria-pressed", String(esc.principal));
-    $("#f-long").textContent = `${esc.principal ? "Escalier principal" : "Escalier"} · ${esc.L} m${esc.hors ? " · à replacer" : ""}`; return;
+    const g = escalier(SYSTEMES[S.systeme]); $("#f-long").textContent = `${esc.principal ? "Escalier principal" : "Escalier"} · ${nb(esc.L)} m · 2 volées de 1,20 m · ${g.n} marches de ${nb(g.h * 100)} cm${esc.hors ? " · à replacer" : ""}`; return;
   }
   if (hel) {
     $("#fiche").hidden = false; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = true; $("#b-suppr").hidden = false;
     for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = l.querySelector(".seg").dataset.cote !== "sens";
     for (const x of document.querySelector('#fiche .seg[data-cote="sens"]').children) x.setAttribute("aria-pressed", String(+x.dataset.t === hel.sens));
-    const nb = (v, k = 1) => v.toLocaleString("fr-FR", { maximumFractionDigits: k });
     $("#f-long").textContent = `Rampe hélicoïdale · Ø ${nb(2 * hel.ext)} m · pente ${nb(100 * hel.pente)} %${hel.raccord ? "" : " · à raccorder à une voie"}`; return;
   }
   if (rampe) {
