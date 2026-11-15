@@ -65,6 +65,8 @@ button:disabled { opacity: .35; }
 #aide { pointer-events: none; position: fixed; left: 50%; transform: translateX(-50%); top: calc(16px + env(safe-area-inset-top)); font-size: 13px; color: var(--label-2); padding: 8px 14px; border-radius: 18px; max-width: calc(100vw - 250px); text-align: center; }
 @media (max-width: 760px) { #aide { top: auto; bottom: calc(var(--barre) + env(safe-area-inset-bottom)); max-width: calc(100vw - 24px); } body:has(#fiche:not([hidden])) #aide { display: none; } }
 </style>
+<!-- Vue 3D (drapeau ?3d) : three.js et polygon-clipping, versions figées. Sans le drapeau, rien n'est chargé. -->
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/", "polygon-clipping": "https://cdn.jsdelivr.net/npm/polygon-clipping@0.15.7/+esm" } }</script>
 </head>
 <body>
 <canvas id="plan" aria-label="Squelette du parc"></canvas>
@@ -97,6 +99,7 @@ button:disabled { opacity: .35; }
   <button id="b-tracer" aria-pressed="false">Tracer</button>
   <button id="b-annuler" disabled>Annuler</button>
   <button id="b-cadrer">Cadrer</button>
+  <button id="b-3d" aria-pressed="false" hidden>3D</button>
 </nav>
 <script>
 "use strict";
@@ -653,6 +656,7 @@ function calculer() {
     for (const b of S.pb) { const A = S.pn[b.a], B = S.pn[b.b]; if (murs.some((m) => suit(A, B, m))) b.plein = true; }
   }
   mesurer();
+  if (window.vue3d) window.vue3d.maj(); // vue 3D (drapeau ?3d) : elle se reconstruit à sa prochaine image
 }
 // Réseau piéton d'une géométrie. Deux bandes d'un même secteur se touchent ; un passage, en travers de l'entrée
 // d'une voie, relie les bandes des deux secteurs qui la bordent. Rend les voies traversées et le nombre de tronçons.
@@ -1423,5 +1427,6 @@ new ResizeObserver(taille).observe(cv); taille(); calculer();
 if (neuf) { const x0 = Math.min(...S.pn.map((p) => p[0])), y0 = Math.min(...S.pn.map((p) => p[1])); for (const b of S.pb) { const A = S.pn[b.a], B = S.pn[b.b]; if ((A[0] === x0 && B[0] === x0 && Math.min(A[1], B[1]) >= 3 && Math.max(A[1], B[1]) <= 19) || (A[1] === y0 && B[1] === y0 && Math.max(A[0], B[0]) <= 3)) b.plein = true; } calculer(); }
 cadrer();
 </script>
+<script>if (new URLSearchParams(location.search).has("3d")) { const m = document.createElement("script"); m.type = "module"; m.src = "vue3d.js"; document.body.append(m); }</script>
 </body>
 </html>

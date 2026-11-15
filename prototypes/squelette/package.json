@@ -1,0 +1,8 @@
+{
+  "name": "parkimo-squelette",
+  "private": true,
+  "type": "module",
+  "description": "Essais de la scène 3D du squelette (node --test).",
+  "scripts": { "test": "node --test essais/*.test.mjs" },
+  "devDependencies": { "polygon-clipping": "0.15.7" }
+}

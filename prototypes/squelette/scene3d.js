@@ -1,0 +1,199 @@
+// Scène 3D du squelette : le plateau (plateau.js) empilé en niveaux et décrit en éléments typés, que la vue three.js
+// affiche sans rien décider. Fonction pure, sans three.js : elle se teste sous Node. Schéma repris de src/scene.rs
+// (volumes prismatiques par matière, rampes, niveaux), complété de rubans (pièces inclinées), de sols peints et de traits.
+//
+// Cotes en mètres, z = 0 au sol fini. Un plancher par niveau, tous sur le même squelette (charte, section 6).
+// Parc largement ventilé : RDC, R+1... au-dessus du sol, le dernier à ciel ouvert. Parc enterré : R-1, R-2... sous le
+// terrain, puis la couverture au niveau du sol. Les rampes relient deux planchers voisins et montent dans le sens de
+// leur branche ; la dalle du dessus est ouverte sur leur emprise (trémie), à chaque niveau.
+// Hypothèses de représentation, sans norme : dallage, radier, allèges, rives des rampes, édicules, terrain.
+
+export const ALLEGE = 1.1, EDICULE = 2.8, DALLAGE = 0.15, RADIER = 0.3, MUR = 0.2, MUR_ENTERRE = 0.3, MARGE = 8, SOCLE = 1.2;
+export const RIVE = { h: 1.0, e: 0.15 }, PORTE = { l: 0.9, h: 2.1 }, MARCHE = 0.3, PALIER = 0.2;
+
+const aire = (r) => r.reduce((m, p, i) => { const n = r[(i + 1) % r.length]; return m + p[0] * n[1] - n[0] * p[1]; }, 0) / 2;
+const oriente = (r, ccw) => ((aire(r) > 0) === ccw ? r : [...r].reverse());
+const ouvert = (r) => (r.length > 1 && r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1] ? r.slice(0, -1) : r);
+const milieu = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+const dist = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+const unit = (a, b) => { const l = dist(a, b) || 1; return [(b[0] - a[0]) / l, (b[1] - a[1]) / l]; };
+export const cercle = (c, R, n = 64) => Array.from({ length: n }, (_, k) => [c[0] + R * Math.cos((2 * Math.PI * k) / n), c[1] + R * Math.sin((2 * Math.PI * k) / n)]);
+const boite = (rs) => { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const r of rs) for (const p of r) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); } return [x0, y0, x1, y1]; };
+const touche = (a, b) => a[0] <= b[2] && b[0] <= a[2] && a[1] <= b[3] && b[1] <= a[3];
+// Rectangle autour du segment a-b, d'épaisseur e : centré, ou tout entier à gauche (cote 1) ou à droite (cote -1).
+const bande = (a, b, e, cote = 0, rallonge = 0) => {
+  const u = unit(a, b), n = [-u[1], u[0]], g = cote === 0 ? e / 2 : cote > 0 ? e : 0, d = cote === 0 ? e / 2 : cote > 0 ? 0 : e;
+  const A = [a[0] - u[0] * rallonge, a[1] - u[1] * rallonge], B = [b[0] + u[0] * rallonge, b[1] + u[1] * rallonge];
+  return oriente([[A[0] - n[0] * d, A[1] - n[1] * d], [B[0] - n[0] * d, B[1] - n[1] * d], [B[0] + n[0] * g, B[1] + n[1] * g], [A[0] + n[0] * g, A[1] + n[1] * g]], true);
+};
+
+// Opérations sur les polygones (polygon-clipping, passé par l'appelant). Un multipolygone est une liste de polygones,
+// chacun une liste d'anneaux : le contour, dans le sens trigonométrique, puis les vides, dans l'autre sens.
+// Les entrées sont calées au millimètre : sans cela, polygon-clipping échoue parfois sur des sommets presque confondus.
+function outils(clip) {
+  const mm = (r) => r.map((p) => [Math.round(p[0] * 1000) / 1000, Math.round(p[1] * 1000) / 1000]);
+  const valide = (r) => r.length >= 3 && Math.abs(aire(r)) > 0.01;
+  const net = (mp) => mp.map((pg) => pg.map(ouvert).filter(valide).map((r, k) => oriente(r, k === 0))).filter((pg) => pg.length && aire(pg[0]) > 0.01);
+  const echecs = [], sur = (f, repli) => { try { return f(); } catch (e) { echecs.push(e.message); return repli; } };
+  const polys = (rs) => rs.filter(valide).map((r) => [mm(r)]), multi = (mp) => mp.map((pg) => pg.map(mm));
+  return {
+    echecs,
+    reunion: (rs) => { const v = polys(rs); return v.length ? sur(() => net(clip.union(...v)), v.map((pg) => [oriente(pg[0], true)])) : []; },
+    moins: (mp, rs) => { const v = polys(rs); return v.length && mp.length ? sur(() => net(clip.difference(multi(mp), ...v)), mp) : mp; },
+    inter: (mp, rs) => { const v = polys(rs); return v.length && mp.length ? sur(() => net(clip.intersection(multi(mp), v)), []) : []; },
+    dehors: (a, b) => (b.length && a.length ? sur(() => net(clip.difference(multi(a), multi(b))), a) : a),
+    dedans: (a, b) => (b.length && a.length ? sur(() => net(clip.intersection(multi(a), multi(b))), []) : []),
+  };
+}
+
+export function scene(P, clip) {
+  const sc = { min: [0, 0], max: [0, 0], haut: 0, bas: 0, niveaux: [], volumes: [], rubans: [], sols: [], traits: [], rampes: [], constats: [], places: 0 };
+  if (!P || !P.chaussees.length) return sc;
+  const O = outils(clip), E = P.E, n = P.niveaux, ventile = P.parc === "ventile";
+  const vol = (matiere, anneaux, z0, z1, niveau, cle) => { if (z1 > z0 + 1e-6 && anneaux.length && anneaux[0].length >= 3) sc.volumes.push({ matiere, anneaux, z0: +z0.toFixed(4), z1: +z1.toFixed(4), niveau, ...(cle ? { cle } : {}) }); };
+  const vols = (matiere, mp, z0, z1, niveau, cle) => { for (const pg of mp) vol(matiere, pg, z0, z1, niveau, cle); };
+
+  // ---- Planchers. Le dernier (T) est la toiture du silo, ou la couverture du parc enterré.
+  const F = ventile ? Array.from({ length: n }, (_, f) => ({ z: f * E, nom: f ? `R+${f}` : "RDC", places: true }))
+    : [...Array.from({ length: n }, (_, f) => ({ z: -(n - f) * E, nom: `R-${n - f}`, places: true })), { z: 0, nom: "Couverture", places: false }];
+  const T = F.length - 1;
+
+  // ---- Escaliers : repère local, cotes de la cage (mêmes cotes que le dessin du plan).
+  const M = P.marches, cages = P.escaliers.filter((x) => !x.hors).map((x) => {
+    const W = (a, v) => [x.O[0] + x.ua[0] * a + x.uv[0] * v, x.O[1] + x.ua[1] * a + x.uv[1] * v];
+    const R = (a0, a1, v0, v1) => oriente([W(a0, v0), W(a1, v0), W(a1, v1), W(a0, v1)], true);
+    const m = M.mur, ff = x.prof - m, v1 = ff - M.volee, v0 = v1 - M.jour, vs = v0 - M.volee, pi = x.Ls - m - M.palier, a0 = pi - M.course;
+    return { x, R, m, ff, v1, v0, vs, pi, a0, tremie: R(m, x.Ls - m, vs, ff) };
+  });
+
+  // ---- Enveloppe : réunion des chaussées, des rangées, des disques d'hélice et des noyaux. Trémies.
+  const env = O.reunion([...P.rangees, ...P.chaussees.map((c) => c.q), ...P.helices.map((h) => cercle(h.p, h.ext + RIVE.e)), ...cages.map((c) => c.x.corps)]);
+  if (!env.length) return sc;
+  const tremies = [...P.rampes.filter((r) => !r.hors).map((r) => r.q), ...P.rampesVoie.map((r) => r.q), ...P.helices.map((h) => cercle(h.p, h.ext)), ...cages.map((c) => c.tremie)];
+  const bTrem = tremies.map((r) => boite([r]));
+  const [x0, y0, x1, y1] = boite(env.map((pg) => pg[0]));
+  sc.min = [x0, y0]; sc.max = [x1, y1];
+
+  // ---- Dalles : au plancher bas, dallage (ventilé) ou radier (enterré), plein ; au-dessus, dalle percée des trémies.
+  vols(ventile ? "dallage" : "radier", env, F[0].z - (ventile ? DALLAGE : RADIER), F[0].z, 0);
+  const percee = O.moins(env, tremies);
+  for (let f = 1; f <= T; f++) vols(!ventile && f === T ? "couverture" : "dalle", percee, F[f].z - P.dalle, F[f].z, f);
+
+  // ---- Sols peints : chaussées, places, piétons. Au-dessus du plancher bas, ils s'arrêtent aux trémies.
+  const decoupe = (r) => { const b = boite([r]), t = tremies.filter((_, k) => touche(b, bTrem[k])); return t.length ? O.moins([[oriente(r, true)]], t) : [[oriente(r, true)]]; };
+  const peints = (etage) => {
+    const l = [], pose = (rs, matiere, dz) => { for (const r of rs) for (const pg of etage ? decoupe(r) : [[oriente(r, true)]]) l.push({ anneaux: pg, matiere, dz }); };
+    pose(P.chaussees.filter((c) => !c.rampe).map((c) => c.q), "enrobe", 0.004);
+    pose(P.places.filter((p) => !p.rouge).map((p) => p.q), "place", 0.006);
+    pose(P.places.filter((p) => p.rouge).map((p) => p.q), "constat", 0.006);
+    pose(P.pietons, "pieton", 0.008);
+    pose(P.zebres, "zebre", 0.01);
+    return l;
+  };
+  const sols = [peints(false), T > 0 ? peints(true) : []];
+  for (let f = 0; f <= T; f++) {
+    if (!F[f].places) continue;
+    for (const s of sols[f ? 1 : 0]) sc.sols.push({ anneaux: s.anneaux, z: +(F[f].z + s.dz).toFixed(4), matiere: s.matiere, niveau: f });
+    for (const p of P.places) { const q = p.q; for (const [a, b] of [[q[3], q[0]], [q[0], q[1]], [q[1], q[2]]]) sc.traits.push({ a, b, z: +(F[f].z + 0.02).toFixed(4), matiere: "marquage", niveau: f }); }
+    sc.places += P.places.length;
+  }
+  sc.niveaux = F.map((x, f) => ({ z: x.z, nom: x.nom, places: x.places ? P.places.length : 0 }));
+
+  // ---- Ossature, étage par étage : poteaux sous les poutres, poutres sous la dalle, voiles et remplissages.
+  const cleP = (p) => `${p[0].toFixed(2)},${p[1].toFixed(2)}`, dirs = new Map();
+  for (const b of P.poutres) { const u = unit(b.a, b.b); for (const p of [b.a, b.b]) if (!dirs.has(cleP(p))) dirs.set(cleP(p), u); }
+  const carre = (p, s) => { const u = dirs.get(cleP(p)) || [1, 0], v = [-u[1], u[0]], h = s / 2; return oriente([[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([i, j]) => [p[0] + (u[0] * i + v[0] * j) * h, p[1] + (u[1] * i + v[1] * j) * h]), true); };
+  for (let f = 0; f < T; f++) {
+    const z = F[f].z, sous = F[f + 1].z - P.dalle, sp = sous - P.retombee;
+    for (const o of P.poteaux) vol(o.conflit ? "poteau_constat" : "poteau", [carre(o.p, P.section)], z, sp, f, o.cle);
+    for (const b of P.poutres) {
+      if (b.noyau) continue; // les murs des noyaux viennent des escaliers
+      if (b.voile) { vol("voile", [bande(b.a, b.b, P.section)], z, sous, f); continue; }
+      if (P.retombee > 0) vol("poutre", [bande(b.a, b.b, Math.max(P.section, 0.2))], sp, sous, f);
+      if (b.plein) vol("maconnerie", [bande(b.a, b.b, MUR)], z, sp, f);
+    }
+  }
+
+  // ---- Rampes : une dalle inclinée et ses deux rives par étage ; au dernier plancher, un garde-corps ferme le bas de la trémie.
+  const rampe = (q, H, genre, raide, cle, f) => {
+    const a = milieu(q[0], q[3]), b = milieu(q[1], q[2]), w = dist(q[0], q[3]), z = F[f].z, axe = [[a[0], a[1], z], [b[0], b[1], z + H]];
+    sc.rubans.push({ axe, largeur: w, decalage: 0, z0: -P.dalle, z1: 0, matiere: raide ? "rampe_constat" : "rampe", niveau: f, cle });
+    for (const s of [1, -1]) sc.rubans.push({ axe, largeur: RIVE.e, decalage: s * (w / 2 - RIVE.e / 2), z0: 0, z1: RIVE.h, matiere: "rive", niveau: f, cle });
+    sc.rampes.push({ axe, largeur: w, niveau: f, cle, genre, raide });
+  };
+  const rampes = [...P.rampes.filter((r) => !r.hors).map((r) => ({ ...r, genre: "posee" })), ...P.rampesVoie.map((r) => ({ ...r, genre: "branchee" }))];
+  for (const r of rampes) {
+    for (let f = 0; f < T; f++) rampe(r.q, r.hauteur, r.genre, r.raide, r.cle, f);
+    if (T > 0) vol("allege", [bande(r.q[0], r.q[3], RIVE.e)], F[T].z, F[T].z + ALLEGE, T, r.cle);
+    if (r.hauteur < E - 1e-6) sc.constats.push(`${r.cle} : rampe de demi-niveau, les plateaux décalés ne sont pas représentés`);
+  }
+  if (P.rampes.some((r) => r.hors)) sc.constats.push("Rampe à replacer : non représentée");
+
+  // ---- Rampes hélicoïdales : un tour par étage, dans le sens trigonométrique vu du dessus. L'entrée est du côté de la
+  // voie que le disque recouvre. Mur intérieur, rive extérieure ouverte au droit de l'entrée, garde-corps au bord de chaque plancher.
+  for (const h of P.helices) {
+    const disque = cercle(h.p, h.ext);
+    let cx = 0, cy = 0, s = 0;
+    for (const pg of O.inter([[disque]], P.chaussees.filter((c) => !c.rampe).map((c) => c.q))) { const r = pg[0], a = Math.abs(aire(r)), c = r.reduce((m, p) => [m[0] + p[0] / r.length, m[1] + p[1] / r.length], [0, 0]); cx += c[0] * a; cy += c[1] * a; s += a; }
+    const t0 = s > 0 ? Math.atan2(cy / s - h.p[1], cx / s - h.p[0]) : -Math.PI / 2, rm = (h.int + h.ext) / 2, w = h.ext - h.int, gap = Math.min(1.2, 7 / h.ext);
+    const spirale = (z, a0, a1, k = 48) => Array.from({ length: k + 1 }, (_, i) => { const t = a0 + ((a1 - a0) * i) / k; return [h.p[0] + rm * Math.cos(t), h.p[1] + rm * Math.sin(t), z + (E * (t - t0)) / (2 * Math.PI)]; });
+    const anneau = (r0, r1, a0, a1, k = 48) => { const ext = Array.from({ length: k + 1 }, (_, i) => a0 + ((a1 - a0) * i) / k); return oriente([...ext.map((t) => [h.p[0] + r1 * Math.cos(t), h.p[1] + r1 * Math.sin(t)]), ...ext.reverse().map((t) => [h.p[0] + r0 * Math.cos(t), h.p[1] + r0 * Math.sin(t)])], true); };
+    for (let f = 0; f < T; f++) {
+      const z = F[f].z, axe = spirale(z, t0, t0 + 2 * Math.PI);
+      sc.rubans.push({ axe, largeur: w, decalage: 0, z0: -P.dalle, z1: 0, matiere: h.raide ? "rampe_constat" : "rampe", niveau: f, cle: h.cle });
+      sc.rubans.push({ axe: spirale(z, t0 + gap, t0 + 2 * Math.PI - gap), largeur: RIVE.e, decalage: -(w / 2 - RIVE.e / 2), z0: 0, z1: RIVE.h, matiere: "rive", niveau: f, cle: h.cle });
+      vol("noyau", [oriente(cercle(h.p, h.int), true), oriente(cercle(h.p, h.int - MUR), false)], z, F[f + 1].z, f, h.cle);
+      sc.rampes.push({ axe, largeur: w, niveau: f, cle: h.cle, genre: "helice", raide: h.raide });
+    }
+    for (let f = 1; f <= T; f++) vol("allege", [anneau(h.ext, h.ext + RIVE.e, t0 + gap, t0 + 2 * Math.PI - gap)], F[f].z, F[f].z + ALLEGE, f, h.cle);
+    vol("noyau", [oriente(cercle(h.p, h.int), true), oriente(cercle(h.p, h.int - MUR), false)], F[T].z, F[T].z + ALLEGE, T, h.cle);
+    if (!h.raccord) sc.constats.push(`${h.cle} : rampe hélicoïdale sans voie à raccorder`);
+  }
+
+  // ---- Escaliers : cage aux murs de 0,20 m, porte côté allée, sas ; deux volées et leurs paliers par étage ; gaines
+  // d'ascenseurs pour l'escalier principal ; édicule sur le dernier plancher.
+  for (const c of cages) {
+    const { x, R, m, ff, v1, v0, vs, pi, a0 } = c, L = x.L, pr = x.prof, d0 = x.Ls / 2 - PORTE.l / 2, d1 = x.Ls / 2 + PORTE.l / 2, g = M.giron;
+    const murs = [R(0, d0, 0, m), R(d1, L, 0, m), R(0, L, pr - m, pr), R(0, m, m, pr - m), R(L - m, L, m, pr - m), R(m + 1.1, x.Ls - m, vs - 0.1, vs)];
+    if (x.principal) murs.push(R(x.Ls - 0.1, x.Ls + 0.1, m, pr - m));
+    const gaines = x.principal ? [R(x.Ls + 0.5, x.Ls + 2.4, pr - 2.4, pr - 0.3), R(x.Ls + 2.6, x.Ls + 4.5, pr - 2.4, pr - 0.3)] : [];
+    const cage = (z0, z1, f) => { for (const q of murs) vol("noyau", [q], z0, z1, f, x.cle); vol("noyau", [R(d0, d1, 0, m)], Math.min(z1, z0 + PORTE.h), z1, f, x.cle); for (const q of gaines) vol("ascenseur", [q], z0, z1, f, x.cle); };
+    for (let f = 0; f < T; f++) {
+      const z = F[f].z, zh = F[f + 1].z, zi = z + M.n1 * M.h, fin = pi - (M.n2 - 1) * g;
+      cage(z, zh, f);
+      for (let j = 1; j < M.n1; j++) { const t = z + j * M.h; vol("marche", [R(a0 + (j - 1) * g, a0 + j * g, vs, v0)], Math.max(z, t - MARCHE), t, f, x.cle); }
+      vol("palier", [R(pi, x.Ls - m, vs, ff)], zi - PALIER, zi, f, x.cle);
+      for (let j = 1; j < M.n2; j++) { const t = zi + j * M.h; vol("marche", [R(pi - j * g, pi - (j - 1) * g, v1, ff)], t - MARCHE, t, f, x.cle); }
+      vol("palier", [R(m, a0, vs, ff)], zh - PALIER, zh, f + 1, x.cle); // palier d'étage du plancher du dessus, ouvert sur la cage
+      if (fin > a0 + 1e-6) vol("palier", [R(a0, fin, v1, ff)], zh - PALIER, zh, f + 1, x.cle);
+    }
+    cage(F[T].z, F[T].z + EDICULE, T);
+    vol("noyau", [R(0, L, 0, pr)], F[T].z + EDICULE, F[T].z + EDICULE + PALIER, T, x.cle);
+  }
+
+  // ---- Façades et terrain. Le long de l'enveloppe : allèges à chaque plancher hors rez (ventilé), voiles contre terre
+  // (enterré). Une bande par côté, rallongée aux deux bouts puis rognée par l'enveloppe : les angles rentrants se ferment.
+  const bord = (e, dehors) => {
+    const rs = [];
+    for (const pg of env) for (const r of pg) r.forEach((a, k) => { const b = r[(k + 1) % r.length]; if (dist(a, b) > 0.05) rs.push(bande(a, b, e, dehors ? -1 : 1, e)); });
+    const U = O.reunion(rs);
+    return dehors ? O.dehors(U, env) : O.dedans(U, env);
+  };
+  const cadre = (m) => oriente([[x0 - m, y0 - m], [x1 + m, y0 - m], [x1 + m, y1 + m], [x0 - m, y1 + m]], true);
+  if (ventile) {
+    const al = bord(MUR, false);
+    for (let f = 1; f <= T; f++) vols("allege", al, F[f].z, F[f].z + ALLEGE, f);
+    vol("terrain", [cadre(MARGE)], -DALLAGE - SOCLE, -DALLAGE, -1);
+  } else {
+    const mu = bord(MUR_ENTERRE, true);
+    for (let f = 0; f < T; f++) vols("voile", mu, F[f].z - (f ? 0 : RADIER), F[f + 1].z, f);
+    vols("terrain", O.dehors([[cadre(MARGE)]], O.reunion([...env.map((pg) => pg[0]), ...mu.map((pg) => pg[0])])), F[0].z - RADIER - SOCLE, 0, -1);
+  }
+
+  if (O.echecs.length) sc.constats.push(`Polygones : ${O.echecs.length} opération(s) en échec, remplacée(s) par une forme approchée`);
+  let haut = -Infinity, bas = Infinity;
+  for (const v of sc.volumes) { haut = Math.max(haut, v.z1); bas = Math.min(bas, v.z0); }
+  for (const r of sc.rubans) for (const p of r.axe) { haut = Math.max(haut, p[2] + r.z1); bas = Math.min(bas, p[2] + r.z0); }
+  sc.haut = haut; sc.bas = bas;
+  return sc;
+}
