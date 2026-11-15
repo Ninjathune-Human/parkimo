@@ -997,15 +997,16 @@ function porter(k, sens) {
 // toutes les trois ou deux places, avec le même second poteau en épi. Bord de chaussée en façade : un poteau en face de chaque file. Les angles du bâtiment
 // ferment les files. Poutres : le long des génératrices et en travers des voies.
 function trame() {
-  const pts = [], poutres = [], liens = [], noyaux = [], rects = [...calc.ch, ...calc.bandes], sys = SYSTEMES[S.systeme];
+  const pts = [], poutres = [], liens = [], noyaux = [], sys = SYSTEMES[S.systeme];
+  const rects = [...calc.ch, ...calc.bandes].filter((q) => Math.abs(q.reduce((t, p, k) => { const o = q[(k + 1) % q.length]; return t + p[0] * o[1] - o[0] * p[1]; }, 0)) > 0.01); // une surface nulle n'est pas de l'intérieur
   const ajoute = (p, dirs) => {
-    // Un poteau à moins d'un mètre d'un autre ne se pose pas ; au même point (rangées dos à dos), il partage ses poutres.
-    let k = pts.findIndex((o) => Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) < 1);
+    // Un poteau à moins de 2 m d'un autre ne se pose pas ; au même point (rangées dos à dos), il partage ses poutres.
+    let k = pts.findIndex((o) => Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) < 2);
     if (k >= 0 && Math.hypot(pts[k].p[0] - p[0], pts[k].p[1] - p[1]) > 0.05) return -1;
     if (k < 0) { if (cedePoint(p, "structure", calc.emprises)) return -1; k = pts.push({ p: p.map((v) => +v.toFixed(3)), dirs: [] }) - 1; }
     pts[k].dirs.push(...dirs); return k;
   };
-  const net = sys.portee + sys.section + 0.01; // entraxe à ne pas dépasser
+  const net = sys.portee + sys.section + 0.01, facades = []; // entraxe à ne pas dépasser ; les façades se posent en dernier
   S.branches.forEach((b, i) => {
     const r = repere(b), h = demi(b), n = [-r.u[1], r.u[0]], long = [{ d: r.u, tol: 0.3 }, { d: [-r.u[0], -r.u[1]], tol: 0.3 }];
     const inv = r.u[0] < -1e-9 || (Math.abs(r.u[0]) < 1e-9 && r.u[1] < 0); // files comptées depuis le même bout quel que soit le sens de la voie
@@ -1014,7 +1015,7 @@ function trame() {
     for (const x of cotes) {
       if (x.t.angle === 90) {
         // Rangée à 90° : les appuis de la trame commune.
-        x.as = calc.appuis.filter((o) => o.i === i && o.c === x.c).map((o) => o.a); const travers = { d: x.d, tol: PAS / 2 + 0.1 };
+        x.as = calc.appuis.filter((o) => o.i === i && o.c === x.c).map((o) => o.a); const travers = { d: x.d, tol: 0.3 }; // files alignées d'un côté à l'autre : une poutre droite
         for (const a of x.as) { const fond = ajoute(r.P(a, x.s * (h + x.t.prof)), sys.rang ? long : [...long, travers]); if (sys.rang) liens.push([fond, ajoute(r.P(a, x.s * (h + RETRAIT)), [{ ...travers, max: face }])]); }
       } else if (x.ks.size) {
         // Rangée en épi ou en long : une file toutes les trois places, toutes les deux si la portée du système l'exige ;
@@ -1026,11 +1027,18 @@ function trame() {
         for (const a of x.as) { const fond = ajoute(r.P(a + biaisDe(x.t, x.s), x.s * (h + x.t.prof)), pied ? long : [...long, travers]); if (pied) liens.push([fond, ajoute(r.P(a + biaisDe(x.t, x.s) * RETRAIT / x.t.prof, x.s * (h + RETRAIT)), [{ ...travers, max: face }])]); }
       }
     }
-    // Bord de chaussée en façade : un poteau en face de chaque file de la rangée d'en face ; voie sans rangée : tous les 7,50 m.
+    // Bord de chaussée en façade : un poteau en face de chaque file de la rangée d'en face. Voie sans rangée : plus tard,
+    // dans l'alignement des files qui l'abordent.
     cotes.forEach((x, m) => {
-      if (x.t.prof) return; const autre = cotes[1 - m]; let as = autre.as;
-      if (!as) { if (autre.t.prof) return; as = []; for (let a = 0; a < r.L - 1e-6; a += 3 * PAS) as.push(a); as.push(r.L); }
-      for (const a of as) if (!rects.some((q) => dans(r.P(a, x.s * (h + 0.3)), q))) ajoute(r.P(a, x.s * h), [...long, { d: x.d, tol: PAS / 2 + 0.1 }]);
+      if (x.t.prof) return; const autre = cotes[1 - m]; const pose = (as) => { for (const a of as) if (!rects.some((q) => dans(r.P(a, x.s * (h + 0.3)), q))) ajoute(r.P(a, x.s * h), [...long, { d: x.d, tol: 0.3 }]); };
+      if (autre.as) pose(autre.as); else if (!autre.t.prof) facades.push(() => {
+        // Les files des rangées voisines (poteaux à moins de 8 m de l'autre bord de la voie) donnent les positions ; les
+        // bouts de la voie s'y ajoutent, puis un poteau au milieu de tout intervalle de plus de 7,50 m.
+        const as = []; for (const o of pts) { const a = (o.p[0] - r.A[0]) * r.u[0] + (o.p[1] - r.A[1]) * r.u[1], t = x.s * ((o.p[0] - r.A[0]) * n[0] + (o.p[1] - r.A[1]) * n[1]); if (a > -0.5 && a < r.L + 0.5 && t > -h - 8 && t < h + 0.5) as.push(Math.min(r.L, Math.max(0, a))); }
+        as.push(0, r.L); as.sort((u, v) => u - v); const pris = []; for (const a of as) if (!pris.length || a - pris[pris.length - 1] >= 2) pris.push(a);
+        const tout = []; pris.forEach((a, k) => { if (k) { const g = a - pris[k - 1], nb = Math.ceil(g / (3 * PAS) - 1e-6); for (let j = 1; j < nb; j++) tout.push(pris[k - 1] + (g * j) / nb); } tout.push(a); });
+        pose(tout);
+      });
     });
   });
   for (const x of calc.rampes) if (!x.hors) for (const p of x.corps) ajoute(p, [{ d: x.u, tol: 0.3 }, { d: [-x.u[0], -x.u[1]], tol: 0.3 }]); // les quatre coins d'une rampe
@@ -1042,6 +1050,7 @@ function trame() {
     k.forEach((a, m) => noyaux.push([a, k[(m + 1) % k.length]])); if (x.principal) noyaux.push([k[1], k[4]]);
   }
   for (const a of calc.angles) if (a.x) ajoute(a.x, [1, 3].map((m) => { const v = [a.q[m][0] - a.x[0], a.q[m][1] - a.x[1]], l = Math.hypot(v[0], v[1]); return l > 0.01 ? { d: [v[0] / l, v[1] / l], tol: 0.3 } : null; }).filter(Boolean));
+  for (const f of facades) f();
   pts.forEach((o, k) => { for (const { d, tol, max } of o.dirs) {
     let best = -1, bx = (max || 20) + 0.01, vrai = 0;
     pts.forEach((q, j) => { if (j === k) return; const x = (q.p[0] - o.p[0]) * d[0] + (q.p[1] - o.p[1]) * d[1], y = Math.abs((q.p[0] - o.p[0]) * d[1] - (q.p[1] - o.p[1]) * d[0]); if (x > 0.5 && y <= tol && x < bx) { bx = x; vrai = Math.hypot(x, y); best = j; } });
