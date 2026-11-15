@@ -79,7 +79,7 @@ with sync_playwright() as p:
         pg.click("#b-tracer"); glisser((30, 0), (30, -30)); pg.click("#b-tracer")
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="voie"]'); pg.wait_for_timeout(300)
         e = pg.evaluate(RV); r["rampe_voie"] = [e]
-        assert e["rampe"] == "droite" and e["sens"] == 1 and e["largeur"] == 3.25 and e["surElle"] == 0 and e["bande"] == "aucun" and e["epures"] == 0 and "continu" in e["pietons"] and not e["viol"] and e["lignes"] == ["Rampe", "Sens"] and "pente 9,3 %" in e["fiche"]  # 2,50 m d'étage en béton précontraint sur 27 m, e
+        assert e["rampe"] == "droite" and e["sens"] == 1 and e["largeur"] == 3.25 and e["surElle"] == 0 and e["bande"] == "aucun" and e["epures"] == 0 and "continu" in e["pietons"] and not e["viol"] and e["lignes"] == ["Rampe", "Sens"] and "pente 9,6 %" in e["fiche"]  # 2,60 m d'étage en béton précontraint sur 27 m, e
         pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         pg.screenshot(path=str(out / f"{name}-squelette-rampe-voie.png"))
         pg.click('#fiche .seg[data-cote="sens"] button[data-t="2"]'); pg.wait_for_timeout(300)
@@ -87,7 +87,7 @@ with sync_playwright() as p:
         assert e["sens"] == 2 and e["largeur"] == 6.5 and not e["viol"] and e["places"] < r["rampe_voie"][0]["places"], e
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="demi"]'); pg.wait_for_timeout(300)
         e = pg.evaluate(RV); r["rampe_voie"].append(e)
-        assert e["rampe"] == "demi" and e["epures"] == 0 and "pente 4,6 %" in e["fiche"], e
+        assert e["rampe"] == "demi" and e["epures"] == 0 and "pente 4,8 %" in e["fiche"], e
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="droite"]'); pg.wait_for_timeout(300)
         # Trop courte pour un étage : la pente dépasse 15 %, le principe est violé.
         r["rampe_raide"] = pg.evaluate("(() => { const k = S.branches[S.branches.length - 1].b, y = S.noeuds[k][1]; S.noeuds[k][1] = -12.5; calculer(); const o = [calc.principes.filter((p) => !p.ok).map((p) => p.id), calc.principes.find((p) => p.id === 'pente').detail]; S.noeuds[k][1] = y; calculer(); return o; })()")
@@ -404,14 +404,14 @@ with sync_playwright() as p:
           const ok = calc.principes.every((x) => x.ok || x.id === "contreventement"); S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); return [fond, pp, ok]; })()"""
         r["dos_a_dos"] = pg.evaluate(DOS_)
         assert r["dos_a_dos"][0] == 0 and r["dos_a_dos"][1] >= 6 and r["dos_a_dos"][2], r["dos_a_dos"]
-        # Plancher et hauteur libre par système : étage = dalle + retombée + 2,10 m libres sous tout élément fini ;
+        # Plancher et hauteur libre par système : étage = dalle + retombée + 2,20 m libres sous tout élément fini ;
         # la rampe d'un étage monte de cette hauteur, celle d'un demi-niveau de sa moitié. Acier en parc enterré : une alerte.
         PL_ = """(() => { const sauve = JSON.stringify(S), o = {}; for (const k of ["poteaux", "voiles", "acier", "beton"]) { S.systeme = k; S.parc = "enterre"; S.branches[4].rampe = k === "beton" ? "demi" : "droite"; pointer(); calculer();
           const rv = calc.rampesVoie.map((x) => +(x.pente * x.L / (S.branches[x.i].rampe === "demi" ? 0.5 : 1)).toFixed(3)); o[k] = [calc.etage, rv]; }
           S.systeme = "acier"; S.parc = "enterre"; pointer(); calculer(); o.alerte = !!calc.alerteFeu; S.parc = "ventile"; calculer(); o.ventile = !!calc.alerteFeu;
           S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); return o; })()"""
         r["planchers"] = pg.evaluate(PL_)
-        e = {"poteaux": 2.45, "voiles": 2.3, "acier": 2.8, "beton": 2.5}
+        e = {"poteaux": 2.55, "voiles": 2.4, "acier": 2.9, "beton": 2.6}
         assert all(abs(r["planchers"][k][0] - v) < 1e-6 and len(r["planchers"][k][1]) == 1 and all(abs(h - v) < 1e-3 for h in r["planchers"][k][1]) for k, v in e.items()) and r["planchers"]["alerte"] and not r["planchers"]["ventile"], r["planchers"]
         # Doigt fantôme : un toucher dont le relevé n'est jamais arrivé ne doit pas transformer le toucher suivant en pincement.
         FA_ = """(() => { const cv = document.querySelector("#plan"), ev = (t, id, x, y, prim) => cv.dispatchEvent(new PointerEvent(t, { pointerId: id, pointerType: "touch", isPrimary: prim, clientX: x, clientY: y, bubbles: true }));

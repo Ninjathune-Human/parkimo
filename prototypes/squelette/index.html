@@ -127,8 +127,8 @@ const SYSTEMES = {
   acier: { nom: "Portée acier", travees: [2], section: 0.2, portee: 16.5, dalle: 0.14, retombee: 0.56, metal: true },
   beton: { nom: "Portée béton", travees: [3, 2], section: 0.4, portee: 16.5, dalle: 0.4, retombee: 0 },
 };
-// Hauteur libre : 2,10 m sous tout élément fini, plafond comme poutre (règle de l'utilisateur, 15 novembre).
-const LIBRE = 2.1;
+// Hauteur libre : 2,20 m sous tout élément fini, poutre comprise (décision 18).
+const LIBRE = 2.2;
 const etage = (sys) => +(sys.dalle + sys.retombee + LIBRE).toFixed(3);
 const hauteurRampe = (type) => (type === "demi" ? 0.5 : 1) * etage(SYSTEMES[S.systeme]); // un étage, ou un demi-niveau
 const LARGEURS = [2.5, 2.4, 2.3]; // largeur d'une place à 90°, par ordre de préférence (décision 5)
