@@ -4,7 +4,7 @@
    essais de la scène sous Node (npm test dans prototypes/squelette).
 2. Vue (drapeau ?3d) : bascule, mise à jour après une modification, captures PC, iPad et iPhone, console sans erreur,
    durée de reconstruction ; sans drapeau, la page du squelette est inchangée (pas de bouton 3D, aucun module chargé).
-Usage : essai_vue3d.py dossier_des_captures [dossier_vendor]
+Usage : essai_vue3d.py dossier_des_captures [dossier_vendor] [--plateaux : seulement les plateaux de référence]
 dossier_vendor (facultatif, machine sans accès au CDN) : three/ (paquet npm three@0.187.0 décompressé) et
 polygon-clipping.esm.js (polygon-clipping 0.15.7 en un seul module ES) ; les demandes à cdn.jsdelivr.net y sont servies."""
 import functools, http.server, json, pathlib, sys, threading
@@ -12,8 +12,9 @@ from playwright.sync_api import sync_playwright
 
 root = pathlib.Path(__file__).resolve().parents[2]
 dossier = root / "prototypes" / "squelette"
-out = pathlib.Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
-vendor = pathlib.Path(sys.argv[2]) if len(sys.argv) > 2 else None
+args = [a for a in sys.argv[1:] if not a.startswith("--")]; PLATEAUX_SEULS = "--plateaux" in sys.argv
+out = pathlib.Path(args[0]); out.mkdir(parents=True, exist_ok=True)
+vendor = pathlib.Path(args[1]) if len(args) > 1 else None
 plateaux = dossier / "essais" / "plateaux"; plateaux.mkdir(parents=True, exist_ok=True)
 
 class Servi(http.server.SimpleHTTPRequestHandler):
@@ -56,6 +57,7 @@ with sync_playwright() as p:
         (plateaux / f"{nom}.json").write_text(json.dumps(pl, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         print(nom, {k: len(v) if isinstance(v, list) else v for k, v in pl.items() if k in ("niveaux", "parc", "chaussees", "places", "rampes", "rampesVoie", "helices", "escaliers", "poteaux", "poutres")})
     ctx.close()
+    if PLATEAUX_SEULS: b.close(); print("\n".join(errs) or "console sans erreur"); sys.exit(1 if errs else 0)
 
     # Sans drapeau : la page du squelette est celle d'avant (aucun module, pas de bouton 3D).
     ctx = b.new_context(viewport={"width": 1440, "height": 900}); pg = ctx.new_page(); vus = []

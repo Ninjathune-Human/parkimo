@@ -39,7 +39,8 @@ for (const [k, { P, sc }] of Object.entries(scenes)) {
     const ouverte = sc.volumes.filter((v) => v.niveau === 1 && ["dalle", "couverture"].includes(v.matiere)).reduce((m, v) => m + aireV(v), 0);
     const M = P.marches, trem = P.rampes.filter((r) => !r.hors).reduce((m, r) => m + aire(r.q), 0) + P.rampesVoie.reduce((m, r) => m + aire(r.q), 0)
       + P.helices.reduce((m, h) => m + 64 / 2 * h.ext * h.ext * Math.sin((2 * Math.PI) / 64), 0)
-      + P.escaliers.filter((x) => !x.hors).reduce((m, x) => m + (x.Ls - 2 * M.mur) * (2 * M.volee + M.jour), 0);
+      + P.escaliers.filter((x) => !x.hors && x.plan).reduce((m, x) => { const rs = [...x.plan.zones.filter((z) => z.nom === "palier").map((z) => z.r), ...x.plan.volees.map((v) => v.r)], b = [Math.min(...rs.map((r) => r[0])), Math.min(...rs.map((r) => r[1])), Math.max(...rs.map((r) => r[2])), Math.max(...rs.map((r) => r[3]))];
+        return m + (b[2] - b[0]) * (b[3] - b[1]) + x.plan.zones.filter((z) => z.nom === "ascenseur" || z.nom === "gaine").reduce((s, z) => s + (z.r[2] - z.r[0]) * (z.r[3] - z.r[1]), 0); }, 0);
     assert.ok(trem > 0);
     assert.ok(Math.abs(plein - ouverte - trem) < 0.01 * plein, `${plein.toFixed(1)} - ${ouverte.toFixed(1)} ≠ ${trem.toFixed(1)}`);
   });
@@ -69,7 +70,12 @@ for (const [k, { P, sc }] of Object.entries(scenes)) {
       const toit = sc.volumes.filter((v) => v.cle === x.cle).reduce((m, v) => Math.max(m, v.z1), -Infinity);
       assert.ok(proche(toit, F[T].z + EDICULE + PALIER, 1e-3));
     }
-    assert.equal(sc.volumes.filter((v) => v.matiere === "ascenseur").length, 2 * cages.filter((x) => x.principal).length * (T + 1));
+    for (const x of cages) assert.ok(x.plan, `${x.cle} : plan du noyau`);
+    // Murs percés : à chaque étage, la partie basse des murs (portes, baie) s'arrête à 2,10 m.
+    for (const x of cages) for (let f = 0; f < T; f++) assert.ok(sc.volumes.some((v) => v.cle === x.cle && v.matiere === "noyau" && v.niveau === f && proche(v.z0, F[f].z) && proche(v.z1, F[f].z + 2.1, 1e-3)));
+    // Chaque volée monte d'un palier à l'autre : la dernière marche de la seconde est à une marche du plancher du dessus.
+    const hautes = sc.volumes.filter((v) => v.matiere === "marche" && v.niveau === 0).map((v) => v.z1);
+    if (cages.length) assert.ok(proche(Math.max(...hautes), F[1].z - M.h, 1e-3));
   });
 
   test(`${k} : façades et terrain`, () => {

@@ -1,7 +1,7 @@
 // Plateau : ce que la vue 3D lit du squelette, en données simples (nombres, points, drapeaux). C'est le seul fichier
 // qui connaît les noms internes du squelette (S, calc, SYSTEMES, escalier()...) : si le squelette les change, c'est
 // ici qu'on le voit, et l'essai `essai_vue3d.py` le signale. La scène (scene3d.js) ne lit que ce plateau.
-/* global S, calc, SYSTEMES, ESCALIER, PENTE, escalier, escLong, hauteurRampe, etage */
+/* global S, calc, SYSTEMES, ESCALIER, PENTE, escalier, noyau, hauteurRampe, etage */
 
 const pt = (p) => [+p[0], +p[1]];
 const quad = (q) => q.map(pt);
@@ -28,13 +28,15 @@ export function extraire() {
     // Rampes branchées : toute la chaussée de la branche monte, du premier nœud vers le second.
     rampesVoie: calc.rampesVoie.map((x) => ({ q: quad(x.q), hauteur: hauteurRampe(S.branches[x.i].rampe), sens: x.sens, raide: x.pente > PENTE + 1e-4, cle: `branche:${x.i}` })),
     helices: calc.helices.map((x, k) => ({ p: pt(x.p), int: x.int, ext: x.ext, axe: x.axe, sens: x.sens, raccord: !!x.raccord, raide: x.pente > PENTE + 1e-4, cle: `helice:${k}` })),
-    // Escaliers : un repère local (origine au coin côté allée, `ua` le long de la rangée, `uv` vers le fond).
+    // Escaliers : un repère local (origine au coin côté allée, `ua` le long de la rangée, `uv` vers le fond) et le plan
+    // du noyau, tel que le squelette le dessine : zones (paliers, sas, gaines, ascenseurs), volées, portes, baie du sas.
     escaliers: calc.escaliers.map((x, k) => {
       if (x.hors) return { hors: true, corps: quad(x.corps), cle: `escalier:${k}` };
-      const u = x.r.u, O = x.r.P(x.a, x.s * x.h);
-      return { hors: false, corps: quad(x.corps), O: pt(O), ua: pt(u), uv: [-u[1] * x.s, u[0] * x.s], L: x.L, prof: x.prof, Ls: escLong(), principal: !!x.principal, cle: `escalier:${k}` };
+      const u = x.r.u, O = x.r.P(x.a, x.s * x.h), n = noyau(sys, !!x.principal, x.prof);
+      const plan = n && { zones: n.zones.map((z) => ({ nom: z.nom, r: [...z.r] })), volees: n.volees.map((v) => ({ r: [...v.r], sens: [...v.sens], n: v.n })), portes: [...n.portes], baie: [...n.baie] };
+      return { hors: false, corps: quad(x.corps), O: pt(O), ua: pt(u), uv: [-u[1] * x.s, u[0] * x.s], L: x.L, prof: x.prof, principal: !!x.principal, plan, cle: `escalier:${k}` };
     }),
-    marches: { n: esc.n, h: esc.h, n1: esc.n1, n2: esc.n2, course: esc.course, ...ESCALIER },
+    marches: { n: esc.n, h: esc.h, n1: esc.n1, n2: esc.n2, course: esc.course, giron: ESCALIER.giron, mur: ESCALIER.mur },
     poteaux: (S.pn || []).map((p, k) => (p ? { p: pt(p), conflit: calc.conflits.includes(p), cle: `poteau:${k}` } : null)).filter(Boolean),
     poutres: (S.pb || []).filter((b) => S.pn[b.a] && S.pn[b.b]).map((b) => ({ a: pt(S.pn[b.a]), b: pt(S.pn[b.b]), plein: !!b.plein, voile: !!b.voile, noyau: !!b.noyau })),
   };

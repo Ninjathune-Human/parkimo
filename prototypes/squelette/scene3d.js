@@ -58,18 +58,22 @@ export function scene(P, clip) {
     : [...Array.from({ length: n }, (_, f) => ({ z: -(n - f) * E, nom: `R-${n - f}`, places: true })), { z: 0, nom: "Couverture", places: false }];
   const T = F.length - 1;
 
-  // ---- Escaliers : repère local, cotes de la cage (mêmes cotes que le dessin du plan).
-  const M = P.marches, cages = P.escaliers.filter((x) => !x.hors).map((x) => {
+  // ---- Escaliers : le plan du noyau tel que le squelette le dessine (zones, volées, portes, baie du sas), dans le
+  // repère local de la rangée (a le long de la rangée, v depuis l'allée). La cage (paliers et volées) et les gaines
+  // (ascenseurs, gaine technique) sont ouvertes à chaque plancher.
+  const M = P.marches, boiteR = (rs) => (rs.length ? [Math.min(...rs.map((r) => r[0])), Math.min(...rs.map((r) => r[1])), Math.max(...rs.map((r) => r[2])), Math.max(...rs.map((r) => r[3]))] : null);
+  const cages = P.escaliers.filter((x) => !x.hors).map((x) => {
     const W = (a, v) => [x.O[0] + x.ua[0] * a + x.uv[0] * v, x.O[1] + x.ua[1] * a + x.uv[1] * v];
-    const R = (a0, a1, v0, v1) => oriente([W(a0, v0), W(a1, v0), W(a1, v1), W(a0, v1)], true);
-    const m = M.mur, ff = x.prof - m, v1 = ff - M.volee, v0 = v1 - M.jour, vs = v0 - M.volee, pi = x.Ls - m - M.palier, a0 = pi - M.course;
-    return { x, R, m, ff, v1, v0, vs, pi, a0, tremie: R(m, x.Ls - m, vs, ff) };
+    const R = (r) => oriente([W(r[0], r[1]), W(r[2], r[1]), W(r[2], r[3]), W(r[0], r[3])], true);
+    const pl = x.plan || { zones: [], volees: [], portes: [x.L / 2], baie: null }, paliers = pl.zones.filter((z) => z.nom === "palier").map((z) => z.r);
+    const cage = boiteR([...paliers, ...pl.volees.map((v) => v.r)]), puits = pl.zones.filter((z) => z.nom === "ascenseur" || z.nom === "gaine").map((z) => z.r);
+    return { x, R, pl, paliers, cage, puits, tremie: [...(cage ? [R(cage)] : []), ...puits.map(R)] };
   });
 
   // ---- Enveloppe : réunion des chaussées, des rangées, des disques d'hélice et des noyaux. Trémies.
   const env = O.reunion([...P.rangees, ...P.chaussees.map((c) => c.q), ...P.helices.map((h) => cercle(h.p, h.ext + RIVE.e)), ...cages.map((c) => c.x.corps)]);
   if (!env.length) return sc;
-  const tremies = [...P.rampes.filter((r) => !r.hors).map((r) => r.q), ...P.rampesVoie.map((r) => r.q), ...P.helices.map((h) => cercle(h.p, h.ext)), ...cages.map((c) => c.tremie)];
+  const tremies = [...P.rampes.filter((r) => !r.hors).map((r) => r.q), ...P.rampesVoie.map((r) => r.q), ...P.helices.map((h) => cercle(h.p, h.ext)), ...cages.flatMap((c) => c.tremie)];
   const bTrem = tremies.map((r) => boite([r]));
   const [x0, y0, x1, y1] = boite(env.map((pg) => pg[0]));
   sc.min = [x0, y0]; sc.max = [x1, y1];
@@ -150,25 +154,35 @@ export function scene(P, clip) {
     if (!h.raccord) sc.constats.push(`${h.cle} : rampe hélicoïdale sans voie à raccorder`);
   }
 
-  // ---- Escaliers : cage aux murs de 0,20 m, porte côté allée, sas ; deux volées et leurs paliers par étage ; gaines
-  // d'ascenseurs pour l'escalier principal ; édicule sur le dernier plancher.
+  // ---- Escaliers : murs du noyau (le noyau moins ses espaces libres), portes et baie du sas percées sur 2,10 m ; à
+  // chaque étage, la première volée part du palier d'étage, la seconde du palier intermédiaire, une marche par giron ;
+  // ce qui sépare une volée d'un palier, dans sa largeur, est palier. Édicule sur le dernier plancher.
   for (const c of cages) {
-    const { x, R, m, ff, v1, v0, vs, pi, a0 } = c, L = x.L, pr = x.prof, d0 = x.Ls / 2 - PORTE.l / 2, d1 = x.Ls / 2 + PORTE.l / 2, g = M.giron;
-    const murs = [R(0, d0, 0, m), R(d1, L, 0, m), R(0, L, pr - m, pr), R(0, m, m, pr - m), R(L - m, L, m, pr - m), R(m + 1.1, x.Ls - m, vs - 0.1, vs)];
-    if (x.principal) murs.push(R(x.Ls - 0.1, x.Ls + 0.1, m, pr - m));
-    const gaines = x.principal ? [R(x.Ls + 0.5, x.Ls + 2.4, pr - 2.4, pr - 0.3), R(x.Ls + 2.6, x.Ls + 4.5, pr - 2.4, pr - 0.3)] : [];
-    const cage = (z0, z1, f) => { for (const q of murs) vol("noyau", [q], z0, z1, f, x.cle); vol("noyau", [R(d0, d1, 0, m)], Math.min(z1, z0 + PORTE.h), z1, f, x.cle); for (const q of gaines) vol("ascenseur", [q], z0, z1, f, x.cle); };
+    const { x, R, pl, paliers, cage, puits } = c, e = M.mur, g = M.giron;
+    const murs = O.moins([[R([0, 0, x.L, x.prof])]], [...pl.zones.map((z) => R(z.r)), ...pl.volees.map((v) => R(v.r)), ...(cage ? [R(cage)] : [])]);
+    const baies = pl.portes.map((a) => R([a - PORTE.l / 2, -0.01, a + PORTE.l / 2, e + 0.01]));
+    if (pl.baie) { const [a0, v0, a1, v1] = pl.baie; baies.push(R(Math.abs(a1 - a0) < 1e-6 ? [a0 - e / 2 - 0.01, Math.min(v0, v1), a0 + e / 2 + 0.01, Math.max(v0, v1)] : [Math.min(a0, a1), v0 - e / 2 - 0.01, Math.max(a0, a1), v0 + e / 2 + 0.01])); }
+    const bas = O.moins(murs, baies);
+    const enceinte = (z0, z1, f) => { const zp = Math.min(z1, z0 + PORTE.h); vols("noyau", bas, z0, zp, f, x.cle); vols("noyau", murs, zp, z1, f, x.cle); };
+    const [V1, V2] = pl.volees, axe = (v) => (v.sens[0] ? 0 : 1), signe = (v) => v.sens[0] + v.sens[1];
+    const debut = (v) => (signe(v) > 0 ? v.r[axe(v)] : v.r[axe(v) + 2]), bout = (v) => (signe(v) > 0 ? v.r[axe(v) + 2] : v.r[axe(v)]);
+    const ecart = (p, k, t) => Math.max(0, p[k] - t, t - p[k + 2]);
+    const joint = (v, t, p) => { if (!v || !p) return null; const k = axe(v), lo = t < p[k] ? t : p[k + 2], hi = t < p[k] ? p[k] : t; if (hi - lo < 0.01) return null; return k ? [v.r[0], lo, v.r[2], hi] : [lo, v.r[1], hi, v.r[3]]; };
+    const pEt = V1 ? [...paliers].sort((p, q) => ecart(p, axe(V1), debut(V1)) - ecart(q, axe(V1), debut(V1)))[0] : null, pIn = paliers.find((p) => p !== pEt);
+    const marches = (v, z0, f) => { const k = axe(v), s = signe(v), d = debut(v); for (let j = 1; j < v.n; j++) { const a = d + s * (j - 1) * g, b = d + s * j * g, r = k ? [v.r[0], Math.min(a, b), v.r[2], Math.max(a, b)] : [Math.min(a, b), v.r[1], Math.max(a, b), v.r[3]], t = z0 + j * M.h; vol("marche", [R(r)], Math.max(z0, t - MARCHE), t, f, x.cle); } };
+    const dalle = (r, z, f) => { if (r) vol("palier", [R(r)], z - PALIER, z, f, x.cle); };
     for (let f = 0; f < T; f++) {
-      const z = F[f].z, zh = F[f + 1].z, zi = z + M.n1 * M.h, fin = pi - (M.n2 - 1) * g;
-      cage(z, zh, f);
-      for (let j = 1; j < M.n1; j++) { const t = z + j * M.h; vol("marche", [R(a0 + (j - 1) * g, a0 + j * g, vs, v0)], Math.max(z, t - MARCHE), t, f, x.cle); }
-      vol("palier", [R(pi, x.Ls - m, vs, ff)], zi - PALIER, zi, f, x.cle);
-      for (let j = 1; j < M.n2; j++) { const t = zi + j * M.h; vol("marche", [R(pi - j * g, pi - (j - 1) * g, v1, ff)], t - MARCHE, t, f, x.cle); }
-      vol("palier", [R(m, a0, vs, ff)], zh - PALIER, zh, f + 1, x.cle); // palier d'étage du plancher du dessus, ouvert sur la cage
-      if (fin > a0 + 1e-6) vol("palier", [R(a0, fin, v1, ff)], zh - PALIER, zh, f + 1, x.cle);
+      const z = F[f].z, zh = F[f + 1].z, zi = z + M.n1 * M.h;
+      enceinte(z, zh, f);
+      if (f > 0) dalle(joint(V1, debut(V1), pEt), z, f);
+      if (V1) marches(V1, z, f);
+      dalle(pIn, zi, f); dalle(joint(V1, bout(V1), pIn), zi, f); dalle(joint(V2, debut(V2), pIn), zi, f);
+      if (V2) marches(V2, zi, f);
+      dalle(pEt, zh, f + 1); dalle(joint(V2, bout(V2), pEt), zh, f + 1); // palier d'étage du plancher du dessus, ouvert sur la cage
     }
-    cage(F[T].z, F[T].z + EDICULE, T);
-    vol("noyau", [R(0, L, 0, pr)], F[T].z + EDICULE, F[T].z + EDICULE + PALIER, T, x.cle);
+    enceinte(F[T].z, F[T].z + EDICULE, T);
+    vol("noyau", [R([0, 0, x.L, x.prof])], F[T].z + EDICULE, F[T].z + EDICULE + PALIER, T, x.cle);
+    if (!x.plan) sc.constats.push(`${x.cle} : plan du noyau introuvable, cage montée sans escalier`);
   }
 
   // ---- Façades et terrain. Le long de l'enveloppe : allèges à chaque plancher hors rez (ventilé), voiles contre terre

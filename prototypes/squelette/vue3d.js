@@ -287,4 +287,4 @@ $("#p3d-plus").addEventListener("click", () => niveaux(1));
 for (const b of document.querySelectorAll("#p3d-rendu button")) b.addEventListener("click", () => { reglages.rendu = b.dataset.r; garderReglages(); appliquerRendu(); demander(); });
 
 // Le squelette appelle maj() après chaque calcul : la scène sera reconstruite à la prochaine image, si la vue est ouverte.
-window.vue3d = { maj() { sale = true; demander(); }, entrer, sortir, cadrer, camera, controles, mesure: null, scene: () => sc };
+window.vue3d = { maj() { sale = true; demander(); }, entrer, sortir, cadrer, camera, controles, modele, mesure: null, scene: () => sc };
