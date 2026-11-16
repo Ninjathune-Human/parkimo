@@ -372,17 +372,22 @@ with sync_playwright() as p:
         r["ecart"] = pg.evaluate(EC); q_ = r["ecart"]
         assert q_["exemple"][0] and q_["pres"] == [False, "1 paire trop proche"] and q_["loin"][0], q_
         assert all(x[5] >= q_["ecart"] - 0.01 and not x[6] for x in q_["emprises"]), q_
-        # Le type de parc : dans le calque des escaliers, sans rien de choisi, la fiche porte le choix Enterré / Largement ventilé.
+        # Le type de parking a son menu (remarque du 16 novembre) : le bouton « Type » de la barre ouvre la fiche Enterré / Aérien ;
+        # la fiche des escaliers ne le porte plus.
         if name == "iphone" and not pg.evaluate("document.querySelector('#bilan-det').open"): pass
         pg.click('#calques button[data-c="2"]'); pg.wait_for_timeout(150)
         if pg.evaluate("document.querySelector('#fiche').hidden"): pg.mouse.click(*pg.evaluate("versE([200, 200])")); pg.wait_for_timeout(150)
-        PC = "({ parc: S.parc, n: calc.escaliers.length, max: calc.distMax, loin: calc.loin.length, ok: calc.principes.find((p) => p.id === 'escaliers').ok, nom: calc.principes.find((p) => p.id === 'escaliers').nom, boutons: [...document.querySelectorAll('#f-parc button')].map((b) => [b.textContent, b.getAttribute('aria-pressed')]), vu: !document.querySelector('#f-parc').hidden && !document.querySelector('#fiche').hidden })"
+        assert pg.evaluate("document.querySelector('#f-parc').hidden && !document.querySelector('#f-escauto').hidden"), "le type de parking est encore dans la fiche des escaliers"
+        pg.click("#b-type"); pg.wait_for_timeout(200)
+        PC = "({ parc: S.parc, n: calc.escaliers.length, max: calc.distMax, loin: calc.loin.length, ok: calc.principes.find((p) => p.id === 'escaliers').ok, nom: calc.principes.find((p) => p.id === 'escaliers').nom, boutons: [...document.querySelectorAll('#f-parc button')].map((b) => [b.textContent, b.getAttribute('aria-pressed')]), vu: !document.querySelector('#f-parc').hidden && !document.querySelector('#fiche').hidden && document.querySelector('#f-escauto').hidden, titre: document.querySelector('#f-long').textContent, presse: document.querySelector('#b-type').getAttribute('aria-pressed') })"
         en = pg.evaluate(PC)
-        assert en["vu"] and en["parc"] == "enterre" and en["boutons"] == [["Enterré", "true"], ["Largement ventilé", "false"]] and en["ok"] and "40 m" in en["nom"], en
+        assert en["vu"] and en["presse"] == "true" and "Type de parking" in en["titre"] and en["parc"] == "enterre" and en["boutons"] == [["Enterré", "true"], ["Aérien", "false"]] and en["ok"] and "40 m" in en["nom"], en
         pg.click('#f-parc button[data-parc="ventile"]'); pg.wait_for_timeout(300)
         ve = pg.evaluate(PC); r["parc"] = [en, ve]
         assert ve["parc"] == "ventile" and ve["boutons"][1][1] == "true" and ve["ok"] and ve["n"] <= en["n"] and ve["max"] <= 50 and "50 m" in ve["nom"], ve
         assert pg.evaluate("JSON.parse(localStorage.getItem('parkimo.squelette.5')).parc") == "ventile"
+        pg.click("#b-type"); pg.wait_for_timeout(150)
+        assert pg.evaluate("document.querySelector('#b-type').getAttribute('aria-pressed') === 'false' && document.querySelector('#f-parc').hidden"), "le menu Type ne se referme pas"
         pg.click("#b-annuler"); pg.wait_for_timeout(300)
         assert pg.evaluate("S.parc") == "enterre" and pg.evaluate("calc.escaliers.length") == en["n"], "annuler ne rend pas le parc enterré"
         pg.click('#calques button[data-c="0"]'); pg.wait_for_timeout(150)

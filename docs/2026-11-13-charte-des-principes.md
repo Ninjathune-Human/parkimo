@@ -1,6 +1,6 @@
 # Parkimo : charte des principes
 
-Version 29 du 16 novembre 2026. Elle intègre les vingt-deux décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
+Version 30 du 16 novembre 2026. Elle intègre les vingt-deux décisions de l'utilisateur (section 9) et les valeurs de structure relevées chez les constructeurs et dans les guides spécialisés (sections 5 et 14). Elle décrit le système visé, pas l'état du code : le prototype du squelette applique déjà une partie de ces principes, mais chacun y est écrit à part.
 
 ## À quoi sert cette charte
 
@@ -154,7 +154,7 @@ Les contrôles sont rejoués sur des plans déformés au hasard, pas sur des cas
 10. **Calque des escaliers** : à côté de « Voies » et « Poteaux », un calque « Escaliers ». Il montre un réseau de nœuds : un nœud par escalier, des liens d'escalier à escalier, et de chaque escalier un lien jusqu'à la place la plus éloignée qu'il dessert. Les places non desservies y sont en rouge.
 11. **Placement automatique des escaliers** : le logiciel cherche le plus petit nombre d'escaliers qui respecte les 40 m et les 25 m ; on ajuste ensuite à la main.
 12. **Escaliers et travées** (14 novembre, matin) : le calcul des escaliers porte sur l'ensemble des travées. Les traversées entre les places qui l'appliquaient sont retirées l'après-midi : le règlement mesure dans l'axe des voies (décision 9).
-13. **Type de parc** : un sélecteur Enterré / Largement ventilé, car les règles diffèrent. En parc largement ventilé (article PS 3), les distances aux escaliers passent de 40 m et 25 m à 50 m et 30 m.
+13. **Type de parc** : un sélecteur Enterré / Largement ventilé, car les règles diffèrent. En parc largement ventilé (article PS 3), les distances aux escaliers passent de 40 m et 25 m à 50 m et 30 m. Le sélecteur a son propre menu, « Type » dans la barre, et non plus la fiche des escaliers (16 novembre) : Enterré / Aérien ; la fiche rappelle que l'aérien est le parc largement ventilé de l'article PS 3 et donne les distances qui en découlent.
 14. **Passages entre deux zones** : il peut être opportun de supprimer une ou deux places pour ouvrir une perméabilité entre deux zones de stationnement et réduire les distances, de façon dynamique. Quand des passages permettent de se passer d'un escalier, le placement automatique retient le moins d'escaliers, puis le moins de passages, même si cela coûte des places.
 15. **Circulation en boucle** : un parking doit offrir une circulation aisée ; on ne fait pas demi-tour au bout de chaque voie. Le plan de circulation doit permettre de boucler, sauf dans une branche isolée.
 16. **Écart entre éléments** : passages et escaliers ne doivent pas être en surnombre ; une règle empêche de disposer deux éléments à proximité l'un de l'autre.

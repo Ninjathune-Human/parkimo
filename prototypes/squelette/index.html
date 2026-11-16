@@ -47,7 +47,7 @@ button:disabled { opacity: .35; }
 @media (max-width: 760px) {
   :root { --barre: 108px; } #bilan { left: max(8px, env(safe-area-inset-left)); top: calc(8px + env(safe-area-inset-top)); padding: 8px 14px; border-radius: 18px; } #bilan-det[open] { max-height: calc(100vh - var(--barre) - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; }
   #aide.lu { display: none; }
-  #barre { bottom: calc(8px + env(safe-area-inset-bottom)); padding: 4px; gap: 4px; } #barre { flex-wrap: wrap; justify-content: space-between; width: calc(100vw - 24px); border-radius: 26px; } #barre .seg { flex: 0 0 100%; } #barre > button { flex: 1; padding: 0 10px; min-height: 40px; }
+  #barre { bottom: calc(8px + env(safe-area-inset-bottom)); padding: 4px; gap: 4px; } #barre { flex-wrap: wrap; justify-content: space-between; width: calc(100vw - 24px); border-radius: 26px; } #barre .seg { flex: 0 0 100%; } #barre > button { flex: 1 1 auto; padding: 0 6px; min-height: 40px; } /* cinq commandes sur une ligne */
   body:has(#fiche:not([hidden]):not(.menu) .ligne:not([hidden])) { --barre: 70px; } body:has(#fiche:not([hidden]):not(.menu) .ligne:not([hidden])) #calques { display: none; } /* le menu des rampes garde les calques */
 }
 .ligne { display: grid; grid-template-columns: 62px 1fr; align-items: center; gap: 8px; font-size: 13px; color: var(--label-2); }
@@ -87,7 +87,7 @@ button:disabled { opacity: .35; }
   <div id="f-portee" hidden><button data-p="long">Poutres le long de la voie</button><button data-p="travers">Poutres en travers</button></div>
   <div id="f-systeme" class="seg" role="group" aria-label="Système porteur" hidden></div>
   <div id="f-escalier" hidden><button id="b-principal" aria-pressed="false">Escalier principal · deux ascenseurs</button></div>
-  <div id="f-parc" class="seg" role="group" aria-label="Type de parc" hidden><button data-parc="enterre">Enterré</button><button data-parc="ventile">Largement ventilé</button></div>
+  <div id="f-parc" class="seg" role="group" aria-label="Type de parking" hidden><button data-parc="enterre">Enterré</button><button data-parc="ventile">Aérien</button></div>
   <div id="f-escauto" hidden><button id="b-escauto" aria-pressed="true">Placement automatique</button></div>
   <div id="f-trame" hidden><button id="b-trame" aria-pressed="true">Trame automatique</button></div>
   <div id="f-mur" hidden><button id="b-plein" aria-pressed="false">Remplissage en maçonnerie</button></div>
@@ -96,6 +96,7 @@ button:disabled { opacity: .35; }
 <nav id="barre" class="verre">
   <div class="seg" id="calques" role="group" aria-label="Calque à modifier"><button data-c="0" aria-pressed="true">Voies</button><button data-c="1" aria-pressed="false">Poteaux</button><button data-c="2" aria-pressed="false">Escaliers</button><button data-c="3" aria-pressed="false">Rampes</button></div>
   <button id="b-emprise" aria-pressed="false">Emprise</button>
+  <button id="b-type" aria-pressed="false">Type</button>
   <button id="b-tracer" aria-pressed="false">Tracer</button>
   <button id="b-annuler" disabled>Annuler</button>
   <button id="b-cadrer">Cadrer</button>
@@ -345,6 +346,7 @@ function poser(ra, B) {
   return { i: -1, L, hors: true, u: [1, 0], q, corps: q, zone: q, epures: [] };
 }
 const centre = (q) => [(q[0][0] + q[2][0]) / 2, (q[0][1] + q[2][1]) / 2];
+let menuType = false; // menu « Type de parking » ouvert
 let ficheTrame = true; // calque Poteaux, rien de choisi : la fiche de la trame est ouverte ; un toucher hors du dessin la replie
 const dansDessin = (m) => !!calc && [...calc.ch, ...calc.bandes].some((q) => dans(m, q));
 function pointer() { S.pn = S.pn || []; S.pb = S.pb || []; NO = calque ? S.pn : S.noeuds; BR = calque ? S.pb : S.branches; }
@@ -1359,7 +1361,12 @@ const nb = (v, k = 1) => v.toLocaleString("fr-FR", { maximumFractionDigits: k })
 function fiche() {
   $("#fiche").classList.toggle("menu", actif === 3 && choixH < 0 && choixR < 0 && !BR[choix]); // menu des rampes, rien de choisi
   const rampe = actif === 3 && choixR >= 0 && calc ? calc.rampes[choixR] : null, hel = actif === 3 && choixH >= 0 && calc ? calc.helices[choixH] : null, esc = actif === 2 && choixE >= 0 && calc ? calc.escaliers[choixE] : null;
-  $("#f-escalier").hidden = !esc; $("#f-escauto").hidden = $("#f-parc").hidden = true;
+  $("#f-escalier").hidden = !esc; $("#f-escauto").hidden = $("#f-parc").hidden = true; $("#b-type").setAttribute("aria-pressed", String(menuType));
+  if (menuType) { // menu « Type de parking » : enterré ou aérien, il fixe les distances aux escaliers (article PS 13 § 1)
+    $("#fiche").classList.remove("menu"); $("#fiche").hidden = false; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = $("#f-escalier").hidden = $("#b-suppr").hidden = true; $("#f-parc").hidden = false; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
+    const k = PARCS[S.parc] ? S.parc : "enterre", L = PARCS[k]; for (const x of $("#f-parc").children) x.setAttribute("aria-pressed", String(x.dataset.parc === k));
+    $("#f-long").textContent = `Type de parking · ${k === "enterre" ? "enterré" : "aérien, largement ventilé (article PS 3)"} : escalier à ${L.dist} m au plus, ${L.impasse} m sans second escalier`; return;
+  }
   if (esc) {
     $("#fiche").hidden = false; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = true; $("#b-suppr").hidden = false; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
     $("#b-principal").setAttribute("aria-pressed", String(esc.principal));
@@ -1376,8 +1383,7 @@ function fiche() {
     $("#f-long").textContent = `${RAMPES[S.rampes[choixR].type].nom} · ${rampe.L} m${rampe.hors ? " · à replacer dans une rangée assez longue" : ` · ${(rampe.L + 2 * GIR.s).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} m avec les girations${rampe.couple ? " · couplée" : ""}`}`; return;
   }
   if (actif === 2) { // calque des escaliers, rien de choisi : la fiche du placement ; un toucher hors du dessin la replie
-    $("#fiche").hidden = !ficheTrame; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = $("#b-suppr").hidden = true; $("#f-escauto").hidden = $("#f-parc").hidden = false; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
-    for (const x of $("#f-parc").children) x.setAttribute("aria-pressed", String(x.dataset.parc === (PARCS[S.parc] ? S.parc : "enterre")));
+    $("#fiche").hidden = !ficheTrame; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = $("#b-suppr").hidden = true; $("#f-escauto").hidden = false; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
     const n = calc ? calc.escaliers.length : 0; $("#b-escauto").setAttribute("aria-pressed", String(!!S.escAuto));
     const np = calc ? calc.passagesP.length : 0; $("#f-long").textContent = (n ? `${n} escalier${n > 1 ? "s" : ""}` : "Aucun escalier") + (np ? ` · ${np} passage${np > 1 ? "s" : ""}` : "") + (S.escAuto ? ` · suit le plan${placer.abrege ? " · recherche abrégée" : ""}` : " · à la main"); return;
   }
@@ -1447,6 +1453,7 @@ $("#b-suppr").addEventListener("click", () => {
 function modes() { $("#b-tracer").setAttribute("aria-pressed", String(tracer)); $("#b-emprise").setAttribute("aria-pressed", String(modeEmp)); cv.style.cursor = tracer || modeEmp ? "crosshair" : "grab"; aide(); }
 $("#b-tracer").addEventListener("click", () => { tracer = !tracer; modeEmp = false; modes(); });
 $("#b-emprise").addEventListener("click", () => { modeEmp = !modeEmp; tracer = false; modes(); });
+$("#b-type").addEventListener("click", () => { menuType = !menuType; fiche(); });
 $("#bilan-det").open = innerWidth > 760;
 cv.addEventListener("pointerdown", () => $("#aide").classList.add("lu"), { passive: true });
 function aide() {
@@ -1460,7 +1467,7 @@ function aide() {
 }
 $("#calques").addEventListener("click", (ev) => {
   const x = ev.target.closest("button[data-c]"); if (!x) return;
-  actif = +x.dataset.c; calque = actif === 1 ? 1 : 0; choix = choixN = choixR = choixE = choixH = -1; ficheTrame = true; pointer(); aide(); for (const y of $("#calques").children) y.setAttribute("aria-pressed", String(y === x)); fiche(); rafraichir(false);
+  actif = +x.dataset.c; menuType = false; calque = actif === 1 ? 1 : 0; choix = choixN = choixR = choixE = choixH = -1; ficheTrame = true; pointer(); aide(); for (const y of $("#calques").children) y.setAttribute("aria-pressed", String(y === x)); fiche(); rafraichir(false);
 });
 $("#b-annuler").addEventListener("click", annuler); $("#b-cadrer").addEventListener("click", cadrer);
 addEventListener("keydown", (ev) => { if ((ev.ctrlKey || ev.metaKey) && ev.key === "z") { ev.preventDefault(); annuler(); } });
