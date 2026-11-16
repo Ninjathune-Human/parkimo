@@ -1235,10 +1235,15 @@ function trame() {
     mort.add(k); enc = true; for (const [u, v] of liens) { if (u === k && v >= 0 && !pts[v].fixe) mort.add(v); if (v === k && u >= 0 && !pts[u].fixe) mort.add(u); }
   }); }
   if (mort.size) { const nv = [], m = pts.map((o, k) => (mort.has(k) ? -1 : nv.push(o) - 1)); pts.length = 0; pts.push(...nv); for (const l of [liens, noyaux]) for (const x of l) { x[0] = x[0] < 0 ? -1 : m[x[0]]; x[1] = x[1] < 0 ? -1 : m[x[1]]; } }
+  // Une poutre ne franchit pas une trémie de rampe ou d'hélice : sous la dalle du dessus, elle passerait au-dessus de la rampe
+  // qui monte, à moins de 2,20 m de la chaussée (remarque du 16 novembre). Elle peut en longer le bord.
+  const tremies = [...calc.rampesVoie.map((x) => x.q), ...calc.rampes.map((x) => x.corps)];
+  const loin = (p, q) => q.every((a, i) => { const b = q[(i + 1) % q.length]; return ((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) / Math.hypot(b[0] - a[0], b[1] - a[1]) > 0.1; });
+  const franchit = (A, B) => { for (let t = 0.1; t < 0.95; t += 0.1) { const m = [A[0] + t * (B[0] - A[0]), A[1] + t * (B[1] - A[1])]; if (tremies.some((q) => loin(m, q) || loin(m, [...q].reverse())) || calc.helices.some((h) => Math.hypot(m[0] - h.p[0], m[1] - h.p[1]) < h.ext - 0.1)) return true; } return false; };
   pts.forEach((o, k) => { for (const { d, tol, max, travers } of o.dirs) {
     let best = -1, bx = (max || 20) + 0.01, vrai = 0;
     pts.forEach((q, j) => { if (j === k) return; const x = (q.p[0] - o.p[0]) * d[0] + (q.p[1] - o.p[1]) * d[1], y = Math.abs((q.p[0] - o.p[0]) * d[1] - (q.p[1] - o.p[1]) * d[0]); if (x > 0.5 && y <= tol && x < bx) { bx = x; vrai = Math.hypot(x, y); best = j; } });
-    if (bx > (max || (tol > 0.3 ? 20 : 15)) || vrai > net) best = -1; // 15 m au plus le long d'une génératrice, 20 m en travers d'une voie, et jamais plus que la portée du système, jugée sur la vraie longueur de la poutre, biais compris
+    if (bx > (max || (tol > 0.3 ? 20 : 15)) || vrai > net || (best >= 0 && franchit(o.p, pts[best].p))) best = -1; // 15 m au plus le long d'une génératrice, 20 m en travers d'une voie, et jamais plus que la portée du système, jugée sur la vraie longueur de la poutre, biais compris
     const l = sys.portante && travers ? dalles : poutres; // une dalle portante franchit la travée seule : en travers, une portée de dalle, pas une poutre
     if (best >= 0 && !l.some((b) => (b.a === k && b.b === best) || (b.a === best && b.b === k))) l.push({ a: k, b: best });
   } });

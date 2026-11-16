@@ -69,11 +69,26 @@ for (const [k, { P, sc }] of Object.entries(scenes)) {
     for (const b of P.poutres) {
       if (b.noyau) continue;
       const m = [(b.a[0] + b.b[0]) / 2, (b.a[1] + b.b[1]) / 2], u = [b.b[0] - b.a[0], b.b[1] - b.a[1]], l = Math.hypot(...u);
-      for (const { q, rampe } of P.chaussees) {
-        if (q.length !== 4 || rampe) continue; // une voie en rampe a sa trémie : ses bords sont une autre question
+      for (const { q } of P.chaussees) {
+        if (q.length !== 4) continue;
         const e = [q[1][0] - q[0][0], q[1][1] - q[0][1]], le = Math.hypot(...e), sens = Math.abs(u[0] * e[0] + u[1] * e[1]) / (l * le);
         const anneau = aire(q) > 0 && q.reduce((s, p, i) => s + p[0] * q[(i + 1) % 4][1] - q[(i + 1) % 4][0] * p[1], 0) > 0 ? q : [...q].reverse();
         assert.ok(sens > 0.7 || !dans(m, anneau), `poutre en travers d'une voie : ${b.a} → ${b.b}`);
+      }
+    }
+  });
+
+  // Une poutre ne franchit pas une trémie de rampe ou d'hélice : sous la dalle du dessus, elle passerait au-dessus de la
+  // rampe qui monte, à moins de 2,20 m de la chaussée. Elle peut en longer le bord.
+  test(`${k} : aucune poutre au-dessus d'une rampe ou d'une hélice`, () => {
+    const loin = (p, q) => q.every((a, i) => { const b = q[(i + 1) % q.length], l = Math.hypot(b[0] - a[0], b[1] - a[1]); return ((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) / l > 0.1; });
+    const creux = (p, q) => loin(p, q) || loin(p, [...q].reverse());
+    for (const b of P.poutres) {
+      if (b.noyau) continue;
+      for (let t = 0.1; t < 0.95; t += 0.1) {
+        const m = [b.a[0] + t * (b.b[0] - b.a[0]), b.a[1] + t * (b.b[1] - b.a[1])];
+        for (const r of [...P.rampesVoie.map((x) => x.q), ...P.rampes.map((x) => x.corps)]) assert.ok(!creux(m, r), `poutre au-dessus d'une rampe : ${b.a} → ${b.b}`);
+        for (const h of P.helices) assert.ok(Math.hypot(m[0] - h.p[0], m[1] - h.p[1]) > h.ext - 0.1, `poutre au-dessus d'une hélice : ${b.a} → ${b.b}`);
       }
     }
   });
