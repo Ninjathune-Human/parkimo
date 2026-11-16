@@ -124,13 +124,14 @@ const TYPES = {
 // Systèmes porteurs (charte, section 5 ; sources en section 14). `travees` : nombre de places entre deux appuis ;
 // `section` : côté du poteau ou épaisseur du voile ; `portee` : portée nette à ne pas dépasser. `rang` : l'appui
 // tient dans la rangée, entre deux travées, et les places se comptent entre nus ; sinon il est au fond de la rangée
-// et rien ne tombe dans le plateau.
+// et rien ne tombe dans le plateau. `portante` : la dalle franchit seule la travée, d'une ligne d'appui à l'autre ; elle
+// repose le long de ces lignes sur des poutres (largeur `poutre`) ou des voiles, jamais sur un poteau seul.
 const SYSTEMES = {
   // dalle : épaisseur du plancher porteur ; retombee : ce qui descend sous la dalle (poutre). Charte, sections 5 et 14.
   poteaux: { nom: "Poteaux", travees: [3, 2], section: 0.4, portee: 10, rang: true, dalle: 0.2, retombee: 0.15 },
   voiles: { nom: "Voiles", travees: [3, 2], section: 0.2, portee: 7.5, rang: true, voile: true, dalle: 0.2, retombee: 0 },
   acier: { nom: "Portée acier", travees: [2], section: 0.2, portee: 16.5, dalle: 0.14, retombee: 0.56, metal: true },
-  beton: { nom: "Portée béton", travees: [3, 2], section: 0.4, portee: 16.5, dalle: 0.4, retombee: 0 },
+  beton: { nom: "Portée béton", travees: [3, 2], section: 0.4, portee: 16.5, dalle: 0.4, retombee: 0.5, poutre: 0.6, portante: true },
 };
 // Hauteur libre : 2,20 m sous tout élément fini, poutre comprise (décision 18).
 const LIBRE = 2.2;
@@ -749,8 +750,8 @@ function mesurer() {
   const troncons = res.troncons, lin = trottoirs.reduce((m, t) => m + repere(S.branches[t.i]).L, 0);
   $("#s-pietons").textContent = trottoirs.length ? `${Math.round(lin)} m · ${troncons === 1 ? "réseau continu" : troncons + " tronçons"}` : "–";
   $("#s-pietons").style.color = troncons > 1 ? css("--rouge") : "";
-  // Structure : poteaux (nœuds portant une poutre), ceux qui tombent dans une voie, portée la plus longue.
-  const pot = S.pn.filter(Boolean), portee = S.pb.reduce((m, b) => Math.max(m, repere(b, S.pn).L), 0);
+  // Structure : poteaux (nœuds portant une poutre), ceux qui tombent dans une voie, portée la plus longue (poutre, ou dalle portante).
+  const pot = S.pn.filter(Boolean), portee = [...S.pb, ...(SYSTEMES[S.systeme].portante ? (S.pd || []).filter((b) => S.pn[b.a] && S.pn[b.b]) : [])].reduce((m, b) => Math.max(m, repere(b, S.pn).L), 0);
   // Les emprises, posées dans l'ordre des priorités : circulations de voitures, piétons, puis places.
   const E = [], nb = S.branches.length, rangees = [];
   ch.forEach((q, k) => E.push({ nature: "voiture", genre: k < nb ? "chaussee" : "carrefour", i: k < nb ? k : -1, q }));
@@ -1150,7 +1151,7 @@ function porter(k, sens) {
 // toutes les trois ou deux places, avec le même second poteau en épi. Bord de chaussée en façade : un poteau en face de chaque file. Les angles du bâtiment
 // ferment les files. Poutres : le long des génératrices et en travers des voies.
 function trame() {
-  const pts = [], poutres = [], liens = [], noyaux = [], sys = SYSTEMES[S.systeme];
+  const pts = [], poutres = [], dalles = [], liens = [], noyaux = [], sys = SYSTEMES[S.systeme];
   const rects = [...calc.ch, ...calc.bandes].filter((q) => Math.abs(q.reduce((t, p, k) => { const o = q[(k + 1) % q.length]; return t + p[0] * o[1] - o[0] * p[1]; }, 0)) > 0.01); // une surface nulle n'est pas de l'intérieur
   const ajoute = (p, dirs, trame) => {
     // Un poteau à moins de 2 m d'un autre ne se pose pas ; au même point (rangées dos à dos), il partage ses poutres.
@@ -1177,7 +1178,7 @@ function trame() {
     for (const x of cotes) {
       if (x.t.angle === 90) {
         // Rangée à 90° : les appuis de la trame commune.
-        x.as = calc.appuis.filter((o) => o.i === i && o.c === x.c).map((o) => o.a); const travers = { d: x.d, tol: 0.3, max: 20 }; // files alignées d'un côté à l'autre : une poutre droite
+        x.as = calc.appuis.filter((o) => o.i === i && o.c === x.c).map((o) => o.a); const travers = { d: x.d, tol: 0.3, max: 20, travers: true }; // files alignées d'un côté à l'autre : une poutre droite
         // Système à poteaux, rangée adossée à une autre rangée à 90° : pas de poteau au fond ; la poutre va d'un poteau de
         // bord d'allée à l'autre, et les poteaux de bord d'allée portent les poutres en long.
         const dos = (a) => sys.rang && !sys.voile && calc.bandes.some((q) => q.droit && q.i !== i && dans(r.P(a, x.s * (h + x.t.prof + 1)), q));
@@ -1189,14 +1190,14 @@ function trame() {
         // Rangée en long face à une rangée à 90° : un poteau dans chaque surlargeur bordée de places, au droit
         // de la file d'en face ; aux bouts de la rangée, un poteau seulement si le plus proche est au-delà de la portée.
         const pr = (q) => (q[0] - r.A[0]) * r.u[0] + (q[1] - r.A[1]) * r.u[1], f = calc.pl.filter((o) => o.i === i && o.c === x.c).flatMap((o) => [pr(o.q[0]), pr(o.q[1])]), f0 = Math.min(...f), f1 = Math.max(...f), e = sys.section;
-        const cs = calc.surl[i + x.c].filter((c) => c > f0 && c < f1 && f.some((v) => Math.abs(v - c) < e / 2 + 0.02)), pied = sys.rang && x.t.prof >= 4, travers = { d: x.d, tol: 0.3 }, biais = biaisDe(x.t, x.s);
+        const cs = calc.surl[i + x.c].filter((c) => c > f0 && c < f1 && f.some((v) => Math.abs(v - c) < e / 2 + 0.02)), pied = sys.rang && x.t.prof >= 4, travers = { d: x.d, tol: 0.3, travers: true }, biais = biaisDe(x.t, x.s);
         if (!cs.length || cs[0] - f0 > net - sys.section) cs.unshift(f0); if (cs[cs.length - 1] < f1 - net + sys.section) cs.push(f1);
         x.as = cs.map((c) => c - biais);
         for (const a of x.as) { const fond = ajoute(r.P(a + biais, x.s * (h + x.t.prof)), pied ? long : [...long, travers], true); if (pied) liens.push([fond, ajoute(r.P(a + biais * RETRAIT / x.t.prof, x.s * (h + RETRAIT)), [{ ...travers, max: face }], true)]); }
       } else if (x.ks.size) {
         // Rangée en épi ou en long : une file toutes les trois places, toutes les deux si la portée du système l'exige ;
         // la dernière travée s'ajuste dans cette limite. En épi, le second poteau suit la ligne de la place, penchée.
-        const k0 = Math.min(...x.ks), k1 = Math.max(...x.ks), nt = [3, 2].find((k) => k * x.t.pas <= net) || 1, ks = [], pied = sys.rang && x.t.prof >= 4, travers = { d: x.d, tol: x.c === "d" && cotes[0].t.prof ? -1 : nt * x.t.pas / 2 + 0.1 }; // deux rangées en épi face à face n'ont pas le même pas : un seul côté lance les poutres en travers
+        const k0 = Math.min(...x.ks), k1 = Math.max(...x.ks), nt = [3, 2].find((k) => k * x.t.pas <= net) || 1, ks = [], pied = sys.rang && x.t.prof >= 4, travers = { d: x.d, tol: x.c === "d" && cotes[0].t.prof ? -1 : nt * x.t.pas / 2 + 0.1, travers: true }; // deux rangées en épi face à face n'ont pas le même pas : un seul côté lance les poutres en travers
         for (let k = 0; k < k1 - k0; k += nt) ks.push(k);
         if (ks.length > 1 && k1 - k0 - ks[ks.length - 1] < 2 && (k1 - k0 - ks[ks.length - 2]) * x.t.pas <= net) ks[ks.length - 1] = k1 - k0; else ks.push(k1 - k0);
         x.as = ks.map((k) => (inv ? k1 - k : k0 + k) * x.t.pas);
@@ -1206,7 +1207,7 @@ function trame() {
     // Bord de chaussée en façade : un poteau en face de chaque file de la rangée d'en face. Voie sans rangée : plus tard,
     // dans l'alignement des files qui l'abordent.
     cotes.forEach((x, m) => {
-      if (x.t.prof) return; const autre = cotes[1 - m]; const pose = (as) => { for (const a of as) if (!rects.some((q) => dans(r.P(a, x.s * (h + 0.3)), q))) ajoute(r.P(a, x.s * h), [...long, { d: x.d, tol: 0.3, max: 20 }], true); };
+      if (x.t.prof) return; const autre = cotes[1 - m]; const pose = (as) => { for (const a of as) if (!rects.some((q) => dans(r.P(a, x.s * (h + 0.3)), q))) ajoute(r.P(a, x.s * h), [...long, { d: x.d, tol: 0.3, max: 20, travers: true }], true); };
       if (autre.as) pose(autre.as); else if (!autre.t.prof) facades.push(() => {
         // Un poteau au droit de chaque file qui aborde la voie (poteau à moins de 8 m de l'autre bord, d'où part une poutre
         // vers la façade). Entre deux poteaux de la façade, angles compris, un poteau de plus seulement au-delà de la portée.
@@ -1234,16 +1235,17 @@ function trame() {
     mort.add(k); enc = true; for (const [u, v] of liens) { if (u === k && v >= 0 && !pts[v].fixe) mort.add(v); if (v === k && u >= 0 && !pts[u].fixe) mort.add(u); }
   }); }
   if (mort.size) { const nv = [], m = pts.map((o, k) => (mort.has(k) ? -1 : nv.push(o) - 1)); pts.length = 0; pts.push(...nv); for (const l of [liens, noyaux]) for (const x of l) { x[0] = x[0] < 0 ? -1 : m[x[0]]; x[1] = x[1] < 0 ? -1 : m[x[1]]; } }
-  pts.forEach((o, k) => { for (const { d, tol, max } of o.dirs) {
+  pts.forEach((o, k) => { for (const { d, tol, max, travers } of o.dirs) {
     let best = -1, bx = (max || 20) + 0.01, vrai = 0;
     pts.forEach((q, j) => { if (j === k) return; const x = (q.p[0] - o.p[0]) * d[0] + (q.p[1] - o.p[1]) * d[1], y = Math.abs((q.p[0] - o.p[0]) * d[1] - (q.p[1] - o.p[1]) * d[0]); if (x > 0.5 && y <= tol && x < bx) { bx = x; vrai = Math.hypot(x, y); best = j; } });
     if (bx > (max || (tol > 0.3 ? 20 : 15)) || vrai > net) best = -1; // 15 m au plus le long d'une génératrice, 20 m en travers d'une voie, et jamais plus que la portée du système, jugée sur la vraie longueur de la poutre, biais compris
-    if (best >= 0 && !poutres.some((b) => (b.a === k && b.b === best) || (b.a === best && b.b === k))) poutres.push({ a: k, b: best });
+    const l = sys.portante && travers ? dalles : poutres; // une dalle portante franchit la travée seule : en travers, une portée de dalle, pas une poutre
+    if (best >= 0 && !l.some((b) => (b.a === k && b.b === best) || (b.a === best && b.b === k))) l.push({ a: k, b: best });
   } });
   // Du poteau du fond à celui du bord de l'allée : une poutre, ou un voile (travée pleine) dans un système à voiles.
   for (const [a, b] of liens) { if (a < 0 || b < 0) continue; let v = poutres.find((x) => (x.a === a && x.b === b) || (x.a === b && x.b === a)); if (!v) poutres.push(v = { a, b }); if (sys.voile) v.plein = v.voile = true; }
   for (const [a, b] of noyaux) { if (a < 0 || b < 0 || a === b) continue; let v = poutres.find((x) => (x.a === a && x.b === b) || (x.a === b && x.b === a)); if (!v) poutres.push(v = { a, b }); v.plein = v.noyau = true; }
-  S.pn = pts.map((o) => o.p); S.pb = poutres; pointer();
+  S.pn = pts.map((o) => o.p); S.pb = poutres; S.pd = dalles; pointer();
 }
 
 // ---- Gestes : un doigt, un stylet ou la souris ; deux doigts pour zoomer.

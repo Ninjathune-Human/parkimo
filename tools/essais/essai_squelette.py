@@ -82,7 +82,7 @@ with sync_playwright() as p:
         pg.evaluate("choix = S.branches.length - 1; fiche(); rafraichir(false)"); pg.wait_for_timeout(150) # la fiche du menu peut couvrir la voie : choix direct
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="voie"]'); pg.wait_for_timeout(300)
         e = pg.evaluate(RV); r["rampe_voie"] = [e]
-        assert e["rampe"] == "droite" and e["sens"] == 1 and e["largeur"] == 3.25 and e["surElle"] == 0 and e["bande"] == "aucun" and e["epures"] == 0 and "continu" in e["pietons"] and not e["viol"] and e["lignes"] == ["Rampe", "Sens"] and "pente 9,6 %" in e["fiche"]  # 2,60 m d'étage en béton précontraint sur 27 m, e
+        assert e["rampe"] == "droite" and e["sens"] == 1 and e["largeur"] == 3.25 and e["surElle"] == 0 and e["bande"] == "aucun" and e["epures"] == 0 and "continu" in e["pietons"] and not e["viol"] and e["lignes"] == ["Rampe", "Sens"] and "pente 11,5 %" in e["fiche"]  # 3,10 m d'étage en béton précontraint sur 27 m, e
         pg.click("#b-cadrer"); pg.wait_for_timeout(300)
         pg.screenshot(path=str(out / f"{name}-squelette-rampe-voie.png"))
         pg.click('#fiche .seg[data-cote="sens"] button[data-t="2"]'); pg.wait_for_timeout(300)
@@ -90,7 +90,7 @@ with sync_playwright() as p:
         assert e["sens"] == 2 and e["largeur"] == 6.5 and not e["viol"] and e["places"] < r["rampe_voie"][0]["places"], e
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="demi"]'); pg.wait_for_timeout(300)
         e = pg.evaluate(RV); r["rampe_voie"].append(e)
-        assert e["rampe"] == "demi" and e["epures"] == 0 and "pente 4,8 %" in e["fiche"], e
+        assert e["rampe"] == "demi" and e["epures"] == 0 and "pente 5,7 %" in e["fiche"], e
         pg.click('#fiche .seg[data-cote="rampe"] button[data-t="droite"]'); pg.wait_for_timeout(300)
         # Trop courte pour un étage : la pente dépasse 15 %, le principe est violé.
         r["rampe_raide"] = pg.evaluate("(() => { const k = S.branches[S.branches.length - 1].b, y = S.noeuds[k][1]; S.noeuds[k][1] = -12.5; calculer(); const o = [calc.principes.filter((p) => !p.ok).map((p) => p.id), calc.principes.find((p) => p.id === 'pente').detail]; S.noeuds[k][1] = y; calculer(); return o; })()")
@@ -416,19 +416,20 @@ with sync_playwright() as p:
         r["dos_a_dos"] = pg.evaluate(DOS_)
         assert r["dos_a_dos"][0] == 0 and r["dos_a_dos"][1] >= 6 and r["dos_a_dos"][2], r["dos_a_dos"]
         # Trame sur l'emprise de 106 x 32 m (remarque du 15 novembre) : aucun poteau surnuméraire, c'est-à-dire dont les
-        # deux voisins de sa file sont à trois places l'un de l'autre au plus (sauf coin de noyau) ; en grande portée, les
-        # poutres franchissent la voie d'un fond de rangée à l'autre (16 m, sous la portée de 16,5 m).
+        # deux voisins de sa file sont à trois places l'un de l'autre au plus (sauf coin de noyau) ; en grande portée acier,
+        # les poutres franchissent la voie d'un fond de rangée à l'autre (16 m, sous la portée de 16,5 m) ; en portée béton,
+        # la dalle seule (décision 23) : aucune poutre en travers, la portée de dalle reste mesurée.
         TRM_ = """(() => { const sauve = JSON.stringify(S), o = {}; emprise([0, 0, 106, 32]);
           for (const s of ["beton", "acier", "poteaux", "voiles"]) {
             S.systeme = s; calculer(); trame(); const sys = SYSTEMES[s], lim = 3 * 2.5 + 2 * (sys.rang ? sys.section : 0) + 0.05;
             const coins = calc.escaliers.flatMap((x) => x.corps), noyau = (p) => coins.some((c) => Math.hypot(c[0] - p[0], c[1] - p[1]) < 0.6) || calc.escaliers.some((x) => dans(p, x.corps));
             const lignes = {}; for (const p of S.pn) (lignes[p[1].toFixed(2)] = lignes[p[1].toFixed(2)] || []).push(p);
             const trop = []; for (const [y, l] of Object.entries(lignes)) { l.sort((a, b) => a[0] - b[0]); for (let k = 1; k + 1 < l.length; k++) if (l[k + 1][0] - l[k - 1][0] <= lim && !noyau(l[k])) trop.push(y + "@" + l[k][0].toFixed(1)); }
-            const travers = S.pb.filter((b) => Math.abs(S.pn[b.a][0] - S.pn[b.b][0]) < 0.3 && Math.abs(S.pn[b.a][1] - S.pn[b.b][1]) > 15).length;
-            o[s] = [trop, travers, calc.pl.length]; }
+            const long = (b) => Math.abs(S.pn[b.a][0] - S.pn[b.b][0]) < 0.3 && Math.abs(S.pn[b.a][1] - S.pn[b.b][1]) > 15;
+            o[s] = [trop, S.pb.filter(long).length, calc.pl.length, (S.pd || []).filter(long).length]; }
           S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); trame(); return o; })()"""
         r["trame_emprise"] = pg.evaluate(TRM_)
-        assert all(not v[0] for v in r["trame_emprise"].values()) and r["trame_emprise"]["beton"][1] >= 20 and r["trame_emprise"]["acier"][1] >= 30, r["trame_emprise"]
+        assert all(not v[0] for v in r["trame_emprise"].values()) and r["trame_emprise"]["beton"][1] == 0 and r["trame_emprise"]["beton"][3] >= 20 and r["trame_emprise"]["acier"][1] >= 30, r["trame_emprise"]
         # Escalier à paliers normalisés (décision 20), noyau compact (remarque du 16 novembre) : deux volées de 1,20 m, marches de
         # 16 cm au plus, giron de 28 cm, paliers de 1,20 m, murs de 0,15 m ; le sas à côté de l'escalier, une gaine derrière.
         # Le noyau le plus court au pas de 2,50 m ; l'escalier principal loge deux ascenseurs et leur sas commun.
@@ -441,9 +442,10 @@ with sync_playwright() as p:
           S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); fiche(); return o; })()"""
         r["escalier_paliers"] = pg.evaluate(ESC_)
         e = r["escalier_paliers"]; K = ("poteaux", "voiles", "beton", "acier")
-        assert [e[k][2][0] for k in K] == [5, 5, 5, 7.5] and [e[k][3][0] for k in K] == [7.5, 7.5, 7.5, 10], e
+        # En portée béton, l'étage de 3,10 m (décision 23) donne 20 marches : le noyau prend la longueur de l'acier.
+        assert [e[k][2][0] for k in K] == [5, 5, 7.5, 7.5] and [e[k][3][0] for k in K] == [7.5, 7.5, 10, 10], e
         assert all(e[k][1] <= 0.16 and e[k][2][1] and e[k][3][1] and e[k][2][2] >= 3 and e[k][3][2] >= 5 and e[k][2][3] and e[k][3][3] and e[k][2][4] == 0 and e[k][3][4] == 2 and e[k][4] == [e[k][2][0], e[k][3][0]] for k in K), e
-        assert "volées de 1,20 m" in e["fiche"] and "17 marches" in e["fiche"] and "sas" in e["fiche"], e
+        assert "volées de 1,20 m" in e["fiche"] and "20 marches" in e["fiche"] and "sas" in e["fiche"], e
         # Grille d'axes (piste 5, 16 novembre) : sur l'emprise de 106 × 32 m, les poteaux tombent sur des axes communs, numérotés
         # 1…n le long du plateau et A, B, C en travers, cotés ; un seul poteau hors grille (façade d'une voie sans rangée). Places adaptées : 2 % des places,
         # arrondi à l'unité supérieure, de 3,30 m de large au moins, dans la rangée de l'escalier principal, au plus près de lui.
@@ -455,19 +457,22 @@ with sync_playwright() as p:
           o.pmr = [P.length, Math.ceil(0.02 * N), Math.min(...P.map((p) => p.q.w)), P.every((p) => p.i === x.i && p.c === x.c), Math.max(...pres), calc.pl.filter((p, k) => calc.pl.some((q, m) => m > k && recouvre(p.q, q.q))).length];
           S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); return o; })()"""
         r["grille"] = pg.evaluate(AX_); g_ = r["grille"]
-        assert all(g_[k][0] >= 14 and g_[k][2] <= 1 and g_[k][3] <= 8.4 and g_[k][5] == "1" for k in ("beton", "acier", "poteaux")) and g_["beton"][4] == g_["acier"][4] == "ABC", g_  # hors grille : le poteau de façade d'une voie sans rangée, à 1 m du bout des rangées
+        # En portée béton, le noyau principal de 10 m (décision 23) : ses coins ne tracent pas d'axe, d'où 15 m entre deux axes
+        # à son droit et un second poteau hors grille (celui de la file centrale qui tombe entre). Ailleurs, 7,50 m au plus.
+        assert all(g_[k][0] >= 14 and g_[k][2] <= (2 if k == "beton" else 1) and g_[k][3] <= (15.01 if k == "beton" else 8.4) and g_[k][5] == "1" for k in ("beton", "acier", "poteaux")) and g_["beton"][4] == g_["acier"][4] == "ABC", g_  # hors grille : le poteau de façade d'une voie sans rangée, à 1 m du bout des rangées
         assert g_["pmr"][0] >= g_["pmr"][1] >= 2 and g_["pmr"][2] >= 3.3 - 1e-6 and g_["pmr"][3] and g_["pmr"][4] <= 12 and g_["pmr"][5] == 0, g_
         # Escaliers dans les zones perdues (piste 1, 16 novembre) : un noyau peut se caler au bout d'une rangée, sur son reliquat ;
         # à nombre d'escaliers égal, le placement retient le moins de places perdues (escaliers, passages, places adaptées).
-        # Pertes avant la piste : exemple 12, 106 × 32 m 13, 90 × 48 m 20, 60 × 32 m 7, 96 × 74 m 29.
+        # Pertes avant la piste : exemple 12, 106 × 32 m 13, 90 × 48 m 20, 60 × 32 m 7, 96 × 74 m 29 (étage de 2,60 m). Depuis
+        # la décision 23 (étage de 3,10 m, noyaux de 7,50 et 10 m), relevé du 16 novembre, à ne pas dépasser : 11, 16, 21, 8, 29.
         PL1_ = """(() => { const sauve = JSON.stringify(S), o = {};
           const mes = (nom) => { const g = JSON.stringify(S), N = calc.pl.length, n = calc.escaliers.length, loin = calc.loin.length; S.escAuto = false; S.escaliers = []; S.passages = []; calculer(); const N0 = calc.pl.length; S = JSON.parse(g); cleEsc = null; pointer(); calculer(); o[nom] = [N0 - N, n, loin]; };
           S.systeme = "beton"; cleEsc = null; calculer(); mes("exemple"); for (const [w, h] of [[106, 32], [90, 48], [60, 32], [96, 74]]) { emprise([0, 0, w, h]); mes(w + "x" + h); }
           emprise([0, 0, 106, 32]); const b = S.branches[1], r = repere(b), al = (q) => (q[0] - r.A[0]) * r.u[0] + (q[1] - r.A[1]) * r.u[1], fin = Math.min(al(calc.B[1].b.d[2]), al(calc.B[1].b.d[3]));
           o.bout = [+loger(r.P(fin - 1, -(demi(b) + 2.5)), 5, calc.B, calc.D).a.toFixed(2), +(fin - 5).toFixed(2)];
           S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); return o; })()"""
-        r["zones_perdues"] = pg.evaluate(PL1_); z_ = r["zones_perdues"]; avant = {"exemple": 12, "106x32": 13, "90x48": 20, "60x32": 7, "96x74": 29}
-        assert all(z_[k][0] <= v and z_[k][2] == 0 for k, v in avant.items()) and sum(z_[k][0] for k in avant) < sum(avant.values()) and z_["bout"][0] == z_["bout"][1], z_
+        r["zones_perdues"] = pg.evaluate(PL1_); z_ = r["zones_perdues"]; avant = {"exemple": 11, "106x32": 16, "90x48": 21, "60x32": 8, "96x74": 29}
+        assert all(z_[k][0] <= v and z_[k][2] == 0 for k, v in avant.items()) and z_["bout"][0] == z_["bout"][1], z_
         # Plancher et hauteur libre par système : étage = dalle + retombée + 2,20 m libres sous tout élément fini ;
         # la rampe d'un étage monte de cette hauteur, celle d'un demi-niveau de sa moitié. Acier en parc enterré : une alerte.
         PL_ = """(() => { const sauve = JSON.stringify(S), o = {}; for (const k of ["poteaux", "voiles", "acier", "beton"]) { S.systeme = k; S.parc = "enterre"; S.branches[4].rampe = k === "beton" ? "demi" : "droite"; pointer(); calculer();
@@ -475,7 +480,7 @@ with sync_playwright() as p:
           S.systeme = "acier"; S.parc = "enterre"; pointer(); calculer(); o.alerte = !!calc.alerteFeu; S.parc = "ventile"; calculer(); o.ventile = !!calc.alerteFeu;
           S = JSON.parse(sauve); cleEsc = null; pointer(); calculer(); return o; })()"""
         r["planchers"] = pg.evaluate(PL_)
-        e = {"poteaux": 2.55, "voiles": 2.4, "acier": 2.9, "beton": 2.6}
+        e = {"poteaux": 2.55, "voiles": 2.4, "acier": 2.9, "beton": 3.1}
         assert all(abs(r["planchers"][k][0] - v) < 1e-6 and len(r["planchers"][k][1]) == 1 and all(abs(h - v) < 1e-3 for h in r["planchers"][k][1]) for k, v in e.items()) and r["planchers"]["alerte"] and not r["planchers"]["ventile"], r["planchers"]
         # Calque Rampes : les rampes quittent la fiche des voies. Rampe hélicoïdale : posée par « Tracer » et un toucher,
         # glissée où l'on veut ; places et poteaux lui cèdent ; sa pente se mesure dans l'axe (un étage par tour).

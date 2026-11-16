@@ -13,7 +13,7 @@ const proche = (a, b, e = 1e-6) => Math.abs(a - b) <= e;
 const scenes = Object.fromEntries(Object.entries(plateaux).map(([k, P]) => { const t = performance.now(); const sc = scene(P, clip); console.log(`${k} : ${(performance.now() - t).toFixed(1)} ms, ${sc.volumes.length} volumes, ${sc.rubans.length} rubans, ${sc.sols.length} sols`); return [k, { P, sc }]; }));
 
 test("contrat : le plateau porte les champs que la scène lit", () => {
-  const champs = ["E", "dalle", "retombee", "section", "voiles", "parc", "niveaux", "pente", "chaussees", "rangees", "places", "pietons", "zebres", "rampes", "rampesVoie", "helices", "escaliers", "marches", "poteaux", "poutres"];
+  const champs = ["E", "dalle", "retombee", "section", "poutre", "portante", "voiles", "parc", "niveaux", "pente", "chaussees", "rangees", "places", "pietons", "zebres", "rampes", "rampesVoie", "helices", "escaliers", "marches", "poteaux", "poutres"];
   for (const [k, P] of Object.entries(plateaux)) for (const c of champs) assert.ok(c in P, `${k} : ${c} manque`);
   assert.ok(Object.keys(plateaux).length >= 4);
 });
@@ -57,6 +57,25 @@ for (const [k, { P, sc }] of Object.entries(scenes)) {
     assert.equal(pot.length, P.poteaux.length * T);
     for (const v of pot) assert.ok(proche(v.z1 - v.z0, P.E - P.dalle - P.retombee, 1e-3), `${v.z1 - v.z0}`);
     assert.equal(sc.volumes.filter((v) => v.matiere === "poutre").length, P.retombee > 0 ? P.poutres.filter((b) => !b.noyau && !b.voile).length * T : 0);
+  });
+
+  // Une dalle qui porte d'une ligne d'appui à l'autre (portée béton) repose sur une poutre ou un voile, jamais sur un
+  // poteau seul ni dans le vide : chaque poteau reçoit une poutre ; aucune poutre ne traverse une voie, la dalle s'en charge.
+  if (P.portante) test(`${k} : dalle portante sur poutres ou voiles, aucune poutre en travers des voies`, () => {
+    assert.ok(P.retombee > 0, "les poutres qui reçoivent la dalle ont une retombée");
+    const cle = (p) => p.map((v) => v.toFixed(2)).join(","), portes = new Set(P.poutres.flatMap((b) => [cle(b.a), cle(b.b)]));
+    for (const o of P.poteaux) assert.ok(portes.has(cle(o.p)), `poteau seul en ${o.p}`);
+    const dans = (p, q) => q.every((a, i) => { const b = q[(i + 1) % q.length]; return (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]) > 0.01 * Math.hypot(b[0] - a[0], b[1] - a[1]); });
+    for (const b of P.poutres) {
+      if (b.noyau) continue;
+      const m = [(b.a[0] + b.b[0]) / 2, (b.a[1] + b.b[1]) / 2], u = [b.b[0] - b.a[0], b.b[1] - b.a[1]], l = Math.hypot(...u);
+      for (const { q, rampe } of P.chaussees) {
+        if (q.length !== 4 || rampe) continue; // une voie en rampe a sa trémie : ses bords sont une autre question
+        const e = [q[1][0] - q[0][0], q[1][1] - q[0][1]], le = Math.hypot(...e), sens = Math.abs(u[0] * e[0] + u[1] * e[1]) / (l * le);
+        const anneau = aire(q) > 0 && q.reduce((s, p, i) => s + p[0] * q[(i + 1) % 4][1] - q[(i + 1) % 4][0] * p[1], 0) > 0 ? q : [...q].reverse();
+        assert.ok(sens > 0.7 || !dans(m, anneau), `poutre en travers d'une voie : ${b.a} → ${b.b}`);
+      }
+    }
   });
 
   test(`${k} : rampes d'un plancher au suivant, hélices jusqu'au dernier`, () => {

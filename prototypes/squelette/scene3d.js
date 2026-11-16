@@ -116,7 +116,7 @@ export function scene(P, clip) {
     for (const b of P.poutres) {
       if (b.noyau) continue; // les murs des noyaux viennent des escaliers
       if (b.voile) { vol("voile", [bande(b.a, b.b, P.section)], z, sous, f); continue; }
-      if (P.retombee > 0) vol("poutre", [bande(b.a, b.b, Math.max(P.section, 0.2))], sp, sous, f);
+      if (P.retombee > 0) vol("poutre", [bande(b.a, b.b, Math.max(P.poutre, 0.2))], sp, sous, f);
       if (b.plein) vol("maconnerie", [bande(b.a, b.b, MUR)], z, sp, f);
     }
   }

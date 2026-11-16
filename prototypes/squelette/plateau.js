@@ -10,7 +10,7 @@ export function extraire() {
   if (!calc) return null;
   const sys = SYSTEMES[S.systeme] || SYSTEMES.poteaux, E = etage(sys), esc = escalier(sys), nb = S.branches.length;
   return {
-    E, dalle: sys.dalle, retombee: sys.retombee, section: sys.section, voiles: !!sys.voile,
+    E, dalle: sys.dalle, retombee: sys.retombee, section: sys.section, poutre: sys.poutre || sys.section, portante: !!sys.portante, voiles: !!sys.voile,
     parc: S.parc === "ventile" ? "ventile" : "enterre",
     niveaux: Math.max(1, Math.min(12, Math.round(S.niveaux || 4))),
     pente: PENTE,
