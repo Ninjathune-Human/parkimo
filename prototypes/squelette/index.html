@@ -6,7 +6,7 @@
 <title>Parkimo · essai du squelette</title>
 <style>
 :root { --barre: 82px; --fond: #EEF1EF; --grille: rgba(17,22,20,.07); --label: #111614; --label-2: rgba(17,22,20,.62); --verre: rgba(255,255,255,.78); --trait: rgba(17,22,20,.12); --accent: #007AFF; --dalle: #D9DDD9; --enrobe: #8E9499; --place: #A3A9AE; --marque: #FFFFFF; --mur: #2B3136; --rouge: #FF3B30; --os: #FF9500; --pieton: #3F86C9; --rampe: #C7B594; }
-@media (prefers-color-scheme: dark) { :root { --fond: #14181A; --grille: rgba(238,243,240,.07); --label: #EEF3F0; --label-2: rgba(238,243,240,.64); --verre: rgba(30,35,38,.78); --trait: rgba(238,243,240,.14); --accent: #0A84FF; --dalle: #2A3034; --enrobe: #4A5157; --place: #5A6268; --marque: #E9EDEB; --mur: #C9D0CD; --rouge: #FF453A; --pieton: #5AA0E0; --rampe: #8E7C5E; } }
+:root[data-theme="nuit"] { color-scheme: dark; --fond: #14181A; --grille: rgba(238,243,240,.07); --label: #EEF3F0; --label-2: rgba(238,243,240,.64); --verre: rgba(30,35,38,.78); --trait: rgba(238,243,240,.14); --accent: #0A84FF; --dalle: #2A3034; --enrobe: #4A5157; --place: #5A6268; --marque: #E9EDEB; --mur: #C9D0CD; --rouge: #FF453A; --pieton: #5AA0E0; --rampe: #8E7C5E; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--fond); color: var(--label); font: 15px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", system-ui, sans-serif; }
 canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
@@ -32,6 +32,8 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: non
 #principes[open] summary::after { transform: rotate(-135deg) translateY(-2px); }
 #l-principes { list-style: none; margin: 4px 0 2px; padding: 0; display: grid; gap: 3px; max-width: 270px; }
 #l-principes li { display: grid; grid-template-columns: 1fr auto; gap: 10px; } #l-principes li span { color: var(--label-2); text-align: right; } #l-principes li.non span { color: var(--rouge); }
+#theme { position: absolute; top: 8px; right: 12px; padding: 2px; border-radius: 10px; } /* sur la ligne du titre : le bilan ne grandit pas */
+#theme button { min-height: 24px; padding: 0 9px; font-size: 12px; border-radius: 8px; }
 #bilan dt { color: var(--label-2); } #bilan dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 #barre { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom)); display: flex; gap: 4px; padding: 6px; border-radius: 30px; }
 button { font: inherit; color: var(--label); background: none; border: 0; min-height: 44px; min-width: 44px; padding: 0 16px; border-radius: 22px; cursor: pointer; font-weight: 600; white-space: nowrap; }
@@ -67,6 +69,8 @@ button:disabled { opacity: .35; }
 </style>
 <!-- Vue 3D (drapeau ?3d) : three.js et polygon-clipping, versions figées. Sans le drapeau, rien n'est chargé. -->
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/", "polygon-clipping": "https://cdn.jsdelivr.net/npm/polygon-clipping@0.15.7/+esm" } }</script>
+<script>/* Jour ou nuit : le choix enregistré, sinon celui de l'appareil ; posé avant le premier affichage */
+(() => { let t = null; try { t = localStorage.getItem("parkimo.theme"); } catch (e) { /* stockage indisponible */ } document.documentElement.dataset.theme = t === "jour" || t === "nuit" ? t : matchMedia("(prefers-color-scheme: dark)").matches ? "nuit" : "jour"; })();</script>
 </head>
 <body>
 <canvas id="plan" aria-label="Squelette du parc"></canvas>
@@ -75,6 +79,7 @@ button:disabled { opacity: .35; }
   <summary><h1>Essai du squelette</h1><div class="n"><span id="s-places">0</span><small>places</small></div><span id="s-resume" class="resume"></span></summary>
   <dl><dt>Emprise</dt><dd id="s-emprise">–</dd><dt>Par place</dt><dd id="s-ratio">–</dd><dt>Branches</dt><dd id="s-branches">0</dd><dt>Piétons</dt><dd id="s-pietons">–</dd><dt>Rampes</dt><dd id="s-rampes">–</dd><dt>Escaliers</dt><dd id="s-escaliers">–</dd><dt>Structure</dt><dd id="s-structure">–</dd><dt>Contreventement</dt><dd id="s-contrev">–</dd></dl>
   <details id="principes"><summary><span>Principes</span><span id="s-principes">–</span></summary><ul id="l-principes"></ul></details>
+  <div id="theme" class="seg" role="group" aria-label="Affichage, jour ou nuit"><button data-theme="jour">Jour</button><button data-theme="nuit">Nuit</button></div>
   </details>
 </section>
 <div id="aide" class="verre">Glissez un nœud ou une branche · touchez une branche pour la régler</div>
@@ -1498,6 +1503,12 @@ if (S.escAuto === undefined) S.escAuto = !(S.escaliers || []).length; // un plan
 if (!SYSTEMES[S.systeme]) S.systeme = "beton"; // par défaut la grande portée béton : aucun appui dans le plateau
 if (S.auto === undefined) S.auto = true; // un essai enregistré avant la trame automatique la reçoit
 pointer();
+// Affichage jour ou nuit : le choix est enregistré ; sans choix, l'appareil décide et peut changer d'avis.
+const theme = (t, garde) => { document.documentElement.dataset.theme = t; if (garde) try { localStorage.setItem("parkimo.theme", t); } catch (e) { /* stockage indisponible */ }
+  for (const b of document.querySelectorAll("#theme button")) b.setAttribute("aria-pressed", String(b.dataset.theme === t)); rafraichir(false); };
+for (const b of document.querySelectorAll("#theme button")) b.addEventListener("click", () => theme(b.dataset.theme, true));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => { let t = null; try { t = localStorage.getItem("parkimo.theme"); } catch (x) { /* stockage indisponible */ } if (!t) theme(e.matches ? "nuit" : "jour"); });
+theme(document.documentElement.dataset.theme);
 new ResizeObserver(taille).observe(cv); taille(); calculer();
 // Structure de l'exemple : la trame automatique, et des travées pleines qui contreventent dans les deux sens.
 if (neuf) { const x0 = Math.min(...S.pn.map((p) => p[0])), y0 = Math.min(...S.pn.map((p) => p[1])); for (const b of S.pb) { const A = S.pn[b.a], B = S.pn[b.b]; if ((A[0] === x0 && B[0] === x0 && Math.min(A[1], B[1]) >= 3 && Math.max(A[1], B[1]) <= 19) || (A[1] === y0 && B[1] === y0 && Math.max(A[0], B[0]) <= 3)) b.plein = true; } calculer(); }

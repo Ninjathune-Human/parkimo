@@ -65,6 +65,16 @@ with sync_playwright() as p:
     pg.goto(URL); pg.evaluate("localStorage.clear()"); pg.goto(URL); pg.wait_for_timeout(400)
     assert pg.evaluate("document.querySelector('#b-3d').hidden && !window.vue3d"), "bouton 3D visible sans drapeau"
     assert not any(("vue3d" in u or "jsdelivr" in u) for u in vus), [u for u in vus if "vue3d" in u or "jsdelivr" in u]
+    # Affichage jour ou nuit : sans choix, celui de l'appareil ; un choix change les couleurs et reste après rechargement.
+    fond = lambda: pg.evaluate("[document.documentElement.dataset.theme, getComputedStyle(document.documentElement).getPropertyValue('--fond').trim()]")
+    assert fond() == ["jour", "#EEF1EF"], fond()
+    pg.click("#theme button[data-theme='nuit']"); assert fond() == ["nuit", "#14181A"], fond()
+    pg.reload(); pg.wait_for_timeout(300)
+    assert fond()[0] == "nuit" and pg.evaluate("document.querySelector('#theme button[data-theme=nuit]').getAttribute('aria-pressed')") == "true", fond()
+    pg.click("#theme button[data-theme='jour']"); assert fond() == ["jour", "#EEF1EF"], fond()
+    ctx.close()
+    ctx = b.new_context(color_scheme="dark"); pg = ctx.new_page(); pg.goto(URL); pg.wait_for_timeout(300)
+    assert pg.evaluate("document.documentElement.dataset.theme") == "nuit", "appareil en sombre : la page doit s'ouvrir de nuit"
     ctx.close()
 
     # Avec le drapeau : bascule, rendus, niveaux, annuler, retour au plan par Emprise ; trois formats d'écran.
@@ -82,6 +92,13 @@ with sync_playwright() as p:
             pg.click("#b-3d"); pg.wait_for_function("window.vue3d.mesure", timeout=20000); pg.wait_for_timeout(900)
             assert pg.evaluate("document.body.classList.contains('en3d') && getComputedStyle(document.querySelector('#vue3d')).opacity === '1'")
             m = pg.evaluate("window.vue3d.mesure"); mesures[f"{nom}-{scen}"] = m; print(nom, scen, m, flush=True)
+            if nom == "pc" and scen == "exemple": # la vue 3D suit l'affichage choisi dans le bilan ; l'édicule part avec la couverture
+                assert pg.evaluate("window.vue3d.modele.children.every((g) => g.children.every((m) => m.name !== 'edicule'))"), "édicule visible en enterré"
+                pg.click("#theme button[data-theme='nuit']"); pg.wait_for_timeout(700)
+                assert pg.evaluate("window.vue3d.fond()") == "#14181a", pg.evaluate("window.vue3d.fond()")
+                pg.screenshot(path=str(out / f"{nom}-{scen}-nuit.png"))
+                pg.click("#theme button[data-theme='jour']"); pg.wait_for_timeout(300)
+                assert pg.evaluate("window.vue3d.fond()") == "#eef1ef", pg.evaluate("window.vue3d.fond()")
             for rendu in ("maquette", "trait"):
                 panneau(pg, True); pg.click(f'#p3d-rendu button[data-r="{rendu}"]')
                 if nom == "iphone": panneau(pg, False) # sur iPhone, le panneau est replié par défaut

@@ -13,27 +13,29 @@ import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import clip from "polygon-clipping";
 import { extraire } from "./plateau.js";
-import { scene as decrire } from "./scene3d.js";
+import { scene as decrire, ECORCHE } from "./scene3d.js";
 
-// ---- Rendus. Trait : faces blanches, arêtes noires, ombres légères (vidéo 2). Maquette : carton blanc, arêtes fines,
-// ombres douces et occlusion ambiante au repos (vidéo 1). La couleur porte le sens, comme dans le plan.
-const BASE = { terrain: "#E6E8E4", dallage: "#F1F1EF", radier: "#EDEDEB", dalle: "#F7F7F5", couverture: "#F7F7F5", enrobe: "#E1E3E1", place: "#ECEDEB",
-  constat: "#F2B3AE", pieton: "#C6DAEE", zebre: "#FFFFFF", poteau: "#FAFAF8", poteau_constat: "#FF6B61", poutre: "#F0F0EE", voile: "#EBE9E5",
-  maconnerie: "#E4DCD1", noyau: "#FBFBF9", marche: "#F4F4F2", palier: "#F4F4F2", ascenseur: "#D6DCE2", rampe: "#E8DCC3", rampe_constat: "#F2B3AE",
-  rive: "#F8F8F6", allege: "#F8F8F6", acrotere: "#F8F8F6" };
+// ---- Rendus. Trait : faces blanches, arêtes noires, ombres légères (vidéo 2). Maquette : plâtre blanc mat pour tout ce
+// qui est construit, enrobé graphite pour ce qui roule, marquages blancs ; le bleu des piétons et le rouge des constats sont
+// les seuls accents. Ombres franches, occlusion ambiante au repos. Jour ou nuit, la maquette reste blanche : seuls le fond,
+// le terrain et la lumière changent.
+const PLATRE = "#F4F3F0", ENROBE = "#41474B";
+const BASE = { terrain: "#D3D6D2", dallage: PLATRE, radier: PLATRE, dalle: PLATRE, couverture: PLATRE, enrobe: ENROBE, place: "#50575C",
+  constat: "#C9473E", pieton: "#2E77D8", zebre: "#F2F2EF", poteau: PLATRE, poteau_constat: "#FF3B30", poutre: PLATRE, voile: PLATRE,
+  maconnerie: "#CDBEAA", noyau: PLATRE, marche: "#E3E2DE", palier: "#ECEBE8", ascenseur: "#9DB0C2", rampe: ENROBE, rampe_constat: "#C9473E",
+  rive: PLATRE, allege: PLATRE, acrotere: PLATRE, edicule: PLATRE };
 const SOMBRE = { terrain: "#1E2326", dallage: "#343B40", radier: "#30363A", dalle: "#3B4247", couverture: "#3B4247", enrobe: "#2E3438", place: "#363D42",
   constat: "#7A3A36", pieton: "#2F4C69", zebre: "#C9D0CD", poteau: "#454D53", poteau_constat: "#FF453A", poutre: "#40474D", voile: "#3E454A",
   maconnerie: "#4A443D", noyau: "#4A5258", marche: "#42494F", palier: "#42494F", ascenseur: "#38424C", rampe: "#5E5240", rampe_constat: "#7A3A36",
   rive: "#4A5258", allege: "#4A5258", acrotere: "#4A5258" };
 const TRAIT = { ...Object.fromEntries(Object.keys(BASE).map((k) => [k, "#FFFFFF"])), terrain: "#F3F3F1", enrobe: "#F2F2F2", constat: "#F7CBC7",
   pieton: "#E3ECF6", rampe: "#F6EFE1", rampe_constat: "#F7CBC7", poteau_constat: "#FF8A80", ascenseur: "#EEF0F2", maconnerie: "#F5F1EB" };
-const sombre = matchMedia("(prefers-color-scheme: dark)");
+const nuit = () => document.documentElement.dataset.theme === "nuit"; // posé par le squelette (Affichage : jour ou nuit)
 const RENDUS = {
-  trait: () => ({ couleurs: sombre.matches ? SOMBRE : TRAIT, arete: sombre.matches ? "#E9EDEB" : "#1B201E", opacite: 1, epaisseur: 1.25, marque: sombre.matches ? "#8E979D" : "#9AA0A5", ciel: sombre.matches ? 1.2 : 2.3, soleil: 0.9, ombre: 0.32, ao: false }),
-  maquette: () => ({ couleurs: sombre.matches ? SOMBRE : BASE, arete: sombre.matches ? "#E9EDEB" : "#2B3136", opacite: sombre.matches ? 0.28 : 0.32, epaisseur: 1, marque: sombre.matches ? "#7D868C" : "#A2A9AE", ciel: sombre.matches ? 1.0 : 1.5, soleil: 1.7, ombre: 0.55, ao: true }),
+  trait: () => ({ couleurs: nuit() ? SOMBRE : TRAIT, arete: nuit() ? "#E9EDEB" : "#1B201E", opacite: 1, epaisseur: 1.25, marque: nuit() ? "#8E979D" : "#9AA0A5", ciel: nuit() ? 1.2 : 2.3, sol: nuit() ? 0x202528 : 0xd8dad6, soleil: 0.9, ombre: 0.32, ao: false }),
+  maquette: () => ({ couleurs: nuit() ? { ...BASE, terrain: "#262B2E" } : BASE, arete: nuit() ? "#0B0E10" : "#1A1F22", opacite: nuit() ? 0.5 : 0.42, epaisseur: 1, marque: "#F2F2EF", ciel: nuit() ? 0.55 : 0.85, sol: nuit() ? 0x1a1e20 : 0xcfd2ce, soleil: nuit() ? 2.2 : 2.6, ombre: nuit() ? 0.85 : 0.78, ao: true }),
 };
 const OMBRE_PORTEE = new Set(["sols", "terrain"]); // ne portent pas d'ombre
-const ECORCHE = new Set(["couverture", "acrotere"]); // toiture du silo et couverture du parc enterré levées, comme le couvercle d'une maquette
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const reglages = (() => { try { return { rendu: "maquette", ...JSON.parse(localStorage.getItem("parkimo.vue3d") || "{}") }; } catch (e) { return { rendu: "maquette" }; } })();
 const garderReglages = () => { try { localStorage.setItem("parkimo.vue3d", JSON.stringify(reglages)); } catch (e) { /* stockage indisponible */ } };
@@ -203,7 +205,7 @@ function appliquerRendu(k = 1) {
   }
   lignes.aretes.color.set(R.arete); lignes.aretes.opacity = R.opacite * k; lignes.aretes.linewidth = R.epaisseur;
   lignes.marques.color.set(R.marque); if (P) lignes.marques.color.lerp(P.marque, 1 - k); lignes.marques.linewidth = 1;
-  ciel.intensity = R.ciel; ciel.groundColor.set(sombre.matches ? 0x202528 : 0xd8dad6); soleil.intensity = R.soleil; soleil.shadow.intensity = R.ombre;
+  ciel.intensity = R.ciel; ciel.groundColor.set(R.sol); soleil.intensity = R.soleil; soleil.shadow.intensity = R.ombre;
   monde.background = new THREE.Color(css("--fond") || "#EEF1EF");
   for (const b of document.querySelectorAll("#p3d-rendu button")) b.setAttribute("aria-pressed", String(b.dataset.r === reglages.rendu));
 }
@@ -361,7 +363,7 @@ for (const id of ["#b-emprise", "#b-tracer"]) $(id).addEventListener("click", ()
 $("#b-cadrer").addEventListener("click", (ev) => { if (!actif || anim) return; ev.stopImmediatePropagation(); cadrer(); }, { capture: true });
 controles.addEventListener("change", demander);
 new ResizeObserver(taille).observe(toile);
-sombre.addEventListener("change", () => { appliquerRendu(); demander(); });
+new MutationObserver(() => { appliquerRendu(); demander(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
 // ---- Panneau : niveaux (annulables, enregistrés avec le plan) et rendu (réglage de la vue, gardé dans ce navigateur).
 const niveaux = (d) => { const n = Math.max(1, Math.min(12, Math.round(S.niveaux || 4) + d)); if (n === (S.niveaux || 4)) return; garder(); S.niveaux = n; enregistrer(); rafraichir(); };
@@ -371,7 +373,7 @@ for (const b of document.querySelectorAll("#p3d-rendu button")) b.addEventListen
 
 // Le squelette appelle maj() après chaque calcul : la scène sera reconstruite à la prochaine image, si la vue est ouverte.
 // figer(p) et projeter() servent aux essais : une image de la levée à l'avancement p, et la position à l'écran d'un point.
-window.vue3d = { maj() { sale = true; demander(); }, entrer, sortir, cadrer, camera, controles, modele, mesure: null, scene: () => sc,
+window.vue3d = { maj() { sale = true; demander(); }, entrer, sortir, cadrer, camera, controles, modele, mesure: null, scene: () => sc, fond: () => `#${monde.background.getHexString()}`,
   etat: () => ({ actif, anim: !!anim, progres, sens: sensAnim }),
   figer(p) { anim = null; sensAnim = 0; progres = p; levee(p); renderer.render(monde, camera); },
   projeter(x, y, z = 0) { const v = new THREE.Vector3(...V3(x, y, z)).project(camera); return [((v.x + 1) / 2) * W, ((1 - v.y) / 2) * H]; } };

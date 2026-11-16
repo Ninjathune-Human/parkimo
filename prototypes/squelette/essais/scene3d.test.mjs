@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import clip from "polygon-clipping";
-import { scene, EDICULE, PALIER, ALLEGE, ACROTERE } from "../scene3d.js";
+import { scene, EDICULE, PALIER, ALLEGE, ACROTERE, ECORCHE } from "../scene3d.js";
 
 const dir = new URL("./plateaux/", import.meta.url);
 const plateaux = Object.fromEntries(readdirSync(dir).filter((f) => f.endsWith(".json")).map((f) => [f.slice(0, -5), JSON.parse(readFileSync(new URL(f, dir), "utf8"))]));
@@ -102,6 +102,12 @@ for (const [k, { P, sc }] of Object.entries(scenes)) {
       if (r.genre === "helice") assert.ok(proche(z1, F[f + 1].z, 1e-6), "un tour par étage");
     }
     for (const h of sc.rampes.filter((r) => r.genre === "helice" && r.niveau === H - 1)) assert.ok(proche(h.axe[h.axe.length - 1][2], F[H].z, 1e-6));
+  });
+
+  // La vue lève la toiture du silo ou la couverture de l'enterré, comme le couvercle d'une maquette : avec elle, tout ce qui
+  // la dépasse (acrotère, édicules). Rien d'autre ne monte au-dessus du dernier plancher.
+  test(`${k} : couvercle levé, rien ne dépasse le dernier plancher`, () => {
+    for (const v of sc.volumes) if (v.z1 > F[T].z + 1e-3) assert.ok(ECORCHE.has(v.matiere), `${v.matiere} ${v.cle || ""} jusqu'à ${v.z1}`);
   });
 
   test(`${k} : escaliers, deux volées par étage desservi ; cage jusqu'à la toiture du silo, édicule en enterré`, () => {

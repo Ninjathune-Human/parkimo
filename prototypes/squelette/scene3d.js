@@ -10,6 +10,8 @@
 // ouverte sur leur emprise (trémie), à chaque niveau desservi.
 // Hypothèses de représentation, sans norme : dallage, radier, allèges, rives des rampes, édicules, terrain.
 
+// Ce que la vue lève avec la toiture du silo ou la couverture de l'enterré, comme le couvercle d'une maquette.
+export const ECORCHE = new Set(["couverture", "acrotere", "edicule"]);
 export const ALLEGE = 1.1, ACROTERE = 0.6, EDICULE = 2.8, DALLAGE = 0.15, RADIER = 0.3, MUR = 0.2, MUR_ENTERRE = 0.3, MARGE = 8, SOCLE = 1.2;
 export const RIVE = { h: 1.0, e: 0.15 }, PORTE = { l: 0.9, h: 2.1 }, MARCHE = 0.3, PALIER = 0.2;
 
@@ -167,7 +169,7 @@ export function scene(P, clip) {
     const baies = pl.portes.map((a) => R([a - PORTE.l / 2, -0.01, a + PORTE.l / 2, e + 0.01]));
     if (pl.baie) { const [a0, v0, a1, v1] = pl.baie; baies.push(R(Math.abs(a1 - a0) < 1e-6 ? [a0 - e / 2 - 0.01, Math.min(v0, v1), a0 + e / 2 + 0.01, Math.max(v0, v1)] : [Math.min(a0, a1), v0 - e / 2 - 0.01, Math.max(a0, a1), v0 + e / 2 + 0.01])); }
     const bas = O.moins(murs, baies);
-    const enceinte = (z0, z1, f) => { const zp = Math.min(z1, z0 + PORTE.h); vols("noyau", bas, z0, zp, f, x.cle); vols("noyau", murs, zp, z1, f, x.cle); };
+    const enceinte = (z0, z1, f, m = "noyau") => { const zp = Math.min(z1, z0 + PORTE.h); vols(m, bas, z0, zp, f, x.cle); vols(m, murs, zp, z1, f, x.cle); };
     const [V1, V2] = pl.volees, axe = (v) => (v.sens[0] ? 0 : 1), signe = (v) => v.sens[0] + v.sens[1];
     const debut = (v) => (signe(v) > 0 ? v.r[axe(v)] : v.r[axe(v) + 2]), bout = (v) => (signe(v) > 0 ? v.r[axe(v) + 2] : v.r[axe(v)]);
     const ecart = (p, k, t) => Math.max(0, p[k] - t, t - p[k + 2]);
@@ -185,7 +187,7 @@ export function scene(P, clip) {
       if (V2) marches(V2, zi, f);
       dalle(pEt, zh, f + 1); dalle(joint(V2, bout(V2), pEt), zh, f + 1); // palier d'étage du plancher du dessus, ouvert sur la cage
     }
-    if (!ventile) { enceinte(F[T].z, F[T].z + EDICULE, T); vol("noyau", [R([0, 0, x.L, x.prof])], F[T].z + EDICULE, F[T].z + EDICULE + PALIER, T, x.cle); }
+    if (!ventile) { enceinte(F[T].z, F[T].z + EDICULE, T, "edicule"); vol("edicule", [R([0, 0, x.L, x.prof])], F[T].z + EDICULE, F[T].z + EDICULE + PALIER, T, x.cle); }
     if (!x.plan) sc.constats.push(`${x.cle} : plan du noyau introuvable, cage montée sans escalier`);
   }
 
