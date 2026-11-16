@@ -3,12 +3,14 @@
 // (volumes prismatiques par matière, rampes, niveaux), complété de rubans (pièces inclinées), de sols peints et de traits.
 //
 // Cotes en mètres, z = 0 au sol fini. Un plancher par niveau, tous sur le même squelette (charte, section 6).
-// Parc largement ventilé : RDC, R+1... au-dessus du sol, le dernier à ciel ouvert. Parc enterré : R-1, R-2... sous le
-// terrain, puis la couverture au niveau du sol. Les rampes relient deux planchers voisins et montent dans le sens de
-// leur branche ; la dalle du dessus est ouverte sur leur emprise (trémie), à chaque niveau.
+// Parc largement ventilé : RDC, R+1... au-dessus du sol, puis la toiture qui couvre le dernier niveau. Parc enterré :
+// R-1, R-2... sous le terrain, puis la couverture au niveau du sol. Toiture et couverture portent sur les poteaux et
+// les poutres du dernier niveau ; la vue les lève, comme le couvercle d'une maquette. Les rampes relient deux planchers
+// de stationnement voisins (et le sol, en enterré) et montent dans le sens de leur branche ; la dalle du dessus est
+// ouverte sur leur emprise (trémie), à chaque niveau desservi.
 // Hypothèses de représentation, sans norme : dallage, radier, allèges, rives des rampes, édicules, terrain.
 
-export const ALLEGE = 1.1, EDICULE = 2.8, DALLAGE = 0.15, RADIER = 0.3, MUR = 0.2, MUR_ENTERRE = 0.3, MARGE = 8, SOCLE = 1.2;
+export const ALLEGE = 1.1, ACROTERE = 0.6, EDICULE = 2.8, DALLAGE = 0.15, RADIER = 0.3, MUR = 0.2, MUR_ENTERRE = 0.3, MARGE = 8, SOCLE = 1.2;
 export const RIVE = { h: 1.0, e: 0.15 }, PORTE = { l: 0.9, h: 2.1 }, MARCHE = 0.3, PALIER = 0.2;
 
 const aire = (r) => r.reduce((m, p, i) => { const n = r[(i + 1) % r.length]; return m + p[0] * n[1] - n[0] * p[1]; }, 0) / 2;
@@ -53,10 +55,11 @@ export function scene(P, clip) {
   const vol = (matiere, anneaux, z0, z1, niveau, cle) => { if (z1 > z0 + 1e-6 && anneaux.length && anneaux[0].length >= 3) sc.volumes.push({ matiere, anneaux, z0: +z0.toFixed(4), z1: +z1.toFixed(4), niveau, ...(cle ? { cle } : {}) }); };
   const vols = (matiere, mp, z0, z1, niveau, cle) => { for (const pg of mp) vol(matiere, pg, z0, z1, niveau, cle); };
 
-  // ---- Planchers. Le dernier (T) est la toiture du silo, ou la couverture du parc enterré.
-  const F = ventile ? Array.from({ length: n }, (_, f) => ({ z: f * E, nom: f ? `R+${f}` : "RDC", places: true }))
+  // ---- Planchers. Le dernier (T) est la toiture du silo, ou la couverture du parc enterré. H : le plus haut plancher
+  // que rampes et escaliers desservent, le dernier niveau de stationnement en silo, le sol en enterré.
+  const F = ventile ? [...Array.from({ length: n }, (_, f) => ({ z: f * E, nom: f ? `R+${f}` : "RDC", places: true })), { z: n * E, nom: "Toiture", places: false }]
     : [...Array.from({ length: n }, (_, f) => ({ z: -(n - f) * E, nom: `R-${n - f}`, places: true })), { z: 0, nom: "Couverture", places: false }];
-  const T = F.length - 1;
+  const T = F.length - 1, H = ventile ? T - 1 : T;
 
   // ---- Escaliers : le plan du noyau tel que le squelette le dessine (zones, volées, portes, baie du sas), dans le
   // repère local de la rangée (a le long de la rangée, v depuis l'allée). La cage (paliers et volées) et les gaines
@@ -81,7 +84,7 @@ export function scene(P, clip) {
   // ---- Dalles : au plancher bas, dallage (ventilé) ou radier (enterré), plein ; au-dessus, dalle percée des trémies.
   vols(ventile ? "dallage" : "radier", env, F[0].z - (ventile ? DALLAGE : RADIER), F[0].z, 0);
   const percee = O.moins(env, tremies);
-  for (let f = 1; f <= T; f++) vols(!ventile && f === T ? "couverture" : "dalle", percee, F[f].z - P.dalle, F[f].z, f);
+  for (let f = 1; f <= T; f++) vols(f === T ? "couverture" : "dalle", f <= H ? percee : env, F[f].z - P.dalle, F[f].z, f);
 
   // ---- Sols peints : chaussées, places, piétons. Au-dessus du plancher bas, ils s'arrêtent aux trémies.
   const decoupe = (r) => { const b = boite([r]), t = tremies.filter((_, k) => touche(b, bTrem[k])); return t.length ? O.moins([[oriente(r, true)]], t) : [[oriente(r, true)]]; };
@@ -118,7 +121,7 @@ export function scene(P, clip) {
     }
   }
 
-  // ---- Rampes : une dalle inclinée et ses deux rives par étage ; au dernier plancher, un garde-corps ferme le bas de la trémie.
+  // ---- Rampes : une dalle inclinée et ses deux rives par étage ; au dernier plancher desservi, un garde-corps ferme le bas de la trémie.
   const rampe = (q, H, genre, raide, cle, f) => {
     const a = milieu(q[0], q[3]), b = milieu(q[1], q[2]), w = dist(q[0], q[3]), z = F[f].z, axe = [[a[0], a[1], z], [b[0], b[1], z + H]];
     sc.rubans.push({ axe, largeur: w, decalage: 0, z0: -P.dalle, z1: 0, matiere: raide ? "rampe_constat" : "rampe", niveau: f, cle });
@@ -127,8 +130,8 @@ export function scene(P, clip) {
   };
   const rampes = [...P.rampes.filter((r) => !r.hors).map((r) => ({ ...r, genre: "posee" })), ...P.rampesVoie.map((r) => ({ ...r, genre: "branchee" }))];
   for (const r of rampes) {
-    for (let f = 0; f < T; f++) rampe(r.q, r.hauteur, r.genre, r.raide, r.cle, f);
-    if (T > 0) vol("allege", [bande(r.q[0], r.q[3], RIVE.e)], F[T].z, F[T].z + ALLEGE, T, r.cle);
+    for (let f = 0; f < H; f++) rampe(r.q, r.hauteur, r.genre, r.raide, r.cle, f);
+    if (H > 0) vol("allege", [bande(r.q[0], r.q[3], RIVE.e)], F[H].z, F[H].z + ALLEGE, H, r.cle);
     if (r.hauteur < E - 1e-6) sc.constats.push(`${r.cle} : rampe de demi-niveau, les plateaux décalés ne sont pas représentés`);
   }
   if (P.rampes.some((r) => r.hors)) sc.constats.push("Rampe à replacer : non représentée");
@@ -142,21 +145,22 @@ export function scene(P, clip) {
     const t0 = s > 0 ? Math.atan2(cy / s - h.p[1], cx / s - h.p[0]) : -Math.PI / 2, rm = (h.int + h.ext) / 2, w = h.ext - h.int, gap = Math.min(1.2, 7 / h.ext);
     const spirale = (z, a0, a1, k = 48) => Array.from({ length: k + 1 }, (_, i) => { const t = a0 + ((a1 - a0) * i) / k; return [h.p[0] + rm * Math.cos(t), h.p[1] + rm * Math.sin(t), z + (E * (t - t0)) / (2 * Math.PI)]; });
     const anneau = (r0, r1, a0, a1, k = 48) => { const ext = Array.from({ length: k + 1 }, (_, i) => a0 + ((a1 - a0) * i) / k); return oriente([...ext.map((t) => [h.p[0] + r1 * Math.cos(t), h.p[1] + r1 * Math.sin(t)]), ...ext.reverse().map((t) => [h.p[0] + r0 * Math.cos(t), h.p[1] + r0 * Math.sin(t)])], true); };
-    for (let f = 0; f < T; f++) {
+    for (let f = 0; f < H; f++) {
       const z = F[f].z, axe = spirale(z, t0, t0 + 2 * Math.PI);
       sc.rubans.push({ axe, largeur: w, decalage: 0, z0: -P.dalle, z1: 0, matiere: h.raide ? "rampe_constat" : "rampe", niveau: f, cle: h.cle });
       sc.rubans.push({ axe: spirale(z, t0 + gap, t0 + 2 * Math.PI - gap), largeur: RIVE.e, decalage: -(w / 2 - RIVE.e / 2), z0: 0, z1: RIVE.h, matiere: "rive", niveau: f, cle: h.cle });
       vol("noyau", [oriente(cercle(h.p, h.int), true), oriente(cercle(h.p, h.int - MUR), false)], z, F[f + 1].z, f, h.cle);
       sc.rampes.push({ axe, largeur: w, niveau: f, cle: h.cle, genre: "helice", raide: h.raide });
     }
-    for (let f = 1; f <= T; f++) vol("allege", [anneau(h.ext, h.ext + RIVE.e, t0 + gap, t0 + 2 * Math.PI - gap)], F[f].z, F[f].z + ALLEGE, f, h.cle);
-    vol("noyau", [oriente(cercle(h.p, h.int), true), oriente(cercle(h.p, h.int - MUR), false)], F[T].z, F[T].z + ALLEGE, T, h.cle);
+    for (let f = 1; f <= H; f++) vol("allege", [anneau(h.ext, h.ext + RIVE.e, t0 + gap, t0 + 2 * Math.PI - gap)], F[f].z, F[f].z + ALLEGE, f, h.cle);
+    vol("noyau", [oriente(cercle(h.p, h.int), true), oriente(cercle(h.p, h.int - MUR), false)], F[H].z, F[H].z + ALLEGE, H, h.cle);
     if (!h.raccord) sc.constats.push(`${h.cle} : rampe hélicoïdale sans voie à raccorder`);
   }
 
   // ---- Escaliers : murs du noyau (le noyau moins ses espaces libres), portes et baie du sas percées sur 2,10 m ; à
   // chaque étage, la première volée part du palier d'étage, la seconde du palier intermédiaire, une marche par giron ;
-  // ce qui sépare une volée d'un palier, dans sa largeur, est palier. Édicule sur le dernier plancher.
+  // ce qui sépare une volée d'un palier, dans sa largeur, est palier. En silo, la cage monte jusqu'à la toiture ; en
+  // enterré, elle sort du sol en édicule.
   for (const c of cages) {
     const { x, R, pl, paliers, cage, puits } = c, e = M.mur, g = M.giron;
     const murs = O.moins([[R([0, 0, x.L, x.prof])]], [...pl.zones.map((z) => R(z.r)), ...pl.volees.map((v) => R(v.r)), ...(cage ? [R(cage)] : [])]);
@@ -174,19 +178,19 @@ export function scene(P, clip) {
     for (let f = 0; f < T; f++) {
       const z = F[f].z, zh = F[f + 1].z, zi = z + M.n1 * M.h;
       enceinte(z, zh, f);
+      if (f >= H) continue; // sous la toiture du silo : la cage, sans escalier
       if (f > 0) dalle(joint(V1, debut(V1), pEt), z, f);
       if (V1) marches(V1, z, f);
       dalle(pIn, zi, f); dalle(joint(V1, bout(V1), pIn), zi, f); dalle(joint(V2, debut(V2), pIn), zi, f);
       if (V2) marches(V2, zi, f);
       dalle(pEt, zh, f + 1); dalle(joint(V2, bout(V2), pEt), zh, f + 1); // palier d'étage du plancher du dessus, ouvert sur la cage
     }
-    enceinte(F[T].z, F[T].z + EDICULE, T);
-    vol("noyau", [R([0, 0, x.L, x.prof])], F[T].z + EDICULE, F[T].z + EDICULE + PALIER, T, x.cle);
+    if (!ventile) { enceinte(F[T].z, F[T].z + EDICULE, T); vol("noyau", [R([0, 0, x.L, x.prof])], F[T].z + EDICULE, F[T].z + EDICULE + PALIER, T, x.cle); }
     if (!x.plan) sc.constats.push(`${x.cle} : plan du noyau introuvable, cage montée sans escalier`);
   }
 
-  // ---- Façades et terrain. Le long de l'enveloppe : allèges à chaque plancher hors rez (ventilé), voiles contre terre
-  // (enterré). Une bande par côté, rallongée aux deux bouts puis rognée par l'enveloppe : les angles rentrants se ferment.
+  // ---- Façades et terrain. Le long de l'enveloppe : allèges à chaque plancher de stationnement hors rez et acrotère
+  // de la toiture (ventilé), voiles contre terre (enterré). Une bande par côté, rallongée aux deux bouts puis rognée par l'enveloppe : les angles rentrants se ferment.
   const bord = (e, dehors) => {
     const rs = [];
     for (const pg of env) for (const r of pg) r.forEach((a, k) => { const b = r[(k + 1) % r.length]; if (dist(a, b) > 0.05) rs.push(bande(a, b, e, dehors ? -1 : 1, e)); });
@@ -196,7 +200,8 @@ export function scene(P, clip) {
   const cadre = (m) => oriente([[x0 - m, y0 - m], [x1 + m, y0 - m], [x1 + m, y1 + m], [x0 - m, y1 + m]], true);
   if (ventile) {
     const al = bord(MUR, false);
-    for (let f = 1; f <= T; f++) vols("allege", al, F[f].z, F[f].z + ALLEGE, f);
+    for (let f = 1; f <= H; f++) vols("allege", al, F[f].z, F[f].z + ALLEGE, f);
+    vols("acrotere", al, F[T].z, F[T].z + ACROTERE, T);
     vol("terrain", [cadre(MARGE)], -DALLAGE - SOCLE, -DALLAGE, -1);
   } else {
     const mu = bord(MUR_ENTERRE, true);
