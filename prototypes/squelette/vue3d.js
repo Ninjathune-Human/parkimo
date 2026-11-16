@@ -20,11 +20,11 @@ import { scene as decrire } from "./scene3d.js";
 const BASE = { terrain: "#E6E8E4", dallage: "#F1F1EF", radier: "#EDEDEB", dalle: "#F7F7F5", couverture: "#F7F7F5", enrobe: "#E1E3E1", place: "#ECEDEB",
   constat: "#F2B3AE", pieton: "#C6DAEE", zebre: "#FFFFFF", poteau: "#FAFAF8", poteau_constat: "#FF6B61", poutre: "#F0F0EE", voile: "#EBE9E5",
   maconnerie: "#E4DCD1", noyau: "#FBFBF9", marche: "#F4F4F2", palier: "#F4F4F2", ascenseur: "#D6DCE2", rampe: "#E8DCC3", rampe_constat: "#F2B3AE",
-  rive: "#F8F8F6", allege: "#F8F8F6" };
+  rive: "#F8F8F6", allege: "#F8F8F6", acrotere: "#F8F8F6" };
 const SOMBRE = { terrain: "#1E2326", dallage: "#343B40", radier: "#30363A", dalle: "#3B4247", couverture: "#3B4247", enrobe: "#2E3438", place: "#363D42",
   constat: "#7A3A36", pieton: "#2F4C69", zebre: "#C9D0CD", poteau: "#454D53", poteau_constat: "#FF453A", poutre: "#40474D", voile: "#3E454A",
   maconnerie: "#4A443D", noyau: "#4A5258", marche: "#42494F", palier: "#42494F", ascenseur: "#38424C", rampe: "#5E5240", rampe_constat: "#7A3A36",
-  rive: "#4A5258", allege: "#4A5258" };
+  rive: "#4A5258", allege: "#4A5258", acrotere: "#4A5258" };
 const TRAIT = { ...Object.fromEntries(Object.keys(BASE).map((k) => [k, "#FFFFFF"])), terrain: "#F3F3F1", enrobe: "#F2F2F2", constat: "#F7CBC7",
   pieton: "#E3ECF6", rampe: "#F6EFE1", rampe_constat: "#F7CBC7", poteau_constat: "#FF8A80", ascenseur: "#EEF0F2", maconnerie: "#F5F1EB" };
 const sombre = matchMedia("(prefers-color-scheme: dark)");
@@ -33,7 +33,7 @@ const RENDUS = {
   maquette: () => ({ couleurs: sombre.matches ? SOMBRE : BASE, arete: sombre.matches ? "#E9EDEB" : "#2B3136", opacite: sombre.matches ? 0.28 : 0.32, epaisseur: 1, marque: sombre.matches ? "#7D868C" : "#A2A9AE", ciel: sombre.matches ? 1.0 : 1.5, soleil: 1.7, ombre: 0.55, ao: true }),
 };
 const OMBRE_PORTEE = new Set(["sols", "terrain"]); // ne portent pas d'ombre
-const ECORCHE = new Set(["couverture"]); // parc enterré : la couverture est levée, comme le couvercle d'une maquette
+const ECORCHE = new Set(["couverture", "acrotere"]); // toiture du silo et couverture du parc enterré levées, comme le couvercle d'une maquette
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const reglages = (() => { try { return { rendu: "maquette", ...JSON.parse(localStorage.getItem("parkimo.vue3d") || "{}") }; } catch (e) { return { rendu: "maquette" }; } })();
 const garderReglages = () => { try { localStorage.setItem("parkimo.vue3d", JSON.stringify(reglages)); } catch (e) { /* stockage indisponible */ } };
@@ -87,7 +87,7 @@ soleil.shadow.mapSize.set(innerWidth < 760 ? 1024 : 2048, innerWidth < 760 ? 102
 monde.add(ciel, soleil, soleil.target);
 let composer = null, ao = null, aretesAO = [];
 let W = 0, H = 0, echelle = 6, sc = null, actif = false, sale = true, attente = false, repos = 0;
-const materiaux = new Map(), lignes = { aretes: new LineMaterial({ linewidth: 1, transparent: true }), marques: new LineMaterial({ linewidth: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }) };
+const materiaux = new Map(), lignes = { aretes: new LineMaterial({ linewidth: 1, transparent: true }), marques: new LineMaterial({ linewidth: 1, polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -4 }) };
 
 // Plan (x, y) et cote z vers three.js : y vers le haut, le nord vers -z. Vu du dessus, le plan garde son orientation.
 const V3 = (x, y, z) => [x, z, -y];
@@ -148,9 +148,10 @@ function materiau(m) {
   if (!materiaux.has(m)) {
     // Les volumes reculent d'un cran : leurs arêtes restent visibles. Les sols peints, quelques millimètres au-dessus de
     // la dalle, n'en ont pas besoin ; les avancer ferait passer les marquages dessous.
-    // Les sols peints avancent d'un cran, les marquages de deux : posés sur la même dalle, chacun reste visible.
+    // Les sols peints avancent d'un cran, les marquages de deux, d'un écart fixe (sans terme de pente : vus de biais, les
+    // sols passeraient devant les traits, que la caméra voit de face) ; les volumes reculent d'un cran.
     const peint = ["enrobe", "place", "constat", "pieton", "zebre"].includes(m);
-    materiaux.set(m, new THREE.MeshLambertMaterial({ color: 0xffffff, polygonOffset: true, polygonOffsetFactor: peint ? -1 : 1, polygonOffsetUnits: peint ? -2 : 1 }));
+    materiaux.set(m, new THREE.MeshLambertMaterial({ color: 0xffffff, polygonOffset: true, polygonOffsetFactor: peint ? 0 : 1, polygonOffsetUnits: peint ? -2 : 1 }));
   }
   return materiaux.get(m);
 }
@@ -295,7 +296,7 @@ function couleursPlan() {
   return { terrain: c("--fond"), dallage: c("--dalle"), radier: c("--dalle"), dalle: c("--dalle"), couverture: c("--dalle"), enrobe: c("--enrobe"), place: c("--place"),
     constat: melangeCss("--place", "--rouge", 0.28), pieton: melangeCss("--dalle", "--pieton", 0.7), zebre: c("--marque"), poteau: c("--mur"), poteau_constat: c("--rouge"),
     poutre: melangeCss("--dalle", "--mur", 0.55), voile: c("--mur"), maconnerie: c("--mur"), noyau: c("--mur"), marche: c("--fond"), palier: c("--fond"), ascenseur: c("--fond"),
-    rampe: c("--rampe"), rampe_constat: c("--rampe"), rive: c("--mur"), allege: c("--mur"), marque: c("--marque") };
+    rampe: c("--rampe"), rampe_constat: c("--rampe"), rive: c("--mur"), allege: c("--mur"), acrotere: c("--mur"), marque: c("--marque") };
 }
 function melange(A, B, k) {
   const d = Math.atan2(Math.sin(B.theta - A.theta), Math.cos(B.theta - A.theta));

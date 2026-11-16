@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import clip from "polygon-clipping";
-import { scene, EDICULE, PALIER, ALLEGE } from "../scene3d.js";
+import { scene, EDICULE, PALIER, ALLEGE, ACROTERE } from "../scene3d.js";
 
 const dir = new URL("./plateaux/", import.meta.url);
 const plateaux = Object.fromEntries(readdirSync(dir).filter((f) => f.endsWith(".json")).map((f) => [f.slice(0, -5), JSON.parse(readFileSync(new URL(f, dir), "utf8"))]));
@@ -19,9 +19,9 @@ test("contrat : le plateau porte les champs que la scène lit", () => {
 });
 
 for (const [k, { P, sc }] of Object.entries(scenes)) {
-  const ventile = P.parc === "ventile", n = P.niveaux, T = ventile ? n - 1 : n, F = sc.niveaux;
+  const ventile = P.parc === "ventile", n = P.niveaux, T = n, H = ventile ? n - 1 : n, F = sc.niveaux;
 
-  test(`${k} : un plancher par niveau, plus la couverture en enterré`, () => {
+  test(`${k} : un plancher par niveau, plus la toiture du silo ou la couverture du parc enterré`, () => {
     assert.equal(F.length, T + 1);
     for (let f = 1; f < F.length; f++) assert.ok(proche(F[f].z - F[f - 1].z, P.E), `hauteur d'étage ${f}`);
     assert.ok(proche(ventile ? F[0].z : F[T].z, 0), "cote 0 : rez du silo ou couverture du parc enterré");
@@ -45,6 +45,13 @@ for (const [k, { P, sc }] of Object.entries(scenes)) {
     assert.ok(Math.abs(plein - ouverte - trem) < 0.01 * plein, `${plein.toFixed(1)} - ${ouverte.toFixed(1)} ≠ ${trem.toFixed(1)}`);
   });
 
+  test(`${k} : le dernier niveau de stationnement a ses poteaux et ses poutres, sous la toiture ou la couverture`, () => {
+    const der = F.findLastIndex((x) => x.places > 0);
+    assert.equal(der, T - 1);
+    assert.equal(sc.volumes.filter((v) => v.matiere.startsWith("poteau") && v.niveau === der).length, P.poteaux.length);
+    assert.ok(sc.volumes.some((v) => v.matiere === "couverture" && v.niveau === T));
+  });
+
   test(`${k} : poteaux sous les poutres, d'un plancher à l'autre`, () => {
     const pot = sc.volumes.filter((v) => v.matiere.startsWith("poteau"));
     assert.equal(pot.length, P.poteaux.length * T);
@@ -54,21 +61,21 @@ for (const [k, { P, sc }] of Object.entries(scenes)) {
 
   test(`${k} : rampes d'un plancher au suivant, hélices jusqu'au dernier`, () => {
     const nb = P.rampes.filter((r) => !r.hors).length + P.rampesVoie.length + P.helices.length;
-    assert.equal(sc.rampes.length, nb * T);
+    assert.equal(sc.rampes.length, nb * H);
     for (const r of sc.rampes) {
       const z0 = r.axe[0][2], z1 = r.axe[r.axe.length - 1][2], f = r.niveau;
       assert.ok(proche(z0, F[f].z), "pied de rampe au plancher");
       if (r.genre === "helice") assert.ok(proche(z1, F[f + 1].z, 1e-6), "un tour par étage");
     }
-    for (const h of sc.rampes.filter((r) => r.genre === "helice" && r.niveau === T - 1)) assert.ok(proche(h.axe[h.axe.length - 1][2], F[T].z, 1e-6));
+    for (const h of sc.rampes.filter((r) => r.genre === "helice" && r.niveau === H - 1)) assert.ok(proche(h.axe[h.axe.length - 1][2], F[H].z, 1e-6));
   });
 
-  test(`${k} : escaliers, deux volées par étage et un édicule`, () => {
+  test(`${k} : escaliers, deux volées par étage desservi ; cage jusqu'à la toiture du silo, édicule en enterré`, () => {
     const M = P.marches, cages = P.escaliers.filter((x) => !x.hors);
-    assert.equal(sc.volumes.filter((v) => v.matiere === "marche").length, cages.length * T * (M.n1 - 1 + M.n2 - 1));
+    assert.equal(sc.volumes.filter((v) => v.matiere === "marche").length, cages.length * H * (M.n1 - 1 + M.n2 - 1));
     for (const x of cages) {
       const toit = sc.volumes.filter((v) => v.cle === x.cle).reduce((m, v) => Math.max(m, v.z1), -Infinity);
-      assert.ok(proche(toit, F[T].z + EDICULE + PALIER, 1e-3));
+      assert.ok(proche(toit, ventile ? F[T].z : F[T].z + EDICULE + PALIER, 1e-3), `${toit}`);
     }
     for (const x of cages) assert.ok(x.plan, `${x.cle} : plan du noyau`);
     // Murs percés : à chaque étage, la partie basse des murs (portes, baie) s'arrête à 2,10 m.
@@ -81,7 +88,8 @@ for (const [k, { P, sc }] of Object.entries(scenes)) {
   test(`${k} : façades et terrain`, () => {
     const al = sc.volumes.filter((v) => v.matiere === "allege" && !v.cle);
     if (ventile) {
-      assert.ok(al.length > 0 && al.every((v) => v.niveau >= 1 && proche(v.z1 - v.z0, ALLEGE)), "allèges hors rez");
+      assert.ok(al.length > 0 && al.every((v) => v.niveau >= 1 && v.niveau <= H && proche(v.z1 - v.z0, ALLEGE)), "allèges aux niveaux de stationnement, hors rez");
+      assert.ok(sc.volumes.some((v) => v.matiere === "acrotere" && v.niveau === T && proche(v.z1 - v.z0, ACROTERE)), "acrotère de la toiture");
       assert.ok(sc.volumes.some((v) => v.matiere === "terrain" && v.z1 < 0));
     } else {
       assert.equal(al.length, 0);
