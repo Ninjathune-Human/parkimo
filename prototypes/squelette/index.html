@@ -702,23 +702,31 @@ function grille() {
     s0: Math.min(...P.map((p) => p.s)), s1: Math.max(...P.map((p) => p.s)), t0: Math.min(...P.map((p) => p.t)), t1: Math.max(...P.map((p) => p.t)) };
 }
 // Places adaptées (arrêté du 20 avril 2017, article 3) : 2 % des places, arrondi à l'unité supérieure, de 3,30 m de large
-// au moins, groupées au plus près de l'escalier principal, dans sa rangée à 90°. Une travée (entre deux appuis) loge
-// autant de places adaptées que sa largeur libre en permet ; ce qui reste garde des places de 2,50 m, et le reliquat
-// élargit les places adaptées à parts égales. Rend le nombre de places adaptées.
+// exactement, groupées au plus près de l'escalier principal, dans sa rangée à 90°. Une travée (entre deux appuis) loge
+// autant de places adaptées que le reste peut aller à ses places ordinaires (au moins une, de 2,50 m au moins, élargies
+// à parts égales). Une travée trop courte pour cela ne sert qu'en dernier recours : ses places adaptées s'y partagent
+// alors le reliquat. Rend le nombre de places adaptées.
 function adapter(pl, x, appuis) {
   if (!x || x.hors || TYPES[S.branches[x.i][x.c]].angle !== 90) return 0;
   const E = 3.3, rang = pl.filter((o) => o.i === x.i && o.c === x.c).sort((a, b) => a.q.lo - b.q.lo), cuts = appuis.filter((o) => o.i === x.i && o.c === x.c).map((o) => o.a), groupes = [];
   for (const o of rang) { const g = groupes[groupes.length - 1], prev = g && g[g.length - 1]; if (prev && o.q.lo - prev.q.hi < 0.02 && !cuts.some((a) => a > prev.q.hi - 0.3 && a < o.q.lo + 0.3 && Math.abs(o.q.lo - prev.q.hi) < 0.02 && Math.abs(a - o.q.lo) < 0.25)) g.push(o); else groupes.push([o]); }
   const loin = (g) => Math.max(0, x.a - g[g.length - 1].q.hi, g[0].q.lo - x.a - x.L); groupes.sort((a, b) => loin(a) - loin(b));
-  let faites = 0; const r = x.r, h = x.h, s = x.s, prof = x.prof;
-  for (const g of groupes) {
+  let faites = 0; const r = x.r, h = x.h, s = x.s, prof = x.prof, L0 = LARGEURS[0], pris = new Set();
+  // Places adaptées de 3,30 m que loge une travée de longueur len, le reste allant à ses places ordinaires ; 0 sinon.
+  const loge = (len, besoin) => { for (let m = Math.min(Math.floor((len + 1e-6) / E), besoin); m > 0; m--) { const reste = len - m * E; if (reste < 1e-6 || reste + 1e-6 >= L0) return m; } return 0; };
+  for (const strict of [true, false]) for (const g of groupes) {
     const besoin = Math.ceil(0.02 * pl.length) - faites; if (besoin <= 0) break;
-    const lo = g[0].q.lo, hi = g[g.length - 1].q.hi, len = hi - lo, m = Math.min(Math.floor((len + 1e-6) / E), besoin); if (!m) continue;
-    const k = Math.floor((len - m * E + 1e-6) / LARGEURS[0]), w = (len - k * LARGEURS[0]) / m, versBas = g[0].q.lo >= x.a + x.L - 1e-6; // les places adaptées du côté de l'escalier
+    if (pris.has(g)) continue;
+    const lo = g[0].q.lo, hi = g[g.length - 1].q.hi, len = hi - lo;
+    let m = loge(len, besoin), k, w = E, ws = L0;
+    if (m) { const reste = len - m * E; k = reste < 1e-6 ? 0 : Math.floor((reste + 1e-6) / L0); if (k) ws = reste / k; }
+    else if (!strict && (m = Math.min(Math.floor((len + 1e-6) / E), besoin))) { k = Math.floor((len - m * E + 1e-6) / L0); w = (len - k * L0) / m; }
+    else continue;
+    const versBas = g[0].q.lo >= x.a + x.L - 1e-6; // les places adaptées du côté de l'escalier
     const quad = (a0, a1, pmr) => { const q = [r.P(a0, s * (h + prof)), r.P(a1, s * (h + prof)), r.P(a1, s * h), r.P(a0, s * h)]; q.w = a1 - a0; q.lo = a0; q.hi = a1; return { i: x.i, c: x.c, q, pmr }; };
-    const neuves = []; let a = lo; const largeurs = versBas ? [...Array(m).fill(w), ...Array(k).fill(LARGEURS[0])] : [...Array(k).fill(LARGEURS[0]), ...Array(m).fill(w)];
+    const neuves = []; let a = lo; const largeurs = versBas ? [...Array(m).fill(w), ...Array(k).fill(ws)] : [...Array(k).fill(ws), ...Array(m).fill(w)];
     largeurs.forEach((l, j) => { neuves.push(quad(a, a + l, versBas ? j < m : j >= k)); a += l; });
-    for (const o of g) pl.splice(pl.indexOf(o), 1); pl.push(...neuves); faites += m;
+    for (const o of g) pl.splice(pl.indexOf(o), 1); pl.push(...neuves); faites += m; pris.add(g);
   }
   return faites;
 }

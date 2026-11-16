@@ -174,12 +174,9 @@ fn nearest(p: V2, targets: &[V2]) -> f64 {
         .fold(f64::MAX, f64::min)
 }
 
-/// Remplace des groupes de 4 places alignées par des places PMR au plus près des cibles,
-/// puis marque les places pré-équipées IRVE. Renvoie (pmr, irve) requis.
+/// Pose les places PMR au plus près des cibles (voir `place_pmr`), puis marque les places
+/// pré-équipées IRVE. Renvoie (pmr, irve) requis.
 pub fn assign_kinds(stalls: &mut Vec<Stall>, targets: &[V2], p: &Params) -> (usize, usize, usize) {
-    let w = p.stall_w;
-    let group = 4usize;
-    let k_pmr = ((group as f64 * w) / p.pmr_w + 1e-9).floor() as usize;
     let need = |total: usize, ratio: f64| -> usize {
         if ratio <= 0.0 || total == 0 {
             0
@@ -187,88 +184,8 @@ pub fn assign_kinds(stalls: &mut Vec<Stall>, targets: &[V2], p: &Params) -> (usi
             ((total as f64 * ratio) - 1e-9).ceil().max(1.0) as usize
         }
     };
-
-    if k_pmr >= 1 && p.pmr_ratio > 0.0 {
-        // Fenêtres de 4 places consécutives dans une même rangée.
-        let mut by_row: HashMap<u32, Vec<usize>> = HashMap::new();
-        for (i, s) in stalls.iter().enumerate() {
-            by_row.entry(s.row).or_default().push(i);
-        }
-        let mut windows: Vec<(f64, [usize; 4])> = Vec::new();
-        for ids in by_row.values_mut() {
-            ids.sort_by_key(|&i| stalls[i].idx);
-            for wdw in ids.windows(group) {
-                let ok = (0..group - 1).all(|t| {
-                    stalls[wdw[t + 1]].idx == stalls[wdw[t]].idx + 1
-                        && adjacent(&stalls[wdw[t]].q, &stalls[wdw[t + 1]].q)
-                });
-                if ok {
-                    let c = wdw
-                        .iter()
-                        .map(|&i| stalls[i].access_point(0.0))
-                        .fold(V2::default(), |a, b| a + b)
-                        * 0.25;
-                    windows.push((nearest(c, targets), [wdw[0], wdw[1], wdw[2], wdw[3]]));
-                }
-            }
-        }
-        windows.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-        let mut used = vec![false; stalls.len()];
-        let mut removed = vec![false; stalls.len()];
-        let mut new_stalls: Vec<Stall> = Vec::new();
-        let mut total = stalls.len();
-        let mut pmr = 0usize;
-        for (_, wdw) in windows {
-            if pmr >= need(total, p.pmr_ratio) {
-                break;
-            }
-            if wdw.iter().any(|&i| used[i]) {
-                continue;
-            }
-            for &i in &wdw {
-                used[i] = true;
-                removed[i] = true;
-            }
-            let (s0, s3) = (&stalls[wdw[0]], &stalls[wdw[3]]);
-            // Extrémités du groupe (fond et avant), dans l'ordre de la rangée.
-            let forward = adjacent_dir(&stalls[wdw[0]].q, &stalls[wdw[1]].q);
-            let (b0, f0, b1, f1) = if forward {
-                (s0.q.0[0], s0.q.0[3], s3.q.0[1], s3.q.0[2])
-            } else {
-                (s0.q.0[1], s0.q.0[2], s3.q.0[0], s3.q.0[3])
-            };
-            for t in 0..k_pmr {
-                let a = t as f64 / k_pmr as f64;
-                let c = (t + 1) as f64 / k_pmr as f64;
-                let pa = b0 + (b1 - b0) * a;
-                let pc = b0 + (b1 - b0) * c;
-                let fa = f0 + (f1 - f0) * a;
-                let fc = f0 + (f1 - f0) * c;
-                let q = if forward {
-                    Quad([pa, pc, fc, fa])
-                } else {
-                    Quad([pc, pa, fa, fc])
-                };
-                new_stalls.push(Stall {
-                    q,
-                    kind: KIND_PMR,
-                    row: s0.row,
-                    idx: -1,
-                    perimeter: s0.perimeter,
-                    equipped: false,
-                });
-            }
-            pmr += k_pmr;
-            total = total - group + k_pmr;
-        }
-        let mut kept: Vec<Stall> = stalls
-            .drain(..)
-            .enumerate()
-            .filter(|(i, _)| !removed[*i])
-            .map(|(_, s)| s)
-            .collect();
-        kept.extend(new_stalls);
-        *stalls = kept;
+    if p.pmr_ratio > 0.0 && p.pmr_w > 0.0 {
+        place_pmr(stalls, targets, p, |total| need(total, p.pmr_ratio));
     }
 
     let total = stalls.len();
@@ -323,6 +240,128 @@ pub fn assign_kinds(stalls: &mut Vec<Stall>, targets: &[V2], p: &Params) -> (usi
         stalls[i].equipped = true;
     }
     (pmr_req, irve_req, eq_req)
+}
+
+/// Places PMR de la largeur réglée exactement (3,30 m), par groupes au plus près des cibles. Un
+/// groupe de k places PMR prend la place de n places ordinaires consécutives d'une même rangée
+/// (n = k × largeur PMR / largeur de place, arrondi au-dessus) ; le reste de la rangée est
+/// redistribué à égalité à ses places ordinaires, jamais sous leur largeur. k est le plus grand
+/// groupe qui ne coûte qu'une place (3 avec des places de 2,50 m, 2 avec 2,40 ou 2,30 m).
+fn place_pmr(stalls: &mut Vec<Stall>, targets: &[V2], p: &Params, need: impl Fn(usize) -> usize) {
+    let (w, wp) = (p.stall_w, p.pmr_w);
+    let k_max = if wp <= w { 4 } else { (w / (wp - w) + 1e-9).floor().clamp(1.0, 4.0) as usize };
+    let mut pmr = 0;
+    loop {
+        let req = need(stalls.len());
+        if pmr >= req {
+            break;
+        }
+        let k = k_max.min(req - pmr);
+        let n = ((k as f64 * wp / w) - 1e-9).ceil().max(k as f64) as usize;
+        // D'abord une rangée où il reste des places ordinaires pour prendre le reste ; à défaut, les
+        // places PMR d'une suite trop courte se partagent toute sa longueur.
+        let mut best: Option<(f64, Vec<usize>, Vec<Stall>)> = None;
+        for strict in [true, false] {
+            for run in runs(stalls) {
+                for s in 0..(run.len() + 1).saturating_sub(n) {
+                    let win = &run[s..s + n];
+                    if win.iter().any(|&i| stalls[i].kind != KIND_STD) {
+                        continue;
+                    }
+                    let c = win.iter().map(|&i| stalls[i].access_point(0.0)).fold(V2::default(), |a, b| a + b) * (1.0 / n as f64);
+                    let d = nearest(c, targets);
+                    if best.as_ref().is_some_and(|b| b.0 <= d) {
+                        continue;
+                    }
+                    if let Some(rebuilt) = rebuild(stalls, &run, s, n, k, w, wp, strict) {
+                        best = Some((d, run.clone(), rebuilt));
+                    }
+                }
+            }
+            if best.is_some() {
+                break;
+            }
+        }
+        let Some((_, run, rebuilt)) = best else { break };
+        let mut gone = vec![false; stalls.len()];
+        for &i in &run {
+            gone[i] = true;
+        }
+        let mut i = 0;
+        stalls.retain(|_| {
+            i += 1;
+            !gone[i - 1]
+        });
+        stalls.extend(rebuilt);
+        pmr += k;
+    }
+}
+
+/// Suites de places adjacentes d'une même rangée, dans l'ordre de la rangée.
+fn runs(stalls: &[Stall]) -> Vec<Vec<usize>> {
+    let mut by_row: HashMap<u32, Vec<usize>> = HashMap::new();
+    for (i, s) in stalls.iter().enumerate() {
+        by_row.entry(s.row).or_default().push(i);
+    }
+    let mut rows: Vec<(u32, Vec<usize>)> = by_row.into_iter().collect();
+    rows.sort_by_key(|r| r.0);
+    let mut out = Vec::new();
+    for (_, mut ids) in rows {
+        ids.sort_by_key(|&i| stalls[i].idx);
+        let mut cur: Vec<usize> = Vec::new();
+        for i in ids {
+            if let Some(&j) = cur.last() {
+                if stalls[i].idx != stalls[j].idx + 1 || !adjacent(&stalls[j].q, &stalls[i].q) {
+                    out.push(std::mem::take(&mut cur));
+                }
+            }
+            cur.push(i);
+        }
+        out.push(cur);
+    }
+    out
+}
+
+/// La suite `run` redessinée : les places `s..s + n` deviennent `k` places PMR de largeur `wp`, les
+/// places PMR déjà posées gardent `wp`, les places ordinaires se partagent le reste à égalité (au
+/// moins `w`, sinon `None`). Sans place ordinaire restante, les places PMR se partagent la suite si
+/// `strict` est faux, sinon `None`. Largeurs mesurées perpendiculairement à l'axe des places : le long
+/// de la rangée, chaque place prend une part de la suite proportionnelle à sa largeur.
+#[allow(clippy::too_many_arguments)]
+fn rebuild(stalls: &[Stall], run: &[usize], s: usize, n: usize, k: usize, w: f64, wp: f64, strict: bool) -> Option<Vec<Stall>> {
+    let kinds: Vec<u8> = run[..s].iter().map(|&i| stalls[i].kind).chain(std::iter::repeat_n(KIND_PMR, k)).chain(run[s + n..].iter().map(|&i| stalls[i].kind)).collect();
+    let total: f64 = run.iter().map(|&i| width(&stalls[i].q)).sum();
+    let fixed = kinds.iter().filter(|&&c| c != KIND_STD).count();
+    let free = kinds.len() - fixed;
+    let (w_pmr, w_std) = if free == 0 { (total / fixed as f64, 0.0) } else { (wp, (total - fixed as f64 * wp) / free as f64) };
+    if (free > 0 && w_std < w - 1e-6) || (free == 0 && strict && total - fixed as f64 * wp > 1e-3) {
+        return None;
+    }
+    let (first, last) = (&stalls[run[0]], &stalls[run[run.len() - 1]]);
+    let forward = run.len() < 2 || adjacent_dir(&first.q, &stalls[run[1]].q);
+    let (b0, f0, b1, f1) = if forward {
+        (first.q.0[0], first.q.0[3], last.q.0[1], last.q.0[2])
+    } else {
+        (first.q.0[1], first.q.0[2], last.q.0[0], last.q.0[3])
+    };
+    let mut at = 0.0;
+    let mut out = Vec::with_capacity(kinds.len());
+    for (t, &kind) in kinds.iter().enumerate() {
+        let (a, c) = (at / total, (at + if kind == KIND_STD { w_std } else { w_pmr }) / total);
+        at += if kind == KIND_STD { w_std } else { w_pmr };
+        let (pa, pc) = (b0 + (b1 - b0) * a, b0 + (b1 - b0) * c);
+        let (fa, fc) = (f0 + (f1 - f0) * a, f0 + (f1 - f0) * c);
+        let q = if forward { Quad([pa, pc, fc, fa]) } else { Quad([pc, pa, fa, fc]) };
+        out.push(Stall { q, kind, row: first.row, idx: first.idx + t as i32, perimeter: first.perimeter, equipped: false });
+    }
+    Some(out)
+}
+
+/// Largeur d'une place, perpendiculairement à son axe.
+fn width(q: &Quad) -> f64 {
+    let axis = (q.0[3] - q.0[0]).norm();
+    let across = |v: V2| (v.x * axis.y - v.y * axis.x).abs();
+    across(q.0[1] - q.0[0]).min(across(q.0[2] - q.0[3]))
 }
 
 fn adjacent_dir(a: &Quad, b: &Quad) -> bool {

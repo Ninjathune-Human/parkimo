@@ -180,6 +180,8 @@ fn places_adaptees(out: &mut Vec<Constat>, site: &Site, lay: &Layout) {
         .map(|s| largeur(&s.q))
         .fold(f64::MAX, f64::min);
     if etroite < f64::MAX {
+        // Mesurée au centimètre : les sommets du plan sont arrondis au millimètre.
+        let etroite = (etroite * 100.0).round() / 100.0;
         let l = accessibilite::PMR_LARGEUR;
         out.push(chiffre("acc.pmr.largeur", "Largeur des places adaptées", l, etroite, l.v, true));
         let l = accessibilite::PMR_LONGUEUR;

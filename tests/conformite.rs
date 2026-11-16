@@ -105,22 +105,55 @@ fn sans_place_adaptee_le_nombre_est_en_ecart() {
     assert_eq!(c.source, "Arrêté du 20/04/2017, art. 3");
 }
 
+/// Largeur d'une place mesurée perpendiculairement à son axe (comme le constat).
+fn largeur(q: &[[f64; 2]; 4]) -> f64 {
+    let d = |a: [f64; 2], b: [f64; 2]| [b[0] - a[0], b[1] - a[1]];
+    let axe = d(q[0], q[3]);
+    let l = axe[0].hypot(axe[1]).max(1e-9);
+    let t = |v: [f64; 2]| ((v[0] * axe[1] - v[1] * axe[0]) / l).abs();
+    t(d(q[0], q[1])).min(t(d(q[3], q[2])))
+}
+
+#[test]
+fn les_places_adaptees_font_exactement_la_largeur_reglee() {
+    // 3,30 m quelle que soit la largeur des places ordinaires ou leur inclinaison : le reste de la
+    // rangée est redistribué aux places ordinaires, qui ne descendent jamais sous leur largeur.
+    use parkimo::layout::{KIND_PMR, KIND_PMR_IRVE};
+    for (w, slant) in [(2.5, 90.0), (2.4, 90.0), (2.3, 90.0), (2.5, 60.0), (2.5, 45.0)] {
+        for sc in ["rect", "ruisseau", "capture45"] {
+            let lay = plan(sc, |v| {
+                v["params"]["stall_w"] = json!(w);
+                v["params"]["slant"] = json!(slant);
+            });
+            let pmr = |k: u8| k == KIND_PMR || k == KIND_PMR_IRVE;
+            let l: Vec<f64> = lay.stalls.iter().filter(|s| pmr(s.k)).map(|s| largeur(&s.q)).collect();
+            assert!(!l.is_empty() && lay.metrics.pmr >= lay.metrics.pmr_required, "{sc} {w} {slant}°");
+            assert!(l.iter().all(|x| (x - 3.3).abs() < 2e-3), "{sc} {w} {slant}° : {l:?}");
+            if sc == "rect" {
+                let min = lay.stalls.iter().filter(|s| !pmr(s.k)).map(|s| largeur(&s.q)).fold(f64::MAX, f64::min);
+                assert!(min >= w - 2e-3, "{sc} {w} {slant}° : place ordinaire de {min}");
+            }
+        }
+    }
+}
+
 #[test]
 fn la_largeur_des_places_adaptees_est_mesuree_sur_le_plan() {
-    // Le moteur remplace quatre places par des places adaptées : avec des places de 2,50 m, un
-    // réglage à 3,00 m donne tout de même trois places de 3,33 m. Le constat lit le plan, pas le réglage.
+    // Le constat lit le plan, pas le réglage : 3,30 m conforme, un réglage à 3,00 m en écart.
+    let c = trouve(&constats("rect", |_| {}), "acc.pmr.largeur").clone();
+    assert_eq!((c.statut, c.mesure, c.exige), (Statut::Conforme, Some(3.3), Some(3.3)));
     let cs = constats("rect", |v| v["params"]["pmr_w"] = json!(3.0));
     let c = trouve(&cs, "acc.pmr.largeur");
-    assert_eq!((c.statut, c.mesure, c.exige), (Statut::Conforme, Some(3.333), Some(3.3)));
-    // Avec des places de 2,30 m, les mêmes trois places n'ont plus que 3,07 m.
-    let cs = constats("rect", |v| {
-        v["params"]["pmr_w"] = json!(3.0);
-        v["params"]["stall_w"] = json!(2.3);
-    });
-    let c = trouve(&cs, "acc.pmr.largeur");
-    assert_eq!((c.statut, c.exige), (Statut::Ecart, Some(3.3)));
-    // 9,20 m en trois places, au millimètre des sommets près.
-    assert!((c.mesure.unwrap() - 3.067).abs() < 0.002, "{:?}", c.mesure);
+    assert_eq!((c.statut, c.mesure, c.exige), (Statut::Ecart, Some(3.0), Some(3.3)));
+    // Sommets arrondis au millimètre : une place de 3,30 m peut se mesurer 3,299 m sans être en écart.
+    for (sc, w, slant) in [("rect", 2.4, 90.0), ("rect", 2.5, 60.0), ("capture45", 2.5, 45.0)] {
+        let cs = constats(sc, |v| {
+            v["params"]["stall_w"] = json!(w);
+            v["params"]["slant"] = json!(slant);
+        });
+        let c = trouve(&cs, "acc.pmr.largeur");
+        assert_eq!((c.statut, c.mesure), (Statut::Conforme, Some(3.3)), "{sc} {w} {slant}°");
+    }
 }
 
 #[test]
