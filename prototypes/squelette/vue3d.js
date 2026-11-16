@@ -59,6 +59,7 @@ body.en3d #p3d { display: block; }
 #p3d-constats { margin: 8px 0 0; font-size: 12px; color: var(--rouge); max-width: 240px; }
 #p3d-constats:empty { display: none; }
 @media (max-width: 760px) { #p3d { right: max(8px, env(safe-area-inset-right)); top: calc(80px + env(safe-area-inset-top)); padding: 8px 14px; border-radius: 18px; min-width: 0; } } /* sous le bilan replié */
+@media (max-width: 760px) { #barre > button { padding: 0 4px; font-size: 14px; } } /* six commandes sur une ligne, 3D comprise, dès 375 px */
 </style>`);
 const toile = document.createElement("canvas");
 toile.id = "vue3d"; toile.setAttribute("aria-label", "Vue 3D du parc");
