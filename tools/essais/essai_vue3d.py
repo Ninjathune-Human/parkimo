@@ -99,6 +99,18 @@ with sync_playwright() as p:
                 pg.screenshot(path=str(out / f"{nom}-{scen}-nuit.png"))
                 pg.click("#theme button[data-theme='jour']"); pg.wait_for_timeout(300)
                 assert pg.evaluate("window.vue3d.fond()") == "#eef1ef", pg.evaluate("window.vue3d.fond()")
+                # Niveaux déployés : côte à côte vers la droite de l'écran, chacun au sol ; repliés : empilés ; réversible.
+                POS = "window.vue3d.modele.children.filter((g) => g.userData.niveau >= 0).map((g) => [g.userData.niveau, ...g.position.toArray()])"
+                pg.click("#p3d-deploi button[data-d='1']"); pg.wait_for_timeout(1600)
+                e, pos = pg.evaluate("window.vue3d.etat()"), pg.evaluate(POS)
+                assert e["deploi"] == 1 and not e["deploiement"], e
+                ecr = pg.evaluate("window.vue3d.modele.children.filter((g) => g.userData.niveau >= 0).map((g) => g.position.clone().project(window.vue3d.camera).x)")
+                assert len(set(round(x, 3) for x in ecr)) >= len(pos) - 1, ecr # chaque niveau à sa place, de gauche à droite
+                pg.screenshot(path=str(out / f"{nom}-{scen}-deployes.png"))
+                pg.click("#p3d-deploi button[data-d='0']"); pg.wait_for_timeout(300); pg.click("#p3d-deploi button[data-d='1']"); pg.wait_for_timeout(200)
+                pg.click("#p3d-deploi button[data-d='0']"); pg.wait_for_timeout(1700)
+                e, pos = pg.evaluate("window.vue3d.etat()"), pg.evaluate(POS)
+                assert e["deploi"] == 0 and all(abs(v) < 1e-6 for p_ in pos for v in p_[1:]), (e, pos)
             for rendu in ("maquette", "trait"):
                 panneau(pg, True); pg.click(f'#p3d-rendu button[data-r="{rendu}"]')
                 if nom == "iphone": panneau(pg, False) # sur iPhone, le panneau est replié par défaut

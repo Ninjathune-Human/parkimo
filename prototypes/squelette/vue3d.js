@@ -65,6 +65,7 @@ toile.id = "vue3d"; toile.setAttribute("aria-label", "Vue 3D du parc");
 document.querySelector("#plan").after(toile);
 document.querySelector("#bilan").insertAdjacentHTML("afterend", `<section id="p3d" class="verre" aria-label="Vue 3D">
   <details id="p3d-det"${innerWidth < 760 ? "" : " open"}><summary><h1>Vue 3D</h1><span id="p3d-resume">–</span></summary>
+  <div class="rang"><span>Niveaux</span><div class="seg" id="p3d-deploi"><button data-d="0">Empilés</button><button data-d="1">Déployés</button></div></div>
   <div class="rang"><span>Rendu</span><div class="seg" id="p3d-rendu"><button data-r="trait">Trait</button><button data-r="maquette">Maquette</button></div></div>
   <p id="p3d-constats"></p></details></section>`);
 const $ = (s) => document.querySelector(s), bouton = $("#b-3d");
@@ -184,6 +185,7 @@ function construire() {
     modele.add(g);
   }
   sale = false;
+  if (deploi > 0) { pasDeploi(); etaler(deploi); }
   appliquerRendu();
   ombres();
   $("#p3d-resume").textContent = sc.places ? `${sc.niveaux.filter((x) => x.places).length} niv. · ${sc.places.toLocaleString("fr-FR")} pl.` : "aucun plan";
@@ -206,13 +208,14 @@ function appliquerRendu(k = 1) {
 }
 
 // Le soleil vient de l'ouest-sud-ouest, assez haut : les ombres tombent vers la droite de l'axonométrie.
-function ombres() {
-  if (!sc) return;
-  const c = new THREE.Vector3(...V3((sc.min[0] + sc.max[0]) / 2, (sc.min[1] + sc.max[1]) / 2, (sc.haut + sc.bas) / 2)), r = Math.hypot(sc.max[0] - sc.min[0], sc.max[1] - sc.min[1], sc.haut - sc.bas) / 2 + 14;
+function ombres(b = boiteNiveaux()) {
+  if (!sc || b.isEmpty()) return;
+  const c = b.getCenter(new THREE.Vector3()), r = b.getSize(new THREE.Vector3()).length() / 2 + 14;
   soleil.target.position.copy(c); soleil.position.copy(c).add(new THREE.Vector3(-1, 1.6, 0.55).normalize().multiplyScalar(r * 2));
   const o = soleil.shadow.camera; o.left = o.bottom = -r; o.right = o.top = r; o.near = 0.5; o.far = r * 4; o.updateProjectionMatrix();
   soleil.shadow.needsUpdate = true;
 }
+function boiteNiveaux() { const b = new THREE.Box3(); modele.updateMatrixWorld(true); for (const g of modele.children) if (g.userData.niveau >= 0) b.expandByObject(g); return b; }
 
 // ---- Caméra : axonométrie orthographique, une pose = cible, azimut, inclinaison et échelle (pixels par mètre). Azimut
 // 0 : caméra au sud, le nord en haut de l'écran comme dans le plan. Première vue : du sud-ouest, à 31° au-dessus de
@@ -230,6 +233,15 @@ function echelleVue(c, theta, phi) {
   const etroit = W < 760, hautLibre = H - (etroit ? 230 : 150), largeLibre = W - (etroit ? 24 : 120);
   return Math.max(0.5, Math.min(largeLibre / (2 * ex), hautLibre / (2 * ey)));
 }
+// La même chose pour une boîte de three.js : les niveaux tels qu'ils sont posés, déployés compris.
+function poseBoite(b, theta, phi) {
+  const c = b.getCenter(new THREE.Vector3()); poser({ cible: c, theta, phi, s: echelle });
+  const droite = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0), haut = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+  let ex = 0, ey = 0;
+  for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) for (const z of [b.min.z, b.max.z]) { const p = new THREE.Vector3(x, y, z).sub(c); ex = Math.max(ex, Math.abs(p.dot(droite))); ey = Math.max(ey, Math.abs(p.dot(haut))); }
+  const etroit = W < 760, hautLibre = H - (etroit ? 230 : 150), largeLibre = W - (etroit ? 24 : 120);
+  return { cible: c, theta, phi, s: Math.max(0.2, Math.min(largeLibre / (2 * ex), hautLibre / (2 * ey))) };
+}
 let derniere = null; // la dernière pose 3D, retrouvée au retour en 3D
 function poseCadree(theta = null, phi = PENCHE) {
   const c = centre();
@@ -238,7 +250,7 @@ function poseCadree(theta = null, phi = PENCHE) {
 }
 function cadrer() {
   if (!sc || !sc.volumes.length) return;
-  const p = pose(); poser(poseCadree(p.theta, p.phi)); controles.update(); demander();
+  const p = pose(); poser(deploi > 0 ? poseBoite(boiteNiveaux(), p.theta, p.phi) : poseCadree(p.theta, p.phi)); controles.update(); demander();
 }
 function cadrage() { camera.left = -W / 2 / echelle; camera.right = W / 2 / echelle; camera.top = H / 2 / echelle; camera.bottom = -H / 2 / echelle; camera.updateProjectionMatrix(); }
 
@@ -261,6 +273,7 @@ function image() {
     if (sensAnim > 0 && progres >= 1) finEntree(); else if (sensAnim < 0 && progres <= 0) finSortie(); else demander();
     return;
   }
+  if (animD) { deployer(performance.now()); renderer.render(monde, camera); demander(); return; }
   const bouge = controles.update();
   renderer.render(monde, camera);
   if (bouge) demander(); else repos = setTimeout(soigne, 140);
@@ -337,6 +350,7 @@ function entrer() {
 }
 function sortir() {
   if (!actif || sensAnim < 0) return;
+  if (deploi > 0 || animD) { animD = null; deploi = 0; etaler(0); ombres(); boutonsDeploi(0); } // le plan est celui des niveaux empilés
   bouton.setAttribute("aria-pressed", "false"); toile.classList.add("sortie"); clearTimeout(repos); // le plan reprend le doigt aussitôt
   if (sensAnim === 0) { // depuis la 3D posée : retour au zénith sur le point regardé ; le plan est recalé dessus
     derniere = pose(); palette = couleursPlan(); poseB = derniere; progres = 1;
@@ -352,6 +366,48 @@ function finSortie() {
   anim = null; sensAnim = 0; progres = 0; actif = false; controles.enabled = true; toile.classList.remove("visible");
   fermeture = setTimeout(() => { document.body.classList.remove("en3d"); toile.classList.remove("sortie"); }, FONDU);
 }
+
+// ---- Niveaux déployés : chaque niveau sort de la pile, se pose au sol et glisse vers la droite de l'écran, à côté du
+// précédent, en éventail, du plus proche du sol au plus éloigné ; le terrain s'aplatit. Le même réglage les replie.
+// Réversible à tout instant ; mouvement réduit : sans transition. La vue recadre l'ensemble pendant le mouvement.
+const DUREE_D = 1100;
+let deploi = 0, animD = null, dirD = new THREE.Vector3(1, 0, 0), pasD = 0;
+function pasDeploi() { // la droite de l'écran, à plat, et la place d'un niveau dans ce sens, plus un écart
+  if (deploi === 0) { dirD = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0); dirD.y = 0; if (dirD.lengthSq() < 1e-6) dirD.set(1, 0, 0); dirD.normalize(); }
+  const d = [sc.min[0], sc.max[0]].flatMap((x) => [sc.min[1], sc.max[1]].map((y) => new THREE.Vector3(...V3(x, y, 0)).dot(dirD))), e = Math.max(...d) - Math.min(...d);
+  pasD = e + Math.max(6, 0.12 * e);
+}
+function etaler(D) {
+  if (!sc || !sc.niveaux.length) return;
+  const F = sc.niveaux, T = F.length - 1, enterre = F[0].z < -1e-6, rang = (f) => (enterre ? Math.max(0, T - 1 - f) : f);
+  const K = Math.max(0, ...F.map((_, f) => rang(f))), d = K > 0 ? Math.min(0.14, 0.45 / K) : 0;
+  for (const g of modele.children) {
+    const f = g.userData.niveau;
+    if (f < 0) { g.scale.y = Math.max(0.01, 1 - lisse(D)); g.position.set(0, 0, 0); continue; }
+    const r = rang(f), k = lisse(Math.min(1, Math.max(0, (D - r * d) / (1 - K * d))));
+    g.position.set(dirD.x * pasD * r * k, -F[f].z * k, dirD.z * pasD * r * k); g.scale.y = 1; g.visible = true;
+  }
+}
+function boutonsDeploi(v) { for (const b of document.querySelectorAll("#p3d-deploi button")) b.setAttribute("aria-pressed", String(+b.dataset.d === v)); }
+function deploiVers(v) {
+  if (!actif || anim || !sc) return;
+  const de = deploi, cours = animD ? animD.vers : deploi; if (cours === v) return;
+  if (de === 0) pasDeploi();
+  const p = pose(), avant = deploi; etaler(v); const b = boiteNiveaux(); etaler(avant);
+  ombres(boiteNiveaux().union(b));
+  animD = { de, vers: v, t0: performance.now(), A: p, B: poseBoite(b, p.theta, p.phi) }; poser(p);
+  controles.enabled = false; boutonsDeploi(v);
+  if (reduit.matches) animD.t0 -= DUREE_D;
+  demander();
+}
+function deployer(t) {
+  const u = Math.min(1, (t - animD.t0) / DUREE_D);
+  deploi = animD.de + (animD.vers - animD.de) * u; etaler(deploi); poser(melange(animD.A, animD.B, lisse(u)));
+  if (u >= 1) { deploi = animD.vers; animD = null; etaler(deploi); ombres(); controles.enabled = true; controles.update(); }
+}
+for (const b of document.querySelectorAll("#p3d-deploi button")) b.addEventListener("click", () => deploiVers(+b.dataset.d));
+boutonsDeploi(0);
+
 bouton.addEventListener("click", () => (actif && sensAnim >= 0 ? sortir() : entrer()));
 // Les commandes du plan gardent leur place : Emprise et Tracer ramènent au plan et entrent dans leur mode ; Cadrer cadre la vue active.
 for (const id of ["#b-emprise", "#b-tracer"]) $(id).addEventListener("click", () => sortir(), { capture: true });
@@ -366,6 +422,6 @@ for (const b of document.querySelectorAll("#p3d-rendu button")) b.addEventListen
 // Le squelette appelle maj() après chaque calcul : la scène sera reconstruite à la prochaine image, si la vue est ouverte.
 // figer(p) et projeter() servent aux essais : une image de la levée à l'avancement p, et la position à l'écran d'un point.
 window.vue3d = { maj() { sale = true; demander(); }, entrer, sortir, cadrer, camera, controles, modele, mesure: null, scene: () => sc, fond: () => `#${monde.background.getHexString()}`,
-  etat: () => ({ actif, anim: !!anim, progres, sens: sensAnim }),
+  etat: () => ({ actif, anim: !!anim, progres, sens: sensAnim, deploi, deploiement: !!animD }),
   figer(p) { anim = null; sensAnim = 0; progres = p; levee(p); renderer.render(monde, camera); },
   projeter(x, y, z = 0) { const v = new THREE.Vector3(...V3(x, y, z)).project(camera); return [((v.x + 1) / 2) * W, ((1 - v.y) / 2) * H]; } };
