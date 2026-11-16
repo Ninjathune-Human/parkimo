@@ -104,13 +104,16 @@ with sync_playwright() as p:
                 if nom == "iphone": panneau(pg, False) # sur iPhone, le panneau est replié par défaut
                 pg.wait_for_timeout(700); pg.screenshot(path=str(out / f"{nom}-{scen}-{rendu}.png"))
             panneau(pg, True); pg.click('#p3d-rendu button[data-r="maquette"]')
-        # Un niveau de plus : la scène suit ; Annuler revient ; Emprise ramène au plan.
-        panneau(pg, True)
+        # Un niveau de plus, depuis le menu Type, en 3D : la scène suit ; Annuler revient ; Emprise ramène au plan.
         n0 = pg.evaluate("window.vue3d.scene().niveaux.length")
-        pg.click("#p3d-plus"); pg.wait_for_timeout(500)
+        pg.click("#b-type"); pg.wait_for_timeout(200)
+        assert pg.evaluate("document.querySelector('#f-n').textContent") == "5"
+        pg.click("#b-niv-plus"); pg.wait_for_timeout(500)
         assert pg.evaluate("window.vue3d.scene().niveaux.length") == n0 + 1 and pg.evaluate("S.niveaux") == 6
+        assert pg.evaluate("document.querySelector('#f-n').textContent") == "6"
         pg.click("#b-annuler"); pg.wait_for_timeout(500)
         assert pg.evaluate("window.vue3d.scene().niveaux.length") == n0 and pg.evaluate("S.niveaux") == 5
+        pg.click("#b-type"); pg.wait_for_timeout(200)
         # Gestes : un glisser fait tourner la vue (OrbitControls), sans toucher au plan.
         avant = pg.evaluate("JSON.stringify(S)"), pg.evaluate("window.vue3d.camera.position.toArray()")
         cx, cy = vp["width"] / 2, vp["height"] / 2

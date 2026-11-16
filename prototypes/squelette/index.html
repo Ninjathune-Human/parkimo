@@ -57,9 +57,13 @@ button:disabled { opacity: .35; }
 .seg button { flex: 1; min-width: 0; min-height: 40px; padding: 0 4px; border-radius: 12px; font-size: 13px; font-weight: 500; }
 .seg[data-cote="rampe"] { display: grid; grid-template-columns: 1fr 1fr; } /* quatre types de rampe, sur deux rangs */
 .seg button[aria-pressed="true"] { background: var(--verre); color: var(--label); box-shadow: 0 1px 4px rgba(0,0,0,.18); font-weight: 600; }
+#f-niveaux { display: grid; grid-template-columns: 1fr 150px; align-items: center; font-size: 13px; color: var(--label-2); }
+.pas { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; background: rgba(127,127,127,.16); border-radius: 14px; padding: 2px; }
+.pas button { min-height: 40px; min-width: 0; padding: 0; border-radius: 12px; font-size: 20px; font-weight: 400; }
+.pas output { text-align: center; color: var(--label); font-weight: 600; font-variant-numeric: tabular-nums; }
 #fiche .bas { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--label-2); }
 #f-portee { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-#f-portee[hidden], #f-mur[hidden], #f-trame[hidden], #f-systeme[hidden], #f-escalier[hidden], #f-escauto[hidden], #f-parc[hidden] { display: none; }
+#f-portee[hidden], #f-mur[hidden], #f-trame[hidden], #f-systeme[hidden], #f-escalier[hidden], #f-escauto[hidden], #f-parc[hidden], #f-niveaux[hidden] { display: none; }
 #f-mur, #f-trame, #f-escalier, #f-escauto { display: grid; }
 #b-plein[aria-pressed="true"], #b-trame[aria-pressed="true"], #b-principal[aria-pressed="true"], #b-escauto[aria-pressed="true"] { background: var(--mur); color: var(--fond); }
 #f-portee button, #f-mur button, #f-trame button, #f-escalier button, #f-escauto button { min-height: 40px; padding: 0 6px; font-size: 13px; background: color-mix(in srgb, var(--os) 18%, transparent); border-radius: 12px; }
@@ -93,6 +97,7 @@ button:disabled { opacity: .35; }
   <div id="f-systeme" class="seg" role="group" aria-label="Système porteur" hidden></div>
   <div id="f-escalier" hidden><button id="b-principal" aria-pressed="false">Escalier principal · deux ascenseurs</button></div>
   <div id="f-parc" class="seg" role="group" aria-label="Type de parking" hidden><button data-parc="enterre">Enterré</button><button data-parc="ventile">Aérien</button></div>
+  <div id="f-niveaux" hidden><span>Niveaux</span><div class="pas"><button id="b-niv-moins" aria-label="Un niveau de moins">−</button><output id="f-n">4</output><button id="b-niv-plus" aria-label="Un niveau de plus">+</button></div></div>
   <div id="f-escauto" hidden><button id="b-escauto" aria-pressed="true">Placement automatique</button></div>
   <div id="f-trame" hidden><button id="b-trame" aria-pressed="true">Trame automatique</button></div>
   <div id="f-mur" hidden><button id="b-plein" aria-pressed="false">Remplissage en maçonnerie</button></div>
@@ -1367,17 +1372,20 @@ cv.addEventListener("wheel", (ev) => { ev.preventDefault(); const e = pos(ev), m
 for (const seg of document.querySelectorAll('#fiche .seg[data-cote="g"], #fiche .seg[data-cote="d"]')) for (const k of Object.keys(TYPES)) { const b = document.createElement("button"); b.textContent = TYPES[k].nom; b.dataset.t = k; seg.append(b); }
 for (const k of Object.keys(SYSTEMES)) { const x = document.createElement("button"); x.textContent = SYSTEMES[k].nom; x.dataset.s = k; $("#f-systeme").append(x); }
 // Type de parc (article PS 13 § 1) : il fixe les distances aux escaliers ; les escaliers placés d'office suivent.
+// Nombre de niveaux de stationnement (1 à 12) ; en aérien, le dernier est le toit-terrasse.
+const niveaux = (d) => { const n = Math.max(1, Math.min(12, S.niveaux + d)); if (n === S.niveaux) return; garder(); S.niveaux = n; rafraichir(); fiche(); enregistrer(); };
+$("#b-niv-moins").addEventListener("click", () => niveaux(-1)); $("#b-niv-plus").addEventListener("click", () => niveaux(1));
 $("#f-parc").addEventListener("click", (ev) => { const x = ev.target.closest("button[data-parc]"); if (!x || x.dataset.parc === S.parc) return; garder(); S.parc = x.dataset.parc; rafraichir(); fiche(); enregistrer(); });
 $("#f-systeme").addEventListener("click", (ev) => { const x = ev.target.closest("button[data-s]"); if (!x || x.dataset.s === S.systeme) return; garder(); S.systeme = x.dataset.s; rafraichir(); fiche(); enregistrer(); });
 const nb = (v, k = 1) => v.toLocaleString("fr-FR", { maximumFractionDigits: k });
 function fiche() {
   $("#fiche").classList.toggle("menu", actif === 3 && choixH < 0 && choixR < 0 && !BR[choix]); // menu des rampes, rien de choisi
   const rampe = actif === 3 && choixR >= 0 && calc ? calc.rampes[choixR] : null, hel = actif === 3 && choixH >= 0 && calc ? calc.helices[choixH] : null, esc = actif === 2 && choixE >= 0 && calc ? calc.escaliers[choixE] : null;
-  $("#f-escalier").hidden = !esc; $("#f-escauto").hidden = $("#f-parc").hidden = true; $("#b-type").setAttribute("aria-pressed", String(menuType));
+  $("#f-escalier").hidden = !esc; $("#f-escauto").hidden = $("#f-parc").hidden = $("#f-niveaux").hidden = true; $("#b-type").setAttribute("aria-pressed", String(menuType));
   if (menuType) { // menu « Type de parking » : enterré ou aérien, il fixe les distances aux escaliers (article PS 13 § 1)
-    $("#fiche").classList.remove("menu"); $("#fiche").hidden = false; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = $("#f-escalier").hidden = $("#b-suppr").hidden = true; $("#f-parc").hidden = false; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
+    $("#fiche").classList.remove("menu"); $("#fiche").hidden = false; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = $("#f-escalier").hidden = $("#b-suppr").hidden = true; $("#f-parc").hidden = $("#f-niveaux").hidden = false; $("#f-n").textContent = S.niveaux; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
     const k = PARCS[S.parc] ? S.parc : "enterre", L = PARCS[k]; for (const x of $("#f-parc").children) x.setAttribute("aria-pressed", String(x.dataset.parc === k));
-    $("#f-long").textContent = `Type de parking · ${k === "enterre" ? "enterré" : "aérien, largement ventilé (article PS 3)"} : escalier à ${L.dist} m au plus, ${L.impasse} m sans second escalier`; return;
+    $("#f-long").textContent = `Type de parking · ${k === "enterre" ? "enterré" : "aérien, largement ventilé (article PS 3)"} : escalier à ${L.dist} m au plus, ${L.impasse} m sans second escalier${k === "enterre" ? "" : " ; le dernier niveau est un toit-terrasse"}`; return;
   }
   if (esc) {
     $("#fiche").hidden = false; $("#f-portee").hidden = $("#f-mur").hidden = $("#f-trame").hidden = $("#f-systeme").hidden = true; $("#b-suppr").hidden = false; for (const l of document.querySelectorAll("#fiche .ligne")) l.hidden = true;
@@ -1499,6 +1507,7 @@ if (neuf) S = EXEMPLE(16);
 S.v = 5;
 if (!Array.isArray(S.passages)) S.passages = [];
 if (!PARCS[S.parc]) S.parc = "enterre"; // par défaut le cas le plus strict : 40 m et 25 m
+if (!(S.niveaux >= 1 && S.niveaux <= 12)) S.niveaux = 4; // niveaux de stationnement
 if (S.escAuto === undefined) S.escAuto = !(S.escaliers || []).length; // un plan sans escalier les reçoit d'office ; ceux posés à la main restent en place
 if (!SYSTEMES[S.systeme]) S.systeme = "beton"; // par défaut la grande portée béton : aucun appui dans le plateau
 if (S.auto === undefined) S.auto = true; // un essai enregistré avant la trame automatique la reçoit

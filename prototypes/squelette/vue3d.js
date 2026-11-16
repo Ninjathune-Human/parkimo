@@ -1,7 +1,7 @@
 // Vue 3D du squelette (lot 2 du plan claude/plan-vue-3d.md) : la scène décrite par scene3d.js, rendue par three.js.
 // La vue ne décide rien : elle affiche ce que la scène décrit, et se reconstruit après chaque calcul du squelette.
 // Chargée par le squelette avec le drapeau ?3d dans l'adresse. Rendu à la demande : aucune image sans changement.
-/* global S, garder, enregistrer, rafraichir */
+/* global rafraichir, vue */
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
@@ -23,11 +23,11 @@ const PLATRE = "#F4F3F0", ENROBE = "#41474B";
 const BASE = { terrain: "#D3D6D2", dallage: PLATRE, radier: PLATRE, dalle: PLATRE, couverture: PLATRE, enrobe: ENROBE, place: "#50575C",
   constat: "#C9473E", pieton: "#2E77D8", zebre: "#F2F2EF", poteau: PLATRE, poteau_constat: "#FF3B30", poutre: PLATRE, voile: PLATRE,
   maconnerie: "#CDBEAA", noyau: PLATRE, marche: "#E3E2DE", palier: "#ECEBE8", ascenseur: "#9DB0C2", rampe: ENROBE, rampe_constat: "#C9473E",
-  rive: PLATRE, allege: PLATRE, acrotere: PLATRE, edicule: PLATRE };
+  rive: PLATRE, allege: PLATRE, edicule: PLATRE };
 const SOMBRE = { terrain: "#1E2326", dallage: "#343B40", radier: "#30363A", dalle: "#3B4247", couverture: "#3B4247", enrobe: "#2E3438", place: "#363D42",
   constat: "#7A3A36", pieton: "#2F4C69", zebre: "#C9D0CD", poteau: "#454D53", poteau_constat: "#FF453A", poutre: "#40474D", voile: "#3E454A",
   maconnerie: "#4A443D", noyau: "#4A5258", marche: "#42494F", palier: "#42494F", ascenseur: "#38424C", rampe: "#5E5240", rampe_constat: "#7A3A36",
-  rive: "#4A5258", allege: "#4A5258", acrotere: "#4A5258" };
+  rive: "#4A5258", allege: "#4A5258" };
 const TRAIT = { ...Object.fromEntries(Object.keys(BASE).map((k) => [k, "#FFFFFF"])), terrain: "#F3F3F1", enrobe: "#F2F2F2", constat: "#F7CBC7",
   pieton: "#E3ECF6", rampe: "#F6EFE1", rampe_constat: "#F7CBC7", poteau_constat: "#FF8A80", ascenseur: "#EEF0F2", maconnerie: "#F5F1EB" };
 const nuit = () => document.documentElement.dataset.theme === "nuit"; // posé par le squelette (Affichage : jour ou nuit)
@@ -55,9 +55,6 @@ body.en3d #p3d { display: block; }
 #p3d-det > summary::after { content: ""; width: 7px; height: 7px; border-right: 1.5px solid var(--label-2); border-bottom: 1.5px solid var(--label-2); transform: rotate(-135deg) translate(-2px, -2px); transition: transform .15s; justify-self: end; }
 #p3d-det:not([open]) > summary::after { transform: rotate(45deg) translate(-2px, -2px); }
 #p3d .rang { display: grid; grid-template-columns: 62px 1fr; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--label-2); }
-#p3d .pas { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; background: rgba(127,127,127,.16); border-radius: 14px; padding: 2px; }
-#p3d .pas button { min-height: 40px; min-width: 0; padding: 0; border-radius: 12px; font-size: 20px; font-weight: 400; }
-#p3d .pas output { text-align: center; color: var(--label); font-weight: 600; font-variant-numeric: tabular-nums; }
 #p3d-constats { margin: 8px 0 0; font-size: 12px; color: var(--rouge); max-width: 240px; }
 #p3d-constats:empty { display: none; }
 @media (max-width: 760px) { #p3d { right: max(8px, env(safe-area-inset-right)); top: calc(80px + env(safe-area-inset-top)); padding: 8px 14px; border-radius: 18px; min-width: 0; } } /* sous le bilan replié */
@@ -68,7 +65,6 @@ toile.id = "vue3d"; toile.setAttribute("aria-label", "Vue 3D du parc");
 document.querySelector("#plan").after(toile);
 document.querySelector("#bilan").insertAdjacentHTML("afterend", `<section id="p3d" class="verre" aria-label="Vue 3D">
   <details id="p3d-det"${innerWidth < 760 ? "" : " open"}><summary><h1>Vue 3D</h1><span id="p3d-resume">–</span></summary>
-  <div class="rang"><span>Niveaux</span><div class="pas"><button id="p3d-moins" aria-label="Un niveau de moins">−</button><output id="p3d-n">4</output><button id="p3d-plus" aria-label="Un niveau de plus">+</button></div></div>
   <div class="rang"><span>Rendu</span><div class="seg" id="p3d-rendu"><button data-r="trait">Trait</button><button data-r="maquette">Maquette</button></div></div>
   <p id="p3d-constats"></p></details></section>`);
 const $ = (s) => document.querySelector(s), bouton = $("#b-3d");
@@ -190,7 +186,6 @@ function construire() {
   sale = false;
   appliquerRendu();
   ombres();
-  $("#p3d-n").textContent = P ? P.niveaux : "–";
   $("#p3d-resume").textContent = sc.places ? `${sc.niveaux.filter((x) => x.places).length} niv. · ${sc.places.toLocaleString("fr-FR")} pl.` : "aucun plan";
   $("#p3d-constats").textContent = sc.constats.join(" · ");
   window.vue3d.mesure = { scene: +(t1 - t0).toFixed(1), maillage: +(performance.now() - t1).toFixed(1), volumes: sc.volumes.length, rubans: sc.rubans.length, sols: sc.sols.length };
@@ -299,7 +294,7 @@ function couleursPlan() {
   return { terrain: c("--fond"), dallage: c("--dalle"), radier: c("--dalle"), dalle: c("--dalle"), couverture: c("--dalle"), enrobe: c("--enrobe"), place: c("--place"),
     constat: melangeCss("--place", "--rouge", 0.28), pieton: melangeCss("--dalle", "--pieton", 0.7), zebre: c("--marque"), poteau: c("--mur"), poteau_constat: c("--rouge"),
     poutre: melangeCss("--dalle", "--mur", 0.55), voile: c("--mur"), maconnerie: c("--mur"), noyau: c("--mur"), marche: c("--fond"), palier: c("--fond"), ascenseur: c("--fond"),
-    rampe: c("--rampe"), rampe_constat: c("--rampe"), rive: c("--mur"), allege: c("--mur"), acrotere: c("--mur"), marque: c("--marque") };
+    rampe: c("--rampe"), rampe_constat: c("--rampe"), rive: c("--mur"), allege: c("--mur"), marque: c("--marque") };
 }
 function melange(A, B, k) {
   const d = Math.atan2(Math.sin(B.theta - A.theta), Math.cos(B.theta - A.theta));
@@ -366,9 +361,6 @@ new ResizeObserver(taille).observe(toile);
 new MutationObserver(() => { appliquerRendu(); demander(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
 // ---- Panneau : niveaux (annulables, enregistrés avec le plan) et rendu (réglage de la vue, gardé dans ce navigateur).
-const niveaux = (d) => { const n = Math.max(1, Math.min(12, Math.round(S.niveaux || 4) + d)); if (n === (S.niveaux || 4)) return; garder(); S.niveaux = n; enregistrer(); rafraichir(); };
-$("#p3d-moins").addEventListener("click", () => niveaux(-1));
-$("#p3d-plus").addEventListener("click", () => niveaux(1));
 for (const b of document.querySelectorAll("#p3d-rendu button")) b.addEventListener("click", () => { reglages.rendu = b.dataset.r; garderReglages(); appliquerRendu(); demander(); });
 
 // Le squelette appelle maj() après chaque calcul : la scène sera reconstruite à la prochaine image, si la vue est ouverte.
